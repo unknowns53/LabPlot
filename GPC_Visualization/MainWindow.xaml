@@ -523,13 +523,15 @@
                         BorderThickness="0,1,0,0"
                         Padding="16,12">
                     <StackPanel>
-                        <TextBlock Text="書式を反映"
+                        <TextBlock Text="書式操作"
                                    FontWeight="SemiBold"
                                    FontSize="12"
                                    Foreground="#334155"
                                    Margin="0,0,0,6" />
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="8" />
                                 <ColumnDefinition Width="*" />
@@ -541,9 +543,14 @@
                                     Click="ApplyGraphSettingsButton_Click" />
                             <Button x:Name="ResetGraphSettingsButton"
                                     Grid.Column="2"
-                                    Content="Auto"
+                                    Content="既定"
                                     Height="32"
                                     Click="ResetGraphSettingsButton_Click" />
+                            <Button x:Name="SaveDefaultFormattingButton"
+                                    Grid.Column="4"
+                                    Content="既定保存"
+                                    Height="32"
+                                    Click="SaveDefaultFormattingButton_Click" />
                         </Grid>
                     </StackPanel>
                 </Border>

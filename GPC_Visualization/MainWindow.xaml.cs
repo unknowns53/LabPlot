@@ -29,23 +29,35 @@ public partial class MainWindow : Window
     ];
     private const int DefaultExportWidth = 1200;
     private const int DefaultExportHeight = 720;
-    private const string DefaultPlotFrameColorHex = "#475569";
+    private static readonly JsonSerializerOptions FormattingConfigJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+    };
+    private static readonly string FormattingConfigPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "GPC_Visualization",
+        "formatting_config.json");
 
     private readonly List<GpcDataset> _loadedDatasets = new();
     private readonly List<DatasetStyle> _datasetStyles = new();
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
+    private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private int _activeIndex = -1;
     private GpcDataset? _currentDataset;
     private CalibrationCurveSet? _calibrationCurveSet;
     private CalibrationCurve? _selectedCalibrationCurve;
     private WpfPlot? _chromatogramPlot;
     private bool _updatingCalibrationSelection;
+    private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
 
     public MainWindow()
     {
         InitializeComponent();
+        LoadFormattingDefaults();
+        ApplyFormattingConfigToControls(_formattingDefaults);
         DatasetListBox.ItemsSource = _datasetEntries;
         Loaded += MainWindow_Loaded;
     }
@@ -54,8 +66,23 @@ public partial class MainWindow : Window
     {
         public string? ColorHex { get; set; }
         public string? LegendName { get; set; }
-        public double LineWidth { get; set; } = 1.5;
-        public double MarkerSize { get; set; }
+        public double LineWidth { get; set; } = GraphFormattingConfig.DefaultLineWidth;
+        public double MarkerSize { get; set; } = GraphFormattingConfig.DefaultMarkerSize;
+    }
+
+    private DatasetStyle CreateDefaultDatasetStyle()
+    {
+        var style = new DatasetStyle();
+        ApplyDefaultDatasetStyle(style);
+        return style;
+    }
+
+    private void ApplyDefaultDatasetStyle(DatasetStyle style)
+    {
+        style.ColorHex = _formattingDefaults.DefaultLineColorHex;
+        style.LegendName = null;
+        style.LineWidth = _formattingDefaults.LineWidth;
+        style.MarkerSize = _formattingDefaults.MarkerSize;
     }
 
     public sealed class DatasetEntryVm
@@ -68,6 +95,119 @@ public partial class MainWindow : Window
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         Dispatcher.BeginInvoke(InitializePlotControl, DispatcherPriority.ApplicationIdle);
+    }
+
+    private void LoadFormattingDefaults()
+    {
+        _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
+
+        try
+        {
+            if (!File.Exists(FormattingConfigPath))
+            {
+                return;
+            }
+
+            var json = File.ReadAllText(FormattingConfigPath);
+            var config = JsonSerializer.Deserialize<GraphFormattingConfig>(json, FormattingConfigJsonOptions);
+            if (config is null)
+            {
+                return;
+            }
+
+            config.Normalize();
+            _formattingDefaults = config;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            SetStatus($"書式設定configを読み込めませんでした: {ex.Message}", true);
+        }
+    }
+
+    private void SaveFormattingDefaults()
+    {
+        _formattingDefaults.Normalize();
+
+        var directory = Path.GetDirectoryName(FormattingConfigPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var json = JsonSerializer.Serialize(_formattingDefaults, FormattingConfigJsonOptions);
+        File.WriteAllText(FormattingConfigPath, json);
+    }
+
+    private GraphFormattingConfig CaptureFormattingConfigFromControls()
+    {
+        var config = new GraphFormattingConfig
+        {
+            FontName = GetSelectedGraphFontName(),
+            FontSize = GetPlotFontSize(),
+            ShowGrid = PlotGridCheckBox.IsChecked == true,
+            ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
+            ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
+            PlotFrameWidth = GetPlotFrameWidth(),
+            PlotFrameColorHex = GetSelectedComboBoxTag(PlotFrameColorComboBox)
+                ?? GraphFormattingConfig.DefaultPlotFrameColorHex,
+            AspectRatio = GetSelectedAspectRatioConfigValue(),
+            DefaultLineColorHex = GetSelectedLineColorConfigValue(),
+            LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
+                ? lineWidth
+                : GraphFormattingConfig.DefaultLineWidth,
+            MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
+                ? markerSize
+                : GraphFormattingConfig.DefaultMarkerSize,
+        };
+
+        config.Normalize();
+        return config;
+    }
+
+    private void ApplyFormattingConfigToControls(GraphFormattingConfig config)
+    {
+        config.Normalize();
+
+        _suppressGraphAppearanceEvents = true;
+        try
+        {
+            SelectGraphFontComboBoxValue(config.FontName);
+            GraphFontSizeTextBox.Text = config.FormatFontSize();
+            PlotGridCheckBox.IsChecked = config.ShowGrid;
+            YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
+            PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
+            PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
+            if (!SelectComboBoxItemByTag(PlotFrameColorComboBox, config.PlotFrameColorHex))
+            {
+                PlotFrameColorComboBox.SelectedIndex = 0;
+            }
+
+            if (!SelectComboBoxItemByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto"))
+            {
+                AspectRatioComboBox.SelectedIndex = 0;
+            }
+        }
+        finally
+        {
+            _suppressGraphAppearanceEvents = false;
+        }
+
+        _suppressStyleControlEvents = true;
+        try
+        {
+            if (!SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex ?? "Auto"))
+            {
+                LineColorComboBox.SelectedIndex = 0;
+            }
+
+            LegendNameTextBox.Clear();
+            LineWidthTextBox.Text = config.FormatLineWidth();
+            MarkerSizeTextBox.Text = config.FormatMarkerSize();
+        }
+        finally
+        {
+            _suppressStyleControlEvents = false;
+        }
     }
 
     private void OpenCsvButton_Click(object sender, RoutedEventArgs e)
@@ -125,7 +265,7 @@ public partial class MainWindow : Window
         }
 
         _loadedDatasets.Add(dataset);
-        _datasetStyles.Add(new DatasetStyle());
+        _datasetStyles.Add(CreateDefaultDatasetStyle());
         _activeIndex = _loadedDatasets.Count - 1;
         _currentDataset = dataset;
 
@@ -250,27 +390,31 @@ public partial class MainWindow : Window
         XMaxTextBox.Clear();
         YMinTextBox.Clear();
         YMaxTextBox.Clear();
-        GraphFontComboBox.SelectedIndex = 0;
-        GraphFontSizeTextBox.Text = "12";
-        PlotGridCheckBox.IsChecked = true;
-        YAxisTickLabelsCheckBox.IsChecked = true;
-        PlotFrameCheckBox.IsChecked = true;
-        PlotFrameWidthTextBox.Text = "1";
-        PlotFrameColorComboBox.SelectedIndex = 0;
-        AspectRatioComboBox.SelectedIndex = 0;
+        ApplyFormattingConfigToControls(_formattingDefaults);
 
         foreach (var style in _datasetStyles)
         {
-            style.ColorHex = null;
-            style.LegendName = null;
-            style.LineWidth = 1.5;
-            style.MarkerSize = 0;
+            ApplyDefaultDatasetStyle(style);
         }
 
         SyncStyleControlsFromActiveDataset();
         RefreshDatasetEntries();
         UpdatePlotHostAspectRatio();
         PlotCurrentDataset();
+    }
+
+    private void SaveDefaultFormattingButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _formattingDefaults = CaptureFormattingConfigFromControls();
+            SaveFormattingDefaults();
+            SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}", false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            SetStatus($"書式の既定値を保存できませんでした: {ex.Message}", true);
+        }
     }
 
     private void SaveGraphButton_Click(object sender, RoutedEventArgs e)
@@ -606,7 +750,9 @@ public partial class MainWindow : Window
         }
 
         plot.Axes.FrameWidth(GetPlotFrameWidth());
-        plot.Axes.FrameColor(GetSelectedScottPlotColor(PlotFrameColorComboBox, DefaultPlotFrameColorHex));
+        plot.Axes.FrameColor(GetSelectedScottPlotColor(
+            PlotFrameColorComboBox,
+            GraphFormattingConfig.DefaultPlotFrameColorHex));
     }
 
     private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex)
@@ -621,8 +767,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        signal.LineWidth = 1.5f;
-        signal.MarkerSize = 0f;
+        signal.LineWidth = (float)GraphFormattingConfig.DefaultLineWidth;
+        signal.MarkerSize = (float)GraphFormattingConfig.DefaultMarkerSize;
         var fallback = AutoLineColors[Math.Max(0, datasetIndex) % AutoLineColors.Length];
         signal.Color = ScottPlot.Color.FromHex(new[] { fallback }).First();
     }
@@ -1099,31 +1245,24 @@ public partial class MainWindow : Window
         {
             if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
             {
-                LineColorComboBox.SelectedIndex = 0;
+                if (!SelectComboBoxItemByTag(LineColorComboBox, _formattingDefaults.DefaultLineColorHex ?? "Auto"))
+                {
+                    LineColorComboBox.SelectedIndex = 0;
+                }
+
                 LegendNameTextBox.Clear();
-                LineWidthTextBox.Text = "1.5";
-                MarkerSizeTextBox.Text = "0";
+                LineWidthTextBox.Text = _formattingDefaults.FormatLineWidth();
+                MarkerSizeTextBox.Text = _formattingDefaults.FormatMarkerSize();
                 ActiveDatasetLabel.Text = "(データ未選択)";
                 return;
             }
 
             var style = _datasetStyles[_activeIndex];
 
-            var colorIndex = 0;
-            if (style.ColorHex is not null)
+            if (!SelectComboBoxItemByTag(LineColorComboBox, style.ColorHex ?? "Auto"))
             {
-                for (var i = 1; i < LineColorComboBox.Items.Count; i++)
-                {
-                    if (LineColorComboBox.Items[i] is ComboBoxItem item
-                        && item.Tag is string tag
-                        && tag.Equals(style.ColorHex, StringComparison.OrdinalIgnoreCase))
-                    {
-                        colorIndex = i;
-                        break;
-                    }
-                }
+                LineColorComboBox.SelectedIndex = 0;
             }
-            LineColorComboBox.SelectedIndex = colorIndex;
 
             LegendNameTextBox.Text = style.LegendName ?? string.Empty;
             LineWidthTextBox.Text = style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
@@ -1288,16 +1427,31 @@ public partial class MainWindow : Window
 
     private void GraphAppearanceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
         ApplyGraphAppearanceAndRefresh();
     }
 
     private void GraphAppearanceCheckBox_Changed(object sender, RoutedEventArgs e)
     {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
         ApplyGraphAppearanceAndRefresh();
     }
 
     private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
         UpdatePlotHostAspectRatio();
         _chromatogramPlot?.Refresh();
     }
@@ -1318,6 +1472,24 @@ public partial class MainWindow : Window
         _chromatogramPlot.Refresh();
     }
 
+    private void SelectGraphFontComboBoxValue(string? fontName)
+    {
+        if (string.IsNullOrWhiteSpace(fontName)
+            || fontName.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            GraphFontComboBox.SelectedIndex = 0;
+            return;
+        }
+
+        if (SelectComboBoxItemByTag(GraphFontComboBox, fontName))
+        {
+            return;
+        }
+
+        GraphFontComboBox.SelectedIndex = -1;
+        GraphFontComboBox.Text = fontName;
+    }
+
     private string? GetSelectedGraphFontName()
     {
         if (GraphFontComboBox.SelectedItem is ComboBoxItem item
@@ -1333,18 +1505,60 @@ public partial class MainWindow : Window
             : text;
     }
 
+    private static bool SelectComboBoxItemByTag(ComboBox comboBox, string? tag)
+    {
+        var desiredTag = string.IsNullOrWhiteSpace(tag) ? "Auto" : tag.Trim();
+
+        for (var i = 0; i < comboBox.Items.Count; i++)
+        {
+            if (comboBox.Items[i] is ComboBoxItem item
+                && item.Tag is string itemTag
+                && itemTag.Equals(desiredTag, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedIndex = i;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? GetSelectedComboBoxTag(ComboBox comboBox)
+    {
+        return comboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
+            ? tag
+            : null;
+    }
+
+    private string? GetSelectedLineColorConfigValue()
+    {
+        var tag = GetSelectedComboBoxTag(LineColorComboBox);
+        return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : tag;
+    }
+
+    private string? GetSelectedAspectRatioConfigValue()
+    {
+        var ratioText = GetSelectedComboBoxTag(AspectRatioComboBox) ?? AspectRatioComboBox.Text.Trim();
+        return string.IsNullOrWhiteSpace(ratioText)
+            || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : ratioText;
+    }
+
     private float GetPlotFontSize()
     {
         return TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
             ? (float)fontSize
-            : 12f;
+            : (float)GraphFormattingConfig.DefaultFontSize;
     }
 
     private float GetPlotFrameWidth()
     {
         return TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var width)
             ? (float)width
-            : 1f;
+            : (float)GraphFormattingConfig.DefaultPlotFrameWidth;
     }
 
     private static ScottPlot.Color GetSelectedScottPlotColor(ComboBox comboBox, string fallbackHex)

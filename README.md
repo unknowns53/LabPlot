@@ -13,6 +13,7 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 - Edit graph title, axis labels, and X/Y axis ranges
 - Change graph font, font size, plot frame, grid visibility, and display/export aspect ratio
 - Toggle Y-axis tick-label visibility
+- Save default graph formatting to a per-user config file and load it on startup
 - Collapse sidebar settings sections to keep controls easier to scan
 - Overlay multiple loaded data files
 - Adjust line color from a palette, line width, marker size, and legend name
@@ -26,6 +27,8 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 3. Click `較正曲線を開く` and choose a standard-curve `.json` file if molecular-weight conversion is needed.
 4. Select the solvent and detector, then enable `分子量表示`.
 5. Click `グラフを保存` to export a PNG.
+
+Use `既定保存` to store the current formatting defaults. The app writes them to `%APPDATA%\GPC_Visualization\formatting_config.json` and loads them the next time it starts. Use `既定` to restore the saved defaults in the current session.
 
 ## Notes
 

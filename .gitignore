@@ -8,6 +8,8 @@ obj/
 *.txt
 *.csv
 *.json
+*.png
+*.jpg
 
 # Visual Studio local cache
 .vs/

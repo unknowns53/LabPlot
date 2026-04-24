@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="GpcAnalyzer.Core/GpcAnalyzer.Core.csproj" />
+  <Project Path="GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj" />
   <Project Path="GPC_Visualization/GPC_Visualization.csproj" />
 </Solution>

@@ -1,0 +1,10 @@
+# Build output
+bin/
+obj/
+.vs/
+.dotnet-home/
+
+# Local sample and data files
+*.txt
+*.csv
+*.json

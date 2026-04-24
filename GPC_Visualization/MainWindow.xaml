@@ -1,15 +1,79 @@
-﻿<Window x:Class="GPC_Visualization.MainWindow"
+<Window x:Class="GPC_Visualization.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:GPC_Visualization"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        <Button Content="押してみる"
-            Width="120"
-            Height="40"
-            Click="Button_Click"/>
+        Title="GPC Analyzer" Height="720" MinHeight="520" Width="1100" MinWidth="760"
+        Background="#F7F8FA">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,14">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="OpenCsvButton"
+                        Content="CSVを開く"
+                        MinWidth="112"
+                        Height="34"
+                        Margin="0,0,8,0"
+                        Padding="14,0"
+                        Click="OpenCsvButton_Click" />
+                <Button x:Name="SaveGraphButton"
+                        Content="グラフを保存"
+                        MinWidth="124"
+                        Height="34"
+                        Padding="14,0"
+                        IsEnabled="False"
+                        Click="SaveGraphButton_Click" />
+            </StackPanel>
+
+            <TextBlock Text="GPC Analyzer"
+                       VerticalAlignment="Center"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       Foreground="#1E293B" />
+        </DockPanel>
+
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="ファイル:"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"
+                       FontWeight="SemiBold"
+                       Foreground="#334155" />
+            <TextBlock x:Name="FilePathTextBlock"
+                       Grid.Column="1"
+                       Text="未選択"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="#475569" />
+        </Grid>
+
+        <Border Grid.Row="2"
+                BorderBrush="#CBD5E1"
+                BorderThickness="1"
+                Background="White">
+            <Grid x:Name="PlotHost">
+                <TextBlock x:Name="PlotPlaceholderTextBlock"
+                           Text="グラフを初期化しています..."
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="#64748B" />
+            </Grid>
+        </Border>
+
+        <StatusBar Grid.Row="3" Margin="0,12,0,0" Background="Transparent">
+            <TextBlock x:Name="StatusTextBlock"
+                       Text="CSVまたはLabSolutions TXTを開いてください。"
+                       Foreground="#475569" />
+        </StatusBar>
     </Grid>
 </Window>

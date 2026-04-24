@@ -8,9 +8,11 @@ public sealed class MolecularWeightDataset
 
     public required string Detector { get; init; }
 
-    public string XLabel { get; init; } = "Molecular weight";
+    public string XLabel { get; init; } = "Molecular Weight [Da]";
 
     public string YLabel { get; init; } = "Signal";
+
+    public MolecularWeightYMode YMode { get; init; } = MolecularWeightYMode.Signal;
 
     public double MinMolecularWeight { get; init; } = MolecularWeightConverter.DefaultMinMolecularWeight;
 

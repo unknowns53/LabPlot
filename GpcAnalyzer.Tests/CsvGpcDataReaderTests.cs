@@ -93,19 +93,30 @@ public sealed class CsvGpcDataReaderTests
             0.01667	2
 
             [LC Chromatogram(Detector B-Ch1)]
+            Intensity Units	mV
+            Intensity Multiplier	0.001
             R.Time (min)	Intensity
             0.00000	999
+            0.00833	1000
             """);
 
         try
         {
             var dataset = new CsvGpcDataReader().Read(path);
 
+            Assert.Equal("A", dataset.Detector);
+            Assert.Equal(new[] { "A", "B" }, dataset.AvailableDetectors);
             Assert.Equal(3, dataset.Points.Count);
             Assert.Equal("R.Time (min)", dataset.XLabel);
             Assert.Equal("Intensity (mV)", dataset.YLabel);
             Assert.Equal(-0.961, dataset.Points[0].Y, 5);
             Assert.Equal(0.01667, dataset.Points[2].X, 5);
+
+            var detectorB = dataset.WithDetector("B");
+            Assert.Equal("B", detectorB.Detector);
+            Assert.Equal(2, detectorB.Points.Count);
+            Assert.Equal(0.999, detectorB.Points[0].Y, 5);
+            Assert.Equal(1.000, detectorB.Points[1].Y, 5);
         }
         finally
         {

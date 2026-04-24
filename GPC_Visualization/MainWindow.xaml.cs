@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using System.Windows.Media;
 using GpcAnalyzer.Core;
@@ -138,15 +139,28 @@ public partial class MainWindow : Window
             return;
         }
 
+        MolecularWeightYModeComboBox.IsEnabled = MolecularWeightCheckBox.IsChecked == true
+            && _selectedCalibrationCurve is not null;
         PlotCurrentDataset();
 
         if (MolecularWeightCheckBox.IsChecked == true && _selectedCalibrationCurve is not null)
         {
-            SetStatus($"分子量表示に切り替えました: {_selectedCalibrationCurve.Solvent}/{_selectedCalibrationCurve.Detector}", false);
+            var yModeLabel = GetSelectedMolecularWeightYMode() == MolecularWeightYMode.DifferentialWeightFraction
+                ? "dw/dlogM"
+                : "Signal";
+            SetStatus($"分子量表示に切り替えました: {_selectedCalibrationCurve.Solvent}/{_selectedCalibrationCurve.Detector}, Y={yModeLabel}", false);
         }
         else
         {
             SetStatus("保持時間表示に切り替えました。", false);
+        }
+    }
+
+    private void MolecularWeightYModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_currentDataset is not null && MolecularWeightCheckBox.IsChecked == true)
+        {
+            PlotCurrentDataset();
         }
     }
 
@@ -239,7 +253,10 @@ public partial class MainWindow : Window
 
             try
             {
-                var converted = _molecularWeightConverter.Convert(_currentDataset, _selectedCalibrationCurve);
+                var converted = _molecularWeightConverter.Convert(
+                    _currentDataset,
+                    _selectedCalibrationCurve,
+                    GetSelectedMolecularWeightYMode());
                 PlotMolecularWeightDataset(converted);
             }
             catch (InvalidDataException ex)
@@ -270,7 +287,9 @@ public partial class MainWindow : Window
         _chromatogramPlot.Plot.Clear();
         _chromatogramPlot.Plot.Axes.NumericTicksBottom();
         var signal = _chromatogramPlot.Plot.Add.Scatter(xs, ys);
-        signal.LegendText = "Signal";
+        signal.LegendText = string.IsNullOrWhiteSpace(dataset.Detector)
+            ? "Signal"
+            : $"Detector {dataset.Detector}";
         signal.LineWidth = 1.5f;
         signal.MarkerSize = 0;
 
@@ -385,11 +404,15 @@ public partial class MainWindow : Window
             && DetectorComboBox.SelectedItem is string detector)
         {
             _selectedCalibrationCurve = _calibrationCurveSet.GetCurve(solvent, detector);
+            if (_currentDataset is not null && _currentDataset.TryGetDetectorDataset(detector, out _))
+            {
+                _currentDataset = _currentDataset.WithDetector(detector);
+            }
         }
 
         UpdateMolecularWeightAvailability();
 
-        if (_currentDataset is not null && MolecularWeightCheckBox.IsChecked == true)
+        if (_currentDataset is not null)
         {
             PlotCurrentDataset();
         }
@@ -399,11 +422,25 @@ public partial class MainWindow : Window
     {
         var canConvert = _currentDataset is not null && _selectedCalibrationCurve is not null;
         MolecularWeightCheckBox.IsEnabled = canConvert;
+        MolecularWeightYModeComboBox.IsEnabled = canConvert && MolecularWeightCheckBox.IsChecked == true;
 
         if (!canConvert)
         {
             MolecularWeightCheckBox.IsChecked = false;
+            MolecularWeightYModeComboBox.SelectedIndex = 0;
         }
+    }
+
+    private MolecularWeightYMode GetSelectedMolecularWeightYMode()
+    {
+        if (MolecularWeightYModeComboBox.SelectedItem is ComboBoxItem item
+            && item.Tag is string tag
+            && tag.Equals("DwdLogM", StringComparison.OrdinalIgnoreCase))
+        {
+            return MolecularWeightYMode.DifferentialWeightFraction;
+        }
+
+        return MolecularWeightYMode.Signal;
     }
 
     private string? GuessPreferredSolvent(IReadOnlyList<string> solvents)

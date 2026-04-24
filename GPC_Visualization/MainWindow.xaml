@@ -85,9 +85,24 @@
                 <CheckBox x:Name="MolecularWeightCheckBox"
                           Content="分子量表示"
                           VerticalAlignment="Center"
+                          Margin="0,0,12,0"
                           IsEnabled="False"
                           Checked="MolecularWeightCheckBox_Changed"
                           Unchecked="MolecularWeightCheckBox_Changed" />
+                <TextBlock Text="Y:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <ComboBox x:Name="MolecularWeightYModeComboBox"
+                          Width="110"
+                          Height="30"
+                          IsEnabled="False"
+                          SelectedIndex="0"
+                          SelectionChanged="MolecularWeightYModeComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Signal" Tag="Signal" />
+                    <ComboBoxItem Content="dw/dlogM" Tag="DwdLogM" />
+                </ComboBox>
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

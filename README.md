@@ -7,6 +7,7 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 - Open CSV, TSV, TXT files
 - Read the first two numeric columns as X/Y data
 - Read LabSolutions `[LC Chromatogram(...)]` text export sections
+- Switch LabSolutions detector data when Detector A/B is selected
 - Display the chromatogram with ScottPlot
 - Load a standard-curve JSON and convert retention time to molecular weight
 - Export the displayed graph as PNG
@@ -31,3 +32,5 @@ M = 10^log10(M)
 Mn/Mw/PDI calculations are not implemented yet.
 
 Molecular-weight display filters points outside `100` to `100000000` and plots the X axis as `log10(M)` with labels shown as molecular weights.
+The molecular-weight Y axis can be shown as either the raw signal or `dw/dlogM`.
+For `dw/dlogM`, retention time is sorted descending before differencing to match the previous Python workflow and produce a positive distribution for ordinary GPC calibration curves.

@@ -130,6 +130,45 @@ public sealed class CalibrationCurveTests
         });
     }
 
+    [Fact]
+    public void MolecularWeightConverter_CalculatesDwdLogMAfterSortingRetentionTimeDescending()
+    {
+        var dataset = new GpcDataset
+        {
+            Points = new[]
+            {
+                new GpcDataPoint { X = 2, Y = 1 },
+                new GpcDataPoint { X = 3, Y = 2 },
+                new GpcDataPoint { X = 4, Y = 3 },
+            },
+        };
+        var curve = new CalibrationCurve
+        {
+            Solvent = "Test",
+            Detector = "A",
+            Coefficients = new CalibrationCurveCoefficients
+            {
+                A = 0,
+                B = 0,
+                C = -1,
+                D = 6,
+            },
+        };
+
+        var converted = new MolecularWeightConverter().Convert(
+            dataset,
+            curve,
+            MolecularWeightYMode.DifferentialWeightFraction);
+
+        Assert.Equal("dw/dlogM", converted.YLabel);
+        Assert.Equal(MolecularWeightYMode.DifferentialWeightFraction, converted.YMode);
+        Assert.Equal(2, converted.Points.Count);
+        Assert.Equal(100, converted.Points[0].MolecularWeight, 5);
+        Assert.Equal(2.0 / 6.0, converted.Points[0].Signal, 5);
+        Assert.Equal(1000, converted.Points[1].MolecularWeight, 5);
+        Assert.Equal(1.0 / 6.0, converted.Points[1].Signal, 5);
+    }
+
     private static string WriteTempFile(string contents)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");

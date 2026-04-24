@@ -117,78 +117,91 @@ public sealed class CsvGpcDataReader : IGpcDataReader
     {
         dataset = new GpcDataset();
 
-        var points = new List<GpcDataPoint>();
-        var inChromatogramSection = false;
-        var readingPoints = false;
-        var intensityMultiplier = 1.0;
-        var xLabel = "R.Time (min)";
-        var yLabel = "Intensity";
-        var yUnits = string.Empty;
+        var detectorDatasets = new Dictionary<string, GpcDetectorDataset>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var line in lines)
+        for (var i = 0; i < lines.Count; i++)
         {
+            var line = lines[i];
             var trimmed = line.Trim();
-            if (IsLabSolutionsChromatogramSection(trimmed))
+            if (!IsLabSolutionsChromatogramSection(trimmed))
             {
-                if (points.Count > 0)
+                continue;
+            }
+
+            var detector = ParseLabSolutionsDetector(trimmed) ?? $"Detector {detectorDatasets.Count + 1}";
+            var points = new List<GpcDataPoint>();
+            var readingPoints = false;
+            var intensityMultiplier = 1.0;
+            var xLabel = "R.Time (min)";
+            var yLabel = "Intensity";
+            var yUnits = string.Empty;
+
+            for (i++; i < lines.Count; i++)
+            {
+                line = lines[i];
+                trimmed = line.Trim();
+                if (trimmed.StartsWith("[", StringComparison.Ordinal))
                 {
+                    i--;
                     break;
                 }
 
-                inChromatogramSection = true;
-                readingPoints = false;
-                intensityMultiplier = 1.0;
-                yUnits = string.Empty;
-                continue;
-            }
-
-            if (!inChromatogramSection)
-            {
-                continue;
-            }
-
-            if (trimmed.StartsWith("[", StringComparison.Ordinal) && points.Count > 0)
-            {
-                break;
-            }
-
-            if (string.IsNullOrWhiteSpace(trimmed))
-            {
-                continue;
-            }
-
-            var columns = SplitLooseColumns(line);
-            if (!readingPoints)
-            {
-                ReadLabSolutionsMetadata(columns, ref intensityMultiplier, ref yUnits);
-
-                if (LooksLikeChromatogramHeader(columns))
+                if (string.IsNullOrWhiteSpace(trimmed))
                 {
-                    xLabel = columns[0];
-                    yLabel = BuildIntensityLabel(columns[1], yUnits);
-                    readingPoints = true;
+                    continue;
                 }
 
-                continue;
+                var columns = SplitLooseColumns(line);
+                if (!readingPoints)
+                {
+                    ReadLabSolutionsMetadata(columns, ref intensityMultiplier, ref yUnits);
+
+                    if (LooksLikeChromatogramHeader(columns))
+                    {
+                        xLabel = columns[0];
+                        yLabel = BuildIntensityLabel(columns[1], yUnits);
+                        readingPoints = true;
+                    }
+
+                    continue;
+                }
+
+                if (columns.Length < 2)
+                {
+                    continue;
+                }
+
+                if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
+                {
+                    points.Add(new GpcDataPoint { X = x, Y = y * intensityMultiplier });
+                }
             }
 
-            if (columns.Length < 2)
+            if (points.Count > 0)
             {
-                continue;
-            }
-
-            if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
-            {
-                points.Add(new GpcDataPoint { X = x, Y = y * intensityMultiplier });
+                detectorDatasets[detector] = new GpcDetectorDataset
+                {
+                    Detector = detector,
+                    XLabel = xLabel,
+                    YLabel = yLabel,
+                    Points = points.ToArray(),
+                };
             }
         }
 
-        if (points.Count == 0)
+        if (detectorDatasets.Count == 0)
         {
             return false;
         }
 
-        dataset = CreateDataset(filePath, xLabel, yLabel, points);
+        var firstDetectorDataset = detectorDatasets.Values.First();
+        dataset = CreateDataset(
+            filePath,
+            firstDetectorDataset.XLabel,
+            firstDetectorDataset.YLabel,
+            firstDetectorDataset.Points,
+            firstDetectorDataset.Detector,
+            detectorDatasets);
         return true;
     }
 
@@ -218,7 +231,9 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         string filePath,
         string xLabel,
         string yLabel,
-        IReadOnlyList<GpcDataPoint> points)
+        IReadOnlyList<GpcDataPoint> points,
+        string? detector = null,
+        IReadOnlyDictionary<string, GpcDetectorDataset>? detectorDatasets = null)
     {
         if (points.Count == 0)
         {
@@ -228,9 +243,12 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         return new GpcDataset
         {
             SourceFilePath = filePath,
+            Detector = detector,
             XLabel = xLabel,
             YLabel = yLabel,
             Points = points.ToArray(),
+            DetectorDatasets = detectorDatasets
+                ?? new Dictionary<string, GpcDetectorDataset>(StringComparer.OrdinalIgnoreCase),
         };
     }
 
@@ -279,6 +297,12 @@ public sealed class CsvGpcDataReader : IGpcDataReader
     private static bool IsLabSolutionsChromatogramSection(string line)
     {
         return line.StartsWith("[LC Chromatogram(", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ParseLabSolutionsDetector(string sectionHeader)
+    {
+        var match = Regex.Match(sectionHeader, @"Detector\s+([^-)\s]+)", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     private static bool Contains(string value, string text)

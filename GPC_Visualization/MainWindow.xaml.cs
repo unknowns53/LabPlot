@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -28,16 +29,36 @@ public partial class MainWindow : Window
     ];
 
     private readonly List<GpcDataset> _loadedDatasets = new();
+    private readonly List<DatasetStyle> _datasetStyles = new();
+    private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
+    private int _activeIndex = -1;
     private GpcDataset? _currentDataset;
     private CalibrationCurveSet? _calibrationCurveSet;
     private CalibrationCurve? _selectedCalibrationCurve;
     private WpfPlot? _chromatogramPlot;
     private bool _updatingCalibrationSelection;
+    private bool _suppressStyleControlEvents;
+    private bool _suppressDatasetListEvents;
 
     public MainWindow()
     {
         InitializeComponent();
+        DatasetListBox.ItemsSource = _datasetEntries;
         Loaded += MainWindow_Loaded;
+    }
+
+    private sealed class DatasetStyle
+    {
+        public string? ColorHex { get; set; }
+        public double LineWidth { get; set; } = 1.5;
+        public double MarkerSize { get; set; }
+    }
+
+    public sealed class DatasetEntryVm
+    {
+        public string DisplayName { get; init; } = string.Empty;
+        public string FullPath { get; init; } = string.Empty;
+        public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -63,20 +84,8 @@ public partial class MainWindow : Window
         try
         {
             var dataset = _reader.Read(dialog.FileName);
-            _currentDataset = dataset;
-            if (OverlayCheckBox.IsChecked == true && _loadedDatasets.Count > 0)
-            {
-                _loadedDatasets.Add(dataset);
-            }
-            else
-            {
-                _loadedDatasets.Clear();
-                _loadedDatasets.Add(dataset);
-            }
+            AddLoadedDataset(dataset);
 
-            FilePathTextBlock.Text = _loadedDatasets.Count > 1
-                ? $"{_loadedDatasets.Count} files (latest: {dialog.FileName})"
-                : dialog.FileName;
             if (_calibrationCurveSet is not null)
             {
                 PopulateSolventComboBox();
@@ -93,10 +102,35 @@ public partial class MainWindow : Window
         {
             _currentDataset = null;
             _loadedDatasets.Clear();
+            _datasetStyles.Clear();
+            _activeIndex = -1;
+            RefreshDatasetEntries();
             SaveGraphButton.IsEnabled = false;
-            UpdateStatisticsText(null);
+            UpdateStatisticsText((MolecularWeightStatistics?)null);
             SetStatus($"読み込みに失敗しました: {ex.Message}", true);
         }
+    }
+
+    private void AddLoadedDataset(GpcDataset dataset)
+    {
+        var overlay = OverlayCheckBox.IsChecked == true && _loadedDatasets.Count > 0;
+        if (!overlay)
+        {
+            _loadedDatasets.Clear();
+            _datasetStyles.Clear();
+        }
+
+        _loadedDatasets.Add(dataset);
+        _datasetStyles.Add(new DatasetStyle());
+        _activeIndex = _loadedDatasets.Count - 1;
+        _currentDataset = dataset;
+
+        FilePathTextBlock.Text = _loadedDatasets.Count > 1
+            ? $"{_loadedDatasets.Count} files (latest: {dataset.SourceFilePath})"
+            : dataset.SourceFilePath ?? string.Empty;
+
+        RefreshDatasetEntries();
+        SyncStyleControlsFromActiveDataset();
     }
 
     private void OpenCalibrationButton_Click(object sender, RoutedEventArgs e)
@@ -212,9 +246,16 @@ public partial class MainWindow : Window
         XMaxTextBox.Clear();
         YMinTextBox.Clear();
         YMaxTextBox.Clear();
-        LineColorComboBox.SelectedIndex = 0;
-        LineWidthTextBox.Text = "1.5";
-        MarkerSizeTextBox.Text = "0";
+
+        foreach (var style in _datasetStyles)
+        {
+            style.ColorHex = null;
+            style.LineWidth = 1.5;
+            style.MarkerSize = 0;
+        }
+
+        SyncStyleControlsFromActiveDataset();
+        RefreshDatasetEntries();
         PlotCurrentDataset();
     }
 
@@ -294,12 +335,12 @@ public partial class MainWindow : Window
         if (_currentDataset is null)
         {
             SaveGraphButton.IsEnabled = false;
-            UpdateStatisticsText(null);
+            UpdateStatisticsText((MolecularWeightStatistics?)null);
             return;
         }
 
-        var currentDataset = GetSelectedDetectorDataset(_currentDataset);
-        var plotDatasets = GetDatasetsToPlot();
+        var activeDataset = GetSelectedDetectorDataset(_currentDataset);
+        var plotEntries = GetDatasetsToPlotWithIndices();
         if (MolecularWeightCheckBox.IsChecked == true)
         {
             if (_selectedCalibrationCurve is null)
@@ -311,17 +352,14 @@ public partial class MainWindow : Window
 
             try
             {
-                var convertedDatasets = plotDatasets
-                    .Select(dataset => _molecularWeightConverter.Convert(
-                        dataset,
-                        _selectedCalibrationCurve,
-                        GetSelectedMolecularWeightYMode()))
+                var yMode = GetSelectedMolecularWeightYMode();
+                var convertedEntries = plotEntries
+                    .Select(entry => (
+                        Dataset: _molecularWeightConverter.Convert(entry.Dataset, _selectedCalibrationCurve, yMode),
+                        Index: entry.Index))
                     .ToArray();
-                var currentConverted = _molecularWeightConverter.Convert(
-                    currentDataset,
-                    _selectedCalibrationCurve,
-                    GetSelectedMolecularWeightYMode());
-                PlotMolecularWeightDatasets(convertedDatasets, currentConverted);
+                var activeConverted = _molecularWeightConverter.Convert(activeDataset, _selectedCalibrationCurve, yMode);
+                PlotMolecularWeightDatasets(convertedEntries, activeConverted);
             }
             catch (InvalidDataException ex)
             {
@@ -331,23 +369,30 @@ public partial class MainWindow : Window
         }
         else
         {
-            PlotRetentionTimeDatasets(plotDatasets, currentDataset);
+            PlotRetentionTimeDatasets(plotEntries, activeDataset);
         }
 
         SaveGraphButton.IsEnabled = _chromatogramPlot is not null;
     }
 
-    private GpcDataset[] GetDatasetsToPlot()
+    private (GpcDataset Dataset, int Index)[] GetDatasetsToPlotWithIndices()
     {
-        var sourceDatasets = OverlayCheckBox.IsChecked == true && _loadedDatasets.Count > 0
-            ? _loadedDatasets
-            : _currentDataset is null
-                ? []
-                : [_currentDataset];
+        if (OverlayCheckBox.IsChecked == true && _loadedDatasets.Count > 0)
+        {
+            var result = new (GpcDataset, int)[_loadedDatasets.Count];
+            for (var i = 0; i < _loadedDatasets.Count; i++)
+            {
+                result[i] = (GetSelectedDetectorDataset(_loadedDatasets[i]), i);
+            }
+            return result;
+        }
 
-        return sourceDatasets
-            .Select(GetSelectedDetectorDataset)
-            .ToArray();
+        if (_activeIndex < 0 || _activeIndex >= _loadedDatasets.Count)
+        {
+            return Array.Empty<(GpcDataset, int)>();
+        }
+
+        return new[] { (GetSelectedDetectorDataset(_loadedDatasets[_activeIndex]), _activeIndex) };
     }
 
     private GpcDataset GetSelectedDetectorDataset(GpcDataset dataset)
@@ -361,7 +406,7 @@ public partial class MainWindow : Window
         return dataset;
     }
 
-    private void PlotRetentionTimeDatasets(IReadOnlyList<GpcDataset> datasets, GpcDataset currentDataset)
+    private void PlotRetentionTimeDatasets(IReadOnlyList<(GpcDataset Dataset, int Index)> entries, GpcDataset activeDataset)
     {
         if (_chromatogramPlot is null)
         {
@@ -374,9 +419,9 @@ public partial class MainWindow : Window
 
         var allXs = new List<double>();
         var allYs = new List<double>();
-        for (var i = 0; i < datasets.Count; i++)
+        for (var i = 0; i < entries.Count; i++)
         {
-            var dataset = datasets[i];
+            var (dataset, datasetIndex) = entries[i];
             var xs = dataset.Points.Select(point => point.X).ToArray();
             var ys = dataset.Points.Select(point => point.Y).ToArray();
             allXs.AddRange(xs);
@@ -384,10 +429,10 @@ public partial class MainWindow : Window
 
             var signal = _chromatogramPlot.Plot.Add.Scatter(xs, ys);
             signal.LegendText = GetSeriesLegendText(dataset, "Signal");
-            ApplySeriesStyle(signal, i);
+            ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (datasets.Count > 1)
+        if (entries.Count > 1)
         {
             _chromatogramPlot.Plot.ShowLegend();
         }
@@ -396,9 +441,9 @@ public partial class MainWindow : Window
             _chromatogramPlot.Plot.HideLegend();
         }
 
-        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(currentDataset.SourceFilePath) ?? "GPC chromatogram"));
-        _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, currentDataset.XLabel));
-        _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, currentDataset.YLabel));
+        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
+        _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
+        _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
         _chromatogramPlot.Plot.Axes.AutoScale();
         if (!ApplyAxisLimits(allXs.ToArray(), allYs.ToArray(), false))
         {
@@ -406,13 +451,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        UpdateStatisticsText(currentDataset.MolecularWeightStatistics);
+        UpdateStatisticsForDatasets(entries
+            .Select(e => (
+                Label: GetStatsLabel(e.Dataset.SourceFilePath, e.Index),
+                Stats: e.Dataset.MolecularWeightStatistics))
+            .ToList());
         _chromatogramPlot.Refresh();
     }
 
     private void PlotMolecularWeightDatasets(
-        IReadOnlyList<MolecularWeightDataset> datasets,
-        MolecularWeightDataset currentDataset)
+        IReadOnlyList<(MolecularWeightDataset Dataset, int Index)> entries,
+        MolecularWeightDataset activeDataset)
     {
         if (_chromatogramPlot is null)
         {
@@ -425,9 +474,9 @@ public partial class MainWindow : Window
 
         var allXs = new List<double>();
         var allYs = new List<double>();
-        for (var i = 0; i < datasets.Count; i++)
+        for (var i = 0; i < entries.Count; i++)
         {
-            var dataset = datasets[i];
+            var (dataset, datasetIndex) = entries[i];
             var xs = dataset.Points.Select(point => Math.Log10(point.MolecularWeight)).ToArray();
             var ys = dataset.Points.Select(point => point.Signal).ToArray();
             allXs.AddRange(xs);
@@ -435,10 +484,10 @@ public partial class MainWindow : Window
 
             var signal = _chromatogramPlot.Plot.Add.Scatter(xs, ys);
             signal.LegendText = GetSeriesLegendText(dataset, $"{dataset.Solvent}/{dataset.Detector}");
-            ApplySeriesStyle(signal, i);
+            ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (datasets.Count > 1)
+        if (entries.Count > 1)
         {
             _chromatogramPlot.Plot.ShowLegend();
         }
@@ -447,9 +496,9 @@ public partial class MainWindow : Window
             _chromatogramPlot.Plot.HideLegend();
         }
 
-        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(currentDataset.SourceFilePath) ?? "GPC chromatogram"));
-        _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, $"{currentDataset.XLabel} (log scale)"));
-        _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, currentDataset.YLabel));
+        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
+        _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, $"{activeDataset.XLabel} (log scale)"));
+        _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
         _chromatogramPlot.Plot.Axes.AutoScale();
         if (!ApplyAxisLimits(allXs.ToArray(), allYs.ToArray(), true))
         {
@@ -457,41 +506,36 @@ public partial class MainWindow : Window
             return;
         }
 
-        UpdateStatisticsText(currentDataset.Statistics);
+        UpdateStatisticsForDatasets(entries
+            .Select(e => (
+                Label: GetStatsLabel(e.Dataset.SourceFilePath, e.Index),
+                Stats: e.Dataset.Statistics))
+            .ToList());
         _chromatogramPlot.Refresh();
     }
 
-    private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int seriesIndex)
+    private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex)
     {
-        signal.LineWidth = (float)GetRequestedLineWidth();
-        signal.MarkerSize = (float)GetRequestedMarkerSize();
-        signal.Color = GetRequestedLineColor(seriesIndex);
-    }
-
-    private double GetRequestedLineWidth()
-    {
-        return TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
-            ? lineWidth
-            : 1.5;
-    }
-
-    private double GetRequestedMarkerSize()
-    {
-        return TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
-            ? markerSize
-            : 0;
-    }
-
-    private ScottPlot.Color GetRequestedLineColor(int seriesIndex)
-    {
-        if (LineColorComboBox.SelectedItem is ComboBoxItem item
-            && item.Tag is string tag
-            && !tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        if (datasetIndex >= 0 && datasetIndex < _datasetStyles.Count)
         {
-            return ScottPlot.Color.FromHex(new[] { tag }).First();
+            var style = _datasetStyles[datasetIndex];
+            signal.LineWidth = (float)style.LineWidth;
+            signal.MarkerSize = (float)style.MarkerSize;
+            var hex = style.ColorHex ?? AutoLineColors[datasetIndex % AutoLineColors.Length];
+            signal.Color = ScottPlot.Color.FromHex(new[] { hex }).First();
+            return;
         }
 
-        return ScottPlot.Color.FromHex(new[] { AutoLineColors[seriesIndex % AutoLineColors.Length] }).First();
+        signal.LineWidth = 1.5f;
+        signal.MarkerSize = 0f;
+        var fallback = AutoLineColors[Math.Max(0, datasetIndex) % AutoLineColors.Length];
+        signal.Color = ScottPlot.Color.FromHex(new[] { fallback }).First();
+    }
+
+    private static string GetStatsLabel(string? sourceFilePath, int index)
+    {
+        var name = Path.GetFileNameWithoutExtension(sourceFilePath);
+        return string.IsNullOrWhiteSpace(name) ? $"dataset {index + 1}" : name;
     }
 
     private static bool TryParsePositiveDouble(string text, out double value)
@@ -665,6 +709,45 @@ public partial class MainWindow : Window
 
         var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
         StatisticsTextBlock.Text = $"Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   PDI: {FormatStatistic(statistics.Pdi)} ({source})";
+    }
+
+    private void UpdateStatisticsForDatasets(IReadOnlyList<(string Label, MolecularWeightStatistics? Stats)> entries)
+    {
+        if (entries.Count == 0)
+        {
+            StatisticsTextBlock.Text = "Mn: -   Mw: -   PDI: -";
+            return;
+        }
+
+        if (entries.Count == 1)
+        {
+            UpdateStatisticsText(entries[0].Stats);
+            return;
+        }
+
+        var lines = new List<string>(entries.Count);
+        foreach (var (label, stats) in entries)
+        {
+            lines.Add($"{label}: {FormatStatisticsInline(stats)}");
+        }
+        StatisticsTextBlock.Text = string.Join("\n", lines);
+    }
+
+    private static string FormatStatisticsInline(MolecularWeightStatistics? statistics)
+    {
+        if (statistics is null || !statistics.HasAnyValue)
+        {
+            return "Mn -  Mw -  PDI -";
+        }
+
+        if (statistics.Peaks.Count > 0)
+        {
+            var top = statistics.Peaks[0];
+            return $"#{top.PeakId} Mn {FormatStatistic(top.Mn)}  Mw {FormatStatistic(top.Mw)}  PDI {FormatStatistic(top.Pdi)}";
+        }
+
+        var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
+        return $"Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  PDI {FormatStatistic(statistics.Pdi)} ({source})";
     }
 
     private static string FormatPeakStatistic(MolecularWeightPeak peak)
@@ -844,5 +927,224 @@ public partial class MainWindow : Window
         StatusTextBlock.Foreground = isError
             ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
             : new SolidColorBrush(Color.FromRgb(71, 85, 105));
+    }
+
+    private void RefreshDatasetEntries()
+    {
+        _suppressDatasetListEvents = true;
+        try
+        {
+            _datasetEntries.Clear();
+            for (var i = 0; i < _loadedDatasets.Count; i++)
+            {
+                var ds = _loadedDatasets[i];
+                var style = _datasetStyles[i];
+                var hex = style.ColorHex ?? AutoLineColors[i % AutoLineColors.Length];
+                _datasetEntries.Add(new DatasetEntryVm
+                {
+                    DisplayName = Path.GetFileName(ds.SourceFilePath) ?? $"dataset {i + 1}",
+                    FullPath = ds.SourceFilePath ?? string.Empty,
+                    ColorBrush = new SolidColorBrush(HexToMediaColor(hex)),
+                });
+            }
+
+            DatasetListBox.SelectedIndex = _datasetEntries.Count > 0
+                ? Math.Clamp(_activeIndex, 0, _datasetEntries.Count - 1)
+                : -1;
+        }
+        finally
+        {
+            _suppressDatasetListEvents = false;
+        }
+
+        DatasetListPlaceholder.Visibility = _datasetEntries.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void SyncStyleControlsFromActiveDataset()
+    {
+        _suppressStyleControlEvents = true;
+        try
+        {
+            if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
+            {
+                LineColorComboBox.SelectedIndex = 0;
+                LineWidthTextBox.Text = "1.5";
+                MarkerSizeTextBox.Text = "0";
+                ActiveDatasetLabel.Text = "(データ未選択)";
+                return;
+            }
+
+            var style = _datasetStyles[_activeIndex];
+
+            var colorIndex = 0;
+            if (style.ColorHex is not null)
+            {
+                for (var i = 1; i < LineColorComboBox.Items.Count; i++)
+                {
+                    if (LineColorComboBox.Items[i] is ComboBoxItem item
+                        && item.Tag is string tag
+                        && tag.Equals(style.ColorHex, StringComparison.OrdinalIgnoreCase))
+                    {
+                        colorIndex = i;
+                        break;
+                    }
+                }
+            }
+            LineColorComboBox.SelectedIndex = colorIndex;
+
+            LineWidthTextBox.Text = style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
+            MarkerSizeTextBox.Text = style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
+
+            var activeName = Path.GetFileNameWithoutExtension(_loadedDatasets[_activeIndex].SourceFilePath);
+            ActiveDatasetLabel.Text = string.IsNullOrWhiteSpace(activeName)
+                ? "(選択中データセット)"
+                : $"({activeName})";
+        }
+        finally
+        {
+            _suppressStyleControlEvents = false;
+        }
+    }
+
+    private void DatasetListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressDatasetListEvents)
+        {
+            return;
+        }
+
+        var newIndex = DatasetListBox.SelectedIndex;
+        if (newIndex < 0 || newIndex >= _loadedDatasets.Count)
+        {
+            return;
+        }
+
+        _activeIndex = newIndex;
+        _currentDataset = _loadedDatasets[newIndex];
+        FilePathTextBlock.Text = _currentDataset?.SourceFilePath ?? string.Empty;
+
+        SyncStyleControlsFromActiveDataset();
+        PlotCurrentDataset();
+    }
+
+    private void RemoveDatasetButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not DatasetEntryVm vm)
+        {
+            return;
+        }
+
+        var index = _datasetEntries.IndexOf(vm);
+        if (index < 0 || index >= _loadedDatasets.Count)
+        {
+            return;
+        }
+
+        _loadedDatasets.RemoveAt(index);
+        _datasetStyles.RemoveAt(index);
+
+        if (_loadedDatasets.Count == 0)
+        {
+            _activeIndex = -1;
+            _currentDataset = null;
+            RefreshDatasetEntries();
+            SyncStyleControlsFromActiveDataset();
+            FilePathTextBlock.Text = string.Empty;
+            SaveGraphButton.IsEnabled = false;
+            UpdateStatisticsText((MolecularWeightStatistics?)null);
+            if (_chromatogramPlot is not null)
+            {
+                InitializeEmptyPlot();
+            }
+            SetStatus("すべてのデータセットを削除しました。", false);
+            return;
+        }
+
+        if (_activeIndex > index)
+        {
+            _activeIndex--;
+        }
+        else if (_activeIndex == index)
+        {
+            _activeIndex = Math.Min(index, _loadedDatasets.Count - 1);
+        }
+        _currentDataset = _loadedDatasets[_activeIndex];
+
+        FilePathTextBlock.Text = _loadedDatasets.Count > 1
+            ? $"{_loadedDatasets.Count} files (latest: {_currentDataset.SourceFilePath})"
+            : _currentDataset.SourceFilePath ?? string.Empty;
+
+        RefreshDatasetEntries();
+        SyncStyleControlsFromActiveDataset();
+        PlotCurrentDataset();
+    }
+
+    private void LineColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressStyleControlEvents)
+        {
+            return;
+        }
+        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
+        {
+            return;
+        }
+
+        var style = _datasetStyles[_activeIndex];
+        if (LineColorComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+        {
+            style.ColorHex = tag.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? null : tag;
+        }
+
+        RefreshDatasetEntries();
+        PlotCurrentDataset();
+    }
+
+    private void LineWidthTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressStyleControlEvents)
+        {
+            return;
+        }
+        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
+        {
+            return;
+        }
+
+        if (TryParsePositiveDouble(LineWidthTextBox.Text, out var width))
+        {
+            _datasetStyles[_activeIndex].LineWidth = width;
+        }
+    }
+
+    private void MarkerSizeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressStyleControlEvents)
+        {
+            return;
+        }
+        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
+        {
+            return;
+        }
+
+        if (TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var size))
+        {
+            _datasetStyles[_activeIndex].MarkerSize = size;
+        }
+    }
+
+    private static Color HexToMediaColor(string hex)
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(hex);
+        }
+        catch
+        {
+            return Colors.Gray;
+        }
     }
 }

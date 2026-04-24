@@ -374,13 +374,35 @@
                                         <ComboBox x:Name="PlotFrameColorComboBox"
                                                   Style="{StaticResource InputComboBoxStyle}"
                                                   SelectedIndex="0"
+                                                  Margin="0,0,0,6"
                                                   SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
                                             <ComboBoxItem Content="Gray" Tag="#475569" />
                                             <ComboBoxItem Content="Black" Tag="#0F172A" />
                                             <ComboBoxItem Content="Blue" Tag="#2563EB" />
                                             <ComboBoxItem Content="Red" Tag="#DC2626" />
                                             <ComboBoxItem Content="Green" Tag="#16A34A" />
+                                            <ComboBoxItem Content="Custom" Tag="Custom" />
                                         </ComboBox>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="28" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="PlotFrameColorHexTextBox"
+                                                     Grid.Column="0"
+                                                     Text="#475569"
+                                                     ToolTip="カラーコード (#RRGGBB)"
+                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                     TextChanged="PlotFrameColorHexTextBox_TextChanged" />
+                                            <Border x:Name="PlotFrameColorPreviewBorder"
+                                                    Grid.Column="2"
+                                                    Height="28"
+                                                    Background="#475569"
+                                                    BorderBrush="#CBD5E1"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4" />
+                                        </Grid>
                                     </StackPanel>
                                 </Grid>
 
@@ -424,10 +446,13 @@
                                 <ComboBox x:Name="LineColorComboBox"
                                           Style="{StaticResource InputComboBoxStyle}"
                                           SelectedIndex="0"
-                                          Margin="0,0,0,10"
+                                          Margin="0,0,0,6"
                                           SelectionChanged="LineColorComboBox_SelectionChanged">
                                     <ComboBoxItem Tag="Auto">
                                         <TextBlock Text="Auto" />
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="Custom">
+                                        <TextBlock Text="Custom" />
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#2563EB">
                                         <StackPanel Orientation="Horizontal">
@@ -478,6 +503,26 @@
                                         </StackPanel>
                                     </ComboBoxItem>
                                 </ComboBox>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="28" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="LineColorHexTextBox"
+                                             Grid.Column="0"
+                                             Text="Auto"
+                                             ToolTip="Auto またはカラーコード (#RRGGBB)"
+                                             Style="{StaticResource InputTextBoxStyle}"
+                                             TextChanged="LineColorHexTextBox_TextChanged" />
+                                    <Border x:Name="LineColorPreviewBorder"
+                                            Grid.Column="2"
+                                            Height="28"
+                                            Background="#2563EB"
+                                            BorderBrush="#CBD5E1"
+                                            BorderThickness="1"
+                                            CornerRadius="4" />
+                                </Grid>
 
                                 <TextBlock Text="凡例名"
                                            Style="{StaticResource FieldLabelStyle}" />

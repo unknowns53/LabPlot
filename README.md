@@ -1,6 +1,6 @@
 # GPC Visualization
 
-Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting the displayed graph as PNG.
+Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting the displayed graph as PNG or SVG.
 
 ## Current MVP
 
@@ -9,6 +9,7 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 - Read LabSolutions `[LC Chromatogram(...)]` text export sections
 - Switch LabSolutions detector data when Detector A/B is selected
 - Display the chromatogram with ScottPlot
+- Multi-select data files while overlay mode is enabled
 - Load a standard-curve JSON and convert retention time to molecular weight
 - Edit graph title, axis labels, and X/Y axis ranges
 - Change graph font, font size, plot frame, grid visibility, and display/export aspect ratio
@@ -16,17 +17,18 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 - Save default graph formatting to a per-user config file and load it on startup
 - Collapse sidebar settings sections to keep controls easier to scan
 - Overlay multiple loaded data files
-- Adjust line color from a palette, line width, marker size, and legend name
+- Adjust plot-frame and line colors from a palette or custom hex color code
+- Adjust line width, marker size, and legend name
 - Show likely Mn, Mw, and PDI peak candidates from the data file when available, otherwise calculate them from converted molecular-weight data
-- Export the displayed graph as PNG
+- Export the displayed graph as a 300 dpi PNG or vector SVG with scaled export typography
 
 ## Usage
 
 1. Run `GPC_Visualization`.
-2. Click `CSVを開く` and choose a `.csv`, `.tsv`, or LabSolutions `.txt` file.
+2. Click `CSVを開く` and choose a `.csv`, `.tsv`, or LabSolutions `.txt` file. Enable `重ね書き` first to select multiple files at once.
 3. Click `較正曲線を開く` and choose a standard-curve `.json` file if molecular-weight conversion is needed.
 4. Select the solvent and detector, then enable `分子量表示`.
-5. Click `グラフを保存` to export a PNG.
+5. Click `グラフを保存` to export a PNG or SVG.
 
 Use `既定保存` to store the current formatting defaults. The app writes them to `%APPDATA%\GPC_Visualization\formatting_config.json` and loads them the next time it starts. Use `既定` to restore the saved defaults in the current session.
 

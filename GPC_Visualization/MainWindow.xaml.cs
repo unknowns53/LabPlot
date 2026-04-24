@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Buffers.Binary;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -27,8 +28,11 @@ public partial class MainWindow : Window
         "#0891B2",
         "#4B5563",
     ];
-    private const int DefaultExportWidth = 1200;
-    private const int DefaultExportHeight = 720;
+    private const int ExportDpi = 300;
+    private const float DisplayDpi = 96f;
+    private const int DefaultExportWidth = 3600;
+    private const int DefaultExportHeight = 2160;
+    private const int SquareExportWidth = 3000;
     private static readonly JsonSerializerOptions FormattingConfigJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -68,6 +72,12 @@ public partial class MainWindow : Window
         public string? LegendName { get; set; }
         public double LineWidth { get; set; } = GraphFormattingConfig.DefaultLineWidth;
         public double MarkerSize { get; set; } = GraphFormattingConfig.DefaultMarkerSize;
+    }
+
+    private enum GraphSaveFormat
+    {
+        Png,
+        Svg,
     }
 
     private DatasetStyle CreateDefaultDatasetStyle()
@@ -148,8 +158,7 @@ public partial class MainWindow : Window
             ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
             ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
             PlotFrameWidth = GetPlotFrameWidth(),
-            PlotFrameColorHex = GetSelectedComboBoxTag(PlotFrameColorComboBox)
-                ?? GraphFormattingConfig.DefaultPlotFrameColorHex,
+            PlotFrameColorHex = GetPlotFrameColorHex(),
             AspectRatio = GetSelectedAspectRatioConfigValue(),
             DefaultLineColorHex = GetSelectedLineColorConfigValue(),
             LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
@@ -177,10 +186,7 @@ public partial class MainWindow : Window
             YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
             PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
             PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
-            if (!SelectComboBoxItemByTag(PlotFrameColorComboBox, config.PlotFrameColorHex))
-            {
-                PlotFrameColorComboBox.SelectedIndex = 0;
-            }
+            SetPlotFrameColorInput(config.PlotFrameColorHex);
 
             if (!SelectComboBoxItemByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto"))
             {
@@ -197,9 +203,10 @@ public partial class MainWindow : Window
         {
             if (!SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex ?? "Auto"))
             {
-                LineColorComboBox.SelectedIndex = 0;
+                SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex is null ? "Auto" : "Custom");
             }
 
+            SetLineColorInput(config.DefaultLineColorHex);
             LegendNameTextBox.Clear();
             LineWidthTextBox.Text = config.FormatLineWidth();
             MarkerSizeTextBox.Text = config.FormatMarkerSize();
@@ -212,12 +219,15 @@ public partial class MainWindow : Window
 
     private void OpenCsvButton_Click(object sender, RoutedEventArgs e)
     {
+        var allowMultiple = OverlayCheckBox.IsChecked == true;
         var dialog = new OpenFileDialog
         {
-            Title = "GPCデータを開く",
+            Title = allowMultiple
+                ? "GPCデータを開く（複数選択可）"
+                : "GPCデータを開く",
             Filter = "GPCデータ (*.csv;*.txt;*.tsv)|*.csv;*.txt;*.tsv|CSV (*.csv)|*.csv|テキスト (*.txt;*.tsv)|*.txt;*.tsv|すべてのファイル (*.*)|*.*",
             CheckFileExists = true,
-            Multiselect = false,
+            Multiselect = allowMultiple,
         };
 
         if (dialog.ShowDialog(this) != true)
@@ -227,8 +237,14 @@ public partial class MainWindow : Window
 
         try
         {
-            var dataset = _reader.Read(dialog.FileName);
-            AddLoadedDataset(dataset);
+            var fileNames = dialog.FileNames.Length > 0
+                ? dialog.FileNames
+                : [dialog.FileName];
+            var datasets = fileNames.Select(fileName => _reader.Read(fileName)).ToArray();
+            foreach (var dataset in datasets)
+            {
+                AddLoadedDataset(dataset);
+            }
 
             if (_calibrationCurveSet is not null)
             {
@@ -240,7 +256,11 @@ public partial class MainWindow : Window
             }
 
             PlotCurrentDataset();
-            SetStatus($"{dataset.Points.Count:N0} 点のデータを読み込みました。", false);
+            var pointCount = datasets.Sum(dataset => dataset.Points.Count);
+            var status = datasets.Length == 1
+                ? $"{pointCount:N0} 点のデータを読み込みました。"
+                : $"{datasets.Length:N0} ファイル / {pointCount:N0} 点のデータを読み込みました。";
+            SetStatus(status, false);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {
@@ -428,8 +448,8 @@ public partial class MainWindow : Window
         var defaultName = Path.GetFileNameWithoutExtension(_currentDataset.SourceFilePath) ?? "gpc_chromatogram";
         var dialog = new SaveFileDialog
         {
-            Title = "グラフをPNGで保存",
-            Filter = "PNG画像 (*.png)|*.png",
+            Title = "グラフを保存",
+            Filter = "PNG画像 (*.png)|*.png|SVGベクター画像 (*.svg)|*.svg",
             FileName = $"{defaultName}.png",
             DefaultExt = ".png",
             AddExtension = true,
@@ -443,8 +463,29 @@ public partial class MainWindow : Window
         try
         {
             var (width, height) = GetExportImageSize();
-            _chromatogramPlot.Plot.SavePng(dialog.FileName, width, height);
-            SetStatus($"グラフを保存しました: {dialog.FileName}", false);
+            var saveFormat = GetGraphSaveFormat(dialog.FileName, dialog.FilterIndex);
+            var fileName = EnsureGraphSaveFileExtension(dialog.FileName, saveFormat);
+            var exportStyleScale = GetExportStyleScale();
+
+            ApplyExportStyleScale(exportStyleScale);
+            try
+            {
+                if (saveFormat == GraphSaveFormat.Svg)
+                {
+                    SaveGraphSvg(fileName, width, height);
+                    SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})", false);
+                    return;
+                }
+
+                _chromatogramPlot.Plot.SavePng(fileName, width, height);
+                ApplyPngDpiMetadata(fileName, ExportDpi);
+                SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {ExportDpi} dpi)", false);
+            }
+            finally
+            {
+                ApplyExportStyleScale(1f);
+                _chromatogramPlot.Refresh();
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -677,7 +718,7 @@ public partial class MainWindow : Window
         _chromatogramPlot.Refresh();
     }
 
-    private void ApplyPlotAppearance()
+    private void ApplyPlotAppearance(float scale = 1f)
     {
         if (_chromatogramPlot is null)
         {
@@ -686,10 +727,10 @@ public partial class MainWindow : Window
 
         var plot = _chromatogramPlot.Plot;
         ApplyPlotFont(plot);
-        ApplyPlotFontSize(plot);
+        ApplyPlotFontSize(plot, scale);
         ApplyPlotGrid(plot);
         ApplyYAxisTickLabels(plot);
-        ApplyPlotFrame(plot);
+        ApplyPlotFrame(plot, scale);
     }
 
     private void ApplyPlotFont(ScottPlot.Plot plot)
@@ -711,15 +752,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ApplyPlotFontSize(ScottPlot.Plot plot)
+    private void ApplyPlotFontSize(ScottPlot.Plot plot, float scale = 1f)
     {
-        var fontSize = GetPlotFontSize();
-        plot.Axes.Title.Label.FontSize = fontSize + 2;
+        var fontSize = GetPlotFontSize() * scale;
+        plot.Axes.Title.Label.FontSize = fontSize + (2 * scale);
         plot.Axes.Bottom.Label.FontSize = fontSize;
         plot.Axes.Left.Label.FontSize = fontSize;
-        plot.Axes.Bottom.TickLabelStyle.FontSize = Math.Max(6, fontSize - 1);
-        plot.Axes.Left.TickLabelStyle.FontSize = Math.Max(6, fontSize - 1);
-        plot.Legend.FontSize = Math.Max(6, fontSize - 1);
+        plot.Axes.Bottom.TickLabelStyle.FontSize = Math.Max(6 * scale, fontSize - scale);
+        plot.Axes.Left.TickLabelStyle.FontSize = Math.Max(6 * scale, fontSize - scale);
+        plot.Legend.FontSize = Math.Max(6 * scale, fontSize - scale);
     }
 
     private void ApplyPlotGrid(ScottPlot.Plot plot)
@@ -739,7 +780,7 @@ public partial class MainWindow : Window
         plot.Axes.Left.TickLabelStyle.IsVisible = YAxisTickLabelsCheckBox.IsChecked == true;
     }
 
-    private void ApplyPlotFrame(ScottPlot.Plot plot)
+    private void ApplyPlotFrame(ScottPlot.Plot plot, float scale = 1f)
     {
         var frameVisible = PlotFrameCheckBox.IsChecked == true;
         plot.Axes.Frame(frameVisible);
@@ -749,28 +790,62 @@ public partial class MainWindow : Window
             return;
         }
 
-        plot.Axes.FrameWidth(GetPlotFrameWidth());
-        plot.Axes.FrameColor(GetSelectedScottPlotColor(
-            PlotFrameColorComboBox,
-            GraphFormattingConfig.DefaultPlotFrameColorHex));
+        plot.Axes.FrameWidth(GetPlotFrameWidth() * scale);
+        plot.Axes.FrameColor(GetScottPlotColor(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
     }
 
-    private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex)
+    private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex, float scale = 1f)
     {
         if (datasetIndex >= 0 && datasetIndex < _datasetStyles.Count)
         {
             var style = _datasetStyles[datasetIndex];
-            signal.LineWidth = (float)style.LineWidth;
-            signal.MarkerSize = (float)style.MarkerSize;
+            signal.LineWidth = (float)style.LineWidth * scale;
+            signal.MarkerSize = (float)style.MarkerSize * scale;
             var hex = style.ColorHex ?? AutoLineColors[datasetIndex % AutoLineColors.Length];
             signal.Color = ScottPlot.Color.FromHex(new[] { hex }).First();
             return;
         }
 
-        signal.LineWidth = (float)GraphFormattingConfig.DefaultLineWidth;
-        signal.MarkerSize = (float)GraphFormattingConfig.DefaultMarkerSize;
+        signal.LineWidth = (float)GraphFormattingConfig.DefaultLineWidth * scale;
+        signal.MarkerSize = (float)GraphFormattingConfig.DefaultMarkerSize * scale;
         var fallback = AutoLineColors[Math.Max(0, datasetIndex) % AutoLineColors.Length];
         signal.Color = ScottPlot.Color.FromHex(new[] { fallback }).First();
+    }
+
+    private void ApplyExportStyleScale(float scale)
+    {
+        if (_chromatogramPlot is null)
+        {
+            return;
+        }
+
+        ApplyPlotAppearance(scale);
+        ApplyExistingSeriesStyles(scale);
+    }
+
+    private void ApplyExistingSeriesStyles(float scale)
+    {
+        if (_chromatogramPlot is null)
+        {
+            return;
+        }
+
+        var entries = GetDatasetsToPlotWithIndices();
+        var scatters = _chromatogramPlot.Plot
+            .GetPlottables()
+            .OfType<ScottPlot.Plottables.Scatter>()
+            .ToArray();
+
+        for (var i = 0; i < scatters.Length; i++)
+        {
+            var datasetIndex = i < entries.Length ? entries[i].Index : i;
+            ApplySeriesStyle(scatters[i], datasetIndex, scale);
+        }
+    }
+
+    private static float GetExportStyleScale()
+    {
+        return ExportDpi / DisplayDpi;
     }
 
     private static string GetStatsLabel(string? sourceFilePath, int index)
@@ -1247,9 +1322,10 @@ public partial class MainWindow : Window
             {
                 if (!SelectComboBoxItemByTag(LineColorComboBox, _formattingDefaults.DefaultLineColorHex ?? "Auto"))
                 {
-                    LineColorComboBox.SelectedIndex = 0;
+                    SelectComboBoxItemByTag(LineColorComboBox, _formattingDefaults.DefaultLineColorHex is null ? "Auto" : "Custom");
                 }
 
+                SetLineColorInput(_formattingDefaults.DefaultLineColorHex);
                 LegendNameTextBox.Clear();
                 LineWidthTextBox.Text = _formattingDefaults.FormatLineWidth();
                 MarkerSizeTextBox.Text = _formattingDefaults.FormatMarkerSize();
@@ -1261,9 +1337,10 @@ public partial class MainWindow : Window
 
             if (!SelectComboBoxItemByTag(LineColorComboBox, style.ColorHex ?? "Auto"))
             {
-                LineColorComboBox.SelectedIndex = 0;
+                SelectComboBoxItemByTag(LineColorComboBox, style.ColorHex is null ? "Auto" : "Custom");
             }
 
+            SetLineColorInput(style.ColorHex);
             LegendNameTextBox.Text = style.LegendName ?? string.Empty;
             LineWidthTextBox.Text = style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
@@ -1366,9 +1443,85 @@ public partial class MainWindow : Window
         var style = _datasetStyles[_activeIndex];
         if (LineColorComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
         {
-            style.ColorHex = tag.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? null : tag;
+            if (tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                style.ColorHex = null;
+            }
+            else if (!tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+            {
+                style.ColorHex = NormalizeHexColorCode(tag);
+            }
         }
 
+        _suppressStyleControlEvents = true;
+        try
+        {
+            SetLineColorInput(style.ColorHex);
+        }
+        finally
+        {
+            _suppressStyleControlEvents = false;
+        }
+
+        RefreshDatasetEntries();
+        PlotCurrentDataset();
+    }
+
+    private void LineColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressStyleControlEvents || LineColorHexTextBox is null || LineColorPreviewBorder is null)
+        {
+            return;
+        }
+        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
+        {
+            string? inputHex = null;
+            if (!IsAutoColorText(LineColorHexTextBox.Text)
+                && TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex))
+            {
+                inputHex = hex;
+            }
+
+            _suppressStyleControlEvents = true;
+            try
+            {
+                SelectColorComboBoxValue(LineColorComboBox, inputHex, true);
+            }
+            finally
+            {
+                _suppressStyleControlEvents = false;
+            }
+
+            UpdateLineColorPreview(inputHex);
+            return;
+        }
+
+        var style = _datasetStyles[_activeIndex];
+        if (IsAutoColorText(LineColorHexTextBox.Text))
+        {
+            style.ColorHex = null;
+        }
+        else if (TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex))
+        {
+            style.ColorHex = hex;
+        }
+        else
+        {
+            UpdateLineColorPreview(style.ColorHex);
+            return;
+        }
+
+        _suppressStyleControlEvents = true;
+        try
+        {
+            SelectColorComboBoxValue(LineColorComboBox, style.ColorHex, true);
+        }
+        finally
+        {
+            _suppressStyleControlEvents = false;
+        }
+
+        UpdateLineColorPreview(style.ColorHex);
         RefreshDatasetEntries();
         PlotCurrentDataset();
     }
@@ -1432,6 +1585,43 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (ReferenceEquals(sender, PlotFrameColorComboBox)
+            && PlotFrameColorHexTextBox is not null
+            && PlotFrameColorPreviewBorder is not null)
+        {
+            _suppressGraphAppearanceEvents = true;
+            try
+            {
+                SyncPlotFrameColorInputFromComboBox();
+            }
+            finally
+            {
+                _suppressGraphAppearanceEvents = false;
+            }
+        }
+
+        ApplyGraphAppearanceAndRefresh();
+    }
+
+    private void PlotFrameColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents || PlotFrameColorHexTextBox is null || PlotFrameColorPreviewBorder is null)
+        {
+            return;
+        }
+
+        var hex = GetPlotFrameColorHex();
+        _suppressGraphAppearanceEvents = true;
+        try
+        {
+            SelectColorComboBoxValue(PlotFrameColorComboBox, hex, false);
+        }
+        finally
+        {
+            _suppressGraphAppearanceEvents = false;
+        }
+
+        UpdatePlotFrameColorPreview(hex);
         ApplyGraphAppearanceAndRefresh();
     }
 
@@ -1523,6 +1713,25 @@ public partial class MainWindow : Window
         return false;
     }
 
+    private static void SelectColorComboBoxValue(ComboBox comboBox, string? hex, bool allowAuto)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            if (allowAuto && SelectComboBoxItemByTag(comboBox, "Auto"))
+            {
+                return;
+            }
+
+            SelectComboBoxItemByTag(comboBox, "Custom");
+            return;
+        }
+
+        if (!SelectComboBoxItemByTag(comboBox, hex))
+        {
+            SelectComboBoxItemByTag(comboBox, "Custom");
+        }
+    }
+
     private static string? GetSelectedComboBoxTag(ComboBox comboBox)
     {
         return comboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
@@ -1532,10 +1741,14 @@ public partial class MainWindow : Window
 
     private string? GetSelectedLineColorConfigValue()
     {
-        var tag = GetSelectedComboBoxTag(LineColorComboBox);
-        return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : tag;
+        if (IsAutoColorText(LineColorHexTextBox.Text))
+        {
+            return null;
+        }
+
+        return TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex)
+            ? hex
+            : null;
     }
 
     private string? GetSelectedAspectRatioConfigValue()
@@ -1561,12 +1774,15 @@ public partial class MainWindow : Window
             : (float)GraphFormattingConfig.DefaultPlotFrameWidth;
     }
 
-    private static ScottPlot.Color GetSelectedScottPlotColor(ComboBox comboBox, string fallbackHex)
+    private string GetPlotFrameColorHex()
     {
-        var hex = comboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
-            ? tag
-            : fallbackHex;
+        return TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex)
+            ? hex
+            : GraphFormattingConfig.DefaultPlotFrameColorHex;
+    }
 
+    private static ScottPlot.Color GetScottPlotColor(string hex, string fallbackHex)
+    {
         try
         {
             return ScottPlot.Color.FromHex(new[] { hex }).First();
@@ -1575,6 +1791,110 @@ public partial class MainWindow : Window
         {
             return ScottPlot.Color.FromHex(new[] { fallbackHex }).First();
         }
+    }
+
+    private void SyncPlotFrameColorInputFromComboBox()
+    {
+        var tag = GetSelectedComboBoxTag(PlotFrameColorComboBox);
+        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdatePlotFrameColorPreview(GetPlotFrameColorHex());
+            return;
+        }
+
+        SetPlotFrameColorInput(tag);
+    }
+
+    private void SetPlotFrameColorInput(string? hex)
+    {
+        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultPlotFrameColorHex;
+
+        if (!SelectComboBoxItemByTag(PlotFrameColorComboBox, normalized))
+        {
+            SelectComboBoxItemByTag(PlotFrameColorComboBox, "Custom");
+        }
+
+        PlotFrameColorHexTextBox.Text = normalized;
+        UpdatePlotFrameColorPreview(normalized);
+    }
+
+    private void SetLineColorInput(string? hex)
+    {
+        LineColorHexTextBox.Text = string.IsNullOrWhiteSpace(hex) ? "Auto" : NormalizeHexColorCode(hex);
+        UpdateLineColorPreview(hex);
+    }
+
+    private void UpdatePlotFrameColorPreview(string? hex)
+    {
+        if (PlotFrameColorPreviewBorder is null)
+        {
+            return;
+        }
+
+        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultPlotFrameColorHex;
+        PlotFrameColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
+    }
+
+    private void UpdateLineColorPreview(string? hex)
+    {
+        if (LineColorPreviewBorder is null)
+        {
+            return;
+        }
+
+        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GetAutoLineColorPreviewHex();
+        LineColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
+    }
+
+    private string GetAutoLineColorPreviewHex()
+    {
+        if (_activeIndex >= 0)
+        {
+            return AutoLineColors[_activeIndex % AutoLineColors.Length];
+        }
+
+        return _formattingDefaults.DefaultLineColorHex ?? AutoLineColors[0];
+    }
+
+    private static bool IsAutoColorText(string? text)
+    {
+        return string.IsNullOrWhiteSpace(text)
+            || text.Trim().Equals("Auto", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeHexColorCode(string text)
+    {
+        return TryNormalizeHexColorCode(text, out var hex) ? hex : "#000000";
+    }
+
+    private static bool TryNormalizeHexColorCode(string? text, out string hex)
+    {
+        hex = string.Empty;
+
+        var value = text?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (value.StartsWith('#'))
+        {
+            value = value[1..];
+        }
+
+        if (value.Length != 6 || !value.All(Uri.IsHexDigit))
+        {
+            return false;
+        }
+
+        hex = $"#{value.ToUpperInvariant()}";
+        return true;
     }
 
     private double? GetSelectedAspectRatio()
@@ -1658,10 +1978,160 @@ public partial class MainWindow : Window
         }
 
         var width = ratio.Value == 1
-            ? 1000
+            ? SquareExportWidth
             : DefaultExportWidth;
         var height = Math.Max(1, (int)Math.Round(width / ratio.Value));
         return (width, height);
+    }
+
+    private void SaveGraphSvg(string filePath, int width, int height)
+    {
+        if (_chromatogramPlot is null)
+        {
+            return;
+        }
+
+        var svg = _chromatogramPlot.Plot.GetSvgHtml(width, height);
+        File.WriteAllText(filePath, svg);
+    }
+
+    private static GraphSaveFormat GetGraphSaveFormat(string filePath, int filterIndex)
+    {
+        var extension = Path.GetExtension(filePath);
+        if (extension.Equals(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            return GraphSaveFormat.Svg;
+        }
+
+        return filterIndex == 2
+            ? GraphSaveFormat.Svg
+            : GraphSaveFormat.Png;
+    }
+
+    private static string EnsureGraphSaveFileExtension(string filePath, GraphSaveFormat saveFormat)
+    {
+        var extension = saveFormat == GraphSaveFormat.Svg ? ".svg" : ".png";
+        return Path.ChangeExtension(filePath, extension);
+    }
+
+    private static void ApplyPngDpiMetadata(string filePath, int dpi)
+    {
+        var bytes = File.ReadAllBytes(filePath);
+        if (!HasPngSignature(bytes))
+        {
+            return;
+        }
+
+        var pixelsPerMeter = checked((uint)Math.Round(dpi / 0.0254));
+        var physicalPixelDimensionsChunk = CreatePngPhysicalPixelDimensionsChunk(pixelsPerMeter);
+        var offset = 8;
+        var insertOffset = -1;
+
+        while (offset + 12 <= bytes.Length)
+        {
+            var length = BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(offset, 4));
+            if (length > int.MaxValue || offset + 12 + (int)length > bytes.Length)
+            {
+                return;
+            }
+
+            var chunkLength = 12 + (int)length;
+            var chunkTypeOffset = offset + 4;
+            if (PngChunkTypeEquals(bytes, chunkTypeOffset, "pHYs"))
+            {
+                File.WriteAllBytes(filePath, ReplaceBytes(bytes, offset, chunkLength, physicalPixelDimensionsChunk));
+                return;
+            }
+
+            if (PngChunkTypeEquals(bytes, chunkTypeOffset, "IHDR"))
+            {
+                insertOffset = offset + chunkLength;
+            }
+
+            offset += chunkLength;
+        }
+
+        if (insertOffset > 0)
+        {
+            File.WriteAllBytes(filePath, InsertBytes(bytes, insertOffset, physicalPixelDimensionsChunk));
+        }
+    }
+
+    private static byte[] CreatePngPhysicalPixelDimensionsChunk(uint pixelsPerMeter)
+    {
+        const int chunkDataLength = 9;
+        var chunk = new byte[4 + 4 + chunkDataLength + 4];
+        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(0, 4), chunkDataLength);
+        chunk[4] = (byte)'p';
+        chunk[5] = (byte)'H';
+        chunk[6] = (byte)'Y';
+        chunk[7] = (byte)'s';
+        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(8, 4), pixelsPerMeter);
+        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(12, 4), pixelsPerMeter);
+        chunk[16] = 1;
+
+        var crc = CalculatePngCrc(chunk.AsSpan(4, 4 + chunkDataLength));
+        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(17, 4), crc);
+        return chunk;
+    }
+
+    private static uint CalculatePngCrc(ReadOnlySpan<byte> bytes)
+    {
+        var crc = 0xFFFFFFFFu;
+        foreach (var value in bytes)
+        {
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++)
+            {
+                crc = (crc & 1) == 1
+                    ? (crc >> 1) ^ 0xEDB88320u
+                    : crc >> 1;
+            }
+        }
+
+        return crc ^ 0xFFFFFFFFu;
+    }
+
+    private static bool HasPngSignature(byte[] bytes)
+    {
+        return bytes.Length >= 8
+            && bytes[0] == 137
+            && bytes[1] == 80
+            && bytes[2] == 78
+            && bytes[3] == 71
+            && bytes[4] == 13
+            && bytes[5] == 10
+            && bytes[6] == 26
+            && bytes[7] == 10;
+    }
+
+    private static bool PngChunkTypeEquals(byte[] bytes, int offset, string type)
+    {
+        return offset + 4 <= bytes.Length
+            && bytes[offset] == (byte)type[0]
+            && bytes[offset + 1] == (byte)type[1]
+            && bytes[offset + 2] == (byte)type[2]
+            && bytes[offset + 3] == (byte)type[3];
+    }
+
+    private static byte[] InsertBytes(byte[] source, int offset, byte[] insertion)
+    {
+        var result = new byte[source.Length + insertion.Length];
+        Buffer.BlockCopy(source, 0, result, 0, offset);
+        Buffer.BlockCopy(insertion, 0, result, offset, insertion.Length);
+        Buffer.BlockCopy(source, offset, result, offset + insertion.Length, source.Length - offset);
+        return result;
+    }
+
+    private static byte[] ReplaceBytes(byte[] source, int offset, int count, byte[] replacement)
+    {
+        var result = new byte[source.Length - count + replacement.Length];
+        Buffer.BlockCopy(source, 0, result, 0, offset);
+        Buffer.BlockCopy(replacement, 0, result, offset, replacement.Length);
+        var sourceTailOffset = offset + count;
+        var resultTailOffset = offset + replacement.Length;
+        Buffer.BlockCopy(source, sourceTailOffset, result, resultTailOffset, source.Length - sourceTailOffset);
+        return result;
     }
 
     private static Color HexToMediaColor(string hex)

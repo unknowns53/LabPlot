@@ -253,6 +253,7 @@ public partial class MainWindow : Window
         GraphFontComboBox.SelectedIndex = 0;
         GraphFontSizeTextBox.Text = "12";
         PlotGridCheckBox.IsChecked = true;
+        YAxisTickLabelsCheckBox.IsChecked = true;
         PlotFrameCheckBox.IsChecked = true;
         PlotFrameWidthTextBox.Text = "1";
         PlotFrameColorComboBox.SelectedIndex = 0;
@@ -543,6 +544,7 @@ public partial class MainWindow : Window
         ApplyPlotFont(plot);
         ApplyPlotFontSize(plot);
         ApplyPlotGrid(plot);
+        ApplyYAxisTickLabels(plot);
         ApplyPlotFrame(plot);
     }
 
@@ -586,6 +588,11 @@ public partial class MainWindow : Window
         {
             plot.HideGrid();
         }
+    }
+
+    private void ApplyYAxisTickLabels(ScottPlot.Plot plot)
+    {
+        plot.Axes.Left.TickLabelStyle.IsVisible = YAxisTickLabelsCheckBox.IsChecked == true;
     }
 
     private void ApplyPlotFrame(ScottPlot.Plot plot)

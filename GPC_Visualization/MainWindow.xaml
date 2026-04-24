@@ -79,9 +79,8 @@
 
                         <!-- Section: File -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <StackPanel>
-                                <TextBlock Text="データファイル"
-                                           Style="{StaticResource SectionHeaderStyle}" />
+                            <Expander Header="データファイル" IsExpanded="True">
+                                <StackPanel Margin="0,8,0,0">
                                 <Button x:Name="OpenCsvButton"
                                         Content="CSV / TXT を開く"
                                         Style="{StaticResource PrimaryButtonStyle}"
@@ -95,14 +94,14 @@
                                 <TextBlock x:Name="FilePathTextBlock"
                                            Text=""
                                            Visibility="Collapsed" />
-                            </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                         <!-- Section: Loaded datasets -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <StackPanel>
-                                <TextBlock Text="読み込み済みデータセット"
-                                           Style="{StaticResource SectionHeaderStyle}" />
+                            <Expander Header="読み込み済みデータセット" IsExpanded="True">
+                                <StackPanel Margin="0,8,0,0">
                                 <Border BorderBrush="#E2E8F0"
                                         BorderThickness="1"
                                         CornerRadius="4"
@@ -163,14 +162,14 @@
                                                    Margin="8" />
                                     </Grid>
                                 </Border>
-                            </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                         <!-- Section: Calibration & MW -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <StackPanel>
-                                <TextBlock Text="較正曲線と分子量"
-                                           Style="{StaticResource SectionHeaderStyle}" />
+                            <Expander Header="較正曲線と分子量" IsExpanded="True">
+                                <StackPanel Margin="0,8,0,0">
                                 <Button x:Name="OpenCalibrationButton"
                                         Content="較正曲線 JSON を開く"
                                         Style="{StaticResource PrimaryButtonStyle}"
@@ -217,15 +216,14 @@
                                     <ComboBoxItem Content="Signal" Tag="Signal" />
                                     <ComboBoxItem Content="dw/dlogM" Tag="DwdLogM" />
                                 </ComboBox>
-                            </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                         <!-- Section: Graph labels -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <StackPanel>
-                                <TextBlock Text="グラフラベル"
-                                           Style="{StaticResource SectionHeaderStyle}" />
-
+                            <Expander Header="グラフラベル" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
                                 <TextBlock Text="タイトル"
                                            Style="{StaticResource FieldLabelStyle}" />
                                 <TextBox x:Name="TitleTextBox"
@@ -242,15 +240,14 @@
                                            Style="{StaticResource FieldLabelStyle}" />
                                 <TextBox x:Name="YLabelTextBox"
                                          Style="{StaticResource InputTextBoxStyle}" />
-                            </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <StackPanel>
-                                <TextBlock Text="軸範囲"
-                                           Style="{StaticResource SectionHeaderStyle}" />
-
+                            <Expander Header="軸範囲" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -290,15 +287,14 @@
                                                  Style="{StaticResource InputTextBoxStyle}" />
                                     </StackPanel>
                                 </Grid>
-                            </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                         <!-- Section: Graph appearance -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <StackPanel>
-                                <TextBlock Text="グラフ書式"
-                                           Style="{StaticResource SectionHeaderStyle}" />
-
+                            <Expander Header="グラフ書式" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
                                 <TextBlock Text="フォント"
                                            Style="{StaticResource FieldLabelStyle}" />
                                 <ComboBox x:Name="GraphFontComboBox"
@@ -340,6 +336,15 @@
                                                   Unchecked="GraphAppearanceCheckBox_Changed" />
                                     </StackPanel>
                                 </Grid>
+
+                                <TextBlock Text="縦軸の数字"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <CheckBox x:Name="YAxisTickLabelsCheckBox"
+                                          Content="表示する"
+                                          IsChecked="True"
+                                          Margin="0,0,0,8"
+                                          Checked="GraphAppearanceCheckBox_Changed"
+                                          Unchecked="GraphAppearanceCheckBox_Changed" />
 
                                 <TextBlock Text="プロット枠"
                                            Style="{StaticResource FieldLabelStyle}" />
@@ -391,13 +396,15 @@
                                     <ComboBoxItem Content="3:2" Tag="3:2" />
                                     <ComboBoxItem Content="1:1" Tag="1:1" />
                                 </ComboBox>
-                            </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                         <!-- Section: Line style (active dataset) -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="線スタイル"
                                                FontWeight="SemiBold"
                                                FontSize="13"
@@ -408,7 +415,9 @@
                                                Foreground="#94A3B8"
                                                VerticalAlignment="Bottom"
                                                Margin="6,0,0,2" />
-                                </StackPanel>
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Margin="0,8,0,0">
 
                                 <TextBlock Text="色"
                                            Style="{StaticResource FieldLabelStyle}" />
@@ -500,7 +509,8 @@
                                                  TextChanged="MarkerSizeTextBox_TextChanged" />
                                     </StackPanel>
                                 </Grid>
-                            </StackPanel>
+                                </StackPanel>
+                            </Expander>
                         </Border>
 
                     </StackPanel>

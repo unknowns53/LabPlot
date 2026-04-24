@@ -12,6 +12,8 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 - Load a standard-curve JSON and convert retention time to molecular weight
 - Edit graph title, axis labels, and X/Y axis ranges
 - Change graph font, font size, plot frame, grid visibility, and display/export aspect ratio
+- Toggle Y-axis tick-label visibility
+- Collapse sidebar settings sections to keep controls easier to scan
 - Overlay multiple loaded data files
 - Adjust line color from a palette, line width, marker size, and legend name
 - Show likely Mn, Mw, and PDI peak candidates from the data file when available, otherwise calculate them from converted molecular-weight data

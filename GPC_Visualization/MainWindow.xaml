@@ -315,6 +315,32 @@
                                     <ComboBoxItem Content="MS Gothic" Tag="MS Gothic" />
                                 </ComboBox>
 
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="フォントサイズ"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="GraphFontSizeTextBox"
+                                                 Text="12"
+                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="グリッド"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <CheckBox x:Name="PlotGridCheckBox"
+                                                  Content="表示する"
+                                                  IsChecked="True"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,6,0,0"
+                                                  Checked="GraphAppearanceCheckBox_Changed"
+                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    </StackPanel>
+                                </Grid>
+
                                 <TextBlock Text="プロット枠"
                                            Style="{StaticResource FieldLabelStyle}" />
                                 <CheckBox x:Name="PlotFrameCheckBox"
@@ -391,14 +417,65 @@
                                           SelectedIndex="0"
                                           Margin="0,0,0,10"
                                           SelectionChanged="LineColorComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="Auto" Tag="Auto" />
-                                    <ComboBoxItem Content="Blue" Tag="#2563EB" />
-                                    <ComboBoxItem Content="Red" Tag="#DC2626" />
-                                    <ComboBoxItem Content="Green" Tag="#16A34A" />
-                                    <ComboBoxItem Content="Orange" Tag="#EA580C" />
-                                    <ComboBoxItem Content="Purple" Tag="#7C3AED" />
-                                    <ComboBoxItem Content="Gray" Tag="#475569" />
+                                    <ComboBoxItem Tag="Auto">
+                                        <TextBlock Text="Auto" />
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#2563EB">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#2563EB" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Blue" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#DC2626">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#DC2626" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Red" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#16A34A">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#16A34A" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Green" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#EA580C">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#EA580C" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Orange" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#7C3AED">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#7C3AED" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Purple" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#0891B2">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#0891B2" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Cyan" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#BE123C">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#BE123C" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Rose" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
+                                    <ComboBoxItem Tag="#4B5563">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="18" Height="14" Background="#4B5563" CornerRadius="2" Margin="0,0,8,0" />
+                                            <TextBlock Text="Gray" />
+                                        </StackPanel>
+                                    </ComboBoxItem>
                                 </ComboBox>
+
+                                <TextBlock Text="凡例名"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="LegendNameTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,10"
+                                         TextChanged="LegendNameTextBox_TextChanged" />
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>

@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     private sealed class DatasetStyle
     {
         public string? ColorHex { get; set; }
+        public string? LegendName { get; set; }
         public double LineWidth { get; set; } = 1.5;
         public double MarkerSize { get; set; }
     }
@@ -250,6 +251,8 @@ public partial class MainWindow : Window
         YMinTextBox.Clear();
         YMaxTextBox.Clear();
         GraphFontComboBox.SelectedIndex = 0;
+        GraphFontSizeTextBox.Text = "12";
+        PlotGridCheckBox.IsChecked = true;
         PlotFrameCheckBox.IsChecked = true;
         PlotFrameWidthTextBox.Text = "1";
         PlotFrameColorComboBox.SelectedIndex = 0;
@@ -258,6 +261,7 @@ public partial class MainWindow : Window
         foreach (var style in _datasetStyles)
         {
             style.ColorHex = null;
+            style.LegendName = null;
             style.LineWidth = 1.5;
             style.MarkerSize = 0;
         }
@@ -440,11 +444,11 @@ public partial class MainWindow : Window
             allYs.AddRange(ys);
 
             var signal = _chromatogramPlot.Plot.Add.Scatter(xs, ys);
-            signal.LegendText = GetSeriesLegendText(dataset, "Signal");
+            signal.LegendText = GetSeriesLegendText(dataset, "Signal", datasetIndex);
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (entries.Count > 1)
+        if (ShouldShowLegend(entries.Select(entry => entry.Index)))
         {
             _chromatogramPlot.Plot.ShowLegend();
         }
@@ -496,11 +500,11 @@ public partial class MainWindow : Window
             allYs.AddRange(ys);
 
             var signal = _chromatogramPlot.Plot.Add.Scatter(xs, ys);
-            signal.LegendText = GetSeriesLegendText(dataset, $"{dataset.Solvent}/{dataset.Detector}");
+            signal.LegendText = GetSeriesLegendText(dataset, $"{dataset.Solvent}/{dataset.Detector}", datasetIndex);
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (entries.Count > 1)
+        if (ShouldShowLegend(entries.Select(entry => entry.Index)))
         {
             _chromatogramPlot.Plot.ShowLegend();
         }
@@ -537,6 +541,8 @@ public partial class MainWindow : Window
 
         var plot = _chromatogramPlot.Plot;
         ApplyPlotFont(plot);
+        ApplyPlotFontSize(plot);
+        ApplyPlotGrid(plot);
         ApplyPlotFrame(plot);
     }
 
@@ -549,7 +555,37 @@ public partial class MainWindow : Window
             return;
         }
 
-        plot.Font.Set(fontName);
+        try
+        {
+            plot.Font.Set(fontName);
+        }
+        catch
+        {
+            plot.Font.Automatic();
+        }
+    }
+
+    private void ApplyPlotFontSize(ScottPlot.Plot plot)
+    {
+        var fontSize = GetPlotFontSize();
+        plot.Axes.Title.Label.FontSize = fontSize + 2;
+        plot.Axes.Bottom.Label.FontSize = fontSize;
+        plot.Axes.Left.Label.FontSize = fontSize;
+        plot.Axes.Bottom.TickLabelStyle.FontSize = Math.Max(6, fontSize - 1);
+        plot.Axes.Left.TickLabelStyle.FontSize = Math.Max(6, fontSize - 1);
+        plot.Legend.FontSize = Math.Max(6, fontSize - 1);
+    }
+
+    private void ApplyPlotGrid(ScottPlot.Plot plot)
+    {
+        if (PlotGridCheckBox.IsChecked == true)
+        {
+            plot.ShowGrid();
+        }
+        else
+        {
+            plot.HideGrid();
+        }
     }
 
     private void ApplyPlotFrame(ScottPlot.Plot plot)
@@ -606,15 +642,50 @@ public partial class MainWindow : Window
             || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
     }
 
-    private static string GetSeriesLegendText(GpcDataset dataset, string fallback)
+    private bool ShouldShowLegend(IEnumerable<int> datasetIndices)
     {
+        var indices = datasetIndices.ToArray();
+        return indices.Length > 1 || indices.Any(HasCustomLegendName);
+    }
+
+    private bool HasCustomLegendName(int datasetIndex)
+    {
+        return datasetIndex >= 0
+            && datasetIndex < _datasetStyles.Count
+            && !string.IsNullOrWhiteSpace(_datasetStyles[datasetIndex].LegendName);
+    }
+
+    private string? GetCustomLegendName(int datasetIndex)
+    {
+        if (!HasCustomLegendName(datasetIndex))
+        {
+            return null;
+        }
+
+        return _datasetStyles[datasetIndex].LegendName!.Trim();
+    }
+
+    private string GetSeriesLegendText(GpcDataset dataset, string fallback, int datasetIndex)
+    {
+        var customName = GetCustomLegendName(datasetIndex);
+        if (customName is not null)
+        {
+            return customName;
+        }
+
         var fileName = Path.GetFileNameWithoutExtension(dataset.SourceFilePath);
         var detector = string.IsNullOrWhiteSpace(dataset.Detector) ? string.Empty : $" / Detector {dataset.Detector}";
         return string.IsNullOrWhiteSpace(fileName) ? $"{fallback}{detector}" : $"{fileName}{detector}";
     }
 
-    private static string GetSeriesLegendText(MolecularWeightDataset dataset, string fallback)
+    private string GetSeriesLegendText(MolecularWeightDataset dataset, string fallback, int datasetIndex)
     {
+        var customName = GetCustomLegendName(datasetIndex);
+        if (customName is not null)
+        {
+            return customName;
+        }
+
         var fileName = Path.GetFileNameWithoutExtension(dataset.SourceFilePath);
         return string.IsNullOrWhiteSpace(fileName) ? fallback : $"{fileName} / {fallback}";
     }
@@ -1022,6 +1093,7 @@ public partial class MainWindow : Window
             if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
             {
                 LineColorComboBox.SelectedIndex = 0;
+                LegendNameTextBox.Clear();
                 LineWidthTextBox.Text = "1.5";
                 MarkerSizeTextBox.Text = "0";
                 ActiveDatasetLabel.Text = "(データ未選択)";
@@ -1046,6 +1118,7 @@ public partial class MainWindow : Window
             }
             LineColorComboBox.SelectedIndex = colorIndex;
 
+            LegendNameTextBox.Text = style.LegendName ?? string.Empty;
             LineWidthTextBox.Text = style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
 
@@ -1154,6 +1227,24 @@ public partial class MainWindow : Window
         PlotCurrentDataset();
     }
 
+    private void LegendNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressStyleControlEvents)
+        {
+            return;
+        }
+        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
+        {
+            return;
+        }
+
+        var legendName = LegendNameTextBox.Text.Trim();
+        _datasetStyles[_activeIndex].LegendName = string.IsNullOrWhiteSpace(legendName)
+            ? null
+            : legendName;
+        PlotCurrentDataset();
+    }
+
     private void LineWidthTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_suppressStyleControlEvents)
@@ -1233,6 +1324,13 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(text) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)
             ? null
             : text;
+    }
+
+    private float GetPlotFontSize()
+    {
+        return TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
+            ? (float)fontSize
+            : 12f;
     }
 
     private float GetPlotFrameWidth()

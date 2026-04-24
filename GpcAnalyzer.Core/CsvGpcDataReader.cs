@@ -118,6 +118,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         dataset = new GpcDataset();
 
         var detectorDatasets = new Dictionary<string, GpcDetectorDataset>(StringComparer.OrdinalIgnoreCase);
+        var molecularWeightStatistics = ReadLabSolutionsMolecularWeightStatistics(lines);
 
         for (var i = 0; i < lines.Count; i++)
         {
@@ -179,11 +180,13 @@ public sealed class CsvGpcDataReader : IGpcDataReader
 
             if (points.Count > 0)
             {
+                molecularWeightStatistics.TryGetValue(detector, out var statistics);
                 detectorDatasets[detector] = new GpcDetectorDataset
                 {
                     Detector = detector,
                     XLabel = xLabel,
                     YLabel = yLabel,
+                    MolecularWeightStatistics = statistics,
                     Points = points.ToArray(),
                 };
             }
@@ -201,8 +204,159 @@ public sealed class CsvGpcDataReader : IGpcDataReader
             firstDetectorDataset.YLabel,
             firstDetectorDataset.Points,
             firstDetectorDataset.Detector,
+            firstDetectorDataset.MolecularWeightStatistics,
             detectorDatasets);
         return true;
+    }
+
+    private static IReadOnlyDictionary<string, MolecularWeightStatistics> ReadLabSolutionsMolecularWeightStatistics(
+        IReadOnlyList<string> lines)
+    {
+        var statisticsByDetector = new Dictionary<string, MolecularWeightStatistics>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (!trimmed.StartsWith("[Average Molecular Weight Table(", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var detector = ParseLabSolutionsDetector(trimmed) ?? $"Detector {statisticsByDetector.Count + 1}";
+            string[]? headers = null;
+            var peaks = new List<MolecularWeightPeak>();
+
+            for (i++; i < lines.Count; i++)
+            {
+                trimmed = lines[i].Trim();
+                if (trimmed.StartsWith("[", StringComparison.Ordinal))
+                {
+                    i--;
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    continue;
+                }
+
+                var columns = SplitLooseColumns(lines[i]);
+                if (headers is null && columns.Length > 1 && columns[0].Equals("Peak#", StringComparison.OrdinalIgnoreCase))
+                {
+                    headers = columns;
+                    continue;
+                }
+
+                if (headers is null || columns.Length == 0 || columns[0].Equals("Total", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var peak = CreateMolecularWeightPeakFromRow(headers, columns);
+                if (peak is not null && peak.HasAnyValue)
+                {
+                    peaks.Add(peak);
+                }
+            }
+
+            var statistics = CreateMolecularWeightStatisticsFromPeaks(peaks);
+            if (statistics is not null && statistics.HasAnyValue)
+            {
+                statisticsByDetector[detector] = statistics;
+            }
+        }
+
+        return statisticsByDetector;
+    }
+
+    private static MolecularWeightStatistics? CreateMolecularWeightStatisticsFromPeaks(
+        IReadOnlyList<MolecularWeightPeak> peaks)
+    {
+        var orderedPeaks = peaks
+            .OrderByDescending(peak => peak.Percent ?? double.NegativeInfinity)
+            .ToArray();
+        var representativePeak = orderedPeaks.FirstOrDefault();
+        if (representativePeak is null)
+        {
+            return null;
+        }
+
+        return new MolecularWeightStatistics
+        {
+            Mn = representativePeak.Mn,
+            Mw = representativePeak.Mw,
+            Pdi = representativePeak.Pdi,
+            Source = MolecularWeightStatisticsSource.DataFile,
+            Peaks = orderedPeaks,
+        };
+    }
+
+    private static MolecularWeightPeak? CreateMolecularWeightPeakFromRow(
+        IReadOnlyList<string> headers,
+        IReadOnlyList<string> values)
+    {
+        var mn = GetNumericColumn(headers, values, "Mn");
+        var mw = GetNumericColumn(headers, values, "Mw");
+        var pdi = GetNumericColumn(headers, values, "Mw/Mn");
+        if (!IsPositive(mn) || !IsPositive(mw))
+        {
+            return null;
+        }
+
+        if (!pdi.HasValue
+            && mn.HasValue
+            && mw.HasValue
+            && double.IsFinite(mn.Value)
+            && double.IsFinite(mw.Value)
+            && Math.Abs(mn.Value) > double.Epsilon)
+        {
+            pdi = mw.Value / mn.Value;
+        }
+
+        var peakId = values.Count > 0 ? values[0] : string.Empty;
+        if (string.IsNullOrWhiteSpace(peakId))
+        {
+            return null;
+        }
+
+        return new MolecularWeightPeak
+        {
+            PeakId = peakId,
+            Mn = mn,
+            Mw = mw,
+            Pdi = pdi,
+            Percent = GetNumericColumn(headers, values, "%"),
+        };
+    }
+
+    private static bool IsPositive(double? value)
+    {
+        return value.HasValue && double.IsFinite(value.Value) && value.Value > 0;
+    }
+
+    private static double? GetNumericColumn(
+        IReadOnlyList<string> headers,
+        IReadOnlyList<string> values,
+        string name)
+    {
+        var index = -1;
+        for (var i = 0; i < headers.Count; i++)
+        {
+            if (headers[i].Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0 || index >= values.Count)
+        {
+            return null;
+        }
+
+        return TryParseDouble(values[index], out var value) && double.IsFinite(value)
+            ? value
+            : null;
     }
 
     private static void ReadLabSolutionsMetadata(
@@ -233,6 +387,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         string yLabel,
         IReadOnlyList<GpcDataPoint> points,
         string? detector = null,
+        MolecularWeightStatistics? molecularWeightStatistics = null,
         IReadOnlyDictionary<string, GpcDetectorDataset>? detectorDatasets = null)
     {
         if (points.Count == 0)
@@ -246,6 +401,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
             Detector = detector,
             XLabel = xLabel,
             YLabel = yLabel,
+            MolecularWeightStatistics = molecularWeightStatistics,
             Points = points.ToArray(),
             DetectorDatasets = detectorDatasets
                 ?? new Dictionary<string, GpcDetectorDataset>(StringComparer.OrdinalIgnoreCase),

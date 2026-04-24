@@ -4,10 +4,11 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="GPC Analyzer" Height="760" MinHeight="560" Width="1180" MinWidth="820"
+        Title="GPC Analyzer" Height="840" MinHeight="640" Width="1180" MinWidth="820"
         Background="#F7F8FA">
     <Grid Margin="18">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -121,7 +122,147 @@
             </StackPanel>
         </DockPanel>
 
-        <Border Grid.Row="3"
+        <Grid Grid.Row="3" Margin="0,0,0,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <WrapPanel VerticalAlignment="Center">
+                <TextBlock Text="Title:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <TextBox x:Name="TitleTextBox"
+                         Width="210"
+                         Height="28"
+                         Margin="0,0,12,0" />
+                <TextBlock Text="X Label:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <TextBox x:Name="XLabelTextBox"
+                         Width="170"
+                         Height="28"
+                         Margin="0,0,12,0" />
+                <TextBlock Text="Y Label:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <TextBox x:Name="YLabelTextBox"
+                         Width="170"
+                         Height="28"
+                         Margin="0,0,12,0" />
+                <Button x:Name="ApplyGraphSettingsButton"
+                        Content="Apply"
+                        Width="72"
+                        Height="28"
+                        Margin="0,0,8,0"
+                        Click="ApplyGraphSettingsButton_Click" />
+                <Button x:Name="ResetGraphSettingsButton"
+                        Content="Auto"
+                        Width="64"
+                        Height="28"
+                        Margin="0,0,12,0"
+                        Click="ResetGraphSettingsButton_Click" />
+                <CheckBox x:Name="OverlayCheckBox"
+                          Content="Overlay"
+                          VerticalAlignment="Center"
+                          Margin="0,0,12,0"
+                          Checked="OverlayCheckBox_Changed"
+                          Unchecked="OverlayCheckBox_Changed" />
+                <TextBlock Text="Color:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <ComboBox x:Name="LineColorComboBox"
+                          Width="88"
+                          Height="28"
+                          Margin="0,0,12,0"
+                          SelectedIndex="0">
+                    <ComboBoxItem Content="Auto" Tag="Auto" />
+                    <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                    <ComboBoxItem Content="Red" Tag="#DC2626" />
+                    <ComboBoxItem Content="Green" Tag="#16A34A" />
+                    <ComboBoxItem Content="Orange" Tag="#EA580C" />
+                    <ComboBoxItem Content="Purple" Tag="#7C3AED" />
+                    <ComboBoxItem Content="Gray" Tag="#475569" />
+                </ComboBox>
+                <TextBlock Text="Line:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <TextBox x:Name="LineWidthTextBox"
+                         Text="1.5"
+                         Width="48"
+                         Height="28"
+                         Margin="0,0,12,0" />
+                <TextBlock Text="Marker:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <TextBox x:Name="MarkerSizeTextBox"
+                         Text="0"
+                         Width="48"
+                         Height="28" />
+            </WrapPanel>
+
+            <DockPanel Grid.Row="1" Margin="0,8,0,0" LastChildFill="True">
+                <TextBlock x:Name="StatisticsTextBlock"
+                           DockPanel.Dock="Right"
+                           Text="Mn: -   Mw: -   PDI: -"
+                           VerticalAlignment="Center"
+                           Foreground="#334155"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           Width="520" />
+                <WrapPanel VerticalAlignment="Center">
+                    <TextBlock Text="X Min:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0"
+                               FontWeight="SemiBold"
+                               Foreground="#334155" />
+                    <TextBox x:Name="XMinTextBox"
+                             Width="86"
+                             Height="28"
+                             Margin="0,0,10,0" />
+                    <TextBlock Text="X Max:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0"
+                               FontWeight="SemiBold"
+                               Foreground="#334155" />
+                    <TextBox x:Name="XMaxTextBox"
+                             Width="86"
+                             Height="28"
+                             Margin="0,0,10,0" />
+                    <TextBlock Text="Y Min:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0"
+                               FontWeight="SemiBold"
+                               Foreground="#334155" />
+                    <TextBox x:Name="YMinTextBox"
+                             Width="86"
+                             Height="28"
+                             Margin="0,0,10,0" />
+                    <TextBlock Text="Y Max:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0"
+                               FontWeight="SemiBold"
+                               Foreground="#334155" />
+                    <TextBox x:Name="YMaxTextBox"
+                             Width="86"
+                             Height="28" />
+                </WrapPanel>
+            </DockPanel>
+        </Grid>
+
+        <Border Grid.Row="4"
                 BorderBrush="#CBD5E1"
                 BorderThickness="1"
                 Background="White">
@@ -134,7 +275,7 @@
             </Grid>
         </Border>
 
-        <StatusBar Grid.Row="4" Margin="0,12,0,0" Background="Transparent">
+        <StatusBar Grid.Row="5" Margin="0,12,0,0" Background="Transparent">
             <TextBlock x:Name="StatusTextBlock"
                        Text="CSVまたはLabSolutions TXTを開いてください。"
                        Foreground="#475569" />

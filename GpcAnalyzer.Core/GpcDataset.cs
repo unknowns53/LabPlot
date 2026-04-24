@@ -10,6 +10,8 @@ public sealed class GpcDataset
 
     public string YLabel { get; init; } = "Y";
 
+    public MolecularWeightStatistics? MolecularWeightStatistics { get; init; }
+
     public IReadOnlyList<GpcDataPoint> Points { get; init; } = Array.Empty<GpcDataPoint>();
 
     public IReadOnlyDictionary<string, GpcDetectorDataset> DetectorDatasets { get; init; }
@@ -35,6 +37,7 @@ public sealed class GpcDataset
             Detector = detectorDataset.Detector,
             XLabel = detectorDataset.XLabel,
             YLabel = detectorDataset.YLabel,
+            MolecularWeightStatistics = detectorDataset.MolecularWeightStatistics,
             Points = detectorDataset.Points,
             DetectorDatasets = DetectorDatasets,
         };

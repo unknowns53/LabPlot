@@ -84,6 +84,20 @@ public sealed class CsvGpcDataReaderTests
             [Header]
             Application Name	LabSolutions
 
+            [Average Molecular Weight Table(Detector A)]
+            # of Peaks	2
+            Peak#	Mn	Mw	Mz	Mz1	Mv	Mw/Mn	Mv/Mn	Mz/Mw	I.Visc	%
+            Total	0	9999	0	0	0	999	0	0	1	100
+            1	100	200	0	0	0	2	0	0	1	20
+            2	300	450	0	0	0	1.5	0	0	1	80
+
+            [Average Molecular Weight Table(Detector B)]
+            # of Peaks	2
+            Peak#	Mn	Mw	Mz	Mz1	Mv	Mw/Mn	Mv/Mn	Mz/Mw	I.Visc	%
+            Total	0	9999	0	0	0	999	0	0	1	100
+            1	30	60	0	0	0	2	0	0	1	70
+            2	10	12	0	0	0	1.2	0	0	1	30
+
             [LC Chromatogram(Detector A-Ch1)]
             Intensity Units	mV
             Intensity Multiplier	0.001
@@ -111,12 +125,55 @@ public sealed class CsvGpcDataReaderTests
             Assert.Equal("Intensity (mV)", dataset.YLabel);
             Assert.Equal(-0.961, dataset.Points[0].Y, 5);
             Assert.Equal(0.01667, dataset.Points[2].X, 5);
+            Assert.NotNull(dataset.MolecularWeightStatistics);
+            Assert.Equal(300, dataset.MolecularWeightStatistics.Mn);
+            Assert.Equal(450, dataset.MolecularWeightStatistics.Mw);
+            Assert.Equal(1.5, dataset.MolecularWeightStatistics.Pdi);
+            Assert.Equal(MolecularWeightStatisticsSource.DataFile, dataset.MolecularWeightStatistics.Source);
+            Assert.Equal(new[] { "2", "1" }, dataset.MolecularWeightStatistics.Peaks.Select(peak => peak.PeakId));
+            Assert.All(dataset.MolecularWeightStatistics.Peaks, peak => Assert.NotEqual("Total", peak.PeakId));
 
             var detectorB = dataset.WithDetector("B");
             Assert.Equal("B", detectorB.Detector);
             Assert.Equal(2, detectorB.Points.Count);
             Assert.Equal(0.999, detectorB.Points[0].Y, 5);
             Assert.Equal(1.000, detectorB.Points[1].Y, 5);
+            Assert.NotNull(detectorB.MolecularWeightStatistics);
+            Assert.Equal(30, detectorB.MolecularWeightStatistics.Mn);
+            Assert.Equal(60, detectorB.MolecularWeightStatistics.Mw);
+            Assert.Equal(2, detectorB.MolecularWeightStatistics.Pdi);
+            Assert.Equal(new[] { "1", "2" }, detectorB.MolecularWeightStatistics.Peaks.Select(peak => peak.PeakId));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Read_IgnoresLabSolutionsTotalMolecularWeightRow()
+    {
+        var path = WriteTempFile(
+            """
+            [Header]
+            Application Name	LabSolutions
+
+            [Average Molecular Weight Table(Detector A)]
+            # of Peaks	1
+            Peak#	Mn	Mw	Mz	Mz1	Mv	Mw/Mn	Mv/Mn	Mz/Mw	I.Visc	%
+            Total	0	9895	18505	23724	0	45796.05478	0.00000	1.87026	1.00000	100.0000
+
+            [LC Chromatogram(Detector A-Ch1)]
+            R.Time (min)	Intensity
+            0.00000	1
+            0.00833	2
+            """);
+
+        try
+        {
+            var dataset = new CsvGpcDataReader().Read(path);
+
+            Assert.Null(dataset.MolecularWeightStatistics);
         }
         finally
         {

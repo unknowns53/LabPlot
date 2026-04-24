@@ -14,6 +14,8 @@ public sealed class MolecularWeightDataset
 
     public MolecularWeightYMode YMode { get; init; } = MolecularWeightYMode.Signal;
 
+    public MolecularWeightStatistics? Statistics { get; init; }
+
     public double MinMolecularWeight { get; init; } = MolecularWeightConverter.DefaultMinMolecularWeight;
 
     public double MaxMolecularWeight { get; init; } = MolecularWeightConverter.DefaultMaxMolecularWeight;

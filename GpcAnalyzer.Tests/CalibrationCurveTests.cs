@@ -169,6 +169,79 @@ public sealed class CalibrationCurveTests
         Assert.Equal(1.0 / 6.0, converted.Points[1].Signal, 5);
     }
 
+    [Fact]
+    public void MolecularWeightConverter_UsesDataFileStatisticsWhenPresent()
+    {
+        var dataset = new GpcDataset
+        {
+            MolecularWeightStatistics = new MolecularWeightStatistics
+            {
+                Mn = 1234,
+                Mw = 5678,
+                Pdi = 4.6,
+                Source = MolecularWeightStatisticsSource.DataFile,
+            },
+            Points = new[]
+            {
+                new GpcDataPoint { X = 2, Y = 1 },
+                new GpcDataPoint { X = 3, Y = 2 },
+            },
+        };
+        var curve = new CalibrationCurve
+        {
+            Solvent = "Test",
+            Detector = "A",
+            Coefficients = new CalibrationCurveCoefficients
+            {
+                A = 0,
+                B = 0,
+                C = 1,
+                D = 0,
+            },
+        };
+
+        var converted = new MolecularWeightConverter().Convert(dataset, curve);
+
+        Assert.NotNull(converted.Statistics);
+        Assert.Equal(1234, converted.Statistics.Mn);
+        Assert.Equal(5678, converted.Statistics.Mw);
+        Assert.Equal(4.6, converted.Statistics.Pdi);
+        Assert.Equal(MolecularWeightStatisticsSource.DataFile, converted.Statistics.Source);
+    }
+
+    [Fact]
+    public void MolecularWeightConverter_CalculatesStatisticsWhenDataFileStatisticsAreMissing()
+    {
+        var dataset = new GpcDataset
+        {
+            Points = new[]
+            {
+                new GpcDataPoint { X = 2, Y = 1 },
+                new GpcDataPoint { X = 3, Y = 1 },
+            },
+        };
+        var curve = new CalibrationCurve
+        {
+            Solvent = "Test",
+            Detector = "A",
+            Coefficients = new CalibrationCurveCoefficients
+            {
+                A = 0,
+                B = 0,
+                C = 1,
+                D = 0,
+            },
+        };
+
+        var converted = new MolecularWeightConverter().Convert(dataset, curve);
+
+        Assert.NotNull(converted.Statistics);
+        Assert.Equal(MolecularWeightStatisticsSource.Calculated, converted.Statistics.Source);
+        Assert.Equal(181.8181818, converted.Statistics.Mn!.Value, 6);
+        Assert.Equal(550, converted.Statistics.Mw!.Value, 6);
+        Assert.Equal(3.025, converted.Statistics.Pdi!.Value, 6);
+    }
+
     private static string WriteTempFile(string contents)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json");

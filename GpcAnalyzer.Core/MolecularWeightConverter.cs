@@ -2,7 +2,7 @@ namespace GpcAnalyzer.Core;
 
 public sealed class MolecularWeightConverter
 {
-    public const double DefaultMinMolecularWeight = 100;
+    public const double DefaultMinMolecularWeight = 1;
     public const double DefaultMaxMolecularWeight = 100_000_000;
 
     public MolecularWeightDataset Convert(
@@ -30,9 +30,10 @@ public sealed class MolecularWeightConverter
                 Signal = point.Y,
             })
             .ToArray();
+        var signalPoints = CreateSignalPoints(sourcePoints, minMolecularWeight, maxMolecularWeight);
         var points = yMode switch
         {
-            MolecularWeightYMode.Signal => CreateSignalPoints(sourcePoints, minMolecularWeight, maxMolecularWeight),
+            MolecularWeightYMode.Signal => signalPoints,
             MolecularWeightYMode.DifferentialWeightFraction => CreateDifferentialWeightFractionPoints(
                 sourcePoints,
                 minMolecularWeight,
@@ -56,7 +57,45 @@ public sealed class MolecularWeightConverter
             SourcePointCount = dataset.Points.Count,
             YLabel = yMode == MolecularWeightYMode.DifferentialWeightFraction ? "dw/dlogM" : dataset.YLabel,
             YMode = yMode,
+            Statistics = dataset.MolecularWeightStatistics ?? CalculateStatistics(signalPoints),
             Points = points,
+        };
+    }
+
+    private static MolecularWeightStatistics? CalculateStatistics(IReadOnlyList<MolecularWeightDataPoint> points)
+    {
+        var weightedPoints = points
+            .Where(point => double.IsFinite(point.MolecularWeight)
+                && point.MolecularWeight > 0
+                && double.IsFinite(point.Signal)
+                && point.Signal > 0)
+            .ToArray();
+
+        var totalWeight = weightedPoints.Sum(point => point.Signal);
+        if (!double.IsFinite(totalWeight) || totalWeight <= double.Epsilon)
+        {
+            return null;
+        }
+
+        var mnDenominator = weightedPoints.Sum(point => point.Signal / point.MolecularWeight);
+        if (!double.IsFinite(mnDenominator) || mnDenominator <= double.Epsilon)
+        {
+            return null;
+        }
+
+        var mn = totalWeight / mnDenominator;
+        var mw = weightedPoints.Sum(point => point.Signal * point.MolecularWeight) / totalWeight;
+        if (!double.IsFinite(mn) || !double.IsFinite(mw))
+        {
+            return null;
+        }
+
+        return new MolecularWeightStatistics
+        {
+            Mn = mn,
+            Mw = mw,
+            Pdi = mn > double.Epsilon ? mw / mn : null,
+            Source = MolecularWeightStatisticsSource.Calculated,
         };
     }
 

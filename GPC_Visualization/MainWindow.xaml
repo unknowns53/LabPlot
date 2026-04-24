@@ -13,13 +13,19 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Padding" Value="12" />
-            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="#0F172A" />
             <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="GroupLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="Margin" Value="2,2,0,6" />
         </Style>
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
@@ -39,11 +45,16 @@
             <Setter Property="Padding" Value="14,0" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
         </Style>
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320" MinWidth="280" />
+            <ColumnDefinition Width="360" MinWidth="320" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -76,6 +87,9 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="16,8,16,8">
+
+                        <TextBlock Text="データ"
+                                   Style="{StaticResource GroupLabelStyle}" />
 
                         <!-- Section: File -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -220,6 +234,10 @@
                             </Expander>
                         </Border>
 
+                        <TextBlock Text="書式"
+                                   Style="{StaticResource GroupLabelStyle}"
+                                   Margin="2,6,0,6" />
+
                         <!-- Section: Graph labels -->
                         <Border Style="{StaticResource SectionStyle}">
                             <Expander Header="グラフラベル" IsExpanded="False">
@@ -337,23 +355,33 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <TextBlock Text="縦軸の数字"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <CheckBox x:Name="YAxisTickLabelsCheckBox"
-                                          Content="表示する"
-                                          IsChecked="True"
-                                          Margin="0,0,0,8"
-                                          Checked="GraphAppearanceCheckBox_Changed"
-                                          Unchecked="GraphAppearanceCheckBox_Changed" />
-
-                                <TextBlock Text="プロット枠"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <CheckBox x:Name="PlotFrameCheckBox"
-                                          Content="表示する"
-                                          IsChecked="True"
-                                          Margin="0,0,0,8"
-                                          Checked="GraphAppearanceCheckBox_Changed"
-                                          Unchecked="GraphAppearanceCheckBox_Changed" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="縦軸の数字"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <CheckBox x:Name="YAxisTickLabelsCheckBox"
+                                                  Content="表示する"
+                                                  IsChecked="True"
+                                                  Margin="0,3,0,0"
+                                                  Checked="GraphAppearanceCheckBox_Changed"
+                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="プロット枠"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <CheckBox x:Name="PlotFrameCheckBox"
+                                                  Content="表示する"
+                                                  IsChecked="True"
+                                                  Margin="0,3,0,0"
+                                                  Checked="GraphAppearanceCheckBox_Changed"
+                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    </StackPanel>
+                                </Grid>
 
                                 <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
@@ -561,40 +589,39 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Sticky footer: Apply / Auto -->
+                <!-- Sticky footer: Apply / defaults -->
                 <Border Grid.Row="2"
                         Background="#E2E8F0"
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,1,0,0"
                         Padding="16,12">
                     <StackPanel>
-                        <TextBlock Text="書式操作"
+                        <TextBlock Text="表示・書式操作"
                                    FontWeight="SemiBold"
                                    FontSize="12"
                                    Foreground="#334155"
                                    Margin="0,0,0,6" />
+                        <Button x:Name="ApplyGraphSettingsButton"
+                                Content="表示に反映"
+                                Height="32"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,0,8"
+                                Click="ApplyGraphSettingsButton_Click" />
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="8" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="ApplyGraphSettingsButton"
-                                    Grid.Column="0"
-                                    Content="Apply"
-                                    Height="32"
-                                    Click="ApplyGraphSettingsButton_Click" />
                             <Button x:Name="ResetGraphSettingsButton"
-                                    Grid.Column="2"
-                                    Content="既定"
-                                    Height="32"
+                                    Grid.Column="0"
+                                    Content="既定に戻す"
+                                    Style="{StaticResource SecondaryButtonStyle}"
                                     Click="ResetGraphSettingsButton_Click" />
                             <Button x:Name="SaveDefaultFormattingButton"
-                                    Grid.Column="4"
+                                    Grid.Column="2"
                                     Content="既定保存"
-                                    Height="32"
+                                    Style="{StaticResource SecondaryButtonStyle}"
                                     Click="SaveDefaultFormattingButton_Click" />
                         </Grid>
                     </StackPanel>
@@ -614,7 +641,7 @@
             <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,12">
                 <Button x:Name="SaveGraphButton"
                         DockPanel.Dock="Right"
-                        Content="グラフを PNG で保存"
+                        Content="PNG / SVG 保存"
                         Height="34"
                         Padding="18,0"
                         IsEnabled="False"
@@ -630,6 +657,7 @@
                     Grid.Row="1"
                     BorderBrush="#CBD5E1"
                     BorderThickness="1"
+                    CornerRadius="6"
                     Background="White"
                     SizeChanged="PlotContainerBorder_SizeChanged">
                 <Grid x:Name="PlotHost">

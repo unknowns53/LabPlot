@@ -4,281 +4,343 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="GPC Analyzer" Height="840" MinHeight="640" Width="1180" MinWidth="820"
+        Title="GPC Analyzer" Height="860" MinHeight="660" Width="1240" MinWidth="960"
         Background="#F7F8FA">
-    <Grid Margin="18">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Window.Resources>
+        <Style x:Key="SectionStyle" TargetType="Border">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#475569" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="InputTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="6,0" />
+        </Style>
+        <Style x:Key="InputComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Height" Value="28" />
+        </Style>
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
 
-        <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,14">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button x:Name="OpenCsvButton"
-                        Content="CSVを開く"
-                        MinWidth="112"
-                        Height="34"
-                        Margin="0,0,8,0"
-                        Padding="14,0"
-                        Click="OpenCsvButton_Click" />
-                <Button x:Name="SaveGraphButton"
-                        Content="グラフを保存"
-                        MinWidth="124"
-                        Height="34"
-                        Padding="14,0"
-                        IsEnabled="False"
-                        Click="SaveGraphButton_Click" />
-            </StackPanel>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" MinWidth="280" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-            <TextBlock Text="GPC Analyzer"
-                       VerticalAlignment="Center"
-                       FontSize="24"
-                       FontWeight="SemiBold"
-                       Foreground="#1E293B" />
-        </DockPanel>
+        <!-- ================= SIDEBAR ================= -->
+        <Border Grid.Column="0"
+                Background="#EEF2F7"
+                BorderBrush="#CBD5E1"
+                BorderThickness="0,0,1,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="16,18,16,18">
+                    <TextBlock Text="GPC Analyzer"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="#1E293B"
+                               Margin="0,0,0,2" />
+                    <TextBlock Text="Chromatogram visualizer"
+                               FontSize="11"
+                               Foreground="#64748B"
+                               Margin="0,0,0,16" />
 
-        <Grid Grid.Row="1" Margin="0,0,0,10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="ファイル:"
-                       VerticalAlignment="Center"
-                       Margin="0,0,8,0"
-                       FontWeight="SemiBold"
-                       Foreground="#334155" />
-            <TextBlock x:Name="FilePathTextBlock"
-                       Grid.Column="1"
-                       Text="未選択"
-                       VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis"
-                       Foreground="#475569" />
-        </Grid>
+                    <!-- Section: File -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="データファイル"
+                                       Style="{StaticResource SectionHeaderStyle}" />
+                            <Button x:Name="OpenCsvButton"
+                                    Content="CSV / TXT を開く"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,0,0,10"
+                                    Click="OpenCsvButton_Click" />
+                            <TextBlock Text="現在のファイル"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <TextBlock x:Name="FilePathTextBlock"
+                                       Text="未選択"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="#1E293B"
+                                       ToolTipService.ShowDuration="30000"
+                                       Margin="0,0,0,10" />
+                            <CheckBox x:Name="OverlayCheckBox"
+                                      Content="重ね描き (Overlay)"
+                                      Checked="OverlayCheckBox_Changed"
+                                      Unchecked="OverlayCheckBox_Changed" />
+                        </StackPanel>
+                    </Border>
 
-        <DockPanel Grid.Row="2" LastChildFill="True" Margin="0,0,0,12">
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="溶媒:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <ComboBox x:Name="SolventComboBox"
-                          Width="130"
-                          Height="30"
-                          Margin="0,0,12,0"
-                          IsEnabled="False"
-                          SelectionChanged="SolventComboBox_SelectionChanged" />
-                <TextBlock Text="検出器:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <ComboBox x:Name="DetectorComboBox"
-                          Width="86"
-                          Height="30"
-                          Margin="0,0,12,0"
-                          IsEnabled="False"
-                          SelectionChanged="DetectorComboBox_SelectionChanged" />
-                <CheckBox x:Name="MolecularWeightCheckBox"
-                          Content="分子量表示"
-                          VerticalAlignment="Center"
-                          Margin="0,0,12,0"
-                          IsEnabled="False"
-                          Checked="MolecularWeightCheckBox_Changed"
-                          Unchecked="MolecularWeightCheckBox_Changed" />
-                <TextBlock Text="Y:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <ComboBox x:Name="MolecularWeightYModeComboBox"
-                          Width="110"
-                          Height="30"
-                          IsEnabled="False"
-                          SelectedIndex="0"
-                          SelectionChanged="MolecularWeightYModeComboBox_SelectionChanged">
-                    <ComboBoxItem Content="Signal" Tag="Signal" />
-                    <ComboBoxItem Content="dw/dlogM" Tag="DwdLogM" />
-                </ComboBox>
-            </StackPanel>
+                    <!-- Section: Calibration & MW -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="較正曲線と分子量"
+                                       Style="{StaticResource SectionHeaderStyle}" />
+                            <Button x:Name="OpenCalibrationButton"
+                                    Content="較正曲線 JSON を開く"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,0,0,8"
+                                    Click="OpenCalibrationButton_Click" />
+                            <TextBlock x:Name="CalibrationPathTextBlock"
+                                       Text="較正曲線: 未選択"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="#475569"
+                                       ToolTipService.ShowDuration="30000"
+                                       Margin="0,0,0,12" />
 
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="OpenCalibrationButton"
-                        Content="較正曲線を開く"
-                        MinWidth="132"
-                        Height="32"
-                        Padding="14,0"
-                        Margin="0,0,10,0"
-                        Click="OpenCalibrationButton_Click" />
-                <TextBlock x:Name="CalibrationPathTextBlock"
-                           Text="較正曲線: 未選択"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           Foreground="#475569" />
-            </StackPanel>
-        </DockPanel>
+                            <TextBlock Text="溶媒"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="SolventComboBox"
+                                      Style="{StaticResource InputComboBoxStyle}"
+                                      IsEnabled="False"
+                                      Margin="0,0,0,8"
+                                      SelectionChanged="SolventComboBox_SelectionChanged" />
 
-        <Grid Grid.Row="3" Margin="0,0,0,12">
+                            <TextBlock Text="検出器"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="DetectorComboBox"
+                                      Style="{StaticResource InputComboBoxStyle}"
+                                      IsEnabled="False"
+                                      Margin="0,0,0,12"
+                                      SelectionChanged="DetectorComboBox_SelectionChanged" />
+
+                            <CheckBox x:Name="MolecularWeightCheckBox"
+                                      Content="分子量表示"
+                                      IsEnabled="False"
+                                      Margin="0,0,0,10"
+                                      Checked="MolecularWeightCheckBox_Changed"
+                                      Unchecked="MolecularWeightCheckBox_Changed" />
+
+                            <TextBlock Text="Y軸モード"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="MolecularWeightYModeComboBox"
+                                      Style="{StaticResource InputComboBoxStyle}"
+                                      IsEnabled="False"
+                                      SelectedIndex="0"
+                                      SelectionChanged="MolecularWeightYModeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Signal" Tag="Signal" />
+                                <ComboBoxItem Content="dw/dlogM" Tag="DwdLogM" />
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section: Graph labels -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="グラフラベル"
+                                       Style="{StaticResource SectionHeaderStyle}" />
+
+                            <TextBlock Text="タイトル"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox x:Name="TitleTextBox"
+                                     Style="{StaticResource InputTextBoxStyle}"
+                                     Margin="0,0,0,8" />
+
+                            <TextBlock Text="X軸ラベル"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox x:Name="XLabelTextBox"
+                                     Style="{StaticResource InputTextBoxStyle}"
+                                     Margin="0,0,0,8" />
+
+                            <TextBlock Text="Y軸ラベル"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox x:Name="YLabelTextBox"
+                                     Style="{StaticResource InputTextBoxStyle}"
+                                     Margin="0,0,0,12" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="ApplyGraphSettingsButton"
+                                        Grid.Column="0"
+                                        Content="Apply"
+                                        Height="30"
+                                        Click="ApplyGraphSettingsButton_Click" />
+                                <Button x:Name="ResetGraphSettingsButton"
+                                        Grid.Column="2"
+                                        Content="Auto"
+                                        Height="30"
+                                        Click="ResetGraphSettingsButton_Click" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section: Axis range -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="軸範囲"
+                                       Style="{StaticResource SectionHeaderStyle}" />
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="X Min"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="XMinTextBox"
+                                             Style="{StaticResource InputTextBoxStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="X Max"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="XMaxTextBox"
+                                             Style="{StaticResource InputTextBoxStyle}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Y Min"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="YMinTextBox"
+                                             Style="{StaticResource InputTextBoxStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Y Max"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="YMaxTextBox"
+                                             Style="{StaticResource InputTextBoxStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section: Line style -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="線スタイル"
+                                       Style="{StaticResource SectionHeaderStyle}" />
+
+                            <TextBlock Text="色"
+                                       Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="LineColorComboBox"
+                                      Style="{StaticResource InputComboBoxStyle}"
+                                      SelectedIndex="0"
+                                      Margin="0,0,0,10">
+                                <ComboBoxItem Content="Auto" Tag="Auto" />
+                                <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                                <ComboBoxItem Content="Red" Tag="#DC2626" />
+                                <ComboBoxItem Content="Green" Tag="#16A34A" />
+                                <ComboBoxItem Content="Orange" Tag="#EA580C" />
+                                <ComboBoxItem Content="Purple" Tag="#7C3AED" />
+                                <ComboBoxItem Content="Gray" Tag="#475569" />
+                            </ComboBox>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="線幅"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="LineWidthTextBox"
+                                             Text="1.5"
+                                             Style="{StaticResource InputTextBoxStyle}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="マーカー"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="MarkerSizeTextBox"
+                                             Text="0"
+                                             Style="{StaticResource InputTextBoxStyle}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ================= MAIN AREA ================= -->
+        <Grid Grid.Column="1" Margin="20,18,20,14">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <WrapPanel VerticalAlignment="Center">
-                <TextBlock Text="Title:"
+            <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,12">
+                <Button x:Name="SaveGraphButton"
+                        DockPanel.Dock="Right"
+                        Content="グラフを PNG で保存"
+                        Height="34"
+                        Padding="18,0"
+                        IsEnabled="False"
+                        Click="SaveGraphButton_Click" />
+                <TextBlock Text="Chromatogram"
                            VerticalAlignment="Center"
-                           Margin="0,0,6,0"
+                           FontSize="16"
                            FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <TextBox x:Name="TitleTextBox"
-                         Width="210"
-                         Height="28"
-                         Margin="0,0,12,0" />
-                <TextBlock Text="X Label:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <TextBox x:Name="XLabelTextBox"
-                         Width="170"
-                         Height="28"
-                         Margin="0,0,12,0" />
-                <TextBlock Text="Y Label:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <TextBox x:Name="YLabelTextBox"
-                         Width="170"
-                         Height="28"
-                         Margin="0,0,12,0" />
-                <Button x:Name="ApplyGraphSettingsButton"
-                        Content="Apply"
-                        Width="72"
-                        Height="28"
-                        Margin="0,0,8,0"
-                        Click="ApplyGraphSettingsButton_Click" />
-                <Button x:Name="ResetGraphSettingsButton"
-                        Content="Auto"
-                        Width="64"
-                        Height="28"
-                        Margin="0,0,12,0"
-                        Click="ResetGraphSettingsButton_Click" />
-                <CheckBox x:Name="OverlayCheckBox"
-                          Content="Overlay"
-                          VerticalAlignment="Center"
-                          Margin="0,0,12,0"
-                          Checked="OverlayCheckBox_Changed"
-                          Unchecked="OverlayCheckBox_Changed" />
-                <TextBlock Text="Color:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <ComboBox x:Name="LineColorComboBox"
-                          Width="88"
-                          Height="28"
-                          Margin="0,0,12,0"
-                          SelectedIndex="0">
-                    <ComboBoxItem Content="Auto" Tag="Auto" />
-                    <ComboBoxItem Content="Blue" Tag="#2563EB" />
-                    <ComboBoxItem Content="Red" Tag="#DC2626" />
-                    <ComboBoxItem Content="Green" Tag="#16A34A" />
-                    <ComboBoxItem Content="Orange" Tag="#EA580C" />
-                    <ComboBoxItem Content="Purple" Tag="#7C3AED" />
-                    <ComboBoxItem Content="Gray" Tag="#475569" />
-                </ComboBox>
-                <TextBlock Text="Line:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <TextBox x:Name="LineWidthTextBox"
-                         Text="1.5"
-                         Width="48"
-                         Height="28"
-                         Margin="0,0,12,0" />
-                <TextBlock Text="Marker:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,6,0"
-                           FontWeight="SemiBold"
-                           Foreground="#334155" />
-                <TextBox x:Name="MarkerSizeTextBox"
-                         Text="0"
-                         Width="48"
-                         Height="28" />
-            </WrapPanel>
-
-            <DockPanel Grid.Row="1" Margin="0,8,0,0" LastChildFill="True">
-                <TextBlock x:Name="StatisticsTextBlock"
-                           DockPanel.Dock="Right"
-                           Text="Mn: -   Mw: -   PDI: -"
-                           VerticalAlignment="Center"
-                           Foreground="#334155"
-                           FontWeight="SemiBold"
-                           TextWrapping="Wrap"
-                           Width="520" />
-                <WrapPanel VerticalAlignment="Center">
-                    <TextBlock Text="X Min:"
-                               VerticalAlignment="Center"
-                               Margin="0,0,6,0"
-                               FontWeight="SemiBold"
-                               Foreground="#334155" />
-                    <TextBox x:Name="XMinTextBox"
-                             Width="86"
-                             Height="28"
-                             Margin="0,0,10,0" />
-                    <TextBlock Text="X Max:"
-                               VerticalAlignment="Center"
-                               Margin="0,0,6,0"
-                               FontWeight="SemiBold"
-                               Foreground="#334155" />
-                    <TextBox x:Name="XMaxTextBox"
-                             Width="86"
-                             Height="28"
-                             Margin="0,0,10,0" />
-                    <TextBlock Text="Y Min:"
-                               VerticalAlignment="Center"
-                               Margin="0,0,6,0"
-                               FontWeight="SemiBold"
-                               Foreground="#334155" />
-                    <TextBox x:Name="YMinTextBox"
-                             Width="86"
-                             Height="28"
-                             Margin="0,0,10,0" />
-                    <TextBlock Text="Y Max:"
-                               VerticalAlignment="Center"
-                               Margin="0,0,6,0"
-                               FontWeight="SemiBold"
-                               Foreground="#334155" />
-                    <TextBox x:Name="YMaxTextBox"
-                             Width="86"
-                             Height="28" />
-                </WrapPanel>
+                           Foreground="#1E293B" />
             </DockPanel>
+
+            <Border Grid.Row="1"
+                    BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    Background="White">
+                <Grid x:Name="PlotHost">
+                    <TextBlock x:Name="PlotPlaceholderTextBlock"
+                               Text="グラフを初期化しています..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="#64748B" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2"
+                    Background="#F1F5F9"
+                    BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="14,10"
+                    Margin="0,12,0,0">
+                <TextBlock x:Name="StatisticsTextBlock"
+                           Text="Mn: -   Mw: -   PDI: -"
+                           Foreground="#0F172A"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+            </Border>
+
+            <StatusBar Grid.Row="3" Margin="0,8,0,0" Background="Transparent">
+                <TextBlock x:Name="StatusTextBlock"
+                           Text="CSVまたはLabSolutions TXTを開いてください。"
+                           Foreground="#475569" />
+            </StatusBar>
         </Grid>
-
-        <Border Grid.Row="4"
-                BorderBrush="#CBD5E1"
-                BorderThickness="1"
-                Background="White">
-            <Grid x:Name="PlotHost">
-                <TextBlock x:Name="PlotPlaceholderTextBlock"
-                           Text="グラフを初期化しています..."
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Foreground="#64748B" />
-            </Grid>
-        </Border>
-
-        <StatusBar Grid.Row="5" Margin="0,12,0,0" Background="Transparent">
-            <TextBlock x:Name="StatusTextBlock"
-                       Text="CSVまたはLabSolutions TXTを開いてください。"
-                       Foreground="#475569" />
-        </StatusBar>
     </Grid>
 </Window>

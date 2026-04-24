@@ -27,6 +27,9 @@ public partial class MainWindow : Window
         "#0891B2",
         "#4B5563",
     ];
+    private const int DefaultExportWidth = 1200;
+    private const int DefaultExportHeight = 720;
+    private const string DefaultPlotFrameColorHex = "#475569";
 
     private readonly List<GpcDataset> _loadedDatasets = new();
     private readonly List<DatasetStyle> _datasetStyles = new();
@@ -246,6 +249,11 @@ public partial class MainWindow : Window
         XMaxTextBox.Clear();
         YMinTextBox.Clear();
         YMaxTextBox.Clear();
+        GraphFontComboBox.SelectedIndex = 0;
+        PlotFrameCheckBox.IsChecked = true;
+        PlotFrameWidthTextBox.Text = "1";
+        PlotFrameColorComboBox.SelectedIndex = 0;
+        AspectRatioComboBox.SelectedIndex = 0;
 
         foreach (var style in _datasetStyles)
         {
@@ -256,6 +264,7 @@ public partial class MainWindow : Window
 
         SyncStyleControlsFromActiveDataset();
         RefreshDatasetEntries();
+        UpdatePlotHostAspectRatio();
         PlotCurrentDataset();
     }
 
@@ -284,7 +293,8 @@ public partial class MainWindow : Window
 
         try
         {
-            _chromatogramPlot.Plot.SavePng(dialog.FileName, 1200, 720);
+            var (width, height) = GetExportImageSize();
+            _chromatogramPlot.Plot.SavePng(dialog.FileName, width, height);
             SetStatus($"グラフを保存しました: {dialog.FileName}", false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -300,6 +310,7 @@ public partial class MainWindow : Window
             _chromatogramPlot = new WpfPlot();
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_chromatogramPlot);
+            UpdatePlotHostAspectRatio();
             InitializeEmptyPlot();
 
             if (_currentDataset is not null)
@@ -326,6 +337,7 @@ public partial class MainWindow : Window
         _chromatogramPlot.Plot.XLabel("Time");
         _chromatogramPlot.Plot.YLabel("Signal");
         _chromatogramPlot.Plot.Axes.NumericTicksBottom();
+        ApplyPlotAppearance();
         UpdateStatisticsText(null);
         _chromatogramPlot.Refresh();
     }
@@ -456,6 +468,7 @@ public partial class MainWindow : Window
                 Label: GetStatsLabel(e.Dataset.SourceFilePath, e.Index),
                 Stats: e.Dataset.MolecularWeightStatistics))
             .ToList());
+        ApplyPlotAppearance();
         _chromatogramPlot.Refresh();
     }
 
@@ -511,7 +524,46 @@ public partial class MainWindow : Window
                 Label: GetStatsLabel(e.Dataset.SourceFilePath, e.Index),
                 Stats: e.Dataset.Statistics))
             .ToList());
+        ApplyPlotAppearance();
         _chromatogramPlot.Refresh();
+    }
+
+    private void ApplyPlotAppearance()
+    {
+        if (_chromatogramPlot is null)
+        {
+            return;
+        }
+
+        var plot = _chromatogramPlot.Plot;
+        ApplyPlotFont(plot);
+        ApplyPlotFrame(plot);
+    }
+
+    private void ApplyPlotFont(ScottPlot.Plot plot)
+    {
+        var fontName = GetSelectedGraphFontName();
+        if (fontName is null)
+        {
+            plot.Font.Automatic();
+            return;
+        }
+
+        plot.Font.Set(fontName);
+    }
+
+    private void ApplyPlotFrame(ScottPlot.Plot plot)
+    {
+        var frameVisible = PlotFrameCheckBox.IsChecked == true;
+        plot.Axes.Frame(frameVisible);
+
+        if (!frameVisible)
+        {
+            return;
+        }
+
+        plot.Axes.FrameWidth(GetPlotFrameWidth());
+        plot.Axes.FrameColor(GetSelectedScottPlotColor(PlotFrameColorComboBox, DefaultPlotFrameColorHex));
     }
 
     private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex)
@@ -1134,6 +1186,163 @@ public partial class MainWindow : Window
         {
             _datasetStyles[_activeIndex].MarkerSize = size;
         }
+    }
+
+    private void GraphAppearanceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ApplyGraphAppearanceAndRefresh();
+    }
+
+    private void GraphAppearanceCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        ApplyGraphAppearanceAndRefresh();
+    }
+
+    private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdatePlotHostAspectRatio();
+        _chromatogramPlot?.Refresh();
+    }
+
+    private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdatePlotHostAspectRatio();
+    }
+
+    private void ApplyGraphAppearanceAndRefresh()
+    {
+        if (_chromatogramPlot is null)
+        {
+            return;
+        }
+
+        ApplyPlotAppearance();
+        _chromatogramPlot.Refresh();
+    }
+
+    private string? GetSelectedGraphFontName()
+    {
+        if (GraphFontComboBox.SelectedItem is ComboBoxItem item
+            && item.Tag is string selectedTag
+            && !selectedTag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return selectedTag;
+        }
+
+        var text = GraphFontComboBox.Text.Trim();
+        return string.IsNullOrWhiteSpace(text) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : text;
+    }
+
+    private float GetPlotFrameWidth()
+    {
+        return TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var width)
+            ? (float)width
+            : 1f;
+    }
+
+    private static ScottPlot.Color GetSelectedScottPlotColor(ComboBox comboBox, string fallbackHex)
+    {
+        var hex = comboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
+            ? tag
+            : fallbackHex;
+
+        try
+        {
+            return ScottPlot.Color.FromHex(new[] { hex }).First();
+        }
+        catch
+        {
+            return ScottPlot.Color.FromHex(new[] { fallbackHex }).First();
+        }
+    }
+
+    private double? GetSelectedAspectRatio()
+    {
+        var ratioText = AspectRatioComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
+            ? tag
+            : AspectRatioComboBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(ratioText)
+            || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var parts = ratioText.Split(':', '/', 'x', 'X');
+        if (parts.Length != 2)
+        {
+            return null;
+        }
+
+        if (!double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var width)
+            || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var height)
+            || width <= 0
+            || height <= 0)
+        {
+            return null;
+        }
+
+        return width / height;
+    }
+
+    private void UpdatePlotHostAspectRatio()
+    {
+        if (PlotHost is null || PlotContainerBorder is null)
+        {
+            return;
+        }
+
+        var ratio = GetSelectedAspectRatio();
+        if (!ratio.HasValue)
+        {
+            PlotHost.Width = double.NaN;
+            PlotHost.Height = double.NaN;
+            PlotHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+            PlotHost.VerticalAlignment = VerticalAlignment.Stretch;
+            return;
+        }
+
+        var availableWidth = PlotContainerBorder.ActualWidth
+            - PlotContainerBorder.BorderThickness.Left
+            - PlotContainerBorder.BorderThickness.Right;
+        var availableHeight = PlotContainerBorder.ActualHeight
+            - PlotContainerBorder.BorderThickness.Top
+            - PlotContainerBorder.BorderThickness.Bottom;
+
+        if (availableWidth <= 0 || availableHeight <= 0)
+        {
+            return;
+        }
+
+        var targetWidth = availableWidth;
+        var targetHeight = targetWidth / ratio.Value;
+        if (targetHeight > availableHeight)
+        {
+            targetHeight = availableHeight;
+            targetWidth = targetHeight * ratio.Value;
+        }
+
+        PlotHost.HorizontalAlignment = HorizontalAlignment.Center;
+        PlotHost.VerticalAlignment = VerticalAlignment.Center;
+        PlotHost.Width = Math.Max(0, targetWidth);
+        PlotHost.Height = Math.Max(0, targetHeight);
+    }
+
+    private (int Width, int Height) GetExportImageSize()
+    {
+        var ratio = GetSelectedAspectRatio();
+        if (!ratio.HasValue)
+        {
+            return (DefaultExportWidth, DefaultExportHeight);
+        }
+
+        var width = ratio.Value == 1
+            ? 1000
+            : DefaultExportWidth;
+        var height = Math.Max(1, (int)Math.Round(width / ratio.Value));
+        return (width, height);
     }
 
     private static Color HexToMediaColor(string hex)

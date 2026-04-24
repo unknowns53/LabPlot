@@ -11,6 +11,7 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 - Display the chromatogram with ScottPlot
 - Load a standard-curve JSON and convert retention time to molecular weight
 - Edit graph title, axis labels, and X/Y axis ranges
+- Change graph font, plot frame, and display/export aspect ratio
 - Overlay multiple loaded data files
 - Adjust line color, line width, and marker size
 - Show likely Mn, Mw, and PDI peak candidates from the data file when available, otherwise calculate them from converted molecular-weight data

@@ -293,6 +293,81 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Section: Graph appearance -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <StackPanel>
+                                <TextBlock Text="グラフ書式"
+                                           Style="{StaticResource SectionHeaderStyle}" />
+
+                                <TextBlock Text="フォント"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="GraphFontComboBox"
+                                          Style="{StaticResource InputComboBoxStyle}"
+                                          IsEditable="True"
+                                          SelectedIndex="0"
+                                          Margin="0,0,0,10"
+                                          SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="Auto" Tag="Auto" />
+                                    <ComboBoxItem Content="Yu Gothic" Tag="Yu Gothic" />
+                                    <ComboBoxItem Content="Meiryo" Tag="Meiryo" />
+                                    <ComboBoxItem Content="Arial" Tag="Arial" />
+                                    <ComboBoxItem Content="Times New Roman" Tag="Times New Roman" />
+                                    <ComboBoxItem Content="MS Gothic" Tag="MS Gothic" />
+                                </ComboBox>
+
+                                <TextBlock Text="プロット枠"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <CheckBox x:Name="PlotFrameCheckBox"
+                                          Content="表示する"
+                                          IsChecked="True"
+                                          Margin="0,0,0,8"
+                                          Checked="GraphAppearanceCheckBox_Changed"
+                                          Unchecked="GraphAppearanceCheckBox_Changed" />
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="枠線幅"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="PlotFrameWidthTextBox"
+                                                 Text="1"
+                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="枠色"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <ComboBox x:Name="PlotFrameColorComboBox"
+                                                  Style="{StaticResource InputComboBoxStyle}"
+                                                  SelectedIndex="0"
+                                                  SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="Gray" Tag="#475569" />
+                                            <ComboBoxItem Content="Black" Tag="#0F172A" />
+                                            <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                                            <ComboBoxItem Content="Red" Tag="#DC2626" />
+                                            <ComboBoxItem Content="Green" Tag="#16A34A" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="アスペクト比"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="AspectRatioComboBox"
+                                          Style="{StaticResource InputComboBoxStyle}"
+                                          SelectedIndex="0"
+                                          SelectionChanged="AspectRatioComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="Auto" Tag="Auto" />
+                                    <ComboBoxItem Content="16:9" Tag="16:9" />
+                                    <ComboBoxItem Content="4:3" Tag="4:3" />
+                                    <ComboBoxItem Content="3:2" Tag="3:2" />
+                                    <ComboBoxItem Content="1:1" Tag="1:1" />
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Section: Line style (active dataset) -->
                         <Border Style="{StaticResource SectionStyle}">
                             <StackPanel>
@@ -412,10 +487,12 @@
                            Foreground="#1E293B" />
             </DockPanel>
 
-            <Border Grid.Row="1"
+            <Border x:Name="PlotContainerBorder"
+                    Grid.Row="1"
                     BorderBrush="#CBD5E1"
                     BorderThickness="1"
-                    Background="White">
+                    Background="White"
+                    SizeChanged="PlotContainerBorder_SizeChanged">
                 <Grid x:Name="PlotHost">
                     <TextBlock x:Name="PlotPlaceholderTextBlock"
                                Text="グラフを初期化しています..."

@@ -1175,6 +1175,7 @@
       },
       "frameworks": {
         "net10.0-windows7.0": {
+          "framework": "net10.0-windows7.0",
           "targetAlias": "net10.0-windows",
           "projectReferences": {
             "D:\\Task_Automation\\GPC_Visualization\\GpcAnalyzer.Core\\GpcAnalyzer.Core.csproj": {
@@ -1197,6 +1198,7 @@
     },
     "frameworks": {
       "net10.0-windows7.0": {
+        "framework": "net10.0-windows7.0",
         "targetAlias": "net10.0-windows",
         "dependencies": {
           "ScottPlot.WPF": {
@@ -1525,7 +1527,7 @@
       "message": "パッケージ 'SkiaSharp.Views.WPF 3.119.0' はプロジェクトのターゲット フレームワーク 'net10.0-windows7.0' ではなく '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8, .NETFramework,Version=v4.8.1' を使用して復元されました。このパッケージは、使用しているプロジェクトとの完全な互換性がない可能性があります。",
       "libraryId": "SkiaSharp.Views.WPF",
       "targetGraphs": [
-        "net10.0-windows7.0"
+        "net10.0-windows"
       ]
     }
   ]

@@ -10,6 +10,7 @@ obj/
 *.json
 *.png
 *.jpg
+*.svg
 
 # Visual Studio local cache
 .vs/
@@ -38,3 +39,4 @@ Thumbs.db
 
 # 内部ドキュメント
 要件定義.md
+作業メモ.md

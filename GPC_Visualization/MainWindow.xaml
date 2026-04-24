@@ -4,10 +4,11 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="GPC Analyzer" Height="720" MinHeight="520" Width="1100" MinWidth="760"
+        Title="GPC Analyzer" Height="760" MinHeight="560" Width="1180" MinWidth="820"
         Background="#F7F8FA">
     <Grid Margin="18">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -39,7 +40,7 @@
                        Foreground="#1E293B" />
         </DockPanel>
 
-        <Grid Grid.Row="1" Margin="0,0,0,12">
+        <Grid Grid.Row="1" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -57,7 +58,55 @@
                        Foreground="#475569" />
         </Grid>
 
-        <Border Grid.Row="2"
+        <DockPanel Grid.Row="2" LastChildFill="True" Margin="0,0,0,12">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="溶媒:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <ComboBox x:Name="SolventComboBox"
+                          Width="130"
+                          Height="30"
+                          Margin="0,0,12,0"
+                          IsEnabled="False"
+                          SelectionChanged="SolventComboBox_SelectionChanged" />
+                <TextBlock Text="検出器:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"
+                           Foreground="#334155" />
+                <ComboBox x:Name="DetectorComboBox"
+                          Width="86"
+                          Height="30"
+                          Margin="0,0,12,0"
+                          IsEnabled="False"
+                          SelectionChanged="DetectorComboBox_SelectionChanged" />
+                <CheckBox x:Name="MolecularWeightCheckBox"
+                          Content="分子量表示"
+                          VerticalAlignment="Center"
+                          IsEnabled="False"
+                          Checked="MolecularWeightCheckBox_Changed"
+                          Unchecked="MolecularWeightCheckBox_Changed" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="OpenCalibrationButton"
+                        Content="較正曲線を開く"
+                        MinWidth="132"
+                        Height="32"
+                        Padding="14,0"
+                        Margin="0,0,10,0"
+                        Click="OpenCalibrationButton_Click" />
+                <TextBlock x:Name="CalibrationPathTextBlock"
+                           Text="較正曲線: 未選択"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="#475569" />
+            </StackPanel>
+        </DockPanel>
+
+        <Border Grid.Row="3"
                 BorderBrush="#CBD5E1"
                 BorderThickness="1"
                 Background="White">
@@ -70,7 +119,7 @@
             </Grid>
         </Border>
 
-        <StatusBar Grid.Row="3" Margin="0,12,0,0" Background="Transparent">
+        <StatusBar Grid.Row="4" Margin="0,12,0,0" Background="Transparent">
             <TextBlock x:Name="StatusTextBlock"
                        Text="CSVまたはLabSolutions TXTを開いてください。"
                        Foreground="#475569" />

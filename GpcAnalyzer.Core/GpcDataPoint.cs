@@ -1,6 +1,6 @@
 namespace GpcAnalyzer.Core;
 
-public sealed class GpcDataPoint
+public readonly record struct GpcDataPoint
 {
     public double X { get; init; }
 

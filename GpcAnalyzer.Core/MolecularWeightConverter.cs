@@ -22,14 +22,7 @@ public sealed class MolecularWeightConverter
             throw new ArgumentOutOfRangeException(nameof(maxMolecularWeight), "Maximum molecular weight must be greater than the minimum.");
         }
 
-        var sourcePoints = dataset.Points
-            .Select(point => new MolecularWeightDataPoint
-            {
-                RetentionTime = point.X,
-                MolecularWeight = curve.CalculateMolecularWeight(point.X),
-                Signal = point.Y,
-            })
-            .ToArray();
+        var sourcePoints = CreateSourcePoints(dataset.Points, curve);
         var signalPoints = CreateSignalPoints(sourcePoints, minMolecularWeight, maxMolecularWeight);
         var points = yMode switch
         {
@@ -62,29 +55,58 @@ public sealed class MolecularWeightConverter
         };
     }
 
+    private static MolecularWeightDataPoint[] CreateSourcePoints(IReadOnlyList<GpcDataPoint> points, CalibrationCurve curve)
+    {
+        var sourcePoints = new MolecularWeightDataPoint[points.Count];
+        for (var i = 0; i < points.Count; i++)
+        {
+            var point = points[i];
+            var logMolecularWeight = curve.CalculateLogMolecularWeight(point.X);
+            sourcePoints[i] = new MolecularWeightDataPoint
+            {
+                RetentionTime = point.X,
+                MolecularWeight = Math.Pow(10, logMolecularWeight),
+                LogMolecularWeight = logMolecularWeight,
+                Signal = point.Y,
+            };
+        }
+
+        return sourcePoints;
+    }
+
     private static MolecularWeightStatistics? CalculateStatistics(IReadOnlyList<MolecularWeightDataPoint> points)
     {
-        var weightedPoints = points
-            .Where(point => double.IsFinite(point.MolecularWeight)
-                && point.MolecularWeight > 0
-                && double.IsFinite(point.Signal)
-                && point.Signal > 0)
-            .ToArray();
+        var totalWeight = 0.0;
+        var mnDenominator = 0.0;
+        var mwNumerator = 0.0;
+        for (var i = 0; i < points.Count; i++)
+        {
+            var point = points[i];
+            if (!double.IsFinite(point.MolecularWeight)
+                || point.MolecularWeight <= 0
+                || !double.IsFinite(point.Signal)
+                || point.Signal <= 0)
+            {
+                continue;
+            }
 
-        var totalWeight = weightedPoints.Sum(point => point.Signal);
+            totalWeight += point.Signal;
+            mnDenominator += point.Signal / point.MolecularWeight;
+            mwNumerator += point.Signal * point.MolecularWeight;
+        }
+
         if (!double.IsFinite(totalWeight) || totalWeight <= double.Epsilon)
         {
             return null;
         }
 
-        var mnDenominator = weightedPoints.Sum(point => point.Signal / point.MolecularWeight);
         if (!double.IsFinite(mnDenominator) || mnDenominator <= double.Epsilon)
         {
             return null;
         }
 
         var mn = totalWeight / mnDenominator;
-        var mw = weightedPoints.Sum(point => point.Signal * point.MolecularWeight) / totalWeight;
+        var mw = mwNumerator / totalWeight;
         if (!double.IsFinite(mn) || !double.IsFinite(mw))
         {
             return null;
@@ -104,10 +126,18 @@ public sealed class MolecularWeightConverter
         double minMolecularWeight,
         double maxMolecularWeight)
     {
-        return sourcePoints
-            .Where(point => IsMolecularWeightInRange(point, minMolecularWeight, maxMolecularWeight))
-            .OrderBy(point => point.MolecularWeight)
-            .ToArray();
+        var points = new List<MolecularWeightDataPoint>(sourcePoints.Count);
+        for (var i = 0; i < sourcePoints.Count; i++)
+        {
+            var point = sourcePoints[i];
+            if (IsMolecularWeightInRange(point, minMolecularWeight, maxMolecularWeight))
+            {
+                points.Add(point);
+            }
+        }
+
+        points.Sort(static (left, right) => left.MolecularWeight.CompareTo(right.MolecularWeight));
+        return points.ToArray();
     }
 
     private static MolecularWeightDataPoint[] CreateDifferentialWeightFractionPoints(
@@ -115,16 +145,23 @@ public sealed class MolecularWeightConverter
         double minMolecularWeight,
         double maxMolecularWeight)
     {
-        var totalWeight = sourcePoints.Sum(point => point.Signal);
+        var totalWeight = 0.0;
+        for (var i = 0; i < sourcePoints.Count; i++)
+        {
+            totalWeight += sourcePoints[i].Signal;
+        }
+
         if (!double.IsFinite(totalWeight) || Math.Abs(totalWeight) <= double.Epsilon)
         {
             throw new InvalidDataException("Cannot calculate dw/dlogM because the total signal is zero.");
         }
 
-        var orderedSourcePoints = sourcePoints
-            .OrderByDescending(point => point.RetentionTime)
-            .ToArray();
-        var points = new List<MolecularWeightDataPoint>();
+        var orderedSourcePoints = sourcePoints.ToArray();
+        Array.Sort(
+            orderedSourcePoints,
+            static (left, right) => right.RetentionTime.CompareTo(left.RetentionTime));
+
+        var points = new List<MolecularWeightDataPoint>(Math.Max(0, orderedSourcePoints.Length - 1));
         for (var i = 0; i < orderedSourcePoints.Length - 1; i++)
         {
             var current = orderedSourcePoints[i];
@@ -140,7 +177,7 @@ public sealed class MolecularWeightConverter
             }
 
             var dw = next.Signal / totalWeight;
-            var dLogM = Math.Log10(next.MolecularWeight) - Math.Log10(current.MolecularWeight);
+            var dLogM = next.LogMolecularWeight - current.LogMolecularWeight;
             if (!double.IsFinite(dw) || !double.IsFinite(dLogM) || Math.Abs(dLogM) <= double.Epsilon)
             {
                 continue;
@@ -156,13 +193,13 @@ public sealed class MolecularWeightConverter
             {
                 RetentionTime = current.RetentionTime,
                 MolecularWeight = current.MolecularWeight,
+                LogMolecularWeight = current.LogMolecularWeight,
                 Signal = value,
             });
         }
 
-        return points
-            .OrderBy(point => point.MolecularWeight)
-            .ToArray();
+        points.Sort(static (left, right) => left.MolecularWeight.CompareTo(right.MolecularWeight));
+        return points.ToArray();
     }
 
     private static bool IsMolecularWeightInRange(

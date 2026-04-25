@@ -181,6 +181,39 @@ public sealed class CsvGpcDataReaderTests
         }
     }
 
+    [Fact]
+    public void Read_AttachesLabSolutionsMolecularWeightStatisticsAfterChromatogramSection()
+    {
+        var path = WriteTempFile(
+            """
+            [Header]
+            Application Name	LabSolutions
+
+            [LC Chromatogram(Detector A-Ch1)]
+            R.Time (min)	Intensity
+            0.00000	1
+            0.00833	2
+
+            [Average Molecular Weight Table(Detector A)]
+            Peak#	Mn	Mw	Mz	Mz1	Mv	Mw/Mn	Mv/Mn	Mz/Mw	I.Visc	%
+            1	100	250	0	0	0	2.5	0	0	1	100
+            """);
+
+        try
+        {
+            var dataset = new CsvGpcDataReader().Read(path);
+
+            Assert.NotNull(dataset.MolecularWeightStatistics);
+            Assert.Equal(100, dataset.MolecularWeightStatistics.Mn);
+            Assert.Equal(250, dataset.MolecularWeightStatistics.Mw);
+            Assert.Equal(2.5, dataset.MolecularWeightStatistics.Pdi);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static string WriteTempFile(string contents)
     {
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.csv");

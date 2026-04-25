@@ -2,6 +2,9 @@ namespace GpcAnalyzer.Core;
 
 public sealed class MolecularWeightDataset
 {
+    private double[]? _logMolecularWeightValues;
+    private double[]? _signalValues;
+
     public string? SourceFilePath { get; init; }
 
     public required string Solvent { get; init; }
@@ -25,4 +28,21 @@ public sealed class MolecularWeightDataset
     public int FilteredOutPointCount => Math.Max(0, SourcePointCount - Points.Count);
 
     public IReadOnlyList<MolecularWeightDataPoint> Points { get; init; } = Array.Empty<MolecularWeightDataPoint>();
+
+    public double[] LogMolecularWeightValues =>
+        _logMolecularWeightValues ??= Points.Select(GetLogMolecularWeight).ToArray();
+
+    public double[] SignalValues => _signalValues ??= Points.Select(point => point.Signal).ToArray();
+
+    private static double GetLogMolecularWeight(MolecularWeightDataPoint point)
+    {
+        if (double.IsFinite(point.LogMolecularWeight))
+        {
+            return point.LogMolecularWeight;
+        }
+
+        return point.MolecularWeight > 0
+            ? Math.Log10(point.MolecularWeight)
+            : double.NaN;
+    }
 }

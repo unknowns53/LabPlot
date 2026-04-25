@@ -33,6 +33,12 @@ public partial class MainWindow : Window
     private const int DefaultExportWidth = 3600;
     private const int DefaultExportHeight = 2160;
     private const int SquareExportWidth = 3000;
+    private const int OverlayDownsampleMinSeriesCount = 3;
+    private const int OverlayDownsampleMinTotalPoints = 120_000;
+    private const int OverlayDisplayPointBudget = 120_000;
+    private const int MinOverlayDisplayPointsPerSeries = 1_200;
+    private const int MaxOverlayDisplayPointsPerSeries = 8_000;
+    private static readonly TimeSpan PlotRefreshDebounceInterval = TimeSpan.FromMilliseconds(200);
     private static readonly JsonSerializerOptions FormattingConfigJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -46,6 +52,9 @@ public partial class MainWindow : Window
     private readonly List<GpcDataset> _loadedDatasets = new();
     private readonly List<DatasetStyle> _datasetStyles = new();
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
+    private readonly Dictionary<MolecularWeightCacheKey, MolecularWeightDataset> _molecularWeightCache = new();
+    private readonly Dictionary<PlotSeriesCacheKey, PlotSeriesData> _plotSeriesCache = new();
+    private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private int _activeIndex = -1;
     private GpcDataset? _currentDataset;
@@ -56,6 +65,8 @@ public partial class MainWindow : Window
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
+    private bool _forceFullResolutionPlot;
+    private bool _currentPlotUsesDownsampledData;
 
     public MainWindow()
     {
@@ -63,6 +74,7 @@ public partial class MainWindow : Window
         LoadFormattingDefaults();
         ApplyFormattingConfigToControls(_formattingDefaults);
         DatasetListBox.ItemsSource = _datasetEntries;
+        _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
         Loaded += MainWindow_Loaded;
     }
 
@@ -72,6 +84,86 @@ public partial class MainWindow : Window
         public string? LegendName { get; set; }
         public double LineWidth { get; set; } = GraphFormattingConfig.DefaultLineWidth;
         public double MarkerSize { get; set; } = GraphFormattingConfig.DefaultMarkerSize;
+    }
+
+    private readonly record struct MolecularWeightCacheKey(
+        IReadOnlyList<GpcDataPoint> Points,
+        string? SourceFilePath,
+        string YLabel,
+        MolecularWeightStatistics? Statistics,
+        CalibrationCurve Curve,
+        MolecularWeightYMode YMode,
+        double MinMolecularWeight,
+        double MaxMolecularWeight);
+
+    private readonly record struct PlotSeriesCacheKey(double[] XValues, double[] YValues, int MaxPointCount);
+
+    private sealed class PlotSeriesData
+    {
+        public required double[] XValues { get; init; }
+
+        public required double[] YValues { get; init; }
+
+        public required AxisDataRange XRange { get; init; }
+
+        public required AxisDataRange YRange { get; init; }
+
+        public required bool IsDownsampled { get; init; }
+    }
+
+    private struct AxisDataRange
+    {
+        public bool HasValue { get; private set; }
+
+        public double Min { get; private set; }
+
+        public double Max { get; private set; }
+
+        public void Include(double value)
+        {
+            if (!double.IsFinite(value))
+            {
+                return;
+            }
+
+            if (!HasValue)
+            {
+                Min = value;
+                Max = value;
+                HasValue = true;
+                return;
+            }
+
+            Min = Math.Min(Min, value);
+            Max = Math.Max(Max, value);
+        }
+
+        public void Include(IReadOnlyList<double> values)
+        {
+            for (var i = 0; i < values.Count; i++)
+            {
+                Include(values[i]);
+            }
+        }
+
+        public void Include(AxisDataRange range)
+        {
+            if (!range.HasValue)
+            {
+                return;
+            }
+
+            if (!HasValue)
+            {
+                Min = range.Min;
+                Max = range.Max;
+                HasValue = true;
+                return;
+            }
+
+            Min = Math.Min(Min, range.Min);
+            Max = Math.Max(Max, range.Max);
+        }
     }
 
     private enum GraphSaveFormat
@@ -217,7 +309,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenCsvButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenCsvButton_Click(object sender, RoutedEventArgs e)
     {
         var allowMultiple = OverlayCheckBox.IsChecked == true;
         var dialog = new OpenFileDialog
@@ -240,7 +332,12 @@ public partial class MainWindow : Window
             var fileNames = dialog.FileNames.Length > 0
                 ? dialog.FileNames
                 : [dialog.FileName];
-            var datasets = fileNames.Select(fileName => _reader.Read(fileName)).ToArray();
+            OpenCsvButton.IsEnabled = false;
+            SetStatus("GPCデータを読み込み中です...", false);
+
+            var datasets = await Task.Run(() => fileNames
+                .Select(fileName => _reader.Read(fileName))
+                .ToArray());
             foreach (var dataset in datasets)
             {
                 AddLoadedDataset(dataset);
@@ -267,11 +364,16 @@ public partial class MainWindow : Window
             _currentDataset = null;
             _loadedDatasets.Clear();
             _datasetStyles.Clear();
+            ClearComputedDataCaches();
             _activeIndex = -1;
             RefreshDatasetEntries();
             SaveGraphButton.IsEnabled = false;
             UpdateStatisticsText((MolecularWeightStatistics?)null);
             SetStatus($"読み込みに失敗しました: {ex.Message}", true);
+        }
+        finally
+        {
+            OpenCsvButton.IsEnabled = true;
         }
     }
 
@@ -282,6 +384,7 @@ public partial class MainWindow : Window
         {
             _loadedDatasets.Clear();
             _datasetStyles.Clear();
+            ClearComputedDataCaches();
         }
 
         _loadedDatasets.Add(dataset);
@@ -315,6 +418,7 @@ public partial class MainWindow : Window
         try
         {
             _calibrationCurveSet = _standardCurveReader.Read(dialog.FileName);
+            ClearComputedDataCaches();
             CalibrationPathTextBlock.Text = $"較正曲線: {dialog.FileName}";
             PopulateSolventComboBox();
             UpdateMolecularWeightAvailability();
@@ -325,6 +429,7 @@ public partial class MainWindow : Window
         {
             _calibrationCurveSet = null;
             _selectedCalibrationCurve = null;
+            ClearComputedDataCaches();
             CalibrationPathTextBlock.Text = "較正曲線: 未選択";
             SolventComboBox.ItemsSource = null;
             SolventComboBox.IsEnabled = false;
@@ -466,6 +571,20 @@ public partial class MainWindow : Window
             var saveFormat = GetGraphSaveFormat(dialog.FileName, dialog.FilterIndex);
             var fileName = EnsureGraphSaveFileExtension(dialog.FileName, saveFormat);
             var exportStyleScale = GetExportStyleScale();
+            var restoreDownsampledPlot = _currentPlotUsesDownsampledData;
+
+            if (restoreDownsampledPlot)
+            {
+                _forceFullResolutionPlot = true;
+                try
+                {
+                    PlotCurrentDataset();
+                }
+                finally
+                {
+                    _forceFullResolutionPlot = false;
+                }
+            }
 
             ApplyExportStyleScale(exportStyleScale);
             try
@@ -484,7 +603,14 @@ public partial class MainWindow : Window
             finally
             {
                 ApplyExportStyleScale(1f);
-                _chromatogramPlot.Refresh();
+                if (restoreDownsampledPlot)
+                {
+                    PlotCurrentDataset();
+                }
+                else
+                {
+                    _chromatogramPlot.Refresh();
+                }
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -532,8 +658,22 @@ public partial class MainWindow : Window
         _chromatogramPlot.Refresh();
     }
 
+    private void SchedulePlotCurrentDataset()
+    {
+        _plotRefreshDebounceTimer.Stop();
+        _plotRefreshDebounceTimer.Start();
+    }
+
+    private void PlotRefreshDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _plotRefreshDebounceTimer.Stop();
+        PlotCurrentDataset();
+    }
+
     private void PlotCurrentDataset()
     {
+        _plotRefreshDebounceTimer.Stop();
+
         if (_currentDataset is null)
         {
             SaveGraphButton.IsEnabled = false;
@@ -557,10 +697,14 @@ public partial class MainWindow : Window
                 var yMode = GetSelectedMolecularWeightYMode();
                 var convertedEntries = plotEntries
                     .Select(entry => (
-                        Dataset: _molecularWeightConverter.Convert(entry.Dataset, _selectedCalibrationCurve, yMode),
+                        Dataset: GetMolecularWeightDataset(entry.Dataset, _selectedCalibrationCurve, yMode),
                         Index: entry.Index))
                     .ToArray();
-                var activeConverted = _molecularWeightConverter.Convert(activeDataset, _selectedCalibrationCurve, yMode);
+                var activeConverted = convertedEntries
+                    .Where(entry => entry.Index == _activeIndex)
+                    .Select(entry => entry.Dataset)
+                    .FirstOrDefault()
+                    ?? GetMolecularWeightDataset(activeDataset, _selectedCalibrationCurve, yMode);
                 PlotMolecularWeightDatasets(convertedEntries, activeConverted);
             }
             catch (InvalidDataException ex)
@@ -575,6 +719,189 @@ public partial class MainWindow : Window
         }
 
         SaveGraphButton.IsEnabled = _chromatogramPlot is not null;
+    }
+
+    private MolecularWeightDataset GetMolecularWeightDataset(
+        GpcDataset dataset,
+        CalibrationCurve curve,
+        MolecularWeightYMode yMode)
+    {
+        var key = new MolecularWeightCacheKey(
+            dataset.Points,
+            dataset.SourceFilePath,
+            dataset.YLabel,
+            dataset.MolecularWeightStatistics,
+            curve,
+            yMode,
+            MolecularWeightConverter.DefaultMinMolecularWeight,
+            MolecularWeightConverter.DefaultMaxMolecularWeight);
+
+        if (_molecularWeightCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var converted = _molecularWeightConverter.Convert(dataset, curve, yMode);
+        _molecularWeightCache[key] = converted;
+        return converted;
+    }
+
+    private void ClearComputedDataCaches()
+    {
+        _molecularWeightCache.Clear();
+        _plotSeriesCache.Clear();
+        _currentPlotUsesDownsampledData = false;
+    }
+
+    private int GetDisplayPointLimit(int seriesCount, long totalPointCount)
+    {
+        if (_forceFullResolutionPlot
+            || seriesCount < OverlayDownsampleMinSeriesCount
+            || totalPointCount <= OverlayDownsampleMinTotalPoints)
+        {
+            return int.MaxValue;
+        }
+
+        var perSeriesBudget = OverlayDisplayPointBudget / Math.Max(1, seriesCount);
+        return Math.Clamp(
+            perSeriesBudget,
+            MinOverlayDisplayPointsPerSeries,
+            MaxOverlayDisplayPointsPerSeries);
+    }
+
+    private PlotSeriesData GetPlotSeriesData(double[] xs, double[] ys, int maxPointCount)
+    {
+        var pointCount = Math.Min(xs.Length, ys.Length);
+        var normalizedMaxPointCount = maxPointCount == int.MaxValue
+            ? int.MaxValue
+            : Math.Max(2, maxPointCount);
+        var key = new PlotSeriesCacheKey(xs, ys, normalizedMaxPointCount);
+        if (_plotSeriesCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var xRange = CreateDataRange(xs, pointCount);
+        var yRange = CreateDataRange(ys, pointCount);
+        var isDownsampled = pointCount > normalizedMaxPointCount;
+        var series = isDownsampled
+            ? CreateDownsampledPlotSeries(xs, ys, pointCount, normalizedMaxPointCount, xRange, yRange)
+            : new PlotSeriesData
+            {
+                XValues = xs,
+                YValues = ys,
+                XRange = xRange,
+                YRange = yRange,
+                IsDownsampled = false,
+            };
+
+        _plotSeriesCache[key] = series;
+        return series;
+    }
+
+    private static AxisDataRange CreateDataRange(IReadOnlyList<double> values, int count)
+    {
+        var range = new AxisDataRange();
+        var valueCount = Math.Min(values.Count, count);
+        for (var i = 0; i < valueCount; i++)
+        {
+            range.Include(values[i]);
+        }
+
+        return range;
+    }
+
+    private static PlotSeriesData CreateDownsampledPlotSeries(
+        double[] xs,
+        double[] ys,
+        int sourcePointCount,
+        int maxPointCount,
+        AxisDataRange xRange,
+        AxisDataRange yRange)
+    {
+        var targetBucketCount = Math.Max(1, (maxPointCount - 2) / 2);
+        var bucketSize = Math.Max(1, (int)Math.Ceiling((sourcePointCount - 2) / (double)targetBucketCount));
+        var downsampledXs = new List<double>(maxPointCount + 2) { xs[0] };
+        var downsampledYs = new List<double>(maxPointCount + 2) { ys[0] };
+
+        for (var start = 1; start < sourcePointCount - 1; start += bucketSize)
+        {
+            var end = Math.Min(sourcePointCount - 1, start + bucketSize);
+            var minIndex = start;
+            var maxIndex = start;
+            var minY = double.PositiveInfinity;
+            var maxY = double.NegativeInfinity;
+
+            for (var i = start; i < end; i++)
+            {
+                var y = ys[i];
+                if (!double.IsFinite(y))
+                {
+                    continue;
+                }
+
+                if (y < minY)
+                {
+                    minY = y;
+                    minIndex = i;
+                }
+
+                if (y > maxY)
+                {
+                    maxY = y;
+                    maxIndex = i;
+                }
+            }
+
+            if (!double.IsFinite(minY) || !double.IsFinite(maxY))
+            {
+                AddDownsampledPoint(downsampledXs, downsampledYs, xs, ys, start);
+                continue;
+            }
+
+            if (minIndex <= maxIndex)
+            {
+                AddDownsampledPoint(downsampledXs, downsampledYs, xs, ys, minIndex);
+                if (maxIndex != minIndex)
+                {
+                    AddDownsampledPoint(downsampledXs, downsampledYs, xs, ys, maxIndex);
+                }
+            }
+            else
+            {
+                AddDownsampledPoint(downsampledXs, downsampledYs, xs, ys, maxIndex);
+                AddDownsampledPoint(downsampledXs, downsampledYs, xs, ys, minIndex);
+            }
+        }
+
+        AddDownsampledPoint(downsampledXs, downsampledYs, xs, ys, sourcePointCount - 1);
+
+        return new PlotSeriesData
+        {
+            XValues = downsampledXs.ToArray(),
+            YValues = downsampledYs.ToArray(),
+            XRange = xRange,
+            YRange = yRange,
+            IsDownsampled = true,
+        };
+    }
+
+    private static void AddDownsampledPoint(
+        List<double> downsampledXs,
+        List<double> downsampledYs,
+        IReadOnlyList<double> xs,
+        IReadOnlyList<double> ys,
+        int index)
+    {
+        if (downsampledXs.Count > 0
+            && downsampledXs[^1].Equals(xs[index])
+            && downsampledYs[^1].Equals(ys[index]))
+        {
+            return;
+        }
+
+        downsampledXs.Add(xs[index]);
+        downsampledYs.Add(ys[index]);
     }
 
     private (GpcDataset Dataset, int Index)[] GetDatasetsToPlotWithIndices()
@@ -608,6 +935,28 @@ public partial class MainWindow : Window
         return dataset;
     }
 
+    private static long GetRetentionTimePointCount(IReadOnlyList<(GpcDataset Dataset, int Index)> entries)
+    {
+        var pointCount = 0L;
+        for (var i = 0; i < entries.Count; i++)
+        {
+            pointCount += entries[i].Dataset.XValues.LongLength;
+        }
+
+        return pointCount;
+    }
+
+    private static long GetMolecularWeightPointCount(IReadOnlyList<(MolecularWeightDataset Dataset, int Index)> entries)
+    {
+        var pointCount = 0L;
+        for (var i = 0; i < entries.Count; i++)
+        {
+            pointCount += entries[i].Dataset.LogMolecularWeightValues.LongLength;
+        }
+
+        return pointCount;
+    }
+
     private void PlotRetentionTimeDatasets(IReadOnlyList<(GpcDataset Dataset, int Index)> entries, GpcDataset activeDataset)
     {
         if (_chromatogramPlot is null)
@@ -619,17 +968,19 @@ public partial class MainWindow : Window
         _chromatogramPlot.Plot.Clear();
         _chromatogramPlot.Plot.Axes.NumericTicksBottom();
 
-        var allXs = new List<double>();
-        var allYs = new List<double>();
+        var displayPointLimit = GetDisplayPointLimit(entries.Count, GetRetentionTimePointCount(entries));
+        _currentPlotUsesDownsampledData = false;
+        var xRange = new AxisDataRange();
+        var yRange = new AxisDataRange();
         for (var i = 0; i < entries.Count; i++)
         {
             var (dataset, datasetIndex) = entries[i];
-            var xs = dataset.Points.Select(point => point.X).ToArray();
-            var ys = dataset.Points.Select(point => point.Y).ToArray();
-            allXs.AddRange(xs);
-            allYs.AddRange(ys);
+            var series = GetPlotSeriesData(dataset.XValues, dataset.YValues, displayPointLimit);
+            xRange.Include(series.XRange);
+            yRange.Include(series.YRange);
+            _currentPlotUsesDownsampledData |= series.IsDownsampled;
 
-            var signal = _chromatogramPlot.Plot.Add.Scatter(xs, ys);
+            var signal = _chromatogramPlot.Plot.Add.Scatter(series.XValues, series.YValues);
             signal.LegendText = GetSeriesLegendText(dataset, "Signal", datasetIndex);
             ApplySeriesStyle(signal, datasetIndex);
         }
@@ -647,7 +998,7 @@ public partial class MainWindow : Window
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
         _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
         _chromatogramPlot.Plot.Axes.AutoScale();
-        if (!ApplyAxisLimits(allXs.ToArray(), allYs.ToArray(), false))
+        if (!ApplyAxisLimits(xRange, yRange, false))
         {
             _chromatogramPlot.Refresh();
             return;
@@ -675,17 +1026,19 @@ public partial class MainWindow : Window
         _chromatogramPlot.Plot.Clear();
         SetMolecularWeightLogTicks();
 
-        var allXs = new List<double>();
-        var allYs = new List<double>();
+        var displayPointLimit = GetDisplayPointLimit(entries.Count, GetMolecularWeightPointCount(entries));
+        _currentPlotUsesDownsampledData = false;
+        var xRange = new AxisDataRange();
+        var yRange = new AxisDataRange();
         for (var i = 0; i < entries.Count; i++)
         {
             var (dataset, datasetIndex) = entries[i];
-            var xs = dataset.Points.Select(point => Math.Log10(point.MolecularWeight)).ToArray();
-            var ys = dataset.Points.Select(point => point.Signal).ToArray();
-            allXs.AddRange(xs);
-            allYs.AddRange(ys);
+            var series = GetPlotSeriesData(dataset.LogMolecularWeightValues, dataset.SignalValues, displayPointLimit);
+            xRange.Include(series.XRange);
+            yRange.Include(series.YRange);
+            _currentPlotUsesDownsampledData |= series.IsDownsampled;
 
-            var signal = _chromatogramPlot.Plot.Add.Scatter(xs, ys);
+            var signal = _chromatogramPlot.Plot.Add.Scatter(series.XValues, series.YValues);
             signal.LegendText = GetSeriesLegendText(dataset, $"{dataset.Solvent}/{dataset.Detector}", datasetIndex);
             ApplySeriesStyle(signal, datasetIndex);
         }
@@ -703,7 +1056,7 @@ public partial class MainWindow : Window
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, $"{activeDataset.XLabel} (log scale)"));
         _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
         _chromatogramPlot.Plot.Axes.AutoScale();
-        if (!ApplyAxisLimits(allXs.ToArray(), allYs.ToArray(), true))
+        if (!ApplyAxisLimits(xRange, yRange, true))
         {
             _chromatogramPlot.Refresh();
             return;
@@ -918,7 +1271,7 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(fileName) ? fallback : $"{fileName} / {fallback}";
     }
 
-    private bool ApplyAxisLimits(double[] xs, double[] ys, bool xIsMolecularWeight)
+    private bool ApplyAxisLimits(AxisDataRange xRange, AxisDataRange yRange, bool xIsMolecularWeight)
     {
         if (_chromatogramPlot is null)
         {
@@ -940,12 +1293,9 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var finiteXs = xs.Where(double.IsFinite).ToArray();
-        var finiteYs = ys.Where(double.IsFinite).ToArray();
-
         if (xMin.HasValue || xMax.HasValue)
         {
-            if (!TryGetRequestedRange(finiteXs, xMin, xMax, "X", out var left, out var right))
+            if (!TryGetRequestedRange(xRange, xMin, xMax, "X", out var left, out var right))
             {
                 return false;
             }
@@ -955,7 +1305,7 @@ public partial class MainWindow : Window
 
         if (yMin.HasValue || yMax.HasValue)
         {
-            if (!TryGetRequestedRange(finiteYs, yMin, yMax, "Y", out var bottom, out var top))
+            if (!TryGetRequestedRange(yRange, yMin, yMax, "Y", out var bottom, out var top))
             {
                 return false;
             }
@@ -984,15 +1334,15 @@ public partial class MainWindow : Window
     }
 
     private bool TryGetRequestedRange(
-        IReadOnlyList<double> dataValues,
+        AxisDataRange dataRange,
         double? requestedMin,
         double? requestedMax,
         string axisName,
         out double min,
         out double max)
     {
-        min = requestedMin ?? (dataValues.Count > 0 ? dataValues.Min() : double.NaN);
-        max = requestedMax ?? (dataValues.Count > 0 ? dataValues.Max() : double.NaN);
+        min = requestedMin ?? (dataRange.HasValue ? dataRange.Min : double.NaN);
+        max = requestedMax ?? (dataRange.HasValue ? dataRange.Max : double.NaN);
 
         if (!double.IsFinite(min) || !double.IsFinite(max))
         {
@@ -1392,6 +1742,7 @@ public partial class MainWindow : Window
 
         _loadedDatasets.RemoveAt(index);
         _datasetStyles.RemoveAt(index);
+        ClearComputedDataCaches();
 
         if (_loadedDatasets.Count == 0)
         {
@@ -1523,7 +1874,7 @@ public partial class MainWindow : Window
 
         UpdateLineColorPreview(style.ColorHex);
         RefreshDatasetEntries();
-        PlotCurrentDataset();
+        SchedulePlotCurrentDataset();
     }
 
     private void LegendNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1541,7 +1892,7 @@ public partial class MainWindow : Window
         _datasetStyles[_activeIndex].LegendName = string.IsNullOrWhiteSpace(legendName)
             ? null
             : legendName;
-        PlotCurrentDataset();
+        SchedulePlotCurrentDataset();
     }
 
     private void LineWidthTextBox_TextChanged(object sender, TextChangedEventArgs e)

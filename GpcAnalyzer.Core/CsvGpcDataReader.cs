@@ -22,13 +22,32 @@ public sealed class CsvGpcDataReader : IGpcDataReader
             throw new FileNotFoundException("GPC data file was not found.", filePath);
         }
 
-        var lines = File.ReadAllLines(filePath, LenientUtf8);
-        if (TryReadLabSolutionsChromatogram(filePath, lines, out var labSolutionsDataset))
+        using var stream = new StreamReader(filePath, LenientUtf8, true);
+        var headerLine = ReadFirstNonBlankLine(stream);
+        if (headerLine is null)
         {
-            return labSolutionsDataset;
+            throw new InvalidDataException("The file is empty.");
         }
 
-        return ReadDelimitedFile(filePath, lines);
+        if (CouldContainLabSolutionsSections(headerLine))
+        {
+            var lines = ReadRemainingLines(headerLine, stream);
+            if (TryReadLabSolutionsChromatogram(filePath, lines, out var labSolutionsDataset))
+            {
+                return labSolutionsDataset;
+            }
+
+            return ReadDelimitedFile(filePath, lines);
+        }
+
+        var delimiter = GuessDelimiter(headerLine);
+        if (delimiter is null)
+        {
+            return ReadWhitespaceDelimitedFile(filePath, headerLine, stream);
+        }
+
+        Rewind(stream);
+        return ReadCsvFile(filePath, stream, delimiter);
     }
 
     private static GpcDataset ReadDelimitedFile(string filePath, IReadOnlyList<string> lines)
@@ -42,10 +61,45 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         var delimiter = GuessDelimiter(headerLine);
         return delimiter is null
             ? ReadWhitespaceDelimitedFile(filePath, lines)
-            : ReadCsvFile(filePath, delimiter);
+            : ReadCsvFile(filePath, new StringReader(string.Join(Environment.NewLine, lines)), delimiter);
     }
 
-    private static GpcDataset ReadCsvFile(string filePath, string delimiter)
+    private static string? ReadFirstNonBlankLine(TextReader reader)
+    {
+        while (reader.ReadLine() is { } line)
+        {
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                return line;
+            }
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> ReadRemainingLines(string firstLine, TextReader reader)
+    {
+        var lines = new List<string> { firstLine };
+        while (reader.ReadLine() is { } line)
+        {
+            lines.Add(line);
+        }
+
+        return lines;
+    }
+
+    private static void Rewind(StreamReader reader)
+    {
+        reader.DiscardBufferedData();
+        reader.BaseStream.Seek(0, SeekOrigin.Begin);
+    }
+
+    private static bool CouldContainLabSolutionsSections(string headerLine)
+    {
+        return headerLine.TrimStart().StartsWith("[", StringComparison.Ordinal);
+    }
+
+    private static GpcDataset ReadCsvFile(string filePath, TextReader reader, string delimiter)
     {
         var points = new List<GpcDataPoint>();
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -59,8 +113,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
             TrimOptions = TrimOptions.Trim,
         };
 
-        using var stream = new StreamReader(filePath, LenientUtf8, true);
-        using var csv = new CsvReader(stream, config);
+        using var csv = new CsvReader(reader, config);
 
         if (!csv.Read())
         {
@@ -110,6 +163,30 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         return CreateDataset(filePath, xLabel, yLabel, points);
     }
 
+    private static GpcDataset ReadWhitespaceDelimitedFile(string filePath, string headerLine, TextReader reader)
+    {
+        var points = new List<GpcDataPoint>();
+        var header = SplitLooseColumns(headerLine);
+        var xLabel = GetLabel(header, 0, "X");
+        var yLabel = GetLabel(header, 1, "Y");
+
+        while (reader.ReadLine() is { } line)
+        {
+            var columns = SplitLooseColumns(line);
+            if (columns.Length < 2)
+            {
+                continue;
+            }
+
+            if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
+            {
+                points.Add(new GpcDataPoint { X = x, Y = y });
+            }
+        }
+
+        return CreateDataset(filePath, xLabel, yLabel, points);
+    }
+
     private static bool TryReadLabSolutionsChromatogram(
         string filePath,
         IReadOnlyList<string> lines,
@@ -118,80 +195,34 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         dataset = new GpcDataset();
 
         var detectorDatasets = new Dictionary<string, GpcDetectorDataset>(StringComparer.OrdinalIgnoreCase);
-        var molecularWeightStatistics = ReadLabSolutionsMolecularWeightStatistics(lines);
+        var molecularWeightStatistics = new Dictionary<string, MolecularWeightStatistics>(StringComparer.OrdinalIgnoreCase);
 
         for (var i = 0; i < lines.Count; i++)
         {
-            var line = lines[i];
-            var trimmed = line.Trim();
-            if (!IsLabSolutionsChromatogramSection(trimmed))
+            var trimmed = lines[i].Trim();
+            if (IsLabSolutionsMolecularWeightTableSection(trimmed))
             {
+                ReadLabSolutionsMolecularWeightStatisticsSection(
+                    lines,
+                    ref i,
+                    trimmed,
+                    molecularWeightStatistics,
+                    molecularWeightStatistics.Count + 1);
                 continue;
             }
 
-            var detector = ParseLabSolutionsDetector(trimmed) ?? $"Detector {detectorDatasets.Count + 1}";
-            var points = new List<GpcDataPoint>();
-            var readingPoints = false;
-            var intensityMultiplier = 1.0;
-            var xLabel = "R.Time (min)";
-            var yLabel = "Intensity";
-            var yUnits = string.Empty;
-
-            for (i++; i < lines.Count; i++)
+            if (IsLabSolutionsChromatogramSection(trimmed))
             {
-                line = lines[i];
-                trimmed = line.Trim();
-                if (trimmed.StartsWith("[", StringComparison.Ordinal))
-                {
-                    i--;
-                    break;
-                }
-
-                if (string.IsNullOrWhiteSpace(trimmed))
-                {
-                    continue;
-                }
-
-                var columns = SplitLooseColumns(line);
-                if (!readingPoints)
-                {
-                    ReadLabSolutionsMetadata(columns, ref intensityMultiplier, ref yUnits);
-
-                    if (LooksLikeChromatogramHeader(columns))
-                    {
-                        xLabel = columns[0];
-                        yLabel = BuildIntensityLabel(columns[1], yUnits);
-                        readingPoints = true;
-                    }
-
-                    continue;
-                }
-
-                if (columns.Length < 2)
-                {
-                    continue;
-                }
-
-                if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
-                {
-                    points.Add(new GpcDataPoint { X = x, Y = y * intensityMultiplier });
-                }
-            }
-
-            if (points.Count > 0)
-            {
-                molecularWeightStatistics.TryGetValue(detector, out var statistics);
-                detectorDatasets[detector] = new GpcDetectorDataset
-                {
-                    Detector = detector,
-                    XLabel = xLabel,
-                    YLabel = yLabel,
-                    MolecularWeightStatistics = statistics,
-                    Points = points.ToArray(),
-                };
+                ReadLabSolutionsChromatogramSection(
+                    lines,
+                    ref i,
+                    trimmed,
+                    detectorDatasets,
+                    detectorDatasets.Count + 1);
             }
         }
 
+        ApplyLabSolutionsStatistics(detectorDatasets, molecularWeightStatistics);
         if (detectorDatasets.Count == 0)
         {
             return false;
@@ -209,64 +240,146 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         return true;
     }
 
-    private static IReadOnlyDictionary<string, MolecularWeightStatistics> ReadLabSolutionsMolecularWeightStatistics(
-        IReadOnlyList<string> lines)
+    private static void ReadLabSolutionsChromatogramSection(
+        IReadOnlyList<string> lines,
+        ref int index,
+        string sectionHeader,
+        IDictionary<string, GpcDetectorDataset> detectorDatasets,
+        int fallbackDetectorIndex)
     {
-        var statisticsByDetector = new Dictionary<string, MolecularWeightStatistics>(StringComparer.OrdinalIgnoreCase);
+        var detector = ParseLabSolutionsDetector(sectionHeader) ?? $"Detector {fallbackDetectorIndex}";
+        var points = new List<GpcDataPoint>();
+        var readingPoints = false;
+        var intensityMultiplier = 1.0;
+        var xLabel = "R.Time (min)";
+        var yLabel = "Intensity";
+        var yUnits = string.Empty;
 
-        for (var i = 0; i < lines.Count; i++)
+        for (index++; index < lines.Count; index++)
         {
-            var trimmed = lines[i].Trim();
-            if (!trimmed.StartsWith("[Average Molecular Weight Table(", StringComparison.OrdinalIgnoreCase))
+            var line = lines[index];
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("[", StringComparison.Ordinal))
+            {
+                index--;
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmed))
             {
                 continue;
             }
 
-            var detector = ParseLabSolutionsDetector(trimmed) ?? $"Detector {statisticsByDetector.Count + 1}";
-            string[]? headers = null;
-            var peaks = new List<MolecularWeightPeak>();
-
-            for (i++; i < lines.Count; i++)
+            var columns = SplitLooseColumns(line);
+            if (!readingPoints)
             {
-                trimmed = lines[i].Trim();
-                if (trimmed.StartsWith("[", StringComparison.Ordinal))
+                ReadLabSolutionsMetadata(columns, ref intensityMultiplier, ref yUnits);
+
+                if (LooksLikeChromatogramHeader(columns))
                 {
-                    i--;
-                    break;
+                    xLabel = columns[0];
+                    yLabel = BuildIntensityLabel(columns[1], yUnits);
+                    readingPoints = true;
                 }
 
-                if (string.IsNullOrWhiteSpace(trimmed))
-                {
-                    continue;
-                }
-
-                var columns = SplitLooseColumns(lines[i]);
-                if (headers is null && columns.Length > 1 && columns[0].Equals("Peak#", StringComparison.OrdinalIgnoreCase))
-                {
-                    headers = columns;
-                    continue;
-                }
-
-                if (headers is null || columns.Length == 0 || columns[0].Equals("Total", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var peak = CreateMolecularWeightPeakFromRow(headers, columns);
-                if (peak is not null && peak.HasAnyValue)
-                {
-                    peaks.Add(peak);
-                }
+                continue;
             }
 
-            var statistics = CreateMolecularWeightStatisticsFromPeaks(peaks);
-            if (statistics is not null && statistics.HasAnyValue)
+            if (columns.Length < 2)
             {
-                statisticsByDetector[detector] = statistics;
+                continue;
+            }
+
+            if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
+            {
+                points.Add(new GpcDataPoint { X = x, Y = y * intensityMultiplier });
             }
         }
 
-        return statisticsByDetector;
+        if (points.Count > 0)
+        {
+            detectorDatasets[detector] = new GpcDetectorDataset
+            {
+                Detector = detector,
+                XLabel = xLabel,
+                YLabel = yLabel,
+                Points = points.ToArray(),
+            };
+        }
+    }
+
+    private static void ApplyLabSolutionsStatistics(
+        IDictionary<string, GpcDetectorDataset> detectorDatasets,
+        IReadOnlyDictionary<string, MolecularWeightStatistics> molecularWeightStatistics)
+    {
+        foreach (var detector in detectorDatasets.Keys.ToArray())
+        {
+            if (!molecularWeightStatistics.TryGetValue(detector, out var statistics))
+            {
+                continue;
+            }
+
+            var detectorDataset = detectorDatasets[detector];
+            detectorDatasets[detector] = new GpcDetectorDataset
+            {
+                Detector = detectorDataset.Detector,
+                XLabel = detectorDataset.XLabel,
+                YLabel = detectorDataset.YLabel,
+                MolecularWeightStatistics = statistics,
+                Points = detectorDataset.Points,
+            };
+        }
+    }
+
+    private static void ReadLabSolutionsMolecularWeightStatisticsSection(
+        IReadOnlyList<string> lines,
+        ref int index,
+        string sectionHeader,
+        IDictionary<string, MolecularWeightStatistics> statisticsByDetector,
+        int fallbackDetectorIndex)
+    {
+        var detector = ParseLabSolutionsDetector(sectionHeader) ?? $"Detector {fallbackDetectorIndex}";
+        string[]? headers = null;
+        var peaks = new List<MolecularWeightPeak>();
+
+        for (index++; index < lines.Count; index++)
+        {
+            var trimmed = lines[index].Trim();
+            if (trimmed.StartsWith("[", StringComparison.Ordinal))
+            {
+                index--;
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                continue;
+            }
+
+            var columns = SplitLooseColumns(lines[index]);
+            if (headers is null && columns.Length > 1 && columns[0].Equals("Peak#", StringComparison.OrdinalIgnoreCase))
+            {
+                headers = columns;
+                continue;
+            }
+
+            if (headers is null || columns.Length == 0 || columns[0].Equals("Total", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var peak = CreateMolecularWeightPeakFromRow(headers, columns);
+            if (peak is not null && peak.HasAnyValue)
+            {
+                peaks.Add(peak);
+            }
+        }
+
+        var statistics = CreateMolecularWeightStatisticsFromPeaks(peaks);
+        if (statistics is not null && statistics.HasAnyValue)
+        {
+            statisticsByDetector[detector] = statistics;
+        }
     }
 
     private static MolecularWeightStatistics? CreateMolecularWeightStatisticsFromPeaks(
@@ -453,6 +566,11 @@ public sealed class CsvGpcDataReader : IGpcDataReader
     private static bool IsLabSolutionsChromatogramSection(string line)
     {
         return line.StartsWith("[LC Chromatogram(", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsLabSolutionsMolecularWeightTableSection(string line)
+    {
+        return line.StartsWith("[Average Molecular Weight Table(", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ParseLabSolutionsDetector(string sectionHeader)

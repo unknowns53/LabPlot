@@ -8,6 +8,11 @@ public sealed class CalibrationCurve
 
     public required CalibrationCurveCoefficients Coefficients { get; init; }
 
+    public double CalculateLogMolecularWeight(double retentionTime)
+    {
+        return Coefficients.CalculateLogMolecularWeight(retentionTime);
+    }
+
     public double CalculateMolecularWeight(double retentionTime)
     {
         return Coefficients.CalculateMolecularWeight(retentionTime);

@@ -113,6 +113,16 @@ public partial class MainWindow : Window
             () => CycleComboBoxSelection(SolventComboBox));
         AddShortcut(System.Windows.Input.Key.D2, System.Windows.Input.ModifierKeys.Control,
             () => CycleComboBoxSelection(DetectorComboBox));
+        AddShortcut(System.Windows.Input.Key.D3, System.Windows.Input.ModifierKeys.Control,
+            () => ToggleCheckBox(MolecularWeightCheckBox));
+        AddShortcut(System.Windows.Input.Key.D4, System.Windows.Input.ModifierKeys.Control,
+            () => CycleComboBoxSelection(MolecularWeightYModeComboBox));
+        AddShortcut(System.Windows.Input.Key.L, System.Windows.Input.ModifierKeys.Control,
+            () => ToggleCheckBox(OverlayCheckBox));
+        AddShortcut(System.Windows.Input.Key.G, System.Windows.Input.ModifierKeys.Control,
+            () => ToggleCheckBox(PlotGridCheckBox));
+        AddShortcut(System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.None,
+            FocusLegendNameTextBox);
     }
 
     private static void CycleComboBoxSelection(ComboBox comboBox)
@@ -128,6 +138,27 @@ public partial class MainWindow : Window
         {
             comboBox.SelectedIndex = next;
         }
+    }
+
+    private static void ToggleCheckBox(CheckBox checkBox)
+    {
+        if (checkBox is null || !checkBox.IsEnabled)
+        {
+            return;
+        }
+
+        checkBox.IsChecked = checkBox.IsChecked != true;
+    }
+
+    private void FocusLegendNameTextBox()
+    {
+        if (LegendNameTextBox is null || !LegendNameTextBox.IsEnabled)
+        {
+            return;
+        }
+
+        LegendNameTextBox.Focus();
+        LegendNameTextBox.SelectAll();
     }
 
     private void AddShortcut(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers, Action handler)

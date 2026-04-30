@@ -680,6 +680,7 @@
                                         Click="OpenCsvButton_Click" />
                                 <CheckBox x:Name="OverlayCheckBox"
                                           Content="重ね描き (Overlay)"
+                                          ToolTip="複数データセットの重ね描き表示を切替 (Ctrl+L)"
                                           Checked="OverlayCheckBox_Changed"
                                           Unchecked="OverlayCheckBox_Changed" />
                                 <TextBlock x:Name="FilePathTextBlock"
@@ -869,6 +870,7 @@
                                 <TextBox x:Name="LegendNameTextBox"
                                          Style="{StaticResource InputTextBoxStyle}"
                                          Margin="0,0,0,10"
+                                         ToolTip="凡例名を編集（F2 でフォーカス）"
                                          TextChanged="LegendNameTextBox_TextChanged" />
 
                                 <Grid>
@@ -940,6 +942,7 @@
                                           Content="分子量表示"
                                           IsEnabled="False"
                                           Margin="0,0,0,10"
+                                          ToolTip="横軸の分子量 / 保持時間表示を切替 (Ctrl+3)"
                                           Checked="MolecularWeightCheckBox_Changed"
                                           Unchecked="MolecularWeightCheckBox_Changed" />
 
@@ -949,6 +952,7 @@
                                           Style="{StaticResource InputComboBoxStyle}"
                                           IsEnabled="False"
                                           SelectedIndex="0"
+                                          ToolTip="Y軸モードを次の項目へ切替 (Ctrl+4)"
                                           SelectionChanged="MolecularWeightYModeComboBox_SelectionChanged">
                                     <ComboBoxItem Content="Signal" Tag="Signal" />
                                     <ComboBoxItem Content="dw/dlogM" Tag="DwdLogM" />
@@ -1143,6 +1147,7 @@
                                                   Content="グリッドを表示"
                                                   IsChecked="True"
                                                   VerticalAlignment="Center"
+                                                  ToolTip="グリッド線の表示を切替 (Ctrl+G)"
                                                   Checked="GraphAppearanceCheckBox_Changed"
                                                   Unchecked="GraphAppearanceCheckBox_Changed" />
                                         <CheckBox x:Name="PlotFrameCheckBox"

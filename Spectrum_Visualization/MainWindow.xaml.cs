@@ -5,6 +5,9 @@ using System.Buffers.Binary;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Threading;
 using System.Windows.Media;
 using SpectrumAnalyzer.Core;
@@ -66,6 +69,10 @@ public partial class MainWindow : Window
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
+
+    private const string DatasetReorderDataFormat = "Spectrum.DatasetEntryIndex";
+    private Point? _datasetDragStartPoint;
+    private InsertionAdorner? _datasetInsertionAdorner;
 
     public MainWindow()
     {
@@ -1430,6 +1437,280 @@ public partial class MainWindow : Window
         _currentDataset = _loadedDatasets[index];
         SyncStyleControlsFromActiveDataset();
         PlotCurrentDataset();
+    }
+
+    private void DatasetListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && FindAncestor<ButtonBase>(source) is not null)
+        {
+            // Click landed on the row's delete button — leave it to the button.
+            _datasetDragStartPoint = null;
+            return;
+        }
+
+        if (FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject) is null)
+        {
+            _datasetDragStartPoint = null;
+            return;
+        }
+
+        _datasetDragStartPoint = e.GetPosition(DatasetListBox);
+    }
+
+    private void DatasetListBox_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _datasetDragStartPoint is null)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(DatasetListBox);
+        var delta = current - _datasetDragStartPoint.Value;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var item = FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (item is null)
+        {
+            return;
+        }
+
+        var sourceIndex = DatasetListBox.ItemContainerGenerator.IndexFromContainer(item);
+        if (sourceIndex < 0 || sourceIndex >= _datasetEntries.Count)
+        {
+            return;
+        }
+
+        try
+        {
+            var data = new DataObject(DatasetReorderDataFormat, sourceIndex);
+            DragDrop.DoDragDrop(item, data, DragDropEffects.Move);
+        }
+        finally
+        {
+            _datasetDragStartPoint = null;
+            RemoveInsertionAdorner();
+        }
+    }
+
+    private void DatasetListBox_DragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DatasetReorderDataFormat))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+
+        var (targetItem, insertAbove) = ResolveDropTarget(e);
+        if (targetItem is null)
+        {
+            RemoveInsertionAdorner();
+            return;
+        }
+
+        UpdateInsertionAdorner(targetItem, insertAbove);
+    }
+
+    private void DatasetListBox_DragLeave(object sender, DragEventArgs e)
+    {
+        var pos = e.GetPosition(DatasetListBox);
+        if (pos.X < 0 || pos.Y < 0
+            || pos.X > DatasetListBox.ActualWidth
+            || pos.Y > DatasetListBox.ActualHeight)
+        {
+            RemoveInsertionAdorner();
+        }
+    }
+
+    private void DatasetListBox_Drop(object sender, DragEventArgs e)
+    {
+        RemoveInsertionAdorner();
+
+        if (e.Data.GetData(DatasetReorderDataFormat) is not int oldIndex)
+        {
+            return;
+        }
+
+        if (oldIndex < 0 || oldIndex >= _datasetEntries.Count)
+        {
+            return;
+        }
+
+        var (targetItem, insertAbove) = ResolveDropTarget(e);
+        int newIndex;
+        if (targetItem is null)
+        {
+            newIndex = _datasetEntries.Count - 1;
+        }
+        else
+        {
+            var targetIndex = DatasetListBox.ItemContainerGenerator.IndexFromContainer(targetItem);
+            if (targetIndex < 0)
+            {
+                return;
+            }
+
+            newIndex = insertAbove ? targetIndex : targetIndex + 1;
+            if (newIndex > oldIndex)
+            {
+                newIndex--;
+            }
+        }
+
+        if (newIndex < 0)
+        {
+            newIndex = 0;
+        }
+        else if (newIndex >= _datasetEntries.Count)
+        {
+            newIndex = _datasetEntries.Count - 1;
+        }
+
+        if (newIndex == oldIndex)
+        {
+            return;
+        }
+
+        MoveDataset(oldIndex, newIndex);
+    }
+
+    private (ListBoxItem? Item, bool InsertAbove) ResolveDropTarget(DragEventArgs e)
+    {
+        var item = FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (item is null)
+        {
+            return (null, false);
+        }
+
+        var pos = e.GetPosition(item);
+        var insertAbove = pos.Y < item.ActualHeight / 2;
+        return (item, insertAbove);
+    }
+
+    private void UpdateInsertionAdorner(ListBoxItem item, bool insertAbove)
+    {
+        if (_datasetInsertionAdorner is not null
+            && ReferenceEquals(_datasetInsertionAdorner.AdornedElement, item)
+            && _datasetInsertionAdorner.IsAbove == insertAbove)
+        {
+            return;
+        }
+
+        RemoveInsertionAdorner();
+
+        var layer = AdornerLayer.GetAdornerLayer(item);
+        if (layer is null)
+        {
+            return;
+        }
+
+        _datasetInsertionAdorner = new InsertionAdorner(item, insertAbove);
+        layer.Add(_datasetInsertionAdorner);
+    }
+
+    private void RemoveInsertionAdorner()
+    {
+        if (_datasetInsertionAdorner is null)
+        {
+            return;
+        }
+
+        var layer = AdornerLayer.GetAdornerLayer(_datasetInsertionAdorner.AdornedElement);
+        layer?.Remove(_datasetInsertionAdorner);
+        _datasetInsertionAdorner = null;
+    }
+
+    private void MoveDataset(int oldIndex, int newIndex)
+    {
+        if (oldIndex == newIndex
+            || oldIndex < 0 || oldIndex >= _loadedDatasets.Count
+            || newIndex < 0 || newIndex >= _loadedDatasets.Count)
+        {
+            return;
+        }
+
+        // Bake the currently-resolved auto colors into each style so the visual
+        // mapping between data and color survives the reorder. ApplySeriesStyle
+        // resolves null ColorHex via AutoLineColors[index % N], which would
+        // otherwise shift colors when the indices change.
+        for (var i = 0; i < _datasetStyles.Count; i++)
+        {
+            if (string.IsNullOrEmpty(_datasetStyles[i].ColorHex))
+            {
+                _datasetStyles[i].ColorHex = AutoLineColors[i % AutoLineColors.Length];
+            }
+        }
+
+        var dataset = _loadedDatasets[oldIndex];
+        _loadedDatasets.RemoveAt(oldIndex);
+        _loadedDatasets.Insert(newIndex, dataset);
+
+        var style = _datasetStyles[oldIndex];
+        _datasetStyles.RemoveAt(oldIndex);
+        _datasetStyles.Insert(newIndex, style);
+
+        _suppressDatasetListEvents = true;
+        try
+        {
+            _datasetEntries.Move(oldIndex, newIndex);
+        }
+        finally
+        {
+            _suppressDatasetListEvents = false;
+        }
+
+        if (_activeIndex == oldIndex)
+        {
+            _activeIndex = newIndex;
+        }
+        else if (oldIndex < _activeIndex && _activeIndex <= newIndex)
+        {
+            _activeIndex--;
+        }
+        else if (newIndex <= _activeIndex && _activeIndex < oldIndex)
+        {
+            _activeIndex++;
+        }
+
+        _suppressDatasetListEvents = true;
+        try
+        {
+            DatasetListBox.SelectedIndex = _activeIndex;
+        }
+        finally
+        {
+            _suppressDatasetListEvents = false;
+        }
+
+        if (_activeIndex >= 0 && _activeIndex < _loadedDatasets.Count)
+        {
+            _currentDataset = _loadedDatasets[_activeIndex];
+        }
+
+        SyncStyleControlsFromActiveDataset();
+        PlotCurrentDataset();
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? element) where T : DependencyObject
+    {
+        while (element is not null)
+        {
+            if (element is T match)
+            {
+                return match;
+            }
+
+            element = VisualTreeHelper.GetParent(element);
+        }
+
+        return null;
     }
 
     private void RemoveDatasetButton_Click(object sender, RoutedEventArgs e)

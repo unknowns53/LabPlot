@@ -704,11 +704,18 @@
                                                  Background="Transparent"
                                                  HorizontalContentAlignment="Stretch"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 AllowDrop="True"
+                                                 PreviewMouseLeftButtonDown="DatasetListBox_PreviewMouseLeftButtonDown"
+                                                 PreviewMouseMove="DatasetListBox_PreviewMouseMove"
+                                                 DragOver="DatasetListBox_DragOver"
+                                                 DragLeave="DatasetListBox_DragLeave"
+                                                 Drop="DatasetListBox_Drop"
                                                  SelectionChanged="DatasetListBox_SelectionChanged">
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="ListBoxItem">
                                                     <Setter Property="Padding" Value="4,3" />
                                                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="Cursor" Value="SizeAll" />
                                                 </Style>
                                             </ListBox.ItemContainerStyle>
                                             <ListBox.ItemTemplate>

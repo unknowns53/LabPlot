@@ -299,6 +299,7 @@ public partial class MainWindow : Window
             TitleBold = TitleBoldCheckBox.IsChecked == true,
             AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
             AspectRatio = GetSelectedAspectRatioConfigValue(),
+            InvertXAxisMode = GetSelectedInvertXAxisModeConfigValue(),
             DefaultLineColorHex = GetSelectedLineColorConfigValue(),
             LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
                 ? lineWidth
@@ -337,6 +338,11 @@ public partial class MainWindow : Window
             if (!SelectComboBoxItemByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto"))
             {
                 AspectRatioComboBox.SelectedIndex = 0;
+            }
+
+            if (!SelectComboBoxItemByTag(InvertXAxisComboBox, config.InvertXAxisMode ?? "Auto"))
+            {
+                InvertXAxisComboBox.SelectedIndex = 0;
             }
         }
         finally
@@ -978,10 +984,21 @@ public partial class MainWindow : Window
         _spectrumPlot.Plot.Axes.AutoScale();
 
         // IR convention: high wavenumbers on the left (4000 → 400 cm⁻¹).
-        var invertX = activeDataset.IsInfraredSpectrum;
+        // The user can override this through the format panel (Auto / Inverted / Normal).
+        var invertX = GetSelectedInvertXAxisModeConfigValue() switch
+        {
+            "Inverted" => true,
+            "Normal" => false,
+            _ => activeDataset.IsInfraredSpectrum,
+        };
         if (invertX && xRange.HasValue)
         {
             _spectrumPlot.Plot.Axes.SetLimitsX(xRange.Max, xRange.Min);
+        }
+        else if (!invertX && xRange.HasValue && activeDataset.IsInfraredSpectrum)
+        {
+            // Force normal direction for IR data when the user explicitly opts out.
+            _spectrumPlot.Plot.Axes.SetLimitsX(xRange.Min, xRange.Max);
         }
 
         if (!ApplyAxisLimits(xRange, yRange, invertX))
@@ -2058,6 +2075,16 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
+    private void InvertXAxisComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        SchedulePlotCurrentDataset();
+    }
+
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
@@ -2125,6 +2152,14 @@ public partial class MainWindow : Window
     private string? GetSelectedAspectRatioConfigValue()
     {
         var tag = GetSelectedComboBoxTag(AspectRatioComboBox);
+        return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : tag;
+    }
+
+    private string? GetSelectedInvertXAxisModeConfigValue()
+    {
+        var tag = GetSelectedComboBoxTag(InvertXAxisComboBox);
         return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
             ? null
             : tag;

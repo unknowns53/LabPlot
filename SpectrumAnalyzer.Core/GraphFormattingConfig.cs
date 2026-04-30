@@ -29,6 +29,17 @@ public sealed class GraphFormattingConfig
     public double LineWidth { get; set; } = DefaultLineWidth;
     public double MarkerSize { get; set; } = DefaultMarkerSize;
 
+    /// <summary>
+    /// User-controlled override for the X-axis direction.
+    /// </summary>
+    /// <remarks>
+    /// <c>null</c> or <c>"Auto"</c> means follow the dataset (IR data is inverted,
+    /// UV-Vis stays in normal direction). <c>"Inverted"</c> always inverts the X
+    /// axis, <c>"Normal"</c> always keeps it in normal direction. Any other value
+    /// is normalized back to <c>null</c>.
+    /// </remarks>
+    public string? InvertXAxisMode { get; set; }
+
     // User preferences (persisted alongside the formatting defaults).
     public string? DefaultOutputDirectory { get; set; }
 
@@ -43,6 +54,7 @@ public sealed class GraphFormattingConfig
         AspectRatio = NormalizeOptionalText(AspectRatio);
         DefaultLineColorHex = NormalizeOptionalHex(DefaultLineColorHex);
         DefaultOutputDirectory = NormalizeOptionalText(DefaultOutputDirectory);
+        InvertXAxisMode = NormalizeInvertXAxisMode(InvertXAxisMode);
 
         if (!IsPositive(FontSize))
         {
@@ -104,6 +116,32 @@ public sealed class GraphFormattingConfig
     {
         var normalized = NormalizeOptionalText(text);
         return normalized is not null && IsHexColor(normalized) ? normalized : null;
+    }
+
+    private static string? NormalizeInvertXAxisMode(string? text)
+    {
+        var normalized = NormalizeOptionalText(text);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (normalized.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (normalized.Equals("Inverted", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Inverted";
+        }
+
+        if (normalized.Equals("Normal", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Normal";
+        }
+
+        return null;
     }
 
     private static bool IsPositive(double value)

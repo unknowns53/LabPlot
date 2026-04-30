@@ -1065,9 +1065,20 @@
                                     <CheckBox x:Name="MinorTicksCheckBox"
                                               Content="補助目盛を表示する"
                                               IsChecked="True"
-                                              Margin="0,0,0,0"
+                                              Margin="0,0,0,10"
                                               Checked="GraphAppearanceCheckBox_Changed"
                                               Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    <TextBlock Text="X 軸の向き"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="InvertXAxisComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectedIndex="0"
+                                              ToolTip="自動: IR データなら 4000 → 400 cm⁻¹ に反転、UV-Vis は正方向。手動指定でこれを上書き"
+                                              SelectionChanged="InvertXAxisComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="自動（IR は反転）" Tag="Auto" />
+                                        <ComboBoxItem Content="常に反転" Tag="Inverted" />
+                                        <ComboBoxItem Content="常に正方向" Tag="Normal" />
+                                    </ComboBox>
                                     </StackPanel>
                                 </Expander>
 

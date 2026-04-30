@@ -60,6 +60,7 @@ public partial class MainWindow : Window
     private GpcDataset? _currentDataset;
     private CalibrationCurveSet? _calibrationCurveSet;
     private CalibrationCurve? _selectedCalibrationCurve;
+    private string? _calibrationFilePath;
     private WpfPlot? _chromatogramPlot;
     private bool _updatingCalibrationSelection;
     private bool _suppressGraphAppearanceEvents;
@@ -67,6 +68,8 @@ public partial class MainWindow : Window
     private bool _suppressDatasetListEvents;
     private bool _forceFullResolutionPlot;
     private bool _currentPlotUsesDownsampledData;
+    private bool _suppressRepresentativePeakSelection;
+    private MolecularWeightStatistics? _currentStatistics;
 
     public MainWindow()
     {
@@ -367,7 +370,7 @@ public partial class MainWindow : Window
             ClearComputedDataCaches();
             _activeIndex = -1;
             RefreshDatasetEntries();
-            SaveGraphButton.IsEnabled = false;
+            SetGraphActionsEnabled(false);
             UpdateStatisticsText((MolecularWeightStatistics?)null);
             SetStatus($"読み込みに失敗しました: {ex.Message}", true);
         }
@@ -418,6 +421,7 @@ public partial class MainWindow : Window
         try
         {
             _calibrationCurveSet = _standardCurveReader.Read(dialog.FileName);
+            _calibrationFilePath = dialog.FileName;
             ClearComputedDataCaches();
             CalibrationPathTextBlock.Text = $"較正曲線: {dialog.FileName}";
             PopulateSolventComboBox();
@@ -429,6 +433,7 @@ public partial class MainWindow : Window
         {
             _calibrationCurveSet = null;
             _selectedCalibrationCurve = null;
+            _calibrationFilePath = null;
             ClearComputedDataCaches();
             CalibrationPathTextBlock.Text = "較正曲線: 未選択";
             SolventComboBox.ItemsSource = null;
@@ -537,6 +542,544 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SetGraphActionsEnabled(bool enabled)
+    {
+        SaveGraphButton.IsEnabled = enabled;
+        ExportDataButton.IsEnabled = enabled;
+        SaveSessionButton.IsEnabled = enabled;
+    }
+
+    private void ExportDataButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_loadedDatasets.Count == 0)
+        {
+            SetStatus("出力可能なデータがありません。", true);
+            return;
+        }
+
+        var defaultName = Path.GetFileNameWithoutExtension(_currentDataset?.SourceFilePath) ?? "gpc_analysis";
+        var dialog = new SaveFileDialog
+        {
+            Title = "解析結果を保存",
+            Filter = "Excelブック (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv",
+            FileName = $"{defaultName}.xlsx",
+            DefaultExt = ".xlsx",
+            AddExtension = true,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var data = BuildAnalysisExport();
+            if (data.Entries.Count == 0)
+            {
+                SetStatus("出力可能なデータがありません。", true);
+                return;
+            }
+
+            var format = GetAnalysisExportFormat(dialog.FileName, dialog.FilterIndex);
+            var fileName = EnsureAnalysisExportExtension(dialog.FileName, format);
+            IAnalysisExporter exporter = format == AnalysisExportFormat.Csv
+                ? new CsvAnalysisExporter()
+                : new XlsxAnalysisExporter();
+            exporter.Export(data, fileName);
+            SetStatus($"解析結果を保存しました: {fileName}", false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus($"保存に失敗しました: {ex.Message}", true);
+        }
+    }
+
+    private AnalysisExport BuildAnalysisExport()
+    {
+        var entries = new List<AnalysisExportEntry>();
+        var plotEntries = GetDatasetsToPlotWithIndices();
+        var molecularWeightEnabled =
+            MolecularWeightCheckBox.IsChecked == true && _selectedCalibrationCurve is not null;
+        var yMode = molecularWeightEnabled
+            ? GetSelectedMolecularWeightYMode()
+            : MolecularWeightYMode.Signal;
+
+        foreach (var (dataset, index) in plotEntries)
+        {
+            MolecularWeightDataset? mwDataset = null;
+            var stats = dataset.MolecularWeightStatistics;
+
+            if (molecularWeightEnabled && _selectedCalibrationCurve is not null)
+            {
+                try
+                {
+                    mwDataset = GetMolecularWeightDataset(dataset, _selectedCalibrationCurve, yMode);
+                    stats ??= mwDataset.Statistics;
+                }
+                catch (InvalidDataException)
+                {
+                }
+            }
+
+            if (stats is not null
+                && stats.Peaks.Count > 0
+                && index == _activeIndex
+                && _currentStatistics is not null
+                && ReferenceEquals(_currentStatistics.Peaks, stats.Peaks))
+            {
+                stats = _currentStatistics;
+            }
+
+            entries.Add(new AnalysisExportEntry
+            {
+                DisplayName = Path.GetFileName(dataset.SourceFilePath) ?? $"dataset_{index + 1}",
+                SourceFilePath = dataset.SourceFilePath,
+                Detector = dataset.Detector,
+                XLabel = dataset.XLabel,
+                YLabel = dataset.YLabel,
+                ChromatogramPoints = dataset.Points,
+                Statistics = stats,
+                MolecularWeightDataset = mwDataset,
+            });
+        }
+
+        return new AnalysisExport
+        {
+            Entries = entries,
+        };
+    }
+
+    private enum AnalysisExportFormat
+    {
+        Xlsx,
+        Csv,
+    }
+
+    private static AnalysisExportFormat GetAnalysisExportFormat(string filePath, int filterIndex)
+    {
+        var ext = Path.GetExtension(filePath);
+        if (string.Equals(ext, ".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            return AnalysisExportFormat.Csv;
+        }
+
+        if (string.Equals(ext, ".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            return AnalysisExportFormat.Xlsx;
+        }
+
+        return filterIndex == 2 ? AnalysisExportFormat.Csv : AnalysisExportFormat.Xlsx;
+    }
+
+    private static string EnsureAnalysisExportExtension(string filePath, AnalysisExportFormat format)
+    {
+        var expected = format == AnalysisExportFormat.Csv ? ".csv" : ".xlsx";
+        if (string.Equals(Path.GetExtension(filePath), expected, StringComparison.OrdinalIgnoreCase))
+        {
+            return filePath;
+        }
+
+        return Path.ChangeExtension(filePath, expected);
+    }
+
+    private void SaveSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_loadedDatasets.Count == 0)
+        {
+            SetStatus("保存する状態がありません。", true);
+            return;
+        }
+
+        var defaultName = Path.GetFileNameWithoutExtension(_currentDataset?.SourceFilePath) ?? "gpc_session";
+        var dialog = new SaveFileDialog
+        {
+            Title = "解析条件を保存",
+            Filter = "GPC 解析条件 (*.gpcjson)|*.gpcjson|JSON (*.json)|*.json",
+            FileName = $"{defaultName}.gpcjson",
+            DefaultExt = ".gpcjson",
+            AddExtension = true,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var session = BuildAnalysisSession();
+            new AnalysisSessionStore().Save(session, dialog.FileName);
+            SetStatus($"解析条件を保存しました: {dialog.FileName}", false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SetStatus($"保存に失敗しました: {ex.Message}", true);
+        }
+    }
+
+    private void LoadSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "解析条件を読み込み",
+            Filter = "GPC 解析条件 (*.gpcjson;*.json)|*.gpcjson;*.json|すべてのファイル (*.*)|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        AnalysisSession session;
+        try
+        {
+            session = new AnalysisSessionStore().Load(dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
+        {
+            SetStatus($"読み込みに失敗しました: {ex.Message}", true);
+            return;
+        }
+
+        var warnings = new List<string>();
+        ApplyAnalysisSession(session, warnings);
+
+        if (warnings.Count == 0)
+        {
+            SetStatus($"解析条件を読み込みました: {dialog.FileName}", false);
+        }
+        else
+        {
+            SetStatus($"解析条件を読み込みました（一部復元できない項目あり: {string.Join(" / ", warnings)})", true);
+        }
+    }
+
+    private AnalysisSession BuildAnalysisSession()
+    {
+        var datasets = new List<AnalysisSessionDataset>();
+        for (var i = 0; i < _loadedDatasets.Count; i++)
+        {
+            var dataset = _loadedDatasets[i];
+            var style = i < _datasetStyles.Count ? _datasetStyles[i] : CreateDefaultDatasetStyle();
+            var selectedPeakId = (i == _activeIndex
+                && _currentStatistics is not null
+                && !_currentStatistics.IsAutoSelected)
+                ? _currentStatistics.SelectedPeakId
+                : null;
+
+            datasets.Add(new AnalysisSessionDataset
+            {
+                SourceFilePath = dataset.SourceFilePath ?? string.Empty,
+                Detector = dataset.Detector,
+                SelectedPeakId = selectedPeakId,
+                Style = new AnalysisSessionStyle
+                {
+                    ColorHex = style.ColorHex,
+                    LegendName = style.LegendName,
+                    LineWidth = style.LineWidth,
+                    MarkerSize = style.MarkerSize,
+                },
+            });
+        }
+
+        AnalysisSessionCalibration? calibration = null;
+        if (!string.IsNullOrWhiteSpace(_calibrationFilePath))
+        {
+            calibration = new AnalysisSessionCalibration
+            {
+                FilePath = _calibrationFilePath!,
+                Solvent = SolventComboBox.SelectedItem as string,
+                Detector = DetectorComboBox.SelectedItem as string,
+            };
+        }
+
+        var molecularWeight = new AnalysisSessionMolecularWeight
+        {
+            Enabled = MolecularWeightCheckBox.IsChecked == true,
+            YMode = GetSelectedMolecularWeightYMode().ToString(),
+            MinMolecularWeight = MolecularWeightConverter.DefaultMinMolecularWeight,
+            MaxMolecularWeight = MolecularWeightConverter.DefaultMaxMolecularWeight,
+        };
+
+        var axes = new AnalysisSessionAxes
+        {
+            Mode = MolecularWeightCheckBox.IsChecked == true
+                ? nameof(AnalysisSessionAxisMode.MolecularWeight)
+                : nameof(AnalysisSessionAxisMode.RetentionTime),
+            XMin = TryParseAxisInput(XMinTextBox.Text),
+            XMax = TryParseAxisInput(XMaxTextBox.Text),
+            YMin = TryParseAxisInput(YMinTextBox.Text),
+            YMax = TryParseAxisInput(YMaxTextBox.Text),
+        };
+
+        var labels = new AnalysisSessionLabels
+        {
+            Title = NullIfWhiteSpace(TitleTextBox.Text),
+            XLabel = NullIfWhiteSpace(XLabelTextBox.Text),
+            YLabel = NullIfWhiteSpace(YLabelTextBox.Text),
+        };
+
+        return new AnalysisSession
+        {
+            Overlay = OverlayCheckBox.IsChecked == true,
+            ActiveDatasetIndex = _activeIndex,
+            Datasets = datasets,
+            Calibration = calibration,
+            MolecularWeight = molecularWeight,
+            Axes = axes,
+            Labels = labels,
+            Formatting = CaptureFormattingConfigFromControls(),
+        };
+    }
+
+    private void ApplyAnalysisSession(AnalysisSession session, List<string> warnings)
+    {
+        _loadedDatasets.Clear();
+        _datasetStyles.Clear();
+        _calibrationCurveSet = null;
+        _selectedCalibrationCurve = null;
+        _calibrationFilePath = null;
+        ClearComputedDataCaches();
+        _activeIndex = -1;
+        _currentDataset = null;
+        _currentStatistics = null;
+
+        if (session.Formatting is not null)
+        {
+            session.Formatting.Normalize();
+            _formattingDefaults = session.Formatting;
+            ApplyFormattingConfigToControls(session.Formatting);
+        }
+
+        if (session.Calibration is { FilePath: var calibrationPath } && !string.IsNullOrWhiteSpace(calibrationPath))
+        {
+            if (File.Exists(calibrationPath))
+            {
+                try
+                {
+                    _calibrationCurveSet = _standardCurveReader.Read(calibrationPath);
+                    _calibrationFilePath = calibrationPath;
+                    CalibrationPathTextBlock.Text = $"較正曲線: {calibrationPath}";
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or ArgumentException)
+                {
+                    warnings.Add($"較正曲線読み込み失敗 ({ex.Message})");
+                    CalibrationPathTextBlock.Text = "較正曲線: 未選択";
+                }
+            }
+            else
+            {
+                warnings.Add($"較正曲線が見つかりません ({calibrationPath})");
+                CalibrationPathTextBlock.Text = "較正曲線: 未選択";
+            }
+        }
+        else
+        {
+            CalibrationPathTextBlock.Text = "較正曲線: 未選択";
+        }
+
+        var sessionToLoadedIndex = new Dictionary<int, int>();
+        for (var i = 0; i < session.Datasets.Count; i++)
+        {
+            var sessionDataset = session.Datasets[i];
+            if (string.IsNullOrWhiteSpace(sessionDataset.SourceFilePath)
+                || !File.Exists(sessionDataset.SourceFilePath))
+            {
+                warnings.Add($"ファイル欠落 ({sessionDataset.SourceFilePath ?? "不明"})");
+                continue;
+            }
+
+            try
+            {
+                var loaded = _reader.Read(sessionDataset.SourceFilePath);
+                if (!string.IsNullOrWhiteSpace(sessionDataset.Detector)
+                    && loaded.AvailableDetectors.Contains(sessionDataset.Detector!, StringComparer.OrdinalIgnoreCase))
+                {
+                    loaded = loaded.WithDetector(sessionDataset.Detector!);
+                }
+
+                _loadedDatasets.Add(loaded);
+                _datasetStyles.Add(new DatasetStyle
+                {
+                    ColorHex = sessionDataset.Style.ColorHex,
+                    LegendName = sessionDataset.Style.LegendName,
+                    LineWidth = sessionDataset.Style.LineWidth,
+                    MarkerSize = sessionDataset.Style.MarkerSize,
+                });
+                sessionToLoadedIndex[i] = _loadedDatasets.Count - 1;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
+            {
+                warnings.Add($"読み込み失敗 ({Path.GetFileName(sessionDataset.SourceFilePath)}: {ex.Message})");
+            }
+        }
+
+        OverlayCheckBox.IsChecked = session.Overlay;
+
+        if (_loadedDatasets.Count == 0)
+        {
+            FilePathTextBlock.Text = string.Empty;
+            SetGraphActionsEnabled(false);
+            UpdateStatisticsText((MolecularWeightStatistics?)null);
+            RefreshDatasetEntries();
+            if (_chromatogramPlot is not null)
+            {
+                InitializeEmptyPlot();
+            }
+            return;
+        }
+
+        if (sessionToLoadedIndex.TryGetValue(session.ActiveDatasetIndex, out var mappedActive))
+        {
+            _activeIndex = mappedActive;
+        }
+        else
+        {
+            _activeIndex = _loadedDatasets.Count - 1;
+        }
+
+        _currentDataset = _loadedDatasets[_activeIndex];
+        FilePathTextBlock.Text = _loadedDatasets.Count > 1
+            ? $"{_loadedDatasets.Count} files (latest: {_currentDataset.SourceFilePath})"
+            : _currentDataset.SourceFilePath ?? string.Empty;
+
+        RefreshDatasetEntries();
+        SyncStyleControlsFromActiveDataset();
+
+        if (_calibrationCurveSet is not null)
+        {
+            PopulateSolventComboBox();
+
+            if (session.Calibration is not null
+                && !string.IsNullOrWhiteSpace(session.Calibration.Solvent))
+            {
+                var matchSolvent = _calibrationCurveSet.Solvents
+                    .FirstOrDefault(s => string.Equals(
+                        s,
+                        session.Calibration.Solvent,
+                        StringComparison.OrdinalIgnoreCase));
+                if (matchSolvent is not null)
+                {
+                    SolventComboBox.SelectedItem = matchSolvent;
+                }
+            }
+
+            if (session.Calibration is not null
+                && !string.IsNullOrWhiteSpace(session.Calibration.Detector))
+            {
+                var matchDetector = DetectorComboBox.Items.Cast<object>()
+                    .OfType<string>()
+                    .FirstOrDefault(d => string.Equals(
+                        d,
+                        session.Calibration.Detector,
+                        StringComparison.OrdinalIgnoreCase));
+                if (matchDetector is not null)
+                {
+                    DetectorComboBox.SelectedItem = matchDetector;
+                }
+            }
+        }
+        else
+        {
+            UpdateMolecularWeightAvailability();
+        }
+
+        ApplyMolecularWeightYModeSelection(session.MolecularWeight.YMode);
+
+        if (session.MolecularWeight.Enabled && _selectedCalibrationCurve is not null)
+        {
+            MolecularWeightCheckBox.IsChecked = true;
+        }
+        else
+        {
+            MolecularWeightCheckBox.IsChecked = false;
+            if (session.MolecularWeight.Enabled)
+            {
+                warnings.Add("分子量表示の前提（較正曲線/溶媒/検出器）が揃わなかったため無効化しました");
+            }
+        }
+
+        TitleTextBox.Text = session.Labels.Title ?? string.Empty;
+        XLabelTextBox.Text = session.Labels.XLabel ?? string.Empty;
+        YLabelTextBox.Text = session.Labels.YLabel ?? string.Empty;
+
+        XMinTextBox.Text = FormatAxisOrEmpty(session.Axes.XMin);
+        XMaxTextBox.Text = FormatAxisOrEmpty(session.Axes.XMax);
+        YMinTextBox.Text = FormatAxisOrEmpty(session.Axes.YMin);
+        YMaxTextBox.Text = FormatAxisOrEmpty(session.Axes.YMax);
+
+        SetGraphActionsEnabled(true);
+        PlotCurrentDataset();
+
+        foreach (var (sessionIndex, loadedIndex) in sessionToLoadedIndex)
+        {
+            if (loadedIndex != _activeIndex)
+            {
+                continue;
+            }
+
+            if (session.Datasets[sessionIndex].SelectedPeakId is { } peakId
+                && _currentStatistics is not null
+                && _currentStatistics.Peaks.Count > 0)
+            {
+                var updated = _currentStatistics.WithSelectedPeak(peakId);
+                _currentStatistics = updated;
+                UpdateRepresentativePeakSelector(updated);
+                StatisticsTextBlock.Text = FormatRepresentativeStatistics(updated);
+            }
+            break;
+        }
+    }
+
+    private void ApplyMolecularWeightYModeSelection(string yMode)
+    {
+        var targetTag = string.Equals(
+            yMode,
+            nameof(MolecularWeightYMode.DifferentialWeightFraction),
+            StringComparison.OrdinalIgnoreCase) ? "DwdLogM" : "Signal";
+
+        foreach (var item in MolecularWeightYModeComboBox.Items)
+        {
+            if (item is ComboBoxItem cbItem
+                && cbItem.Tag is string tag
+                && string.Equals(tag, targetTag, StringComparison.OrdinalIgnoreCase))
+            {
+                MolecularWeightYModeComboBox.SelectedItem = cbItem;
+                return;
+            }
+        }
+    }
+
+    private static double? TryParseAxisInput(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            && double.IsFinite(value)
+            ? value
+            : null;
+    }
+
+    private static string FormatAxisOrEmpty(double? value)
+    {
+        if (!value.HasValue || !double.IsFinite(value.Value))
+        {
+            return string.Empty;
+        }
+
+        return value.Value.ToString("G", CultureInfo.InvariantCulture);
+    }
+
+    private static string? NullIfWhiteSpace(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
     private void SaveGraphButton_Click(object sender, RoutedEventArgs e)
     {
         if (_currentDataset is null || _chromatogramPlot is null)
@@ -629,7 +1172,7 @@ public partial class MainWindow : Window
             if (_currentDataset is not null)
             {
                 PlotCurrentDataset();
-                SaveGraphButton.IsEnabled = true;
+                SetGraphActionsEnabled(true);
             }
         }
         catch (Exception ex)
@@ -673,7 +1216,7 @@ public partial class MainWindow : Window
 
         if (_currentDataset is null)
         {
-            SaveGraphButton.IsEnabled = false;
+            SetGraphActionsEnabled(false);
             UpdateStatisticsText((MolecularWeightStatistics?)null);
             return;
         }
@@ -685,7 +1228,7 @@ public partial class MainWindow : Window
             if (_selectedCalibrationCurve is null)
             {
                 SetStatus("分子量表示には較正曲線、溶媒、検出器の選択が必要です。", true);
-                SaveGraphButton.IsEnabled = _chromatogramPlot is not null;
+                SetGraphActionsEnabled(_chromatogramPlot is not null);
                 return;
             }
 
@@ -715,7 +1258,7 @@ public partial class MainWindow : Window
             PlotRetentionTimeDatasets(plotEntries, activeDataset);
         }
 
-        SaveGraphButton.IsEnabled = _chromatogramPlot is not null;
+        SetGraphActionsEnabled(_chromatogramPlot is not null);
     }
 
     private MolecularWeightDataset GetMolecularWeightDataset(
@@ -1390,30 +1933,34 @@ public partial class MainWindow : Window
 
     private void UpdateStatisticsText(MolecularWeightStatistics? statistics)
     {
+        _currentStatistics = statistics;
+
         if (statistics is null || !statistics.HasAnyValue)
         {
-            StatisticsTextBlock.Text = "Mn: -   Mw: -   PDI: -";
+            StatisticsTextBlock.Text = "Mn: -   Mw: -   Ð: -";
+            UpdateRepresentativePeakSelector(null);
             return;
         }
 
         if (statistics.Peaks.Count > 0)
         {
-            var peakSummaries = statistics.Peaks
-                .Take(3)
-                .Select(FormatPeakStatistic);
-            StatisticsTextBlock.Text = "Peaks by %: " + string.Join("   ", peakSummaries);
+            StatisticsTextBlock.Text = FormatRepresentativeStatistics(statistics);
+            UpdateRepresentativePeakSelector(statistics);
             return;
         }
 
         var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
-        StatisticsTextBlock.Text = $"Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   PDI: {FormatStatistic(statistics.Pdi)} ({source})";
+        StatisticsTextBlock.Text = $"Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)} ({source})";
+        UpdateRepresentativePeakSelector(null);
     }
 
     private void UpdateStatisticsForDatasets(IReadOnlyList<(string Label, MolecularWeightStatistics? Stats)> entries)
     {
         if (entries.Count == 0)
         {
-            StatisticsTextBlock.Text = "Mn: -   Mw: -   PDI: -";
+            _currentStatistics = null;
+            StatisticsTextBlock.Text = "Mn: -   Mw: -   Ð: -";
+            UpdateRepresentativePeakSelector(null);
             return;
         }
 
@@ -1422,6 +1969,9 @@ public partial class MainWindow : Window
             UpdateStatisticsText(entries[0].Stats);
             return;
         }
+
+        _currentStatistics = null;
+        UpdateRepresentativePeakSelector(null);
 
         var lines = new List<string>(entries.Count);
         foreach (var (label, stats) in entries)
@@ -1435,22 +1985,136 @@ public partial class MainWindow : Window
     {
         if (statistics is null || !statistics.HasAnyValue)
         {
-            return "Mn -  Mw -  PDI -";
+            return "Mn -  Mw -  Ð -";
         }
 
         if (statistics.Peaks.Count > 0)
         {
-            var top = statistics.Peaks[0];
-            return $"#{top.PeakId} Mn {FormatStatistic(top.Mn)}  Mw {FormatStatistic(top.Mw)}  PDI {FormatStatistic(top.Pdi)}";
+            var representativePeakId = statistics.SelectedPeakId
+                ?? MolecularWeightStatistics.SelectAutoRepresentativePeak(statistics.Peaks)?.PeakId;
+            var label = representativePeakId is null ? "" : $"#{representativePeakId} ";
+            return $"{label}Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  Ð {FormatStatistic(statistics.Pdi)}";
         }
 
         var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
-        return $"Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  PDI {FormatStatistic(statistics.Pdi)} ({source})";
+        return $"Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  Ð {FormatStatistic(statistics.Pdi)} ({source})";
     }
 
-    private static string FormatPeakStatistic(MolecularWeightPeak peak)
+    private static string FormatRepresentativeStatistics(MolecularWeightStatistics statistics)
     {
-        return $"#{peak.PeakId} {FormatStatistic(peak.Percent)}% Mn {FormatStatistic(peak.Mn)} Mw {FormatStatistic(peak.Mw)} PDI {FormatStatistic(peak.Pdi)}";
+        string label;
+        if (statistics.IsAutoSelected)
+        {
+            var auto = MolecularWeightStatistics.SelectAutoRepresentativePeak(statistics.Peaks);
+            label = auto is not null ? $"自動 (Peak #{auto.PeakId})" : "自動";
+        }
+        else
+        {
+            label = $"Peak #{statistics.SelectedPeakId}";
+        }
+
+        return $"{label}   Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)}";
+    }
+
+    private void UpdateRepresentativePeakSelector(MolecularWeightStatistics? statistics)
+    {
+        _suppressRepresentativePeakSelection = true;
+        try
+        {
+            RepresentativePeakComboBox.Items.Clear();
+
+            if (statistics is null || statistics.Peaks.Count == 0)
+            {
+                RepresentativePeakPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var auto = MolecularWeightStatistics.SelectAutoRepresentativePeak(statistics.Peaks);
+            var autoItem = new ComboBoxItem
+            {
+                Content = auto is not null ? $"自動 (Peak #{auto.PeakId})" : "自動",
+                Tag = null,
+            };
+            RepresentativePeakComboBox.Items.Add(autoItem);
+
+            var orderedForList = statistics.Peaks
+                .OrderBy(peak => TryParsePeakNumber(peak.PeakId))
+                .ThenBy(peak => peak.PeakId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            foreach (var peak in orderedForList)
+            {
+                RepresentativePeakComboBox.Items.Add(new ComboBoxItem
+                {
+                    Content = FormatPeakComboBoxItem(peak),
+                    Tag = peak.PeakId,
+                });
+            }
+
+            var selectedIndex = 0;
+            if (!statistics.IsAutoSelected)
+            {
+                for (var i = 1; i < RepresentativePeakComboBox.Items.Count; i++)
+                {
+                    if (RepresentativePeakComboBox.Items[i] is ComboBoxItem item
+                        && string.Equals(item.Tag as string, statistics.SelectedPeakId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            RepresentativePeakComboBox.SelectedIndex = selectedIndex;
+            RepresentativePeakPanel.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _suppressRepresentativePeakSelection = false;
+        }
+    }
+
+    private void RepresentativePeakComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressRepresentativePeakSelection)
+        {
+            return;
+        }
+
+        if (_currentStatistics is null || _currentStatistics.Peaks.Count == 0)
+        {
+            return;
+        }
+
+        if (RepresentativePeakComboBox.SelectedItem is not ComboBoxItem item)
+        {
+            return;
+        }
+
+        var peakId = item.Tag as string;
+        var updated = _currentStatistics.WithSelectedPeak(peakId);
+        _currentStatistics = updated;
+        StatisticsTextBlock.Text = FormatRepresentativeStatistics(updated);
+    }
+
+    private static string FormatPeakComboBoxItem(MolecularWeightPeak peak)
+    {
+        var pieces = new List<string> { $"Peak #{peak.PeakId}" };
+        if (peak.Mw.HasValue && double.IsFinite(peak.Mw.Value))
+        {
+            pieces.Add($"Mw {FormatStatistic(peak.Mw)}");
+        }
+        if (peak.Percent.HasValue && double.IsFinite(peak.Percent.Value))
+        {
+            pieces.Add($"{FormatStatistic(peak.Percent)}%");
+        }
+        return string.Join("   ", pieces);
+    }
+
+    private static int TryParsePeakNumber(string peakId)
+    {
+        return int.TryParse(peakId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : int.MaxValue;
     }
 
     private static string FormatStatistic(double? value)
@@ -1748,7 +2412,7 @@ public partial class MainWindow : Window
             RefreshDatasetEntries();
             SyncStyleControlsFromActiveDataset();
             FilePathTextBlock.Text = string.Empty;
-            SaveGraphButton.IsEnabled = false;
+            SetGraphActionsEnabled(false);
             UpdateStatisticsText((MolecularWeightStatistics?)null);
             if (_chromatogramPlot is not null)
             {

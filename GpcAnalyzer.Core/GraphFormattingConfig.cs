@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace GPC_Visualization;
+namespace GpcAnalyzer.Core;
 
 public sealed class GraphFormattingConfig
 {

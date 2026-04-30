@@ -19,7 +19,7 @@ Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting 
 - Overlay multiple loaded data files
 - Adjust plot-frame and line colors from a palette or custom hex color code
 - Adjust line width, marker size, and legend name
-- Show likely Mn, Mw, and PDI peak candidates from the data file when available, otherwise calculate them from converted molecular-weight data
+- Show likely Mn, Mw, and Ð (dispersity) peak candidates from the data file when available, otherwise calculate them from converted molecular-weight data
 - Export the displayed graph as a 300 dpi PNG or vector SVG with scaled export typography
 
 ## Usage
@@ -41,7 +41,7 @@ log10(M) = a*t^3 + b*t^2 + c*t + d
 M = 10^log10(M)
 ```
 
-Mn/Mw/PDI calculations are not implemented yet.
+Mn/Mw/Ð calculations are not implemented yet.
 
 Molecular-weight display filters points outside `1` to `100000000` and plots the X axis as `log10(M)` with labels shown as molecular weights using superscript powers of 10.
 The molecular-weight Y axis can be shown as either the raw signal or `dw/dlogM`.

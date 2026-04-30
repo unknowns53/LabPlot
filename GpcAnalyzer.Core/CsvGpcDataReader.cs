@@ -388,7 +388,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
         var orderedPeaks = peaks
             .OrderByDescending(peak => peak.Percent ?? double.NegativeInfinity)
             .ToArray();
-        var representativePeak = orderedPeaks.FirstOrDefault();
+        var representativePeak = MolecularWeightStatistics.SelectAutoRepresentativePeak(orderedPeaks);
         if (representativePeak is null)
         {
             return null;
@@ -401,6 +401,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
             Pdi = representativePeak.Pdi,
             Source = MolecularWeightStatisticsSource.DataFile,
             Peaks = orderedPeaks,
+            SelectedPeakId = null,
         };
     }
 

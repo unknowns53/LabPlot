@@ -182,6 +182,127 @@ public sealed class CsvGpcDataReaderTests
     }
 
     [Fact]
+    public void Read_SelectsHighestMwAmongTopPercentPeaksAsRepresentative()
+    {
+        // Peak#2 は % が最大だが Mw が小さく、Peak#1 が高分子量側のメインピーク。
+        // 上位3つの % のうち Mw が最大の Peak#1 が代表になるべき。
+        var path = WriteTempFile(
+            """
+            [Header]
+            Application Name	LabSolutions
+
+            [Average Molecular Weight Table(Detector A)]
+            # of Peaks	5
+            Peak#	Mn	Mw	Mz	Mz1	Mv	Mw/Mn	Mv/Mn	Mz/Mw	I.Visc	%
+            Total	0	1672	5778	7730	0	315237	0	3.456	1	100.0
+            1	6277	6851	7579	8463	0	1.09	0	1.10	1	16.1435
+            2	2165	2480	2785	3044	0	1.14	0	1.12	1	17.5268
+            3	412	425	439	452	0	1.03	0	1.03	1	16.6423
+            4	53	60	68	76	0	1.13	0	1.13	1	12.4301
+            5	16	16	17	17	0	1.03	0	1.02	1	4.7945
+
+            [LC Chromatogram(Detector A-Ch1)]
+            R.Time (min)	Intensity
+            0.00000	1
+            0.00833	2
+            """);
+
+        try
+        {
+            var dataset = new CsvGpcDataReader().Read(path);
+
+            Assert.NotNull(dataset.MolecularWeightStatistics);
+            Assert.Equal(6277, dataset.MolecularWeightStatistics.Mn);
+            Assert.Equal(6851, dataset.MolecularWeightStatistics.Mw);
+            Assert.True(dataset.MolecularWeightStatistics.IsAutoSelected);
+            Assert.Null(dataset.MolecularWeightStatistics.SelectedPeakId);
+            Assert.Equal(5, dataset.MolecularWeightStatistics.Peaks.Count);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void WithSelectedPeak_OverridesRepresentativeStats()
+    {
+        var path = WriteTempFile(
+            """
+            [Header]
+            Application Name	LabSolutions
+
+            [Average Molecular Weight Table(Detector A)]
+            Peak#	Mn	Mw	Mw/Mn	%
+            1	6000	6800	1.13	16.0
+            2	2000	2400	1.20	17.5
+            3	400	420	1.05	16.6
+
+            [LC Chromatogram(Detector A-Ch1)]
+            R.Time (min)	Intensity
+            0.00000	1
+            0.00833	2
+            """);
+
+        try
+        {
+            var dataset = new CsvGpcDataReader().Read(path);
+            Assert.NotNull(dataset.MolecularWeightStatistics);
+
+            var manual = dataset.MolecularWeightStatistics.WithSelectedPeak("2");
+            Assert.Equal("2", manual.SelectedPeakId);
+            Assert.False(manual.IsAutoSelected);
+            Assert.Equal(2000, manual.Mn);
+            Assert.Equal(2400, manual.Mw);
+            Assert.Equal(1.20, manual.Pdi);
+
+            var auto = manual.WithSelectedPeak(null);
+            Assert.True(auto.IsAutoSelected);
+            Assert.Equal(6000, auto.Mn);
+            Assert.Equal(6800, auto.Mw);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void WithSelectedPeak_UnknownIdLeavesStatisticsUnchanged()
+    {
+        var path = WriteTempFile(
+            """
+            [Header]
+            Application Name	LabSolutions
+
+            [Average Molecular Weight Table(Detector A)]
+            Peak#	Mn	Mw	Mw/Mn	%
+            1	100	200	2.0	60
+            2	50	60	1.2	40
+
+            [LC Chromatogram(Detector A-Ch1)]
+            R.Time (min)	Intensity
+            0.00000	1
+            0.00833	2
+            """);
+
+        try
+        {
+            var dataset = new CsvGpcDataReader().Read(path);
+            Assert.NotNull(dataset.MolecularWeightStatistics);
+            var unchanged = dataset.MolecularWeightStatistics.WithSelectedPeak("99");
+
+            Assert.Equal(dataset.MolecularWeightStatistics.Mn, unchanged.Mn);
+            Assert.Equal(dataset.MolecularWeightStatistics.Mw, unchanged.Mw);
+            Assert.Equal(dataset.MolecularWeightStatistics.SelectedPeakId, unchanged.SelectedPeakId);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Read_AttachesLabSolutionsMolecularWeightStatisticsAfterChromatogramSection()
     {
         var path = WriteTempFile(

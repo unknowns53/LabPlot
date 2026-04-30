@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Buffers.Binary;
@@ -59,6 +60,7 @@ public partial class MainWindow : Window
     private readonly List<SpectrumDataset> _loadedDatasets = new();
     private readonly List<DatasetStyle> _datasetStyles = new();
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
+    private readonly ObservableCollection<PeakAssignmentVm> _peakAssignmentVms = new();
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
     private readonly AnalysisSessionStore _sessionStore = new();
 
@@ -89,9 +91,11 @@ public partial class MainWindow : Window
         _suppressStyleControlEvents = false;
         _suppressDatasetListEvents = false;
 
+        InitializePeakAssignmentVms();
         LoadFormattingDefaults();
         ApplyFormattingConfigToControls(_formattingDefaults);
         DatasetListBox.ItemsSource = _datasetEntries;
+        PeakAssignmentItemsControl.ItemsSource = _peakAssignmentVms;
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
         RegisterShortcuts();
         Loaded += MainWindow_Loaded;
@@ -240,6 +244,45 @@ public partial class MainWindow : Window
         public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
     }
 
+    public sealed class PeakAssignmentVm : INotifyPropertyChanged
+    {
+        public required PeakAssignment Source { get; init; }
+        public required string Label { get; init; }
+        public required SolidColorBrush ColorBrush { get; init; }
+
+        private bool _isEnabled;
+        public bool IsEnabled
+        {
+            get => _isEnabled;
+            set
+            {
+                if (_isEnabled == value)
+                {
+                    return;
+                }
+
+                _isEnabled = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEnabled)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    private void InitializePeakAssignmentVms()
+    {
+        _peakAssignmentVms.Clear();
+        foreach (var assignment in IrPeakAssignmentTable.Default)
+        {
+            _peakAssignmentVms.Add(new PeakAssignmentVm
+            {
+                Source = assignment,
+                Label = assignment.Label,
+                ColorBrush = new SolidColorBrush(HexToMediaColor(assignment.ColorHex)),
+            });
+        }
+    }
+
     private void LoadFormattingDefaults()
     {
         _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
@@ -301,6 +344,10 @@ public partial class MainWindow : Window
             AspectRatio = GetSelectedAspectRatioConfigValue(),
             InvertXAxisMode = GetSelectedInvertXAxisModeConfigValue(),
             YAxisDisplayMode = GetSelectedYAxisDisplayModeConfigValue(),
+            EnabledIrPeakAssignmentLabels = _peakAssignmentVms
+                .Where(vm => vm.IsEnabled)
+                .Select(vm => vm.Label)
+                .ToList(),
             DefaultLineColorHex = GetSelectedLineColorConfigValue(),
             LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
                 ? lineWidth
@@ -350,6 +397,8 @@ public partial class MainWindow : Window
             {
                 YAxisDisplayComboBox.SelectedIndex = 0;
             }
+
+            ApplyEnabledPeakAssignments(config.EnabledIrPeakAssignmentLabels);
         }
         finally
         {
@@ -953,9 +1002,12 @@ public partial class MainWindow : Window
 
         if (_currentDataset is null || _spectrumPlot is null)
         {
+            UpdatePeakAssignmentUi(null);
             SetGraphActionsEnabled(false);
             return;
         }
+
+        UpdatePeakAssignmentUi(_currentDataset);
 
         var plotEntries = GetDatasetsToPlotWithIndices();
         var activeDataset = _currentDataset;
@@ -1022,6 +1074,8 @@ public partial class MainWindow : Window
             _spectrumPlot.Refresh();
             return;
         }
+
+        DrawPeakAssignments(activeDataset, yRange);
 
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
@@ -1308,7 +1362,7 @@ public partial class MainWindow : Window
 
         if (xMin.HasValue || xMax.HasValue)
         {
-            if (!TryGetRequestedRange(xRange, xMin, xMax, "X", out var left, out var right))
+            if (!TryGetRequestedRange(xRange, xMin, xMax, "X", out var left, out var right, allowInverted: invertX))
             {
                 return false;
             }
@@ -1342,7 +1396,8 @@ public partial class MainWindow : Window
         double? requestedMax,
         string axisName,
         out double min,
-        out double max)
+        out double max,
+        bool allowInverted = false)
     {
         min = requestedMin ?? (dataRange.HasValue ? dataRange.Min : double.NaN);
         max = requestedMax ?? (dataRange.HasValue ? dataRange.Max : double.NaN);
@@ -1353,10 +1408,24 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (min >= max)
+        if (min == max)
         {
-            SetStatus($"{axisName} Min must be smaller than {axisName} Max.", true);
+            SetStatus($"{axisName} Min と Max は異なる値である必要があります。", true);
             return false;
+        }
+
+        if (min > max)
+        {
+            if (!allowInverted)
+            {
+                SetStatus($"{axisName} Min must be smaller than {axisName} Max.", true);
+                return false;
+            }
+
+            // IR: high wavenumbers belong on the left. Accept either input
+            // order and normalize to (min, max) so downstream callers can
+            // decide whether to invert via SetLimitsX argument order.
+            (min, max) = (max, min);
         }
 
         return true;
@@ -2118,6 +2187,38 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
+    private void PeakAssignmentCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        SchedulePlotCurrentDataset();
+    }
+
+    private void PeakAssignmentEnableAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetAllPeakAssignmentsEnabled(true);
+    }
+
+    private void PeakAssignmentDisableAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        SetAllPeakAssignmentsEnabled(false);
+    }
+
+    private void SetAllPeakAssignmentsEnabled(bool enabled)
+    {
+        // Let each VM update flow through the TwoWay binding to its CheckBox,
+        // which fires PeakAssignmentCheckBox_Changed -> SchedulePlotCurrentDataset.
+        // The debounce timer collapses the burst of N change events into a
+        // single PlotCurrentDataset run.
+        foreach (var vm in _peakAssignmentVms)
+        {
+            vm.IsEnabled = enabled;
+        }
+    }
+
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
@@ -2196,6 +2297,82 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
             ? null
             : tag;
+    }
+
+    private void ApplyEnabledPeakAssignments(IList<string>? labels)
+    {
+        var set = new HashSet<string>(labels ?? Array.Empty<string>(), StringComparer.Ordinal);
+        foreach (var vm in _peakAssignmentVms)
+        {
+            vm.IsEnabled = set.Contains(vm.Label);
+        }
+    }
+
+    private void UpdatePeakAssignmentUi(SpectrumDataset? dataset)
+    {
+        var enabled = dataset?.IsInfraredSpectrum == true;
+        PeakAssignmentItemsControl.IsEnabled = enabled;
+        PeakAssignmentEnableAllButton.IsEnabled = enabled;
+        PeakAssignmentDisableAllButton.IsEnabled = enabled;
+        PeakAssignmentHintTextBlock.Visibility = enabled
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void DrawPeakAssignments(SpectrumDataset dataset, AxisDataRange yRange)
+    {
+        if (_spectrumPlot is null || !dataset.IsInfraredSpectrum || !yRange.HasValue)
+        {
+            return;
+        }
+
+        // Read the actual axis limits after AutoScale + invert so the band
+        // matches what is visible on screen at draw time. AxisSpan-based APIs
+        // were unreliable across redraws (visible only intermittently);
+        // explicit rectangles render deterministically.
+        var axisLimits = _spectrumPlot.Plot.Axes.GetLimits();
+        var bandBottom = axisLimits.Bottom;
+        var bandTop = axisLimits.Top;
+        var ySpan = bandTop - bandBottom;
+        // Pad the rectangle Y range generously so the band survives moderate
+        // mouse pan / zoom without a redraw. Plot.Clear at the start of each
+        // PlotCurrentDataset run wipes these rectangles, so the inflated range
+        // never bleeds into a future AutoScale.
+        var yPad = ySpan > 0 ? ySpan * 100.0 : 1.0;
+        var labelY = ySpan > 0 ? bandTop - ySpan * 0.02 : bandTop;
+
+        foreach (var vm in _peakAssignmentVms)
+        {
+            if (!vm.IsEnabled)
+            {
+                continue;
+            }
+
+            var assignment = vm.Source;
+            var hex = assignment.ColorHex.TrimStart('#');
+            var color = ScottPlot.Color.FromHex(hex);
+
+            if (assignment.IsRange)
+            {
+                var rect = _spectrumPlot.Plot.Add.Rectangle(
+                    assignment.MinWavenumber, assignment.MaxWavenumber,
+                    bandBottom - yPad, bandTop + yPad);
+                rect.FillStyle.Color = color.WithAlpha((byte)40);
+                rect.LineStyle.IsVisible = false;
+                rect.LegendText = string.Empty;
+            }
+
+            var line = _spectrumPlot.Plot.Add.VerticalLine(assignment.CenterWavenumber);
+            line.LineStyle.Color = color;
+            line.LineStyle.Pattern = ScottPlot.LinePattern.Dashed;
+            line.LineStyle.Width = 1;
+            line.LegendText = string.Empty;
+
+            var text = _spectrumPlot.Plot.Add.Text(assignment.Label, assignment.CenterWavenumber, labelY);
+            text.LabelFontColor = color;
+            text.LabelFontSize = 9;
+            text.LabelAlignment = ScottPlot.Alignment.UpperCenter;
+        }
     }
 
     private string? GetSelectedYAxisDisplayModeConfigValue()

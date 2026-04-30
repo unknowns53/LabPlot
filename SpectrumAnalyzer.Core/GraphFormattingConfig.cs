@@ -52,6 +52,13 @@ public sealed class GraphFormattingConfig
     /// </remarks>
     public string? YAxisDisplayMode { get; set; }
 
+    /// <summary>
+    /// Labels of the IR peak assignments the user has enabled in the format
+    /// panel. Matched against <see cref="PeakAssignment.Label"/> when the
+    /// active dataset is an IR spectrum. Other dataset types ignore this list.
+    /// </summary>
+    public IList<string> EnabledIrPeakAssignmentLabels { get; set; } = new List<string>();
+
     // User preferences (persisted alongside the formatting defaults).
     public string? DefaultOutputDirectory { get; set; }
 
@@ -68,6 +75,7 @@ public sealed class GraphFormattingConfig
         DefaultOutputDirectory = NormalizeOptionalText(DefaultOutputDirectory);
         InvertXAxisMode = NormalizeInvertXAxisMode(InvertXAxisMode);
         YAxisDisplayMode = NormalizeYAxisDisplayMode(YAxisDisplayMode);
+        EnabledIrPeakAssignmentLabels = NormalizeEnabledLabels(EnabledIrPeakAssignmentLabels);
 
         if (!IsPositive(FontSize))
         {
@@ -155,6 +163,32 @@ public sealed class GraphFormattingConfig
         }
 
         return null;
+    }
+
+    private static IList<string> NormalizeEnabledLabels(IList<string>? source)
+    {
+        if (source is null || source.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<string>(source.Count);
+        foreach (var label in source)
+        {
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                continue;
+            }
+
+            var trimmed = label.Trim();
+            if (seen.Add(trimmed))
+            {
+                result.Add(trimmed);
+            }
+        }
+
+        return result;
     }
 
     private static string? NormalizeYAxisDisplayMode(string? text)

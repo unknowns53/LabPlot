@@ -1094,6 +1094,59 @@
                                     </StackPanel>
                                 </Expander>
 
+                                <Expander Header="IR ピーク帰属" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button x:Name="PeakAssignmentEnableAllButton"
+                                                Grid.Column="0"
+                                                Content="全 ON"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="PeakAssignmentEnableAllButton_Click" />
+                                        <Button x:Name="PeakAssignmentDisableAllButton"
+                                                Grid.Column="2"
+                                                Content="全 OFF"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="PeakAssignmentDisableAllButton_Click" />
+                                    </Grid>
+                                    <TextBlock x:Name="PeakAssignmentHintTextBlock"
+                                               Text="IR データを開くと帰属が表示できます"
+                                               FontSize="11"
+                                               Foreground="#64748B"
+                                               Margin="0,0,0,6"
+                                               Visibility="Collapsed" />
+                                    <ItemsControl x:Name="PeakAssignmentItemsControl">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,3,0,3">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition Width="6" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0"
+                                                            Width="14" Height="14"
+                                                            Background="{Binding ColorBrush}"
+                                                            BorderBrush="#475569"
+                                                            BorderThickness="1"
+                                                            CornerRadius="2"
+                                                            VerticalAlignment="Center" />
+                                                    <CheckBox Grid.Column="2"
+                                                              Content="{Binding Label}"
+                                                              IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Checked="PeakAssignmentCheckBox_Changed"
+                                                              Unchecked="PeakAssignmentCheckBox_Changed" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    </StackPanel>
+                                </Expander>
+
                                 <Expander Header="枠とグリッド" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                     <StackPanel Margin="0,8,0,0">
                                     <Grid Margin="0,0,0,10">

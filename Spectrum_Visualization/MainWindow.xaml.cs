@@ -390,9 +390,9 @@ public partial class MainWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = allowMultiple
-                ? "JASCO TXT を開く（複数選択可）"
-                : "JASCO TXT を開く",
-            Filter = "JASCO TXT (*.txt)|*.txt|All files (*.*)|*.*",
+                ? "JASCO スペクトルを開く（複数選択可）"
+                : "JASCO スペクトルを開く",
+            Filter = "JASCO スペクトル (*.txt;*.csv)|*.txt;*.csv|JASCO TXT (*.txt)|*.txt|JASCO CSV (*.csv)|*.csv|All files (*.*)|*.*",
             CheckFileExists = true,
             Multiselect = allowMultiple,
         };
@@ -977,7 +977,14 @@ public partial class MainWindow : Window
         _spectrumPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
         _spectrumPlot.Plot.Axes.AutoScale();
 
-        if (!ApplyAxisLimits(xRange, yRange))
+        // IR convention: high wavenumbers on the left (4000 → 400 cm⁻¹).
+        var invertX = activeDataset.IsInfraredSpectrum;
+        if (invertX && xRange.HasValue)
+        {
+            _spectrumPlot.Plot.Axes.SetLimitsX(xRange.Max, xRange.Min);
+        }
+
+        if (!ApplyAxisLimits(xRange, yRange, invertX))
         {
             _spectrumPlot.Refresh();
             return;
@@ -1244,7 +1251,7 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(fileName) ? fallback : fileName;
     }
 
-    private bool ApplyAxisLimits(AxisDataRange xRange, AxisDataRange yRange)
+    private bool ApplyAxisLimits(AxisDataRange xRange, AxisDataRange yRange, bool invertX = false)
     {
         if (_spectrumPlot is null)
         {
@@ -1266,7 +1273,14 @@ public partial class MainWindow : Window
                 return false;
             }
 
-            _spectrumPlot.Plot.Axes.SetLimitsX(left, right);
+            if (invertX)
+            {
+                _spectrumPlot.Plot.Axes.SetLimitsX(right, left);
+            }
+            else
+            {
+                _spectrumPlot.Plot.Axes.SetLimitsX(left, right);
+            }
         }
 
         if (yMin.HasValue || yMax.HasValue)

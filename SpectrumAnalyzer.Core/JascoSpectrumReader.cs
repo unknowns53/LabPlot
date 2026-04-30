@@ -4,19 +4,21 @@ using System.Text;
 namespace SpectrumAnalyzer.Core;
 
 /// <summary>
-/// Reads JASCO V-series text exports (Spectra Manager → ASCII / CSV).
+/// Reads JASCO Spectra Manager text exports (UV-Vis V-series TXT and FTIR CSV).
 /// </summary>
 /// <remarks>
-/// File layout: tab-separated header (TITLE, ORIGIN, XUNITS, YUNITS, FIRSTX, LASTX,
-/// NPOINTS, DELTAX, ...) followed by an "XYDATA" marker line, then two-column tab-
-/// separated numeric rows until a blank line. Anything after the blank line (the
-/// Shift-JIS metadata footer with sample / instrument settings) is ignored.
+/// File layout: header rows of "KEY{sep}VALUE" pairs (TITLE, DATA TYPE, ORIGIN,
+/// XUNITS, YUNITS, FIRSTX, LASTX, NPOINTS, DELTAX, ...) followed by an "XYDATA"
+/// marker line, then two-column numeric rows until a blank line. Anything after
+/// the blank line (Shift-JIS metadata footer with sample / instrument settings)
+/// is ignored. The separator is tab for V-series TXT exports and comma for FTIR
+/// CSV exports; both are auto-detected per row.
 /// </remarks>
 public sealed class JascoSpectrumReader : ISpectrumDataReader
 {
     private static readonly Encoding LenientUtf8 = new UTF8Encoding(false, false);
 
-    private static readonly char[] FieldSeparators = { '\t' };
+    private static readonly char[] FieldSeparators = { '\t', ',' };
 
     public SpectrumDataset Read(string filePath)
     {
@@ -56,7 +58,7 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
                     continue;
                 }
 
-                var separatorIndex = line.IndexOf('\t');
+                var separatorIndex = line.IndexOfAny(FieldSeparators);
                 if (separatorIndex < 0)
                 {
                     continue;
@@ -98,12 +100,14 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
         var xUnits = header.TryGetValue("XUNITS", out var xu) ? xu : null;
         var yUnits = header.TryGetValue("YUNITS", out var yu) ? yu : null;
         var title = header.TryGetValue("TITLE", out var t) && t.Length > 0 ? t : null;
+        var dataType = header.TryGetValue("DATA TYPE", out var dt) && dt.Length > 0 ? dt : null;
 
         return new SpectrumDataset
         {
             SourceFilePath = sourceFilePath,
             RawXUnits = xUnits,
             RawYUnits = yUnits,
+            RawDataType = dataType,
             XLabel = AxisLabelMapper.MapX(xUnits),
             YLabel = AxisLabelMapper.MapY(yUnits),
             Title = title,
@@ -153,7 +157,8 @@ internal static class AxisLabelMapper
         }
 
         if (normalized.Equals("WAVENUMBERS", StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals("CM-1", StringComparison.OrdinalIgnoreCase))
+            || normalized.Equals("CM-1", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("1/CM", StringComparison.OrdinalIgnoreCase))
         {
             return "Wavenumber / cm⁻¹";
         }

@@ -15,6 +15,8 @@ public sealed class SpectrumDataset
 
     public string? RawYUnits { get; init; }
 
+    public string? RawDataType { get; init; }
+
     public string? Title { get; init; }
 
     public IReadOnlyList<SpectrumDataPoint> Points { get; init; } = Array.Empty<SpectrumDataPoint>();
@@ -22,4 +24,16 @@ public sealed class SpectrumDataset
     public double[] XValues => _xValues ??= Points.Select(point => point.X).ToArray();
 
     public double[] YValues => _yValues ??= Points.Select(point => point.Y).ToArray();
+
+    // X axis is in wavenumbers (cm⁻¹), so plotting convention is to display
+    // the axis right-to-left (high wavenumbers on the left).
+    public bool IsWavenumberAxis =>
+        !string.IsNullOrWhiteSpace(RawXUnits)
+        && (RawXUnits.Equals("1/CM", StringComparison.OrdinalIgnoreCase)
+            || RawXUnits.Equals("CM-1", StringComparison.OrdinalIgnoreCase)
+            || RawXUnits.Equals("WAVENUMBERS", StringComparison.OrdinalIgnoreCase));
+
+    public bool IsInfraredSpectrum =>
+        IsWavenumberAxis
+        || string.Equals(RawDataType, "INFRARED SPECTRUM", StringComparison.OrdinalIgnoreCase);
 }

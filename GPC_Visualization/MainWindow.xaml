@@ -267,7 +267,7 @@
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="軸範囲" IsExpanded="False">
+                            <Expander Header="軸範囲" IsExpanded="True">
                                 <StackPanel Margin="0,8,0,0">
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -316,6 +316,14 @@
                                                  LostFocus="AxisRangeTextBox_LostFocus" />
                                     </StackPanel>
                                 </Grid>
+
+                                <Button x:Name="AutoAxisRangeButton"
+                                        Content="自動範囲に戻す"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Margin="0,10,0,0"
+                                        Click="AutoAxisRangeButton_Click"
+                                        ToolTip="X/Y の最小・最大値を空欄に戻して自動範囲で表示します" />
                                 </StackPanel>
                             </Expander>
                         </Border>

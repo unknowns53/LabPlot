@@ -619,6 +619,8 @@ public partial class MainWindow : Window
         try
         {
             _chromatogramPlot = new WpfPlot();
+            _chromatogramPlot.PreviewMouseUp += ChromatogramPlot_MouseInteractionFinished;
+            _chromatogramPlot.MouseWheel += ChromatogramPlot_MouseInteractionFinished;
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_chromatogramPlot);
             UpdatePlotHostAspectRatio();
@@ -2017,6 +2019,70 @@ public partial class MainWindow : Window
     private void AxisRangeTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
         CommitAxisRangeFromInputs();
+    }
+
+    private void AutoAxisRangeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _suppressGraphAppearanceEvents = true;
+        try
+        {
+            XMinTextBox.Clear();
+            XMaxTextBox.Clear();
+            YMinTextBox.Clear();
+            YMaxTextBox.Clear();
+        }
+        finally
+        {
+            _suppressGraphAppearanceEvents = false;
+        }
+
+        PlotCurrentDataset();
+    }
+
+    private void ChromatogramPlot_MouseInteractionFinished(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        SyncAxisInputsFromPlot();
+    }
+
+    private void SyncAxisInputsFromPlot()
+    {
+        if (_chromatogramPlot is null || _currentDataset is null)
+        {
+            return;
+        }
+
+        var limits = _chromatogramPlot.Plot.Axes.GetLimits();
+        if (!IsFiniteRange(limits.Left, limits.Right) || !IsFiniteRange(limits.Bottom, limits.Top))
+        {
+            return;
+        }
+
+        var xIsMolecularWeight = MolecularWeightCheckBox.IsChecked == true && _selectedCalibrationCurve is not null;
+        var xMin = xIsMolecularWeight ? Math.Pow(10, limits.Left) : limits.Left;
+        var xMax = xIsMolecularWeight ? Math.Pow(10, limits.Right) : limits.Right;
+
+        _suppressGraphAppearanceEvents = true;
+        try
+        {
+            XMinTextBox.Text = FormatAxisLimit(xMin);
+            XMaxTextBox.Text = FormatAxisLimit(xMax);
+            YMinTextBox.Text = FormatAxisLimit(limits.Bottom);
+            YMaxTextBox.Text = FormatAxisLimit(limits.Top);
+        }
+        finally
+        {
+            _suppressGraphAppearanceEvents = false;
+        }
+    }
+
+    private static bool IsFiniteRange(double min, double max)
+    {
+        return double.IsFinite(min) && double.IsFinite(max) && min < max;
+    }
+
+    private static string FormatAxisLimit(double value)
+    {
+        return value.ToString("G6", CultureInfo.InvariantCulture);
     }
 
     private void CommitAxisRangeFromInputs()

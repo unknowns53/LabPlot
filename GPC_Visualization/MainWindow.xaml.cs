@@ -51,6 +51,7 @@ public partial class MainWindow : Window
 
     private readonly List<GpcDataset> _loadedDatasets = new();
     private readonly List<DatasetStyle> _datasetStyles = new();
+    private readonly List<string?> _datasetSelectedPeakIds = new();
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
     private readonly Dictionary<MolecularWeightCacheKey, MolecularWeightDataset> _molecularWeightCache = new();
     private readonly Dictionary<PlotSeriesCacheKey, PlotSeriesData> _plotSeriesCache = new();
@@ -474,6 +475,7 @@ public partial class MainWindow : Window
             _currentDataset = null;
             _loadedDatasets.Clear();
             _datasetStyles.Clear();
+            _datasetSelectedPeakIds.Clear();
             ClearComputedDataCaches();
             _activeIndex = -1;
             RefreshDatasetEntries();
@@ -494,11 +496,13 @@ public partial class MainWindow : Window
         {
             _loadedDatasets.Clear();
             _datasetStyles.Clear();
+            _datasetSelectedPeakIds.Clear();
             ClearComputedDataCaches();
         }
 
         _loadedDatasets.Add(dataset);
         _datasetStyles.Add(CreateDefaultDatasetStyle());
+        _datasetSelectedPeakIds.Add(null);
         _activeIndex = _loadedDatasets.Count - 1;
         _currentDataset = dataset;
 
@@ -730,14 +734,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            if (stats is not null
-                && stats.Peaks.Count > 0
-                && index == _activeIndex
-                && _currentStatistics is not null
-                && ReferenceEquals(_currentStatistics.Peaks, stats.Peaks))
-            {
-                stats = _currentStatistics;
-            }
+            stats = ApplyStoredSelectedPeak(stats, index);
 
             entries.Add(new AnalysisExportEntry
             {
@@ -872,11 +869,7 @@ public partial class MainWindow : Window
         {
             var dataset = _loadedDatasets[i];
             var style = i < _datasetStyles.Count ? _datasetStyles[i] : CreateDefaultDatasetStyle();
-            var selectedPeakId = (i == _activeIndex
-                && _currentStatistics is not null
-                && !_currentStatistics.IsAutoSelected)
-                ? _currentStatistics.SelectedPeakId
-                : null;
+            var selectedPeakId = i < _datasetSelectedPeakIds.Count ? _datasetSelectedPeakIds[i] : null;
 
             datasets.Add(new AnalysisSessionDataset
             {
@@ -952,6 +945,7 @@ public partial class MainWindow : Window
     {
         _loadedDatasets.Clear();
         _datasetStyles.Clear();
+        _datasetSelectedPeakIds.Clear();
         _calibrationCurveSet = null;
         _selectedCalibrationCurve = null;
         _calibrationFilePath = null;
@@ -1025,6 +1019,7 @@ public partial class MainWindow : Window
                     LineWidth = sessionDataset.Style.LineWidth,
                     MarkerSize = sessionDataset.Style.MarkerSize,
                 });
+                _datasetSelectedPeakIds.Add(sessionDataset.SelectedPeakId);
                 sessionToLoadedIndex[i] = _loadedDatasets.Count - 1;
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
@@ -1128,26 +1123,9 @@ public partial class MainWindow : Window
         YMaxTextBox.Text = FormatAxisOrEmpty(session.Axes.YMax);
 
         SetGraphActionsEnabled(true);
+        // PlotCurrentDataset() で _datasetSelectedPeakIds が反映されるので、
+        // ここで個別に SelectedPeak を再適用する必要はない。
         PlotCurrentDataset();
-
-        foreach (var (sessionIndex, loadedIndex) in sessionToLoadedIndex)
-        {
-            if (loadedIndex != _activeIndex)
-            {
-                continue;
-            }
-
-            if (session.Datasets[sessionIndex].SelectedPeakId is { } peakId
-                && _currentStatistics is not null
-                && _currentStatistics.Peaks.Count > 0)
-            {
-                var updated = _currentStatistics.WithSelectedPeak(peakId);
-                _currentStatistics = updated;
-                UpdateRepresentativePeakSelector(updated);
-                StatisticsTextBlock.Text = FormatRepresentativeStatistics(updated);
-            }
-            break;
-        }
     }
 
     private void ApplyMolecularWeightYModeSelection(string yMode)
@@ -1665,7 +1643,7 @@ public partial class MainWindow : Window
         UpdateStatisticsForDatasets(entries
             .Select(e => (
                 Label: GetStatsLabel(e.Dataset.SourceFilePath, e.Index),
-                Stats: e.Dataset.MolecularWeightStatistics))
+                Stats: ApplyStoredSelectedPeak(e.Dataset.MolecularWeightStatistics, e.Index)))
             .ToList());
         ApplyPlotAppearance();
         _chromatogramPlot.Refresh();
@@ -1723,7 +1701,7 @@ public partial class MainWindow : Window
         UpdateStatisticsForDatasets(entries
             .Select(e => (
                 Label: GetStatsLabel(e.Dataset.SourceFilePath, e.Index),
-                Stats: e.Dataset.Statistics))
+                Stats: ApplyStoredSelectedPeak(e.Dataset.Statistics, e.Index)))
             .ToList());
         ApplyPlotAppearance();
         _chromatogramPlot.Refresh();
@@ -2209,9 +2187,34 @@ public partial class MainWindow : Window
         }
 
         var peakId = item.Tag as string;
+        if (_activeIndex >= 0 && _activeIndex < _datasetSelectedPeakIds.Count)
+        {
+            _datasetSelectedPeakIds[_activeIndex] = peakId;
+        }
         var updated = _currentStatistics.WithSelectedPeak(peakId);
         _currentStatistics = updated;
         StatisticsTextBlock.Text = FormatRepresentativeStatistics(updated);
+    }
+
+    private MolecularWeightStatistics? ApplyStoredSelectedPeak(MolecularWeightStatistics? stats, int datasetIndex)
+    {
+        if (stats is null || stats.Peaks.Count == 0)
+        {
+            return stats;
+        }
+
+        if (datasetIndex < 0 || datasetIndex >= _datasetSelectedPeakIds.Count)
+        {
+            return stats;
+        }
+
+        var storedPeakId = _datasetSelectedPeakIds[datasetIndex];
+        if (storedPeakId is null)
+        {
+            return stats;
+        }
+
+        return stats.WithSelectedPeak(storedPeakId);
     }
 
     private static string FormatPeakComboBoxItem(MolecularWeightPeak peak)
@@ -2521,6 +2524,7 @@ public partial class MainWindow : Window
 
         _loadedDatasets.RemoveAt(index);
         _datasetStyles.RemoveAt(index);
+        _datasetSelectedPeakIds.RemoveAt(index);
         ClearComputedDataCaches();
 
         if (_loadedDatasets.Count == 0)

@@ -169,6 +169,24 @@
                                     </ControlTemplate>
                                 </ToggleButton.Template>
                             </ToggleButton>
+                            <!-- IsEditable=True のときは ToggleButton 全体を IsHitTestVisible=False にして
+                                 PART_EditableTextBox に入力をスルーさせる必要があるが、それだと右端の矢印
+                                 ボタンも反応しなくなる。編集可モード専用の小さな矢印用 ToggleButton を
+                                 右端 32px に重ねて、ドロップダウン展開だけはここで拾う。 -->
+                            <ToggleButton x:Name="ArrowToggleButton"
+                                          Width="32"
+                                          HorizontalAlignment="Right"
+                                          ClickMode="Press"
+                                          Focusable="False"
+                                          Visibility="Collapsed"
+                                          IsChecked="{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent"
+                                                Cursor="Hand" />
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
                             <Popup x:Name="PART_Popup"
                                    AllowsTransparency="True"
                                    IsOpen="{TemplateBinding IsDropDownOpen}"
@@ -213,6 +231,7 @@
                                 <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
                                 <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden" />
                                 <Setter TargetName="ToggleButton" Property="IsHitTestVisible" Value="False" />
+                                <Setter TargetName="ArrowToggleButton" Property="Visibility" Value="Visible" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
@@ -353,33 +372,38 @@
                                           FocusVisualStyle="{x:Null}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
-                                        <Grid Background="Transparent">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <ContentPresenter Grid.Column="0"
-                                                              VerticalAlignment="Center"
-                                                              ContentSource="Content"
-                                                              RecognizesAccessKey="True" />
-                                            <Path x:Name="Chevron"
-                                                  Grid.Column="1"
-                                                  Width="10" Height="6"
-                                                  Stretch="None"
-                                                  Stroke="#64748B"
-                                                  StrokeThickness="1.6"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round"
-                                                  VerticalAlignment="Center"
-                                                  Margin="8,0,2,0"
-                                                  Data="M 0,0 L 5,5 L 10,0"
-                                                  RenderTransformOrigin="0.5,0.5">
-                                                <Path.RenderTransform>
-                                                    <RotateTransform x:Name="ChevronRotate" Angle="0" />
-                                                </Path.RenderTransform>
-                                            </Path>
-                                        </Grid>
+                                        <Border x:Name="HeaderBg"
+                                                Background="Transparent"
+                                                CornerRadius="4"
+                                                Padding="4,8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0"
+                                                                  VerticalAlignment="Center"
+                                                                  ContentSource="Content"
+                                                                  RecognizesAccessKey="True" />
+                                                <Path x:Name="Chevron"
+                                                      Grid.Column="1"
+                                                      Width="10" Height="6"
+                                                      Stretch="None"
+                                                      Stroke="#64748B"
+                                                      StrokeThickness="1.6"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      StrokeLineJoin="Round"
+                                                      VerticalAlignment="Center"
+                                                      Margin="8,0,2,0"
+                                                      Data="M 0,0 L 5,5 L 10,0"
+                                                      RenderTransformOrigin="0.5,0.5">
+                                                    <Path.RenderTransform>
+                                                        <RotateTransform x:Name="ChevronRotate" Angle="0" />
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                            </Grid>
+                                        </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsChecked" Value="True">
                                                 <Trigger.EnterActions>
@@ -405,6 +429,7 @@
                                             </Trigger>
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter TargetName="Chevron" Property="Stroke" Value="#2563EB" />
+                                                <Setter TargetName="HeaderBg" Property="Background" Value="#F1F5F9" />
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -651,6 +676,7 @@
                                         Style="{StaticResource PrimaryButtonStyle}"
                                         HorizontalAlignment="Stretch"
                                         Margin="0,0,0,10"
+                                        ToolTip="CSV / TXT データを開く (Ctrl+O)"
                                         Click="OpenCsvButton_Click" />
                                 <CheckBox x:Name="OverlayCheckBox"
                                           Content="重ね描き (Overlay)"
@@ -725,242 +751,6 @@
                                                    Margin="8" />
                                     </Grid>
                                 </Border>
-                                </StackPanel>
-                            </Expander>
-                        </Border>
-
-                        <TextBlock Text="書式"
-                                   Style="{StaticResource GroupLabelStyle}" />
-
-                        <!-- Section: Axis range -->
-                        <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="軸範囲" IsExpanded="True">
-                                <StackPanel Margin="0,8,0,0">
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="8" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="X Min"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <TextBox x:Name="XMinTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}"
-                                                 KeyDown="AxisRangeTextBox_KeyDown"
-                                                 LostFocus="AxisRangeTextBox_LostFocus" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="X Max"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <TextBox x:Name="XMaxTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}"
-                                                 KeyDown="AxisRangeTextBox_KeyDown"
-                                                 LostFocus="AxisRangeTextBox_LostFocus" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="8" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Y Min"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <TextBox x:Name="YMinTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}"
-                                                 KeyDown="AxisRangeTextBox_KeyDown"
-                                                 LostFocus="AxisRangeTextBox_LostFocus" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Y Max"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <TextBox x:Name="YMaxTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}"
-                                                 KeyDown="AxisRangeTextBox_KeyDown"
-                                                 LostFocus="AxisRangeTextBox_LostFocus" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <Button x:Name="AutoAxisRangeButton"
-                                        Content="自動範囲に戻す"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        HorizontalAlignment="Stretch"
-                                        Margin="0,10,0,0"
-                                        Click="AutoAxisRangeButton_Click"
-                                        ToolTip="X/Y の最小・最大値を空欄に戻して自動範囲で表示します" />
-                                </StackPanel>
-                            </Expander>
-                        </Border>
-
-                        <!-- Section: Graph labels -->
-                        <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="グラフラベル" IsExpanded="True">
-                                <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="タイトル"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <TextBox x:Name="TitleTextBox"
-                                         Style="{StaticResource InputTextBoxStyle}"
-                                         Margin="0,0,0,8"
-                                         TextChanged="GraphLabelTextBox_TextChanged" />
-
-                                <TextBlock Text="X軸ラベル"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <TextBox x:Name="XLabelTextBox"
-                                         Style="{StaticResource InputTextBoxStyle}"
-                                         Margin="0,0,0,8"
-                                         TextChanged="GraphLabelTextBox_TextChanged" />
-
-                                <TextBlock Text="Y軸ラベル"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <TextBox x:Name="YLabelTextBox"
-                                         Style="{StaticResource InputTextBoxStyle}"
-                                         TextChanged="GraphLabelTextBox_TextChanged" />
-                                </StackPanel>
-                            </Expander>
-                        </Border>
-
-                        <!-- Section: Graph appearance -->
-                        <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="グラフ書式" IsExpanded="False">
-                                <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="フォント"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <ComboBox x:Name="GraphFontComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          IsEditable="True"
-                                          SelectedIndex="0"
-                                          Margin="0,0,0,10"
-                                          SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="Auto" Tag="Auto" />
-                                    <ComboBoxItem Content="Yu Gothic" Tag="Yu Gothic" />
-                                    <ComboBoxItem Content="Meiryo" Tag="Meiryo" />
-                                    <ComboBoxItem Content="Arial" Tag="Arial" />
-                                    <ComboBoxItem Content="Times New Roman" Tag="Times New Roman" />
-                                    <ComboBoxItem Content="MS Gothic" Tag="MS Gothic" />
-                                </ComboBox>
-
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="8" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="フォントサイズ"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <TextBox x:Name="GraphFontSizeTextBox"
-                                                 Text="12"
-                                                 Style="{StaticResource InputTextBoxStyle}"
-                                                 TextChanged="GraphAppearanceNumericTextBox_TextChanged" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="グリッド"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <CheckBox x:Name="PlotGridCheckBox"
-                                                  Content="表示する"
-                                                  IsChecked="True"
-                                                  VerticalAlignment="Center"
-                                                  Margin="0,6,0,0"
-                                                  Checked="GraphAppearanceCheckBox_Changed"
-                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="8" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="縦軸の数字"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <CheckBox x:Name="YAxisTickLabelsCheckBox"
-                                                  Content="表示する"
-                                                  IsChecked="True"
-                                                  Margin="0,3,0,0"
-                                                  Checked="GraphAppearanceCheckBox_Changed"
-                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="プロット枠"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <CheckBox x:Name="PlotFrameCheckBox"
-                                                  Content="表示する"
-                                                  IsChecked="True"
-                                                  Margin="0,3,0,0"
-                                                  Checked="GraphAppearanceCheckBox_Changed"
-                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="8" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="枠線幅"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <TextBox x:Name="PlotFrameWidthTextBox"
-                                                 Text="1"
-                                                 Style="{StaticResource InputTextBoxStyle}"
-                                                 TextChanged="GraphAppearanceNumericTextBox_TextChanged" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="枠色"
-                                                   Style="{StaticResource FieldLabelStyle}" />
-                                        <ComboBox x:Name="PlotFrameColorComboBox"
-                                                  Style="{StaticResource InputComboBoxStyle}"
-                                                  SelectedIndex="0"
-                                                  Margin="0,0,0,6"
-                                                  SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
-                                            <ComboBoxItem Content="Gray" Tag="#475569" />
-                                            <ComboBoxItem Content="Black" Tag="#0F172A" />
-                                            <ComboBoxItem Content="Blue" Tag="#2563EB" />
-                                            <ComboBoxItem Content="Red" Tag="#DC2626" />
-                                            <ComboBoxItem Content="Green" Tag="#16A34A" />
-                                            <ComboBoxItem Content="Custom" Tag="Custom" />
-                                        </ComboBox>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="8" />
-                                                <ColumnDefinition Width="28" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox x:Name="PlotFrameColorHexTextBox"
-                                                     Grid.Column="0"
-                                                     Text="#475569"
-                                                     ToolTip="カラーコード (#RRGGBB)"
-                                                     Style="{StaticResource InputTextBoxStyle}"
-                                                     TextChanged="PlotFrameColorHexTextBox_TextChanged" />
-                                            <Border x:Name="PlotFrameColorPreviewBorder"
-                                                    Grid.Column="2"
-                                                    Height="28"
-                                                    Background="#475569"
-                                                    BorderBrush="#CBD5E1"
-                                                    BorderThickness="1"
-                                                    CornerRadius="4" />
-                                        </Grid>
-                                    </StackPanel>
-                                </Grid>
-
-                                <TextBlock Text="アスペクト比"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <ComboBox x:Name="AspectRatioComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          SelectedIndex="0"
-                                          SelectionChanged="AspectRatioComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="Auto" Tag="Auto" />
-                                    <ComboBoxItem Content="16:9" Tag="16:9" />
-                                    <ComboBoxItem Content="4:3" Tag="4:3" />
-                                    <ComboBoxItem Content="3:2" Tag="3:2" />
-                                    <ComboBoxItem Content="1:1" Tag="1:1" />
-                                </ComboBox>
                                 </StackPanel>
                             </Expander>
                         </Border>
@@ -1127,6 +917,7 @@
                                           Style="{StaticResource InputComboBoxStyle}"
                                           IsEnabled="False"
                                           Margin="0,0,0,8"
+                                          ToolTip="溶媒を次の項目へ切替 (Ctrl+1)"
                                           SelectionChanged="SolventComboBox_SelectionChanged" />
 
                                 <TextBlock Text="検出器"
@@ -1135,6 +926,7 @@
                                           Style="{StaticResource InputComboBoxStyle}"
                                           IsEnabled="False"
                                           Margin="0,0,0,12"
+                                          ToolTip="検出器を次の項目へ切替 (Ctrl+2)"
                                           SelectionChanged="DetectorComboBox_SelectionChanged" />
 
                                 <CheckBox x:Name="MolecularWeightCheckBox"
@@ -1158,23 +950,330 @@
                             </Expander>
                         </Border>
 
+                        <TextBlock Text="書式"
+                                   Style="{StaticResource GroupLabelStyle}" />
+
+                        <!-- Section: Axis range -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <Expander Header="軸範囲" IsExpanded="True">
+                                <StackPanel Margin="0,8,0,0">
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="X Min"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="XMinTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="X Max"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="XMaxTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Y Min"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="YMinTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Y Max"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="YMaxTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Button x:Name="AutoAxisRangeButton"
+                                        Content="自動範囲に戻す"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Margin="0,10,0,0"
+                                        Click="AutoAxisRangeButton_Click"
+                                        ToolTip="X/Y の最小・最大値を空欄に戻して自動範囲で表示します (Ctrl+R)" />
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
+                        <!-- Section: Graph labels -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <Expander Header="グラフラベル" IsExpanded="True">
+                                <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="タイトル"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="TitleTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,6"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox x:Name="TitleVisibleCheckBox"
+                                              Grid.Column="0"
+                                              Content="表示する"
+                                              IsChecked="True"
+                                              Checked="GraphAppearanceCheckBox_Changed"
+                                              Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    <CheckBox x:Name="TitleBoldCheckBox"
+                                              Grid.Column="2"
+                                              Content="太字"
+                                              IsChecked="True"
+                                              Checked="GraphAppearanceCheckBox_Changed"
+                                              Unchecked="GraphAppearanceCheckBox_Changed" />
+                                </Grid>
+
+                                <TextBlock Text="X軸ラベル"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="XLabelTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,8"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
+
+                                <TextBlock Text="Y軸ラベル"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="YLabelTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,6"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
+                                <CheckBox x:Name="AxisLabelBoldCheckBox"
+                                          Content="軸ラベルを太字"
+                                          Margin="0,0,0,0"
+                                          Checked="GraphAppearanceCheckBox_Changed"
+                                          Unchecked="GraphAppearanceCheckBox_Changed" />
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
+                        <!-- Section: Graph appearance -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <Expander Header="グラフ書式" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
+                                <Expander Header="フォント" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="フォント名"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="GraphFontComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              IsEditable="True"
+                                              SelectedIndex="0"
+                                              Margin="0,0,0,10"
+                                              SelectionChanged="GraphAppearanceComboBox_SelectionChanged"
+                                              Loaded="GraphFontComboBox_Loaded">
+                                        <ComboBoxItem Content="Auto" Tag="Auto" />
+                                        <ComboBoxItem Content="Yu Gothic" Tag="Yu Gothic" />
+                                        <ComboBoxItem Content="Meiryo" Tag="Meiryo" />
+                                        <ComboBoxItem Content="Arial" Tag="Arial" />
+                                        <ComboBoxItem Content="Times New Roman" Tag="Times New Roman" />
+                                        <ComboBoxItem Content="MS Gothic" Tag="MS Gothic" />
+                                    </ComboBox>
+
+                                    <TextBlock Text="フォントサイズ"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="GraphFontSizeTextBox"
+                                             Text="12"
+                                             Style="{StaticResource InputTextBoxStyle}"
+                                             TextChanged="GraphAppearanceNumericTextBox_TextChanged" />
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="目盛" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                    <CheckBox x:Name="YAxisTickLabelsCheckBox"
+                                              Content="Y軸の数字を表示する"
+                                              IsChecked="True"
+                                              Margin="0,0,0,6"
+                                              Checked="GraphAppearanceCheckBox_Changed"
+                                              Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    <CheckBox x:Name="MajorTicksCheckBox"
+                                              Content="主目盛を表示する"
+                                              IsChecked="True"
+                                              Margin="0,0,0,6"
+                                              Checked="GraphAppearanceCheckBox_Changed"
+                                              Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    <CheckBox x:Name="MinorTicksCheckBox"
+                                              Content="補助目盛を表示する"
+                                              IsChecked="True"
+                                              Margin="0,0,0,0"
+                                              Checked="GraphAppearanceCheckBox_Changed"
+                                              Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="枠とグリッド" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox x:Name="PlotGridCheckBox"
+                                                  Grid.Column="0"
+                                                  Content="グリッドを表示"
+                                                  IsChecked="True"
+                                                  VerticalAlignment="Center"
+                                                  Checked="GraphAppearanceCheckBox_Changed"
+                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
+                                        <CheckBox x:Name="PlotFrameCheckBox"
+                                                  Grid.Column="2"
+                                                  Content="プロット枠を表示"
+                                                  IsChecked="True"
+                                                  VerticalAlignment="Center"
+                                                  Checked="GraphAppearanceCheckBox_Changed"
+                                                  Unchecked="GraphAppearanceCheckBox_Changed" />
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="枠線幅"
+                                                       Style="{StaticResource FieldLabelStyle}" />
+                                            <TextBox x:Name="PlotFrameWidthTextBox"
+                                                     Text="1"
+                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                     TextChanged="GraphAppearanceNumericTextBox_TextChanged" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="枠色"
+                                                       Style="{StaticResource FieldLabelStyle}" />
+                                            <ComboBox x:Name="PlotFrameColorComboBox"
+                                                      Style="{StaticResource InputComboBoxStyle}"
+                                                      SelectedIndex="0"
+                                                      Margin="0,0,0,6"
+                                                      SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
+                                                <ComboBoxItem Content="Gray" Tag="#475569" />
+                                                <ComboBoxItem Content="Black" Tag="#0F172A" />
+                                                <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                                                <ComboBoxItem Content="Red" Tag="#DC2626" />
+                                                <ComboBoxItem Content="Green" Tag="#16A34A" />
+                                                <ComboBoxItem Content="Custom" Tag="Custom" />
+                                            </ComboBox>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="28" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="PlotFrameColorHexTextBox"
+                                                         Grid.Column="0"
+                                                         Text="#475569"
+                                                         ToolTip="カラーコード (#RRGGBB)"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         TextChanged="PlotFrameColorHexTextBox_TextChanged" />
+                                                <Border x:Name="PlotFrameColorPreviewBorder"
+                                                        Grid.Column="2"
+                                                        Height="28"
+                                                        Background="#475569"
+                                                        BorderBrush="#CBD5E1"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="背景" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="背景色"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="BackgroundColorComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectedIndex="0"
+                                              Margin="0,0,0,6"
+                                              SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="White" Tag="#FFFFFF" />
+                                        <ComboBoxItem Content="Off-white" Tag="#F8FAFC" />
+                                        <ComboBoxItem Content="Light gray" Tag="#E2E8F0" />
+                                        <ComboBoxItem Content="Black" Tag="#0F172A" />
+                                        <ComboBoxItem Content="Custom" Tag="Custom" />
+                                    </ComboBox>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="28" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="BackgroundColorHexTextBox"
+                                                 Grid.Column="0"
+                                                 Text="#FFFFFF"
+                                                 ToolTip="カラーコード (#RRGGBB)"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 TextChanged="BackgroundColorHexTextBox_TextChanged" />
+                                        <Border x:Name="BackgroundColorPreviewBorder"
+                                                Grid.Column="2"
+                                                Height="28"
+                                                Background="#FFFFFF"
+                                                BorderBrush="#CBD5E1"
+                                                BorderThickness="1"
+                                                CornerRadius="4" />
+                                    </Grid>
+                                    </StackPanel>
+                                </Expander>
+
+                                <TextBlock Text="アスペクト比"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="AspectRatioComboBox"
+                                          Style="{StaticResource InputComboBoxStyle}"
+                                          SelectedIndex="0"
+                                          SelectionChanged="AspectRatioComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="Auto" Tag="Auto" />
+                                    <ComboBoxItem Content="16:9" Tag="16:9" />
+                                    <ComboBoxItem Content="4:3" Tag="4:3" />
+                                    <ComboBoxItem Content="3:2" Tag="3:2" />
+                                    <ComboBoxItem Content="1:1" Tag="1:1" />
+                                </ComboBox>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
                         <!-- Section: Analysis session -->
                         <Border Style="{StaticResource SectionStyle}">
                             <Expander Header="解析条件" IsExpanded="False">
                                 <StackPanel Margin="0,8,0,0">
                                     <Button x:Name="SaveSessionButton"
-                                            Content="条件を保存"
+                                            Content="解析条件を保存"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             HorizontalAlignment="Stretch"
                                             IsEnabled="False"
                                             Margin="0,0,0,8"
+                                            ToolTip="解析条件を .gpcjson に保存 (Ctrl+Shift+S)"
                                             Click="SaveSessionButton_Click" />
                                     <Button x:Name="LoadSessionButton"
-                                            Content="条件を読込"
+                                            Content="解析条件を読込"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             HorizontalAlignment="Stretch"
+                                            ToolTip="解析条件 (.gpcjson) を読み込み (Ctrl+Shift+O)"
                                             Click="LoadSessionButton_Click" />
-                                    <TextBlock Text="開いているデータ・較正曲線・スタイル・軸範囲・グラフ書式をまとめて .gpcjson に保存します。"
+                                    <TextBlock Text="今開いている解析の状態（データ・較正曲線・線スタイル・軸範囲・グラフ書式）を任意の場所に .gpcjson として保存します。後でこのファイルを読み込めば、同じ解析をそのまま復元できます。"
                                                Foreground="#64748B"
                                                FontSize="11"
                                                TextWrapping="Wrap"
@@ -1223,7 +1322,7 @@
                                                 Click="BrowseDefaultOutputDirectoryButton_Click" />
                                     </Grid>
 
-                                    <TextBlock Text="変更後は下の「既定保存」を押してください。次回起動時に較正曲線を自動で読み込みます。"
+                                    <TextBlock Text="ここで設定した既定パスは、画面下部の「既定値として保存」を押すとグラフ書式と一緒にユーザー設定として保存され、次回起動時に較正曲線が自動で読み込まれます。"
                                                Foreground="#64748B"
                                                FontSize="11"
                                                TextWrapping="Wrap"
@@ -1240,24 +1339,33 @@
                         Background="#E2E8F0"
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,1,0,0"
-                        Padding="20,14">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="ResetGraphSettingsButton"
-                                Grid.Column="0"
-                                Content="既定に戻す"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Click="ResetGraphSettingsButton_Click" />
-                        <Button x:Name="SaveDefaultFormattingButton"
-                                Grid.Column="2"
-                                Content="既定保存"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Click="SaveDefaultFormattingButton_Click" />
-                    </Grid>
+                        Padding="20,12,20,14">
+                    <StackPanel>
+                        <TextBlock Text="既定値（次回起動時の初期状態）"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#475569"
+                                   Margin="0,0,0,8" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="ResetGraphSettingsButton"
+                                    Grid.Column="0"
+                                    Content="既定値に戻す"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    ToolTip="グラフ書式・線スタイル・軸範囲を、保存されている既定値に戻します"
+                                    Click="ResetGraphSettingsButton_Click" />
+                            <Button x:Name="SaveDefaultFormattingButton"
+                                    Grid.Column="2"
+                                    Content="既定値として保存"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    ToolTip="現在のグラフ書式・線スタイル・環境設定パスを、次回起動時の既定値として保存します"
+                                    Click="SaveDefaultFormattingButton_Click" />
+                        </Grid>
+                    </StackPanel>
                 </Border>
             </Grid>
         </Border>
@@ -1277,6 +1385,7 @@
                         Content="PNG / SVG 保存"
                         Style="{StaticResource PrimaryButtonStyle}"
                         IsEnabled="False"
+                        ToolTip="グラフを PNG / SVG で保存 (Ctrl+S)"
                         Click="SaveGraphButton_Click" />
                 <Button x:Name="ExportDataButton"
                         DockPanel.Dock="Right"
@@ -1284,6 +1393,7 @@
                         Style="{StaticResource SecondaryButtonStyle}"
                         IsEnabled="False"
                         Margin="0,0,8,0"
+                        ToolTip="データを CSV / xlsx で出力 (Ctrl+E)"
                         Click="ExportDataButton_Click" />
                 <TextBlock Text="Chromatogram"
                            VerticalAlignment="Center"
@@ -1299,12 +1409,55 @@
                     CornerRadius="6"
                     Background="White"
                     SizeChanged="PlotContainerBorder_SizeChanged">
-                <Grid x:Name="PlotHost">
-                    <TextBlock x:Name="PlotPlaceholderTextBlock"
-                               Text="グラフを初期化しています..."
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Foreground="#64748B" />
+                <Grid>
+                    <!-- ScottPlot コントロールはここに動的に挿入される。InitializePlotControl で
+                         Children.Clear() するため、操作ヒントバッジは PlotHost の外側に置く。 -->
+                    <Grid x:Name="PlotHost">
+                        <TextBlock x:Name="PlotPlaceholderTextBlock"
+                                   Text="グラフを初期化しています..."
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="#64748B" />
+                    </Grid>
+                    <Border x:Name="PlotControlsHintBadge"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="0,8,8,0"
+                            Width="22" Height="22"
+                            CornerRadius="11"
+                            Background="#F1F5F9"
+                            BorderBrush="#CBD5E1"
+                            BorderThickness="1"
+                            Cursor="Help"
+                            ToolTipService.InitialShowDelay="200"
+                            ToolTipService.ShowDuration="20000"
+                            ToolTipService.Placement="Bottom">
+                        <Border.ToolTip>
+                            <ToolTip Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="プロット操作"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               Foreground="#0F172A"
+                                               Margin="0,0,0,6" />
+                                    <TextBlock Text="左ドラッグ : パン" Foreground="#475569" />
+                                    <TextBlock Text="右ドラッグ : 範囲ズーム" Foreground="#475569" />
+                                    <TextBlock Text="ホイール : 拡大／縮小" Foreground="#475569" />
+                                    <TextBlock Text="Ctrl + ホイール : 横方向のみ" Foreground="#475569" />
+                                    <TextBlock Text="Shift + ホイール : 縦方向のみ" Foreground="#475569" />
+                                    <TextBlock Text="ダブルクリック : ベンチマーク表示" Foreground="#475569" />
+                                </StackPanel>
+                            </ToolTip>
+                        </Border.ToolTip>
+                        <TextBlock Text="i"
+                                   FontFamily="Segoe UI, Yu Gothic UI, sans-serif"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   FontStyle="Italic"
+                                   Foreground="#475569"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
                 </Grid>
             </Border>
 

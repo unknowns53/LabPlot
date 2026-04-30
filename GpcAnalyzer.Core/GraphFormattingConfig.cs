@@ -9,14 +9,21 @@ public sealed class GraphFormattingConfig
     public const double DefaultMarkerSize = 0;
     public const double DefaultPlotFrameWidth = 1;
     public const string DefaultPlotFrameColorHex = "#475569";
+    public const string DefaultBackgroundColorHex = "#FFFFFF";
 
     public string? FontName { get; set; }
     public double FontSize { get; set; } = DefaultFontSize;
     public bool ShowGrid { get; set; } = true;
     public bool ShowYAxisTickLabels { get; set; } = true;
+    public bool ShowMajorTicks { get; set; } = true;
+    public bool ShowMinorTicks { get; set; } = true;
     public bool ShowPlotFrame { get; set; } = true;
     public double PlotFrameWidth { get; set; } = DefaultPlotFrameWidth;
     public string PlotFrameColorHex { get; set; } = DefaultPlotFrameColorHex;
+    public string BackgroundColorHex { get; set; } = DefaultBackgroundColorHex;
+    public bool ShowTitle { get; set; } = true;
+    public bool TitleBold { get; set; } = true;
+    public bool AxisLabelBold { get; set; }
     public string? AspectRatio { get; set; }
     public string? DefaultLineColorHex { get; set; }
     public double LineWidth { get; set; } = DefaultLineWidth;
@@ -52,6 +59,11 @@ public sealed class GraphFormattingConfig
         if (!IsHexColor(PlotFrameColorHex))
         {
             PlotFrameColorHex = DefaultPlotFrameColorHex;
+        }
+
+        if (!IsHexColor(BackgroundColorHex))
+        {
+            BackgroundColorHex = DefaultBackgroundColorHex;
         }
 
         if (!IsPositive(LineWidth))

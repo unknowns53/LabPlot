@@ -33,6 +33,11 @@ public partial class MainWindow : Window
     private const int DefaultExportWidth = 3600;
     private const int DefaultExportHeight = 2160;
     private const int SquareExportWidth = 3000;
+    // ScottPlot 5.x の TickMarkStyle 既定値。表示倍率を掛けて適用するベース値として保持する。
+    private const float MajorTickLengthBase = 4f;
+    private const float MajorTickWidthBase = 1f;
+    private const float MinorTickLengthBase = 2f;
+    private const float MinorTickWidthBase = 1f;
     private const int OverlayDownsampleMinSeriesCount = 3;
     private const int OverlayDownsampleMinTotalPoints = 120_000;
     private const int OverlayDisplayPointBudget = 120_000;
@@ -79,7 +84,54 @@ public partial class MainWindow : Window
         ApplyFormattingConfigToControls(_formattingDefaults);
         DatasetListBox.ItemsSource = _datasetEntries;
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
+        RegisterShortcuts();
         Loaded += MainWindow_Loaded;
+    }
+
+    private void RegisterShortcuts()
+    {
+        AddShortcut(System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control,
+            () => OpenCsvButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control,
+            () => SaveGraphButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control,
+            () => ExportDataButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.R, System.Windows.Input.ModifierKeys.Control,
+            () => AutoAxisRangeButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
+            () => LoadSessionButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
+            () => SaveSessionButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.D1, System.Windows.Input.ModifierKeys.Control,
+            () => CycleComboBoxSelection(SolventComboBox));
+        AddShortcut(System.Windows.Input.Key.D2, System.Windows.Input.ModifierKeys.Control,
+            () => CycleComboBoxSelection(DetectorComboBox));
+    }
+
+    private static void CycleComboBoxSelection(ComboBox comboBox)
+    {
+        if (comboBox is null || !comboBox.IsEnabled || comboBox.Items.Count <= 1)
+        {
+            return;
+        }
+
+        var current = comboBox.SelectedIndex;
+        var next = (current + 1) % comboBox.Items.Count;
+        if (next != current)
+        {
+            comboBox.SelectedIndex = next;
+        }
+    }
+
+    private void AddShortcut(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers, Action handler)
+    {
+        var command = new System.Windows.Input.RoutedUICommand();
+        InputBindings.Add(new System.Windows.Input.KeyBinding(command, key, modifiers));
+        CommandBindings.Add(new System.Windows.Input.CommandBinding(command, (_, e) =>
+        {
+            handler();
+            e.Handled = true;
+        }));
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -304,9 +356,15 @@ public partial class MainWindow : Window
             FontSize = GetPlotFontSize(),
             ShowGrid = PlotGridCheckBox.IsChecked == true,
             ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
+            ShowMajorTicks = MajorTicksCheckBox.IsChecked == true,
+            ShowMinorTicks = MinorTicksCheckBox.IsChecked == true,
             ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
             PlotFrameWidth = GetPlotFrameWidth(),
             PlotFrameColorHex = GetPlotFrameColorHex(),
+            BackgroundColorHex = GetBackgroundColorHex(),
+            ShowTitle = TitleVisibleCheckBox.IsChecked == true,
+            TitleBold = TitleBoldCheckBox.IsChecked == true,
+            AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
             AspectRatio = GetSelectedAspectRatioConfigValue(),
             DefaultLineColorHex = GetSelectedLineColorConfigValue(),
             LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
@@ -334,9 +392,15 @@ public partial class MainWindow : Window
             GraphFontSizeTextBox.Text = config.FormatFontSize();
             PlotGridCheckBox.IsChecked = config.ShowGrid;
             YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
+            MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
+            MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
             PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
             PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
             SetPlotFrameColorInput(config.PlotFrameColorHex);
+            SetBackgroundColorInput(config.BackgroundColorHex);
+            TitleVisibleCheckBox.IsChecked = config.ShowTitle;
+            TitleBoldCheckBox.IsChecked = config.TitleBold;
+            AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
 
             if (!SelectComboBoxItemByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto"))
             {
@@ -1720,6 +1784,54 @@ public partial class MainWindow : Window
         ApplyPlotGrid(plot);
         ApplyYAxisTickLabels(plot);
         ApplyPlotFrame(plot, scale);
+        ApplyPlotTickMarks(plot, scale);
+        ApplyPlotTitleStyle(plot);
+        ApplyPlotAxisLabelStyle(plot);
+        ApplyPlotBackground(plot);
+    }
+
+    private void ApplyPlotTickMarks(ScottPlot.Plot plot, float scale = 1f)
+    {
+        // 表示時(scale=1)も出力時(scale≈3.125)も同じ式から目盛サイズを再生成するため、
+        // 直前の状態に依存しないベース値×倍率を毎回そのまま代入する。
+        var showMajor = MajorTicksCheckBox.IsChecked == true;
+        var showMinor = MinorTicksCheckBox.IsChecked == true;
+        // Y軸の数字を非表示にしたとき、Y軸の目盛(線)も連動して隠す仕様。
+        var yAxisVisible = YAxisTickLabelsCheckBox.IsChecked == true;
+
+        ConfigureTickMarkStyle(plot.Axes.Bottom.MajorTickStyle, MajorTickLengthBase, MajorTickWidthBase, scale, showMajor);
+        ConfigureTickMarkStyle(plot.Axes.Bottom.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor);
+        ConfigureTickMarkStyle(plot.Axes.Left.MajorTickStyle, MajorTickLengthBase, MajorTickWidthBase, scale, showMajor && yAxisVisible);
+        ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor && yAxisVisible);
+    }
+
+    private static void ConfigureTickMarkStyle(ScottPlot.TickMarkStyle style, float lengthBase, float widthBase, float scale, bool visible)
+    {
+        // 非表示時は Length=0 で線を消す。Width は描画されないが念のためベース値を維持。
+        style.Length = visible ? lengthBase * scale : 0f;
+        style.Width = widthBase * scale;
+        // Hairline=true だと Width が 1px に固定されてしまうので、明示的に解除しておく。
+        style.Hairline = false;
+    }
+
+    private void ApplyPlotTitleStyle(ScottPlot.Plot plot)
+    {
+        plot.Axes.Title.Label.IsVisible = TitleVisibleCheckBox.IsChecked == true;
+        plot.Axes.Title.Label.Bold = TitleBoldCheckBox.IsChecked == true;
+    }
+
+    private void ApplyPlotAxisLabelStyle(ScottPlot.Plot plot)
+    {
+        var bold = AxisLabelBoldCheckBox.IsChecked == true;
+        plot.Axes.Bottom.Label.Bold = bold;
+        plot.Axes.Left.Label.Bold = bold;
+    }
+
+    private void ApplyPlotBackground(ScottPlot.Plot plot)
+    {
+        var color = GetScottPlotColor(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
+        plot.FigureBackground.Color = color;
+        plot.DataBackground.Color = color;
     }
 
     private void ApplyPlotFont(ScottPlot.Plot plot)
@@ -1728,6 +1840,7 @@ public partial class MainWindow : Window
         if (fontName is null)
         {
             plot.Font.Automatic();
+            ResetLabelFontTypeface(plot);
             return;
         }
 
@@ -1739,6 +1852,20 @@ public partial class MainWindow : Window
         {
             plot.Font.Automatic();
         }
+
+        // plot.Font.Set は各 LabelStyle.Font (SKTypeface) に固定ウェイトの型書体をキャッシュしてしまうため、
+        // 後段の Bold/Italic 設定が無視される。Font を null に戻して FontName + Bold/Italic から
+        // 都度解決させる。
+        ResetLabelFontTypeface(plot);
+    }
+
+    private static void ResetLabelFontTypeface(ScottPlot.Plot plot)
+    {
+        plot.Axes.Title.Label.Font = null;
+        plot.Axes.Bottom.Label.Font = null;
+        plot.Axes.Left.Label.Font = null;
+        plot.Axes.Bottom.TickLabelStyle.Font = null;
+        plot.Axes.Left.TickLabelStyle.Font = null;
     }
 
     private void ApplyPlotFontSize(ScottPlot.Plot plot, float scale = 1f)
@@ -1772,13 +1899,17 @@ public partial class MainWindow : Window
     private void ApplyPlotFrame(ScottPlot.Plot plot, float scale = 1f)
     {
         var frameVisible = PlotFrameCheckBox.IsChecked == true;
-        plot.Axes.Frame(frameVisible);
+        var yLabelsVisible = YAxisTickLabelsCheckBox.IsChecked == true;
 
-        if (!frameVisible)
-        {
-            return;
-        }
+        // 「プロット枠」を消しても、数字を表示している軸の枠だけは残す。
+        // このアプリでは X 軸の数字は常時表示なので Bottom は常に true、
+        // Y 軸は数字の表示状態に追従させる。Top / Right は枠チェックで一括制御。
+        plot.Axes.Bottom.FrameLineStyle.IsVisible = true;
+        plot.Axes.Left.FrameLineStyle.IsVisible = frameVisible || yLabelsVisible;
+        plot.Axes.Top.FrameLineStyle.IsVisible = frameVisible;
+        plot.Axes.Right.FrameLineStyle.IsVisible = frameVisible;
 
+        // 線幅・色は全エッジに共通設定（IsVisible=false のエッジは描画されない）
         plot.Axes.FrameWidth(GetPlotFrameWidth() * scale);
         plot.Axes.FrameColor(GetScottPlotColor(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
     }
@@ -2268,15 +2399,25 @@ public partial class MainWindow : Window
 
         var minExponent = (int)Math.Log10(MolecularWeightConverter.DefaultMinMolecularWeight);
         var maxExponent = (int)Math.Log10(MolecularWeightConverter.DefaultMaxMolecularWeight);
-        var tickPositions = Enumerable
-            .Range(minExponent, maxExponent - minExponent + 1)
-            .Select(exponent => (double)exponent)
-            .ToArray();
-        var tickLabels = tickPositions
-            .Select(exponent => $"10{ToSuperscript((int)exponent)}")
-            .ToArray();
 
-        _chromatogramPlot.Plot.Axes.Bottom.SetTicks(tickPositions, tickLabels);
+        // 対数軸は X = log10(MW) として表示しているので、主目盛は整数指数 (10^k)、
+        // 補助目盛は各ディケード内の log10(2·10^k)..log10(9·10^k) の8点を入れる。
+        // SetTicks は major のみで minor を持てないので、NumericManual を直接組み立てる。
+        var generator = new ScottPlot.TickGenerators.NumericManual();
+        for (var exponent = minExponent; exponent <= maxExponent; exponent++)
+        {
+            generator.AddMajor(exponent, $"10{ToSuperscript(exponent)}");
+
+            if (exponent < maxExponent)
+            {
+                for (var multiplier = 2; multiplier <= 9; multiplier++)
+                {
+                    generator.AddMinor(exponent + Math.Log10(multiplier));
+                }
+            }
+        }
+
+        _chromatogramPlot.Plot.Axes.Bottom.TickGenerator = generator;
     }
 
     private static string ToSuperscript(int value)
@@ -2735,8 +2876,67 @@ public partial class MainWindow : Window
                 _suppressGraphAppearanceEvents = false;
             }
         }
+        else if (ReferenceEquals(sender, BackgroundColorComboBox)
+            && BackgroundColorHexTextBox is not null
+            && BackgroundColorPreviewBorder is not null)
+        {
+            _suppressGraphAppearanceEvents = true;
+            try
+            {
+                SyncBackgroundColorInputFromComboBox();
+            }
+            finally
+            {
+                _suppressGraphAppearanceEvents = false;
+            }
+        }
 
         ApplyGraphAppearanceAndRefresh();
+    }
+
+    private void BackgroundColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents || BackgroundColorHexTextBox is null || BackgroundColorPreviewBorder is null)
+        {
+            return;
+        }
+
+        var hex = GetBackgroundColorHex();
+        _suppressGraphAppearanceEvents = true;
+        try
+        {
+            SelectColorComboBoxValue(BackgroundColorComboBox, hex, false);
+        }
+        finally
+        {
+            _suppressGraphAppearanceEvents = false;
+        }
+
+        UpdateBackgroundColorPreview(hex);
+        ApplyGraphAppearanceAndRefresh();
+    }
+
+    private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        // IsEditable=True の ComboBox は SelectionChanged だけだとリストにないフォント名を打ち込んだとき
+        // 反映されない。テンプレート内の編集用 TextBox を取り出して TextChanged を購読し、
+        // 自由入力でも再描画が走るようにする。
+        if (GraphFontComboBox.Template?.FindName("PART_EditableTextBox", GraphFontComboBox) is TextBox editableTextBox)
+        {
+            editableTextBox.TextChanged -= GraphFontComboBox_EditableTextChanged;
+            editableTextBox.TextChanged += GraphFontComboBox_EditableTextChanged;
+        }
+    }
+
+    private void GraphFontComboBox_EditableTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        // SelectedItem が同じままで Text だけが変わるケースをここで拾う。
+        SchedulePlotCurrentDataset();
     }
 
     private void PlotFrameColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -3103,6 +3303,53 @@ public partial class MainWindow : Window
             ? colorHex
             : GraphFormattingConfig.DefaultPlotFrameColorHex;
         PlotFrameColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
+    }
+
+    private string GetBackgroundColorHex()
+    {
+        return TryNormalizeHexColorCode(BackgroundColorHexTextBox.Text, out var hex)
+            ? hex
+            : GraphFormattingConfig.DefaultBackgroundColorHex;
+    }
+
+    private void SyncBackgroundColorInputFromComboBox()
+    {
+        var tag = GetSelectedComboBoxTag(BackgroundColorComboBox);
+        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateBackgroundColorPreview(GetBackgroundColorHex());
+            return;
+        }
+
+        SetBackgroundColorInput(tag);
+    }
+
+    private void SetBackgroundColorInput(string? hex)
+    {
+        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultBackgroundColorHex;
+
+        if (!SelectComboBoxItemByTag(BackgroundColorComboBox, normalized))
+        {
+            SelectComboBoxItemByTag(BackgroundColorComboBox, "Custom");
+        }
+
+        BackgroundColorHexTextBox.Text = normalized;
+        UpdateBackgroundColorPreview(normalized);
+    }
+
+    private void UpdateBackgroundColorPreview(string? hex)
+    {
+        if (BackgroundColorPreviewBorder is null)
+        {
+            return;
+        }
+
+        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultBackgroundColorHex;
+        BackgroundColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
     }
 
     private void UpdateLineColorPreview(string? hex)

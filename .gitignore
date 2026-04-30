@@ -11,6 +11,11 @@ obj/
 *.png
 *.jpg
 *.svg
+*.gpcjson
+
+# Bundled sample data (override the rules above)
+!samples/
+!samples/**
 
 # Visual Studio local cache
 .vs/

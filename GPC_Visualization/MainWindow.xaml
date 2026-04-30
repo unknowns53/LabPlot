@@ -1183,6 +1183,55 @@
                             </Expander>
                         </Border>
 
+                        <!-- Section: App preferences -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <Expander Header="環境設定" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="既定の較正曲線"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="DefaultCalibrationPathTextBox"
+                                                 Grid.Column="0"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 ToolTip="次回起動時に自動で読み込む較正曲線 JSON のパス" />
+                                        <Button Grid.Column="2"
+                                                Content="参照"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="BrowseDefaultCalibrationButton_Click" />
+                                    </Grid>
+
+                                    <TextBlock Text="既定の出力フォルダ"
+                                               Style="{StaticResource FieldLabelStyle}" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="6" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="DefaultOutputDirectoryTextBox"
+                                                 Grid.Column="0"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 ToolTip="グラフ・データ・解析条件の保存ダイアログで開く初期フォルダ" />
+                                        <Button Grid.Column="2"
+                                                Content="参照"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="BrowseDefaultOutputDirectoryButton_Click" />
+                                    </Grid>
+
+                                    <TextBlock Text="変更後は下の「既定保存」を押してください。次回起動時に較正曲線を自動で読み込みます。"
+                                               Foreground="#64748B"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Margin="0,12,0,0" />
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
 

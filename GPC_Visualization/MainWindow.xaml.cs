@@ -81,6 +81,63 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
     }
 
+    private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            InitializePlotControl();
+            TryLoadDefaultCalibration();
+        }, DispatcherPriority.ApplicationIdle);
+    }
+
+    private void TryLoadDefaultCalibration()
+    {
+        var path = _formattingDefaults.DefaultCalibrationFilePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            SetStatus($"既定の較正曲線が見つかりませんでした: {path}", true);
+            return;
+        }
+
+        try
+        {
+            _calibrationCurveSet = _standardCurveReader.Read(path);
+            _calibrationFilePath = path;
+            ClearComputedDataCaches();
+            CalibrationPathTextBlock.Text = $"較正曲線: {path}";
+            PopulateSolventComboBox();
+            UpdateMolecularWeightAvailability();
+            SetStatus($"既定の較正曲線を読み込みました: {path}", false);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or JsonException)
+        {
+            _calibrationCurveSet = null;
+            _selectedCalibrationCurve = null;
+            _calibrationFilePath = null;
+            CalibrationPathTextBlock.Text = "較正曲線: 未選択";
+            SetStatus($"既定の較正曲線を読み込めませんでした: {ex.Message}", true);
+        }
+    }
+
+    private string? GetDefaultOutputDirectoryIfExists()
+    {
+        var dir = _formattingDefaults.DefaultOutputDirectory;
+        return !string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir) ? dir : null;
+    }
+
+    private void ApplyDefaultOutputDirectoryToDialog(FileDialog dialog)
+    {
+        if (GetDefaultOutputDirectoryIfExists() is { } initialDirectory)
+        {
+            dialog.InitialDirectory = initialDirectory;
+        }
+    }
+
     private sealed class DatasetStyle
     {
         public string? ColorHex { get; set; }
@@ -197,11 +254,6 @@ public partial class MainWindow : Window
         public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
     }
 
-    private void MainWindow_Loaded(object sender, RoutedEventArgs e)
-    {
-        Dispatcher.BeginInvoke(InitializePlotControl, DispatcherPriority.ApplicationIdle);
-    }
-
     private void LoadFormattingDefaults()
     {
         _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
@@ -262,6 +314,8 @@ public partial class MainWindow : Window
             MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
                 ? markerSize
                 : GraphFormattingConfig.DefaultMarkerSize,
+            DefaultCalibrationFilePath = DefaultCalibrationPathTextBox.Text,
+            DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
         };
 
         config.Normalize();
@@ -309,6 +363,59 @@ public partial class MainWindow : Window
         finally
         {
             _suppressStyleControlEvents = false;
+        }
+
+        DefaultCalibrationPathTextBox.Text = config.DefaultCalibrationFilePath ?? string.Empty;
+        DefaultOutputDirectoryTextBox.Text = config.DefaultOutputDirectory ?? string.Empty;
+    }
+
+    private void BrowseDefaultCalibrationButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "既定の較正曲線 JSON を選択",
+            Filter = "JSON (*.json)|*.json|すべてのファイル (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+
+        var current = DefaultCalibrationPathTextBox.Text?.Trim();
+        if (!string.IsNullOrWhiteSpace(current))
+        {
+            var directory = Path.GetDirectoryName(current);
+            if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+            {
+                dialog.InitialDirectory = directory;
+            }
+
+            if (File.Exists(current))
+            {
+                dialog.FileName = Path.GetFileName(current);
+            }
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            DefaultCalibrationPathTextBox.Text = dialog.FileName;
+        }
+    }
+
+    private void BrowseDefaultOutputDirectoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "既定の出力フォルダを選択",
+        };
+
+        var current = DefaultOutputDirectoryTextBox.Text?.Trim();
+        if (!string.IsNullOrWhiteSpace(current) && Directory.Exists(current))
+        {
+            dialog.InitialDirectory = current;
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            DefaultOutputDirectoryTextBox.Text = dialog.FolderName;
         }
     }
 
@@ -566,6 +673,7 @@ public partial class MainWindow : Window
             DefaultExt = ".xlsx",
             AddExtension = true,
         };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
 
         if (dialog.ShowDialog(this) != true)
         {
@@ -700,6 +808,7 @@ public partial class MainWindow : Window
             DefaultExt = ".gpcjson",
             AddExtension = true,
         };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
 
         if (dialog.ShowDialog(this) != true)
         {
@@ -821,6 +930,11 @@ public partial class MainWindow : Window
             YLabel = NullIfWhiteSpace(YLabelTextBox.Text),
         };
 
+        // 環境設定はセッションには含めず、ユーザーごとの formatting_config.json にだけ保存する。
+        var sessionFormatting = CaptureFormattingConfigFromControls();
+        sessionFormatting.DefaultCalibrationFilePath = null;
+        sessionFormatting.DefaultOutputDirectory = null;
+
         return new AnalysisSession
         {
             Overlay = OverlayCheckBox.IsChecked == true,
@@ -830,7 +944,7 @@ public partial class MainWindow : Window
             MolecularWeight = molecularWeight,
             Axes = axes,
             Labels = labels,
-            Formatting = CaptureFormattingConfigFromControls(),
+            Formatting = sessionFormatting,
         };
     }
 
@@ -849,6 +963,9 @@ public partial class MainWindow : Window
         if (session.Formatting is not null)
         {
             session.Formatting.Normalize();
+            // 環境設定はセッションファイルではなくユーザーごとの formatting_config に属するので保持する。
+            session.Formatting.DefaultCalibrationFilePath = _formattingDefaults.DefaultCalibrationFilePath;
+            session.Formatting.DefaultOutputDirectory = _formattingDefaults.DefaultOutputDirectory;
             _formattingDefaults = session.Formatting;
             ApplyFormattingConfigToControls(session.Formatting);
         }
@@ -1097,6 +1214,7 @@ public partial class MainWindow : Window
             DefaultExt = ".png",
             AddExtension = true,
         };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
 
         if (dialog.ShowDialog(this) != true)
         {

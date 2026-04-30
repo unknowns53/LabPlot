@@ -1,50 +1,143 @@
 # GPC Visualization
 
-Windows/WPF MVP for loading GPC chromatogram data, displaying it, and exporting the displayed graph as PNG or SVG.
+GPC（ゲル浸透クロマトグラフィー）の測定データを読み込んで、クロマトグラムや分子量分布を表示し、PNG / SVG / Excel / CSV として書き出すための Windows 用デスクトップアプリです。研究室で日常的に使うことを想定しています。
 
-## Current MVP
+主な機能:
 
-- Open CSV, TSV, TXT files
-- Read the first two numeric columns as X/Y data
-- Read LabSolutions `[LC Chromatogram(...)]` text export sections
-- Switch LabSolutions detector data when Detector A/B is selected
-- Display the chromatogram with ScottPlot
-- Multi-select data files while overlay mode is enabled
-- Load a standard-curve JSON and convert retention time to molecular weight
-- Edit graph title, axis labels, and X/Y axis ranges
-- Change graph font, font size, plot frame, grid visibility, and display/export aspect ratio
-- Toggle Y-axis tick-label visibility
-- Save default graph formatting to a per-user config file and load it on startup
-- Collapse sidebar settings sections to keep controls easier to scan
-- Overlay multiple loaded data files
-- Adjust plot-frame and line colors from a palette or custom hex color code
-- Adjust line width, marker size, and legend name
-- Show likely Mn, Mw, and Ð (dispersity) peak candidates from the data file when available, otherwise calculate them from converted molecular-weight data
-- Export the displayed graph as a 300 dpi PNG or vector SVG with scaled export typography
+- LabSolutions の TXT エクスポート、または `Time, Signal` 形式の CSV / TSV を読み込み
+- ScottPlot による即時プレビュー、軸範囲・タイトル・フォントなどの書式調整
+- 較正曲線 JSON を読み込んで保持時間 → 分子量変換、Mn / Mw / Ð の表示
+- 複数データの重ね描き、線色・線幅・凡例名の個別設定
+- 300 dpi PNG または SVG でグラフ書き出し、xlsx / csv で解析結果書き出し
+- 解析条件（読み込み済みデータ・較正曲線・書式・軸範囲など）を `.gpcjson` として保存・復元
 
-## Usage
+---
 
-1. Run `GPC_Visualization`.
-2. Click `CSVを開く` and choose a `.csv`, `.tsv`, or LabSolutions `.txt` file. Enable `重ね書き` first to select multiple files at once.
-3. Click `較正曲線を開く` and choose a standard-curve `.json` file if molecular-weight conversion is needed.
-4. Select the solvent and detector, then enable `分子量表示`.
-5. Click `グラフを保存` to export a PNG or SVG.
+## 1. インストール
 
-Use `既定保存` to store the current formatting defaults. The app writes them to `%APPDATA%\GPC_Visualization\formatting_config.json` and loads them the next time it starts. Use `既定` to restore the saved defaults in the current session.
+研究室で配布された `GPC_Visualization.exe`（自己完結型ビルド）を任意のフォルダに置いて、ダブルクリックで起動するだけです。.NET ランタイムの別途インストールは不要です。
 
-## Notes
+> 同じフォルダ内の `samples/` には、動作確認用の LabSolutions TXT が同梱されています。
 
-The current molecular-weight conversion uses this polynomial:
+> **スクリーンショット**: 起動直後の初期画面（_screenshots/00-startup.png_ を後ほど差し替え）
 
-```text
-log10(M) = a*t^3 + b*t^2 + c*t + d
-M = 10^log10(M)
+---
+
+## 2. データを開く
+
+サイドバー上部「データファイル」セクションの **「CSV / TXT を開く」** をクリックして、GPC データファイル（`.csv` / `.tsv` / `.txt`）を選択します。
+
+- 重ね描きしたいときは、先に **「重ね描き (Overlay)」** にチェックを入れてから「CSV / TXT を開く」を押すと複数選択ができます。
+- 読み込みに成功すると、ステータスバーに点数が表示され、グラフエリアにクロマトグラムが描かれます。
+- 読み込み済みのデータは「読み込み済みデータセット」セクションに一覧表示されます。各行の右端の **×** で削除できます。
+
+> **スクリーンショット**: データ読み込み直後（_screenshots/10-data-loaded.png_）
+
+---
+
+## 3. 較正曲線をロードして分子量表示にする
+
+サイドバー「較正曲線と分子量」セクションを開いて操作します。
+
+1. **「較正曲線 JSON を開く」** で標準曲線の JSON ファイルを選択します（複数の溶媒・検出器を含む 1 ファイル形式に対応）。
+2. **溶媒** と **検出器** を選びます。ファイル名に溶媒名が含まれていれば自動で推定します。
+3. **「分子量表示」** にチェックを入れると、X 軸が `log10(M)`（表示は分子量）に切り替わります。
+4. **Y 軸モード** で `Signal` か `dw/dlogM` を選びます。`dw/dlogM` は通常の GPC 分布と同じ向きになるよう保持時間を降順にして差分計算しています。
+
+ファイル本体に Mn / Mw が含まれている LabSolutions の `Average Molecular Weight Table` がある場合は、`Total` 行を除く全ピーク候補が右下のドロップダウン「代表ピーク」から選べます。較正曲線を使った場合は変換結果から Mn / Mw / Ð が計算されます。
+
+> **スクリーンショット**: 分子量表示・代表ピーク選択（_screenshots/20-mw-display.png_）
+
+---
+
+## 4. グラフ調整
+
+サイドバーの「書式」グループで、軸範囲・タイトル・フォント・グリッドなどを調整します。
+
+- **軸範囲**: マウスでドラッグ・ホイール操作後、TextBox に表示された値を微調整するのが楽です。空欄に戻して **「自動範囲に戻す」** を押すと自動レンジに戻ります。
+- **グラフラベル**: タイトル、X 軸、Y 軸ラベルを直接入力します。
+- **グラフ書式**: フォント、フォントサイズ、グリッド表示、プロット枠（色・幅）、アスペクト比（16:9 / 4:3 / 3:2 / 1:1 / 自動）を指定できます。
+- **線スタイル**: 選択中のデータセットの色・凡例名・線幅・マーカーサイズを設定します。重ね描きの場合は「読み込み済みデータセット」で対象を切り替えてから操作します。
+
+書式設定は **「既定保存」** ボタンで `%APPDATA%\GPC_Visualization\formatting_config.json` に保存され、次回起動時に復元されます。**「既定に戻す」** で保存済み設定にリセットできます。
+
+> **スクリーンショット**: グラフ書式調整（_screenshots/30-formatting.png_）
+
+---
+
+## 5. 出力
+
+メインエリア右上の2つのボタンから書き出します。
+
+- **「PNG / SVG 保存」**: クロマトグラム画像を出力します。PNG は 300 dpi、SVG はベクターで保存されます。アスペクト比設定が出力サイズに反映されます。
+- **「データ出力」**: 解析結果を Excel ブック（`.xlsx`）または CSV で書き出します。クロマトグラムの生データに加え、ピーク情報・分子量分布が含まれます。
+
+> **スクリーンショット**: 出力ダイアログとサンプル出力（_screenshots/40-export.png_）
+
+---
+
+## 6. 解析条件を保存・読み込む
+
+サイドバー下部「解析条件」セクションから操作します。
+
+- **「条件を保存」**: 読み込んでいるデータファイルパス、較正曲線、選択中の溶媒・検出器、軸範囲、書式、線スタイルなどをまとめて `.gpcjson` に書き出します。
+- **「条件を読込」**: 保存した `.gpcjson` を読み込んで状態を復元します。データファイルや較正曲線の実体は元の場所から再読込されるため、ファイルが移動・削除されているとその項目だけ警告つきでスキップされます。
+
+> **スクリーンショット**: 解析条件の保存・読込（_screenshots/50-session.png_）
+
+---
+
+## 7. 環境設定（任意）
+
+サイドバー最下部の「環境設定」セクションから、よく使う既定値を保存できます。
+
+- **既定の較正曲線**: 設定しておくと、次回起動時に自動でこの較正曲線 JSON を読み込みます。
+- **既定の出力フォルダ**: グラフ・データ・解析条件の保存ダイアログでこのフォルダが最初に開かれます。
+
+入力後はサイドバー下部の **「既定保存」** を押すと反映されます。
+
+> **スクリーンショット**: 環境設定セクション（_screenshots/60-preferences.png_）
+
+---
+
+## 詳細仕様メモ
+
+- 分子量変換は次の3次多項式を使っています:
+
+  ```text
+  log10(M) = a*t^3 + b*t^2 + c*t + d
+  M       = 10^log10(M)
+  ```
+
+- 分子量表示では `1` から `1e8` の範囲外を除外し、X 軸は `log10(M)` で描き、ラベルは分子量表記（10 のべき乗）に整形して表示します。
+- `dw/dlogM` の Y 軸は、保持時間を降順に並べ替えてから差分を取り、通常の GPC 較正曲線で正の分布になるようにしています。
+- 分子量表示中は、X Min / X Max は `log10(M)` ではなく分子量そのものを入力します。
+- LabSolutions の `Average Molecular Weight Table` の `Total` 行は無視し、`%` 順で並べたピーク候補のみが代表ピークドロップダウンに表示されます。
+
+---
+
+## 開発者向け
+
+ビルドとテスト:
+
+```powershell
+dotnet build GPC_Visualization.slnx
+dotnet test GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj
 ```
 
-Mn/Mw/Ð calculations are not implemented yet.
+配布用の単一 exe を作成:
 
-Molecular-weight display filters points outside `1` to `100000000` and plots the X axis as `log10(M)` with labels shown as molecular weights using superscript powers of 10.
-The molecular-weight Y axis can be shown as either the raw signal or `dw/dlogM`.
-For `dw/dlogM`, retention time is sorted descending before differencing to match the previous Python workflow and produce a positive distribution for ordinary GPC calibration curves.
-When molecular-weight view is active, custom X Min/X Max values are entered as molecular weights, not `log10(M)`.
-LabSolutions `Average Molecular Weight Table` `Total` rows are ignored; peak rows with positive Mn/Mw are sorted by `%` and displayed as candidates.
+```powershell
+dotnet publish GPC_Visualization/GPC_Visualization.csproj -p:PublishProfile=win-x64
+```
+
+成果物は `GPC_Visualization/bin/Release/net10.0-windows10.0.19041/win-x64/publish/` に出力されます。`samples/` フォルダも一緒にコピーされるので、フォルダごと配布してください。
+
+プロジェクト構成:
+
+```text
+GPC_Visualization/      WPF アプリ本体
+GpcAnalyzer.Core/       解析ロジック（CSV 読み込み、較正曲線、分子量変換、出力）
+GpcAnalyzer.Tests/      xUnit による単体テスト
+samples/                配布用サンプルデータ
+```

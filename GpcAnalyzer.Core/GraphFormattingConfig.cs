@@ -22,6 +22,10 @@ public sealed class GraphFormattingConfig
     public double LineWidth { get; set; } = DefaultLineWidth;
     public double MarkerSize { get; set; } = DefaultMarkerSize;
 
+    // User preferences (persisted alongside the formatting defaults).
+    public string? DefaultCalibrationFilePath { get; set; }
+    public string? DefaultOutputDirectory { get; set; }
+
     public static GraphFormattingConfig CreateFactoryDefault()
     {
         return new GraphFormattingConfig();
@@ -32,6 +36,8 @@ public sealed class GraphFormattingConfig
         FontName = NormalizeOptionalText(FontName);
         AspectRatio = NormalizeOptionalText(AspectRatio);
         DefaultLineColorHex = NormalizeOptionalHex(DefaultLineColorHex);
+        DefaultCalibrationFilePath = NormalizeOptionalText(DefaultCalibrationFilePath);
+        DefaultOutputDirectory = NormalizeOptionalText(DefaultOutputDirectory);
 
         if (!IsPositive(FontSize))
         {

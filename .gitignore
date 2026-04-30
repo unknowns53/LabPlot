@@ -13,9 +13,11 @@ obj/
 *.svg
 *.gpcjson
 
-# Bundled sample data (override the rules above)
+# Bundled sample data and README screenshots (override the rules above)
 !samples/
 !samples/**
+!screenshots/
+!screenshots/**
 
 # Visual Studio local cache
 .vs/

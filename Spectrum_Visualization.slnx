@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="SpectrumAnalyzer.Core/SpectrumAnalyzer.Core.csproj" />
+  <Project Path="SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj" />
+  <Project Path="Spectrum_Visualization/Spectrum_Visualization.csproj" />
+</Solution>

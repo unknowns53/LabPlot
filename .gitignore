@@ -1,0 +1,52 @@
+# Build output
+bin/
+obj/
+.vs/
+.dotnet-home/
+
+# Local sample and data files
+*.txt
+*.csv
+*.json
+*.png
+*.jpg
+*.svg
+*.gpcjson
+*.spjson
+*.zip
+
+# Bundled sample data and README screenshots (override the rules above)
+!samples/
+!samples/**
+!screenshots/
+!screenshots/**
+
+# Visual Studio local cache
+.vs/
+
+# Build outputs
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test results
+TestResults/
+*.trx
+
+# NuGet packages
+packages/
+*.nupkg
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# 内部ドキュメント
+要件定義.md
+作業メモ.md
+今後の課題.md

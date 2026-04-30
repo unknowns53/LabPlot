@@ -300,6 +300,7 @@ public partial class MainWindow : Window
             AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
             AspectRatio = GetSelectedAspectRatioConfigValue(),
             InvertXAxisMode = GetSelectedInvertXAxisModeConfigValue(),
+            YAxisDisplayMode = GetSelectedYAxisDisplayModeConfigValue(),
             DefaultLineColorHex = GetSelectedLineColorConfigValue(),
             LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
                 ? lineWidth
@@ -343,6 +344,11 @@ public partial class MainWindow : Window
             if (!SelectComboBoxItemByTag(InvertXAxisComboBox, config.InvertXAxisMode ?? "Auto"))
             {
                 InvertXAxisComboBox.SelectedIndex = 0;
+            }
+
+            if (!SelectComboBoxItemByTag(YAxisDisplayComboBox, config.YAxisDisplayMode ?? "Native"))
+            {
+                YAxisDisplayComboBox.SelectedIndex = 0;
             }
         }
         finally
@@ -571,6 +577,7 @@ public partial class MainWindow : Window
     {
         var entries = new List<AnalysisExportEntry>();
         var plotEntries = GetDatasetsToPlotWithIndices();
+        var yDisplayMode = GetSelectedYAxisDisplayMode();
 
         foreach (var (dataset, index) in plotEntries)
         {
@@ -583,8 +590,8 @@ public partial class MainWindow : Window
                 DisplayName = displayName,
                 SourceFilePath = dataset.SourceFilePath,
                 XLabel = GetGraphLabel(XLabelTextBox, dataset.XLabel),
-                YLabel = GetGraphLabel(YLabelTextBox, dataset.YLabel),
-                Points = dataset.Points,
+                YLabel = GetGraphLabel(YLabelTextBox, SpectrumYAxisConverter.GetDisplayYLabel(dataset, yDisplayMode)),
+                Points = SpectrumYAxisConverter.GetDisplayPoints(dataset, yDisplayMode),
             });
         }
 
@@ -952,19 +959,28 @@ public partial class MainWindow : Window
 
         var plotEntries = GetDatasetsToPlotWithIndices();
         var activeDataset = _currentDataset;
+        var yDisplayMode = GetSelectedYAxisDisplayMode();
 
         _spectrumPlot.Plot.Clear();
         _spectrumPlot.Plot.Axes.NumericTicksBottom();
 
         var xRange = new AxisDataRange();
         var yRange = new AxisDataRange();
+        var inconvertibleCount = 0;
         for (var i = 0; i < plotEntries.Length; i++)
         {
             var (dataset, datasetIndex) = plotEntries[i];
-            xRange.Include(dataset.XValues);
-            yRange.Include(dataset.YValues);
+            var yValues = SpectrumYAxisConverter.GetDisplayYValues(dataset, yDisplayMode);
+            if (yDisplayMode != YAxisDisplayMode.Native
+                && !SpectrumYAxisConverter.CanDisplay(dataset, yDisplayMode))
+            {
+                inconvertibleCount++;
+            }
 
-            var signal = _spectrumPlot.Plot.Add.Scatter(dataset.XValues, dataset.YValues);
+            xRange.Include(dataset.XValues);
+            yRange.Include(yValues);
+
+            var signal = _spectrumPlot.Plot.Add.Scatter(dataset.XValues, yValues);
             signal.LegendText = GetSeriesLegendText(dataset, $"dataset {datasetIndex + 1}", datasetIndex);
             ApplySeriesStyle(signal, datasetIndex);
         }
@@ -980,7 +996,7 @@ public partial class MainWindow : Window
 
         _spectrumPlot.Plot.Title(GetGraphTitle(Path.GetFileNameWithoutExtension(activeDataset.SourceFilePath) ?? "Spectrum"));
         _spectrumPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
-        _spectrumPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
+        _spectrumPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, SpectrumYAxisConverter.GetDisplayYLabel(activeDataset, yDisplayMode)));
         _spectrumPlot.Plot.Axes.AutoScale();
 
         // IR convention: high wavenumbers on the left (4000 → 400 cm⁻¹).
@@ -1010,6 +1026,13 @@ public partial class MainWindow : Window
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
         SetGraphActionsEnabled(true);
+
+        if (inconvertibleCount > 0 && yDisplayMode != YAxisDisplayMode.Native)
+        {
+            SetStatus(
+                $"{inconvertibleCount} 件のデータセットは Y 軸単位の変換ができないため、ネイティブ単位のまま表示しています。",
+                false);
+        }
     }
 
     private (SpectrumDataset Dataset, int Index)[] GetDatasetsToPlotWithIndices()
@@ -2085,6 +2108,16 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
+    private void YAxisDisplayComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        SchedulePlotCurrentDataset();
+    }
+
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
@@ -2163,6 +2196,24 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
             ? null
             : tag;
+    }
+
+    private string? GetSelectedYAxisDisplayModeConfigValue()
+    {
+        var tag = GetSelectedComboBoxTag(YAxisDisplayComboBox);
+        return string.IsNullOrWhiteSpace(tag) || tag.Equals("Native", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : tag;
+    }
+
+    private YAxisDisplayMode GetSelectedYAxisDisplayMode()
+    {
+        return GetSelectedComboBoxTag(YAxisDisplayComboBox) switch
+        {
+            "Absorbance" => YAxisDisplayMode.Absorbance,
+            "Transmittance" => YAxisDisplayMode.Transmittance,
+            _ => YAxisDisplayMode.Native,
+        };
     }
 
     private float GetPlotFontSize()

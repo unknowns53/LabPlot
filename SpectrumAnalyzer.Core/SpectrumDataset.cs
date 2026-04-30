@@ -36,4 +36,10 @@ public sealed class SpectrumDataset
     public bool IsInfraredSpectrum =>
         IsWavenumberAxis
         || string.Equals(RawDataType, "INFRARED SPECTRUM", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsAbsorbanceY =>
+        string.Equals(RawYUnits, "ABSORBANCE", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsTransmittanceY =>
+        string.Equals(RawYUnits, "TRANSMITTANCE", StringComparison.OrdinalIgnoreCase);
 }

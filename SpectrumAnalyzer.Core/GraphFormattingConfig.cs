@@ -40,6 +40,18 @@ public sealed class GraphFormattingConfig
     /// </remarks>
     public string? InvertXAxisMode { get; set; }
 
+    /// <summary>
+    /// User-controlled Y axis display mode.
+    /// </summary>
+    /// <remarks>
+    /// <c>null</c> or <c>"Native"</c> uses the YUNITS recorded in the source
+    /// file. <c>"Absorbance"</c> / <c>"Transmittance"</c> force the corresponding
+    /// representation, converting the data on the fly when the source is the
+    /// other unit. Datasets whose YUNITS is neither (Reflectance, Temperature,
+    /// ...) stay in their native units regardless of the override.
+    /// </remarks>
+    public string? YAxisDisplayMode { get; set; }
+
     // User preferences (persisted alongside the formatting defaults).
     public string? DefaultOutputDirectory { get; set; }
 
@@ -55,6 +67,7 @@ public sealed class GraphFormattingConfig
         DefaultLineColorHex = NormalizeOptionalHex(DefaultLineColorHex);
         DefaultOutputDirectory = NormalizeOptionalText(DefaultOutputDirectory);
         InvertXAxisMode = NormalizeInvertXAxisMode(InvertXAxisMode);
+        YAxisDisplayMode = NormalizeYAxisDisplayMode(YAxisDisplayMode);
 
         if (!IsPositive(FontSize))
         {
@@ -139,6 +152,32 @@ public sealed class GraphFormattingConfig
         if (normalized.Equals("Normal", StringComparison.OrdinalIgnoreCase))
         {
             return "Normal";
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeYAxisDisplayMode(string? text)
+    {
+        var normalized = NormalizeOptionalText(text);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (normalized.Equals("Native", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (normalized.Equals("Absorbance", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Absorbance";
+        }
+
+        if (normalized.Equals("Transmittance", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Transmittance";
         }
 
         return null;

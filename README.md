@@ -17,7 +17,7 @@ GPC（ゲル浸透クロマトグラフィー）の測定データを読み込�
 
 研究室で配布された `GPC_Visualization.exe`（自己完結型ビルド）を任意のフォルダに置いて、ダブルクリックで起動するだけです。.NET ランタイムの別途インストールは不要です。
 
-> 同じフォルダ内の `samples/` には、動作確認用の LabSolutions TXT が同梱されています。
+> 同じフォルダ内の `samples/` には、動作確認用の LabSolutions TXT 2 ファイルと、Chloroform / DMF の較正曲線サンプル `standard_curve.json` が同梱されています。
 
 ![起動直後の初期画面](screenshots/00-startup.png)
 

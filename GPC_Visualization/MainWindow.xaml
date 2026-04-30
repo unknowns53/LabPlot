@@ -5,40 +5,54 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="GPC Analyzer" Height="860" MinHeight="660" Width="1240" MinWidth="960"
-        Background="#F7F8FA">
+        Background="#F7F8FA"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True">
     <Window.Resources>
         <Style x:Key="SectionStyle" TargetType="Border">
             <Setter Property="Background" Value="White" />
             <Setter Property="BorderBrush" Value="#E2E8F0" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="#0F172A" />
-            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Margin" Value="0,0,0,12" />
         </Style>
         <Style x:Key="GroupLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="#64748B" />
-            <Setter Property="Margin" Value="2,2,0,6" />
+            <Setter Property="Foreground" Value="#475569" />
+            <Setter Property="Margin" Value="4,10,0,8" />
         </Style>
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="#475569" />
-            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Margin" Value="0,0,0,6" />
         </Style>
         <Style x:Key="InputTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style x:Key="InputComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="8,4" />
         </Style>
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="36" />
@@ -233,12 +247,12 @@
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
-                <StackPanel Grid.Row="0" Margin="16,18,16,8">
+                <StackPanel Grid.Row="0" Margin="20,22,20,10">
                     <TextBlock Text="GPC Analyzer"
-                               FontSize="20"
+                               FontSize="22"
                                FontWeight="SemiBold"
                                Foreground="#1E293B"
-                               Margin="0,0,0,2" />
+                               Margin="0,0,0,4" />
                     <TextBlock Text="Chromatogram visualizer"
                                FontSize="11"
                                Foreground="#64748B" />
@@ -248,7 +262,7 @@
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="16,8,16,8">
+                    <StackPanel Margin="20,10,20,12">
 
                         <TextBlock Text="データ"
                                    Style="{StaticResource GroupLabelStyle}" />
@@ -341,8 +355,7 @@
                         </Border>
 
                         <TextBlock Text="書式"
-                                   Style="{StaticResource GroupLabelStyle}"
-                                   Margin="2,6,0,6" />
+                                   Style="{StaticResource GroupLabelStyle}" />
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -610,49 +623,49 @@
                                         <TextBlock Text="Custom" />
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#2563EB">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#2563EB" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Blue" />
                                         </StackPanel>
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#DC2626">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#DC2626" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Red" />
                                         </StackPanel>
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#16A34A">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#16A34A" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Green" />
                                         </StackPanel>
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#EA580C">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#EA580C" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Orange" />
                                         </StackPanel>
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#7C3AED">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#7C3AED" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Purple" />
                                         </StackPanel>
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#0891B2">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#0891B2" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Cyan" />
                                         </StackPanel>
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#BE123C">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#BE123C" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Rose" />
                                         </StackPanel>
                                     </ComboBoxItem>
                                     <ComboBoxItem Tag="#4B5563">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border Width="18" Height="14" Background="#4B5563" CornerRadius="2" Margin="0,0,8,0" />
                                             <TextBlock Text="Gray" />
                                         </StackPanel>
@@ -714,8 +727,7 @@
                         </Border>
 
                         <TextBlock Text="分子量"
-                                   Style="{StaticResource GroupLabelStyle}"
-                                   Margin="2,6,0,6" />
+                                   Style="{StaticResource GroupLabelStyle}" />
 
                         <!-- Section: Calibration & MW -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -779,11 +791,11 @@
                         Background="#E2E8F0"
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,1,0,0"
-                        Padding="16,10">
+                        Padding="20,14">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="10" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Button x:Name="ResetGraphSettingsButton"
@@ -802,7 +814,7 @@
         </Border>
 
         <!-- ================= MAIN AREA ================= -->
-        <Grid Grid.Column="1" Margin="20,18,20,14">
+        <Grid Grid.Column="1" Margin="24,22,24,18">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -810,7 +822,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,12">
+            <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,16">
                 <Button x:Name="SaveGraphButton"
                         DockPanel.Dock="Right"
                         Content="PNG / SVG 保存"
@@ -819,7 +831,7 @@
                         Click="SaveGraphButton_Click" />
                 <TextBlock Text="Chromatogram"
                            VerticalAlignment="Center"
-                           FontSize="16"
+                           FontSize="18"
                            FontWeight="SemiBold"
                            Foreground="#1E293B" />
             </DockPanel>
@@ -844,9 +856,9 @@
                     Background="#F1F5F9"
                     BorderBrush="#CBD5E1"
                     BorderThickness="1"
-                    CornerRadius="6"
-                    Padding="14,10"
-                    Margin="0,12,0,0">
+                    CornerRadius="8"
+                    Padding="16,12"
+                    Margin="0,16,0,0">
                 <TextBlock x:Name="StatisticsTextBlock"
                            Text="Mn: -   Mw: -   PDI: -"
                            Foreground="#0F172A"
@@ -854,7 +866,7 @@
                            TextWrapping="Wrap" />
             </Border>
 
-            <StatusBar Grid.Row="3" Margin="0,8,0,0" Background="Transparent">
+            <StatusBar Grid.Row="3" Margin="0,10,0,0" Background="Transparent">
                 <TextBlock x:Name="StatusTextBlock"
                            Text="CSVまたはLabSolutions TXTを開いてください。"
                            Foreground="#475569" />

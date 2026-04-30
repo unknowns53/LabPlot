@@ -180,90 +180,9 @@
                             </Expander>
                         </Border>
 
-                        <!-- Section: Calibration & MW -->
-                        <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="較正曲線と分子量" IsExpanded="True">
-                                <StackPanel Margin="0,8,0,0">
-                                <Button x:Name="OpenCalibrationButton"
-                                        Content="較正曲線 JSON を開く"
-                                        Style="{StaticResource PrimaryButtonStyle}"
-                                        HorizontalAlignment="Stretch"
-                                        Margin="0,0,0,8"
-                                        Click="OpenCalibrationButton_Click" />
-                                <TextBlock x:Name="CalibrationPathTextBlock"
-                                           Text="較正曲線: 未選択"
-                                           TextTrimming="CharacterEllipsis"
-                                           Foreground="#475569"
-                                           ToolTipService.ShowDuration="30000"
-                                           Margin="0,0,0,12" />
-
-                                <TextBlock Text="溶媒"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <ComboBox x:Name="SolventComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          IsEnabled="False"
-                                          Margin="0,0,0,8"
-                                          SelectionChanged="SolventComboBox_SelectionChanged" />
-
-                                <TextBlock Text="検出器"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <ComboBox x:Name="DetectorComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          IsEnabled="False"
-                                          Margin="0,0,0,12"
-                                          SelectionChanged="DetectorComboBox_SelectionChanged" />
-
-                                <CheckBox x:Name="MolecularWeightCheckBox"
-                                          Content="分子量表示"
-                                          IsEnabled="False"
-                                          Margin="0,0,0,10"
-                                          Checked="MolecularWeightCheckBox_Changed"
-                                          Unchecked="MolecularWeightCheckBox_Changed" />
-
-                                <TextBlock Text="Y軸モード"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <ComboBox x:Name="MolecularWeightYModeComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          IsEnabled="False"
-                                          SelectedIndex="0"
-                                          SelectionChanged="MolecularWeightYModeComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="Signal" Tag="Signal" />
-                                    <ComboBoxItem Content="dw/dlogM" Tag="DwdLogM" />
-                                </ComboBox>
-                                </StackPanel>
-                            </Expander>
-                        </Border>
-
                         <TextBlock Text="書式"
                                    Style="{StaticResource GroupLabelStyle}"
                                    Margin="2,6,0,6" />
-
-                        <!-- Section: Graph labels -->
-                        <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="グラフラベル" IsExpanded="False">
-                                <StackPanel Margin="0,8,0,0">
-                                <TextBlock Text="タイトル"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <TextBox x:Name="TitleTextBox"
-                                         Style="{StaticResource InputTextBoxStyle}"
-                                         Margin="0,0,0,8"
-                                         TextChanged="GraphLabelTextBox_TextChanged" />
-
-                                <TextBlock Text="X軸ラベル"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <TextBox x:Name="XLabelTextBox"
-                                         Style="{StaticResource InputTextBoxStyle}"
-                                         Margin="0,0,0,8"
-                                         TextChanged="GraphLabelTextBox_TextChanged" />
-
-                                <TextBlock Text="Y軸ラベル"
-                                           Style="{StaticResource FieldLabelStyle}" />
-                                <TextBox x:Name="YLabelTextBox"
-                                         Style="{StaticResource InputTextBoxStyle}"
-                                         TextChanged="GraphLabelTextBox_TextChanged" />
-                                </StackPanel>
-                            </Expander>
-                        </Border>
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -324,6 +243,33 @@
                                         Margin="0,10,0,0"
                                         Click="AutoAxisRangeButton_Click"
                                         ToolTip="X/Y の最小・最大値を空欄に戻して自動範囲で表示します" />
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
+                        <!-- Section: Graph labels -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <Expander Header="グラフラベル" IsExpanded="True">
+                                <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="タイトル"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="TitleTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,8"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
+
+                                <TextBlock Text="X軸ラベル"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="XLabelTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,8"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
+
+                                <TextBlock Text="Y軸ラベル"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="YLabelTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
                                 </StackPanel>
                             </Expander>
                         </Border>
@@ -603,6 +549,64 @@
                                                  TextChanged="MarkerSizeTextBox_TextChanged" />
                                     </StackPanel>
                                 </Grid>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
+                        <TextBlock Text="分子量"
+                                   Style="{StaticResource GroupLabelStyle}"
+                                   Margin="2,6,0,6" />
+
+                        <!-- Section: Calibration & MW -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <Expander Header="較正曲線と分子量" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
+                                <Button x:Name="OpenCalibrationButton"
+                                        Content="較正曲線 JSON を開く"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Margin="0,0,0,8"
+                                        Click="OpenCalibrationButton_Click" />
+                                <TextBlock x:Name="CalibrationPathTextBlock"
+                                           Text="較正曲線: 未選択"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="#475569"
+                                           ToolTipService.ShowDuration="30000"
+                                           Margin="0,0,0,12" />
+
+                                <TextBlock Text="溶媒"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="SolventComboBox"
+                                          Style="{StaticResource InputComboBoxStyle}"
+                                          IsEnabled="False"
+                                          Margin="0,0,0,8"
+                                          SelectionChanged="SolventComboBox_SelectionChanged" />
+
+                                <TextBlock Text="検出器"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="DetectorComboBox"
+                                          Style="{StaticResource InputComboBoxStyle}"
+                                          IsEnabled="False"
+                                          Margin="0,0,0,12"
+                                          SelectionChanged="DetectorComboBox_SelectionChanged" />
+
+                                <CheckBox x:Name="MolecularWeightCheckBox"
+                                          Content="分子量表示"
+                                          IsEnabled="False"
+                                          Margin="0,0,0,10"
+                                          Checked="MolecularWeightCheckBox_Changed"
+                                          Unchecked="MolecularWeightCheckBox_Changed" />
+
+                                <TextBlock Text="Y軸モード"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="MolecularWeightYModeComboBox"
+                                          Style="{StaticResource InputComboBoxStyle}"
+                                          IsEnabled="False"
+                                          SelectedIndex="0"
+                                          SelectionChanged="MolecularWeightYModeComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="Signal" Tag="Signal" />
+                                    <ComboBoxItem Content="dw/dlogM" Tag="DwdLogM" />
+                                </ComboBox>
                                 </StackPanel>
                             </Expander>
                         </Border>

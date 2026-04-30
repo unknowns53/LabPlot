@@ -69,7 +69,19 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        // Suppress event handlers that fire during XAML parse (ComboBox.SelectionChanged
+        // can trigger before all named controls have been created, leading to
+        // NullReferenceException when the handler dereferences a sibling control).
+        _suppressGraphAppearanceEvents = true;
+        _suppressStyleControlEvents = true;
+        _suppressDatasetListEvents = true;
+
         InitializeComponent();
+
+        _suppressGraphAppearanceEvents = false;
+        _suppressStyleControlEvents = false;
+        _suppressDatasetListEvents = false;
+
         LoadFormattingDefaults();
         ApplyFormattingConfigToControls(_formattingDefaults);
         DatasetListBox.ItemsSource = _datasetEntries;

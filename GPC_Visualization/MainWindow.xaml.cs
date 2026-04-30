@@ -501,11 +501,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ApplyGraphSettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        PlotCurrentDataset();
-    }
-
     private void ResetGraphSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         TitleTextBox.Clear();
@@ -1909,6 +1904,7 @@ public partial class MainWindow : Window
         if (TryParsePositiveDouble(LineWidthTextBox.Text, out var width))
         {
             _datasetStyles[_activeIndex].LineWidth = width;
+            SchedulePlotCurrentDataset();
         }
     }
 
@@ -1926,6 +1922,7 @@ public partial class MainWindow : Window
         if (TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var size))
         {
             _datasetStyles[_activeIndex].MarkerSize = size;
+            SchedulePlotCurrentDataset();
         }
     }
 
@@ -1984,6 +1981,72 @@ public partial class MainWindow : Window
         }
 
         ApplyGraphAppearanceAndRefresh();
+    }
+
+    private void GraphLabelTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        SchedulePlotCurrentDataset();
+    }
+
+    private void GraphAppearanceNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        SchedulePlotCurrentDataset();
+    }
+
+    private void AxisRangeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter && e.Key != System.Windows.Input.Key.Return)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        CommitAxisRangeFromInputs();
+    }
+
+    private void AxisRangeTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        CommitAxisRangeFromInputs();
+    }
+
+    private void CommitAxisRangeFromInputs()
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        if (!IsAxisRangeInputValidOrEmpty(XMinTextBox)
+            || !IsAxisRangeInputValidOrEmpty(XMaxTextBox)
+            || !IsAxisRangeInputValidOrEmpty(YMinTextBox)
+            || !IsAxisRangeInputValidOrEmpty(YMaxTextBox))
+        {
+            return;
+        }
+
+        PlotCurrentDataset();
+    }
+
+    private static bool IsAxisRangeInputValidOrEmpty(TextBox textBox)
+    {
+        var text = textBox.Text.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return true;
+        }
+
+        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out _)
+            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out _);
     }
 
     private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -246,18 +246,21 @@
                                            Style="{StaticResource FieldLabelStyle}" />
                                 <TextBox x:Name="TitleTextBox"
                                          Style="{StaticResource InputTextBoxStyle}"
-                                         Margin="0,0,0,8" />
+                                         Margin="0,0,0,8"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
 
                                 <TextBlock Text="X軸ラベル"
                                            Style="{StaticResource FieldLabelStyle}" />
                                 <TextBox x:Name="XLabelTextBox"
                                          Style="{StaticResource InputTextBoxStyle}"
-                                         Margin="0,0,0,8" />
+                                         Margin="0,0,0,8"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
 
                                 <TextBlock Text="Y軸ラベル"
                                            Style="{StaticResource FieldLabelStyle}" />
                                 <TextBox x:Name="YLabelTextBox"
-                                         Style="{StaticResource InputTextBoxStyle}" />
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         TextChanged="GraphLabelTextBox_TextChanged" />
                                 </StackPanel>
                             </Expander>
                         </Border>
@@ -276,13 +279,17 @@
                                         <TextBlock Text="X Min"
                                                    Style="{StaticResource FieldLabelStyle}" />
                                         <TextBox x:Name="XMinTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="X Max"
                                                    Style="{StaticResource FieldLabelStyle}" />
                                         <TextBox x:Name="XMaxTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
                                     </StackPanel>
                                 </Grid>
 
@@ -296,13 +303,17 @@
                                         <TextBlock Text="Y Min"
                                                    Style="{StaticResource FieldLabelStyle}" />
                                         <TextBox x:Name="YMinTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="Y Max"
                                                    Style="{StaticResource FieldLabelStyle}" />
                                         <TextBox x:Name="YMaxTextBox"
-                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 KeyDown="AxisRangeTextBox_KeyDown"
+                                                 LostFocus="AxisRangeTextBox_LostFocus" />
                                     </StackPanel>
                                 </Grid>
                                 </StackPanel>
@@ -340,7 +351,8 @@
                                                    Style="{StaticResource FieldLabelStyle}" />
                                         <TextBox x:Name="GraphFontSizeTextBox"
                                                  Text="12"
-                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 TextChanged="GraphAppearanceNumericTextBox_TextChanged" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="グリッド"
@@ -394,7 +406,8 @@
                                                    Style="{StaticResource FieldLabelStyle}" />
                                         <TextBox x:Name="PlotFrameWidthTextBox"
                                                  Text="1"
-                                                 Style="{StaticResource InputTextBoxStyle}" />
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 TextChanged="GraphAppearanceNumericTextBox_TextChanged" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="枠色"
@@ -589,42 +602,29 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Sticky footer: Apply / defaults -->
+                <!-- Sticky footer: defaults -->
                 <Border Grid.Row="2"
                         Background="#E2E8F0"
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,1,0,0"
-                        Padding="16,12">
-                    <StackPanel>
-                        <TextBlock Text="表示・書式操作"
-                                   FontWeight="SemiBold"
-                                   FontSize="12"
-                                   Foreground="#334155"
-                                   Margin="0,0,0,6" />
-                        <Button x:Name="ApplyGraphSettingsButton"
-                                Content="表示に反映"
-                                Height="32"
-                                HorizontalAlignment="Stretch"
-                                Margin="0,0,0,8"
-                                Click="ApplyGraphSettingsButton_Click" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="ResetGraphSettingsButton"
-                                    Grid.Column="0"
-                                    Content="既定に戻す"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Click="ResetGraphSettingsButton_Click" />
-                            <Button x:Name="SaveDefaultFormattingButton"
-                                    Grid.Column="2"
-                                    Content="既定保存"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Click="SaveDefaultFormattingButton_Click" />
-                        </Grid>
-                    </StackPanel>
+                        Padding="16,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="ResetGraphSettingsButton"
+                                Grid.Column="0"
+                                Content="既定に戻す"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Click="ResetGraphSettingsButton_Click" />
+                        <Button x:Name="SaveDefaultFormattingButton"
+                                Grid.Column="2"
+                                Content="既定保存"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Click="SaveDefaultFormattingButton_Click" />
+                    </Grid>
                 </Border>
             </Grid>
         </Border>

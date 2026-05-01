@@ -3023,7 +3023,17 @@ public partial class MainWindow : Window
         }
 
         UpdateIntegrationResults();
-        SchedulePlotCurrentDataset();
+        if (_isIntegrationResizing)
+        {
+            // Bypass the 200 ms debounce so the band visibly tracks the
+            // mouse while the user is dragging an edge — without this the
+            // rectangle only catches up after the cursor briefly stops.
+            PlotCurrentDataset();
+        }
+        else
+        {
+            SchedulePlotCurrentDataset();
+        }
     }
 
     private void UpdateIntegrationResults()

@@ -652,6 +652,24 @@ public partial class MainWindow : Window
         {
             _loadedDatasets.Clear();
             _datasetStyles.Clear();
+
+            // The axis range textboxes carry whatever the user's last mouse pan /
+            // zoom synced into them. When the dataset itself is being replaced,
+            // those stale values would otherwise override AutoScale on the new
+            // data, so clear them here. Overlay mode keeps the existing view
+            // because the user is usually comparing peaks at a chosen zoom.
+            _suppressGraphAppearanceEvents = true;
+            try
+            {
+                XMinTextBox.Clear();
+                XMaxTextBox.Clear();
+                YMinTextBox.Clear();
+                YMaxTextBox.Clear();
+            }
+            finally
+            {
+                _suppressGraphAppearanceEvents = false;
+            }
         }
 
         _loadedDatasets.Add(dataset);
@@ -1229,6 +1247,7 @@ public partial class MainWindow : Window
 
         DrawPeakAssignments(activeDataset, yRange);
         DrawIntegrationRegions(yRange);
+        DrawIntegrationBaselines(plotEntries, yDisplayMode);
 
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
@@ -2951,6 +2970,116 @@ public partial class MainWindow : Window
             rect.LineStyle.Width = 1;
             rect.LegendText = string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Faint per-dataset chord drawn from (XMin, Y(XMin)) to (XMax, Y(XMax))
+    /// for every Linear-baseline region. Y values are sampled in the *displayed*
+    /// space so the chord visually rests on the curve at both endpoints, even
+    /// when the actual integration is computed in Absorbance space.
+    /// </summary>
+    private void DrawIntegrationBaselines(
+        (SpectrumDataset Dataset, int Index)[] plotEntries,
+        YAxisDisplayMode yDisplayMode)
+    {
+        if (_spectrumPlot is null || _integrationRegionVms.Count == 0 || plotEntries.Length == 0)
+        {
+            return;
+        }
+
+        var regions = _integrationRegionVms
+            .Select(vm => vm.ToModel())
+            .Where(region => region is not null && region.BaselineMethod == BaselineMethod.Linear)
+            .Cast<IntegrationRegion>()
+            .ToArray();
+
+        if (regions.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var (dataset, datasetIndex) in plotEntries)
+        {
+            // Skip datasets that the integrator itself would refuse — drawing a
+            // baseline for them would imply an area we cannot actually compute.
+            if (!SpectrumYAxisConverter.CanDisplay(dataset, YAxisDisplayMode.Absorbance))
+            {
+                continue;
+            }
+
+            var xs = dataset.XValues;
+            if (xs.Length < 2)
+            {
+                continue;
+            }
+
+            var displayYs = SpectrumYAxisConverter.GetDisplayYValues(dataset, yDisplayMode);
+            var datasetColor = ResolveDatasetColor(datasetIndex);
+
+            foreach (var region in regions)
+            {
+                if (region.XMin < xs[0] || region.XMax > xs[^1])
+                {
+                    continue;
+                }
+
+                var yAtMin = InterpolateY(xs, displayYs, region.XMin);
+                var yAtMax = InterpolateY(xs, displayYs, region.XMax);
+                if (yAtMin is null || yAtMax is null)
+                {
+                    continue;
+                }
+
+                var line = _spectrumPlot.Plot.Add.Line(region.XMin, yAtMin.Value, region.XMax, yAtMax.Value);
+                line.LineStyle.Color = datasetColor.WithAlpha((byte)110);
+                line.LineStyle.Width = 1;
+                line.LineStyle.Pattern = ScottPlot.LinePattern.Solid;
+                line.MarkerStyle.IsVisible = false;
+                line.LegendText = string.Empty;
+            }
+        }
+    }
+
+    private ScottPlot.Color ResolveDatasetColor(int datasetIndex)
+    {
+        string? hex = null;
+        if (datasetIndex >= 0 && datasetIndex < _datasetStyles.Count)
+        {
+            hex = _datasetStyles[datasetIndex].ColorHex;
+        }
+
+        hex ??= AutoLineColors[Math.Max(0, datasetIndex) % AutoLineColors.Length];
+        return ScottPlot.Color.FromHex(new[] { hex }).First();
+    }
+
+    private static double? InterpolateY(double[] xs, double[] ys, double x)
+    {
+        if (xs.Length < 2 || ys.Length != xs.Length || x < xs[0] || x > xs[^1])
+        {
+            return null;
+        }
+
+        var lo = 0;
+        var hi = xs.Length - 1;
+        while (hi - lo > 1)
+        {
+            var mid = (lo + hi) / 2;
+            if (xs[mid] <= x)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        if (xs[lo] == x) return ys[lo];
+        if (xs[hi] == x) return ys[hi];
+
+        var t = (x - xs[lo]) / (xs[hi] - xs[lo]);
+        var y = ys[lo] + t * (ys[hi] - ys[lo]);
+        return double.IsFinite(y) ? y : null;
     }
 
     private void DrawPeakAssignments(SpectrumDataset dataset, AxisDataRange yRange)

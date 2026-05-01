@@ -1338,17 +1338,13 @@
                                                                     Click="RemoveIntegrationRegionButton_Click"
                                                                     ToolTip="この領域を削除" />
                                                         </Grid>
-                                                        <Grid>
+                                                        <Grid Margin="0,0,0,4">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="36" />
                                                                 <ColumnDefinition Width="4" />
                                                                 <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="6" />
+                                                                <ColumnDefinition Width="8" />
                                                                 <ColumnDefinition Width="36" />
-                                                                <ColumnDefinition Width="4" />
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="6" />
-                                                                <ColumnDefinition Width="56" />
                                                                 <ColumnDefinition Width="4" />
                                                                 <ColumnDefinition Width="*" />
                                                             </Grid.ColumnDefinitions>
@@ -1370,12 +1366,19 @@
                                                                      Text="{Binding XMaxText, UpdateSourceTrigger=PropertyChanged}"
                                                                      Style="{StaticResource InputTextBoxStyle}"
                                                                      ToolTip="X 範囲の最大値" />
-                                                            <TextBlock Grid.Column="8"
+                                                        </Grid>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="56" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
                                                                        Text="Baseline"
                                                                        FontSize="11"
                                                                        Foreground="#64748B"
                                                                        VerticalAlignment="Center" />
-                                                            <ComboBox Grid.Column="10"
+                                                            <ComboBox Grid.Column="2"
                                                                       SelectedItem="{Binding Baseline}"
                                                                       Style="{StaticResource InputComboBoxStyle}"
                                                                       ToolTip="ベースライン補正の方法">

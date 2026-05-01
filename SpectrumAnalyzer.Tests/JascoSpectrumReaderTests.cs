@@ -211,6 +211,10 @@ public sealed class JascoSpectrumReaderTests
     [Fact]
     public void Parse_ExtractsTemperatureFooterMetadata()
     {
+        // Section names and key strings here mirror what JASCO V-750
+        // Spectra Manager actually writes — `付属品名` (not `付属品`),
+        // `制御センサー` (not `試料センサー`). Synthesised samples used
+        // to drift from those names and let bugs through silently.
         const string sample = """
             TITLE
             XUNITS	Temperature[C]
@@ -233,9 +237,9 @@ public sealed class JascoSpectrumReaderTests
             測定波長	500 nm
 
             [付属品情報]
-            付属品	ETC-505
+            付属品名	ETC-505
             温度勾配	1 C/min
-            試料センサー	ホルダー
+            制御センサー	ホルダー
             """;
 
         var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), "footer.txt");
@@ -253,6 +257,26 @@ public sealed class JascoSpectrumReaderTests
         Assert.False(dataset.Metadata.ContainsKey("オペレーター"));
         Assert.True(dataset.Metadata.ContainsKey("機種名"));
         Assert.Equal("V-750", dataset.Metadata["機種名"]);
+    }
+
+    [Fact]
+    public void Parse_AccessoryName_FallsBackToShortenedKey()
+    {
+        // Older firmware may drop the 名 suffix. Verify the fallback works.
+        const string sample = """
+            XUNITS	Temperature[C]
+            YUNITS	TRANSMITTANCE
+            XYDATA
+            50	100
+            90	0
+
+            [付属品情報]
+            付属品	ETC-505
+            """;
+
+        var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), null);
+
+        Assert.Equal("ETC-505", dataset.AccessoryName);
     }
 
     [Fact]

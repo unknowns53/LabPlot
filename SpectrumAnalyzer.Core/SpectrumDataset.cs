@@ -96,9 +96,14 @@ public sealed class SpectrumDataset
 
     /// <summary>
     /// Accessory model name reported by the JASCO footer (`付属品情報` →
-    /// `付属品`, e.g. "ETC-505"). Null when no accessory is recorded.
+    /// `付属品名`, e.g. "ETC-505"). Null when no accessory is recorded.
     /// </summary>
-    public string? AccessoryName => GetMetadata("付属品");
+    /// <remarks>
+    /// JASCO V-series writes the key as `付属品名` (with 名), not `付属品`.
+    /// Fall back to the shorter form just in case some older firmware
+    /// drops the suffix.
+    /// </remarks>
+    public string? AccessoryName => GetMetadata("付属品名") ?? GetMetadata("付属品");
 
     /// <summary>
     /// Photometric mode reported by the JASCO footer (`測定情報` →

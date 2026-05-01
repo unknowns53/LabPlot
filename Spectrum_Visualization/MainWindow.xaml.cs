@@ -3499,10 +3499,15 @@ public partial class MainWindow : Window
         var lines = BuildMetadataLines(dataset);
         if (lines.Count == 0) return;
 
-        var annotation = _spectrumPlot.Plot.Add.Annotation(string.Join("\n", lines));
+        var text = string.Join("\n", lines);
+        var annotation = _spectrumPlot.Plot.Add.Annotation(text);
         annotation.Alignment = ScottPlot.Alignment.UpperRight;
         annotation.LabelFontSize = 10;
-        annotation.LabelFontName = "Arial";
+        // Pick a font that actually has Japanese glyphs. The user's main
+        // plot font might be Arial (chosen for English axis labels), in
+        // which case the annotation would render as tofu without this
+        // override.
+        annotation.LabelFontName = ScottPlot.Fonts.Detect(text);
         annotation.LabelFontColor = ScottPlot.Color.FromHex("#0F172A");
         annotation.LabelBackgroundColor = ScottPlot.Color.FromHex("#FFFFFF").WithAlpha((byte)220);
         annotation.LabelBorderColor = ScottPlot.Color.FromHex("#CBD5E1");

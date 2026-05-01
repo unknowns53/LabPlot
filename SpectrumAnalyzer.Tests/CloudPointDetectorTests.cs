@@ -153,6 +153,141 @@ public sealed class CloudPointDetectorTests
     }
 
     [Fact]
+    public void Detect_SigmoidFit_RecoversBoltzmannParameters()
+    {
+        // PNIPAM-like heating sweep: T drops from ~95 % to ~5 % as the sample
+        // crosses Tc. With our Boltzmann parametrisation that means k > 0
+        // (descending curve) — Tc = 33.5 °C, k = +1.5 °C. The fitter should
+        // recover all four parameters to within ~0.1 of their true values.
+        const double tLowTrue = 5.0;
+        const double tHighTrue = 95.0;
+        const double tcTrue = 33.5;
+        const double kTrue = 1.5;
+
+        var points = SampleBoltzmann(25, 45, 0.25, tLowTrue, tHighTrue, tcTrue, kTrue);
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+        var result = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.SigmoidFit });
+
+        Assert.True(result.HasResult);
+        Assert.Equal(CloudPointMethod.SigmoidFit, result.Method);
+        Assert.Equal(tcTrue, result.TemperatureCelsius, precision: 1);
+        Assert.NotNull(result.TLowPercent);
+        Assert.NotNull(result.THighPercent);
+        Assert.NotNull(result.KSlopeCelsius);
+        Assert.NotNull(result.RSquared);
+        Assert.Equal(tLowTrue, result.TLowPercent!.Value, precision: 1);
+        Assert.Equal(tHighTrue, result.THighPercent!.Value, precision: 1);
+        Assert.Equal(kTrue, result.KSlopeCelsius!.Value, precision: 1);
+        Assert.True(result.RSquared!.Value > 0.999);
+    }
+
+    [Fact]
+    public void Detect_SigmoidFit_NoiseyDataIsRobust()
+    {
+        // Same descending sigmoid with ±2 %T uniform noise. The headline
+        // robustness claim of sigmoid fitting over the midpoint method is
+        // that Tc stays within ~0.5 °C of truth even on noisy data.
+        const double tcTrue = 33.5;
+        var rng = new Random(42);
+        var points = new List<SpectrumDataPoint>();
+        for (var x = 25.0; x <= 45.0001; x += 0.25)
+        {
+            var u = (x - tcTrue) / 1.5;
+            var clean = 5.0 + 90.0 / (1.0 + Math.Exp(u));
+            var noise = (rng.NextDouble() - 0.5) * 4.0;
+            points.Add(new SpectrumDataPoint { X = x, Y = clean + noise });
+        }
+
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+        var result = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.SigmoidFit });
+
+        Assert.True(result.HasResult);
+        Assert.InRange(result.TemperatureCelsius, tcTrue - 0.5, tcTrue + 0.5);
+        Assert.True(result.RSquared!.Value > 0.95);
+    }
+
+    [Fact]
+    public void Detect_SigmoidFit_PreservesDirectionForCooling()
+    {
+        // Cooling sweep: file recorded high → low T (firstX > lastX) but the
+        // dataset stores points sorted ascending. The fit should still recover
+        // Tc and report Direction = Cooling.
+        const double tcTrue = 33.5;
+        var points = SampleBoltzmann(25, 45, 0.25, 5.0, 95.0, tcTrue, 1.5);
+        var dataset = MakeTemperatureScan(points, firstX: 45, lastX: 25);
+
+        var result = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.SigmoidFit });
+
+        Assert.True(result.HasResult);
+        Assert.Equal(ScanDirection.Cooling, result.Direction);
+        Assert.InRange(result.TemperatureCelsius, tcTrue - 0.3, tcTrue + 0.3);
+    }
+
+    [Fact]
+    public void Detect_SigmoidFit_FlatLineReturnsEmpty()
+    {
+        // Flat T = 50 % across the whole sweep — there is no transition to
+        // fit, so the plateau-difference guard must reject the result.
+        var points = new List<SpectrumDataPoint>();
+        for (var x = 25.0; x <= 45.0001; x += 0.5)
+        {
+            points.Add(new SpectrumDataPoint { X = x, Y = 50.0 });
+        }
+
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+        var result = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.SigmoidFit });
+
+        Assert.False(result.HasResult);
+    }
+
+    [Fact]
+    public void Detect_SigmoidFit_PopulatesFittedCurveOverEntireGrid()
+    {
+        // FittedCurve must align 1:1 with the dataset's ascending-X points
+        // so the UI can overlay it without re-aligning. Heating-sigmoid
+        // shape: the predicted Y starts near T_high (~95) and ends near T_low
+        // (~5).
+        var points = SampleBoltzmann(25, 45, 0.5, 5.0, 95.0, 33.5, 1.5);
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+
+        var result = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.SigmoidFit });
+
+        Assert.True(result.HasResult);
+        Assert.NotNull(result.FittedCurve);
+        Assert.Equal(points.Count, result.FittedCurve!.Count);
+        Assert.True(result.FittedCurve[0] > 90.0);
+        Assert.True(result.FittedCurve[^1] < 10.0);
+    }
+
+    [Fact]
+    public void Detect_SigmoidFit_HandlesUcstAscendingCurve()
+    {
+        // UCST-like ascending curve (T grows with x). Boltzmann with k < 0
+        // describes this orientation. Tc must still be recovered correctly.
+        const double tcTrue = 33.5;
+        var points = SampleBoltzmann(25, 45, 0.25, 5.0, 95.0, tcTrue, -1.5);
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+
+        var result = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.SigmoidFit });
+
+        Assert.True(result.HasResult);
+        Assert.Equal(tcTrue, result.TemperatureCelsius, precision: 1);
+        Assert.True(result.KSlopeCelsius!.Value < 0);
+    }
+
+    [Fact]
     public void Detect_NonTemperatureScan_ReturnsEmpty()
     {
         var dataset = new SpectrumDataset
@@ -298,6 +433,25 @@ public sealed class CloudPointDetectorTests
             RawLastX = lastX,
             Points = points,
         };
+    }
+
+    private static List<SpectrumDataPoint> SampleBoltzmann(
+        double start,
+        double stop,
+        double step,
+        double tLow,
+        double tHigh,
+        double tc,
+        double k)
+    {
+        var result = new List<SpectrumDataPoint>();
+        for (var x = start; x <= stop + 1e-9; x += step)
+        {
+            var y = tLow + (tHigh - tLow) / (1.0 + Math.Exp((x - tc) / k));
+            result.Add(new SpectrumDataPoint { X = x, Y = y });
+        }
+        result.Sort((a, b) => a.X.CompareTo(b.X));
+        return result;
     }
 
     private static List<SpectrumDataPoint> SampleSigmoid(

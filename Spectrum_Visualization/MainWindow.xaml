@@ -1371,14 +1371,15 @@
                                                 <ComboBox x:Name="CloudPointMethodComboBox"
                                                           Style="{StaticResource InputComboBoxStyle}"
                                                           SelectedIndex="0"
-                                                          ToolTip="中点法: T 閾値の通過温度を線形補間 / 1次微分極大法: 平滑化後の dT/dTemp が最大の温度（変曲点）/ 2次微分極大法: 転移オンセット側の curvature ピーク"
+                                                          ToolTip="中点法: T 閾値の通過温度を線形補間 / 1次微分極大法: 平滑化後の dT/dTemp が最大の温度（変曲点）/ 2次微分極大法: 転移オンセット側の curvature ピーク / シグモイドfit: Boltzmann 関数 fit でロバストな Tc 推定"
                                                           SelectionChanged="CloudPointOption_Changed">
                                                     <ComboBoxItem Content="中点法（T 閾値）" Tag="Midpoint" />
                                                     <ComboBoxItem Content="1次微分極大法" Tag="FirstDerivativePeak" />
                                                     <ComboBoxItem Content="2次微分極大法（オンセット）" Tag="SecondDerivativeExtremum" />
+                                                    <ComboBoxItem Content="シグモイドfit（Boltzmann）" Tag="SigmoidFit" />
                                                 </ComboBox>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="2">
+                                            <StackPanel Grid.Column="2" x:Name="CloudPointThresholdPanel">
                                                 <TextBlock Text="閾値（T %）"
                                                            Style="{StaticResource FieldLabelStyle}" />
                                                 <TextBox x:Name="CloudPointThresholdTextBox"
@@ -1388,6 +1389,20 @@
                                                          TextChanged="CloudPointNumericTextBox_TextChanged" />
                                             </StackPanel>
                                         </Grid>
+                                        <StackPanel x:Name="SigmoidFitOptionsPanel" Visibility="Collapsed" Margin="0,4,0,0">
+                                            <CheckBox x:Name="ShowSigmoidFitCurveCheckBox"
+                                                      Content="フィット曲線をグラフに重ね描き"
+                                                      Margin="0,0,0,4"
+                                                      ToolTip="フィットした Boltzmann 曲線を破線でグラフに重ねて表示。フィット品質を目視確認できます"
+                                                      Checked="CloudPointOption_Changed"
+                                                      Unchecked="CloudPointOption_Changed" />
+                                            <CheckBox x:Name="ShowSigmoidFitParametersCheckBox"
+                                                      Content="k と R² も表示"
+                                                      Margin="0,0,0,0"
+                                                      ToolTip="遷移幅 k（°C）とフィット品質 R² を結果テキストに含めます"
+                                                      Checked="CloudPointOption_Changed"
+                                                      Unchecked="CloudPointOption_Changed" />
+                                        </StackPanel>
                                         <TextBlock x:Name="CloudPointResultTextBlock"
                                                    Text=""
                                                    FontSize="11"

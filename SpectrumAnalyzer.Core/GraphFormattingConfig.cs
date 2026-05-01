@@ -86,8 +86,8 @@ public sealed class GraphFormattingConfig
 
     /// <summary>
     /// Selected cloud-point estimation method. Values: <c>"Midpoint"</c>,
-    /// <c>"FirstDerivativePeak"</c>, <c>"SecondDerivativeExtremum"</c>.
-    /// Anything else normalises back to Midpoint.
+    /// <c>"FirstDerivativePeak"</c>, <c>"SecondDerivativeExtremum"</c>,
+    /// <c>"SigmoidFit"</c>. Anything else normalises back to Midpoint.
     /// </summary>
     public string? CloudPointMethod { get; set; }
 
@@ -95,6 +95,20 @@ public sealed class GraphFormattingConfig
     /// Transmittance threshold (%) used by the midpoint method.
     /// </summary>
     public double CloudPointThresholdPercent { get; set; } = 50.0;
+
+    /// <summary>
+    /// When <c>true</c> and the SigmoidFit method is selected, the fitted
+    /// Boltzmann curve is overlaid on the temperature scan (dashed line in
+    /// the dataset's colour). Ignored for other methods.
+    /// </summary>
+    public bool ShowCloudPointFitCurve { get; set; } = true;
+
+    /// <summary>
+    /// When <c>true</c> and the SigmoidFit method is selected, the auxiliary
+    /// fit parameters (k, R²) are appended to the result text in the analysis
+    /// panel. Ignored for other methods.
+    /// </summary>
+    public bool ShowCloudPointFitParameters { get; set; } = true;
 
     /// <summary>
     /// When <c>true</c>, the JASCO footer metadata of the active temperature
@@ -308,6 +322,13 @@ public sealed class GraphFormattingConfig
             || normalized.Equals("SecondDerivative", StringComparison.OrdinalIgnoreCase))
         {
             return "SecondDerivativeExtremum";
+        }
+
+        if (normalized.Equals("SigmoidFit", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("Sigmoid", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("Boltzmann", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SigmoidFit";
         }
 
         return null;

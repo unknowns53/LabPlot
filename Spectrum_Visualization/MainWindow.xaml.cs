@@ -565,6 +565,8 @@ public partial class MainWindow : Window
             CloudPointThresholdPercent = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var cpThreshold)
                 ? cpThreshold
                 : 50.0,
+            ShowCloudPointFitCurve = ShowSigmoidFitCurveCheckBox.IsChecked == true,
+            ShowCloudPointFitParameters = ShowSigmoidFitParametersCheckBox.IsChecked == true,
             ShowTemperatureScanMetadata = ShowMetadataCheckBox.IsChecked == true,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
         };
@@ -621,6 +623,9 @@ public partial class MainWindow : Window
                 CloudPointMethodComboBox.SelectedIndex = 0;
             }
             CloudPointThresholdTextBox.Text = config.CloudPointThresholdPercent.ToString("0.##", CultureInfo.InvariantCulture);
+            ShowSigmoidFitCurveCheckBox.IsChecked = config.ShowCloudPointFitCurve;
+            ShowSigmoidFitParametersCheckBox.IsChecked = config.ShowCloudPointFitParameters;
+            UpdateSigmoidPanelVisibility();
             ShowMetadataCheckBox.IsChecked = config.ShowTemperatureScanMetadata;
         }
         finally
@@ -2480,7 +2485,18 @@ public partial class MainWindow : Window
     private void CloudPointOption_Changed(object sender, RoutedEventArgs e)
     {
         if (_suppressGraphAppearanceEvents) return;
+        UpdateSigmoidPanelVisibility();
         SchedulePlotCurrentDataset();
+    }
+
+    private void UpdateSigmoidPanelVisibility()
+    {
+        // Sigmoid-fit-specific options (overlay curve, k/R² in result text)
+        // only matter when SigmoidFit is the selected method. The threshold
+        // input is ignored by the fitter so dim it as a UX cue.
+        var isSigmoid = GetSelectedComboBoxTag(CloudPointMethodComboBox) == "SigmoidFit";
+        SigmoidFitOptionsPanel.Visibility = isSigmoid ? Visibility.Visible : Visibility.Collapsed;
+        CloudPointThresholdPanel.IsEnabled = !isSigmoid;
     }
 
     private void CloudPointNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -3588,6 +3604,7 @@ public partial class MainWindow : Window
         {
             "FirstDerivativePeak" => CloudPointMethod.FirstDerivativePeak,
             "SecondDerivativeExtremum" => CloudPointMethod.SecondDerivativeExtremum,
+            "SigmoidFit" => CloudPointMethod.SigmoidFit,
             _ => CloudPointMethod.Midpoint,
         };
     }
@@ -3723,6 +3740,32 @@ public partial class MainWindow : Window
                 marker.LegendText = string.Empty;
             }
 
+            // Sigmoid fit: optionally overlay the fitted Boltzmann curve as a
+            // dashed line in the dataset's colour. The fit returns predicted
+            // Y values in transmittance %; convert back to the active display
+            // mode so the overlay sits on top of the actual curve regardless
+            // of the user's A↔T selection.
+            if (result.Method == CloudPointMethod.SigmoidFit
+                && result.FittedCurve is { } fit
+                && ShowSigmoidFitCurveCheckBox.IsChecked == true)
+            {
+                var fitXs = dataset.XValues;
+                if (fit.Count == fitXs.Length)
+                {
+                    var fittedDisplay = ConvertTransmittancePredictionToDisplay(dataset, fit, yDisplayMode);
+                    var (cleanX, cleanY) = StripNonFinite(fitXs, fittedDisplay);
+                    if (cleanX.Length >= 2)
+                    {
+                        var scatter = _spectrumPlot.Plot.Add.Scatter(cleanX, cleanY);
+                        scatter.LineStyle.Color = color.WithAlpha((byte)180);
+                        scatter.LineStyle.Pattern = ScottPlot.LinePattern.Dashed;
+                        scatter.LineStyle.Width = 1.5f;
+                        scatter.MarkerStyle.IsVisible = false;
+                        scatter.LegendText = string.Empty;
+                    }
+                }
+            }
+
             var labelText = string.Create(
                 CultureInfo.InvariantCulture,
                 $"Tc = {result.TemperatureCelsius:0.0} °C");
@@ -3752,12 +3795,27 @@ public partial class MainWindow : Window
                 CloudPointMethod.Midpoint => $"中点法 T={result.TransmittancePercentAtTc:0.#}%",
                 CloudPointMethod.FirstDerivativePeak => "1次微分極大",
                 CloudPointMethod.SecondDerivativeExtremum => "2次微分極大（オンセット）",
+                CloudPointMethod.SigmoidFit => "シグモイドfit",
                 _ => result.Method.ToString(),
             };
-            lines.Add(string.Format(
+            var baseLine = string.Format(
                 CultureInfo.InvariantCulture,
                 "{0} ({1}, {2}): Tc = {3:0.00} °C",
-                name, dirLabel, methodLabel, result.TemperatureCelsius));
+                name, dirLabel, methodLabel, result.TemperatureCelsius);
+            // For sigmoid fits, optionally append the slope k (in °C, with
+            // sign matching the fit direction) and R² so the user can sanity-
+            // check the fit quality from the analysis panel.
+            if (result.Method == CloudPointMethod.SigmoidFit
+                && ShowSigmoidFitParametersCheckBox.IsChecked == true
+                && result.KSlopeCelsius is { } slope
+                && result.RSquared is { } rsq)
+            {
+                baseLine += string.Format(
+                    CultureInfo.InvariantCulture,
+                    ", k = {0:0.00} °C, R² = {1:0.000}",
+                    slope, rsq);
+            }
+            lines.Add(baseLine);
         }
 
         var heating = rows
@@ -3779,6 +3837,60 @@ public partial class MainWindow : Window
 
         CloudPointResultTextBlock.Text = string.Join(Environment.NewLine, lines);
         CloudPointResultTextBlock.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Translate the sigmoid fit's transmittance-% predictions into whatever
+    /// Y unit the plot is currently rendering in, so the overlay sits flush
+    /// on the actual data curve.
+    /// </summary>
+    private static double[] ConvertTransmittancePredictionToDisplay(
+        SpectrumDataset dataset,
+        IReadOnlyList<double> transmittancePercent,
+        YAxisDisplayMode mode)
+    {
+        var targetMode = mode == YAxisDisplayMode.Native
+            ? (dataset.IsAbsorbanceY ? YAxisDisplayMode.Absorbance : YAxisDisplayMode.Transmittance)
+            : mode;
+
+        var n = transmittancePercent.Count;
+        var result = new double[n];
+        if (targetMode == YAxisDisplayMode.Absorbance)
+        {
+            for (var i = 0; i < n; i++)
+            {
+                result[i] = SpectrumYAxisConverter.TransmittancePercentToAbsorbance(transmittancePercent[i]);
+            }
+        }
+        else
+        {
+            for (var i = 0; i < n; i++)
+            {
+                result[i] = transmittancePercent[i];
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Drop any (x, y) pairs where either coordinate is non-finite (NaN /
+    /// ±∞). ScottPlot's Scatter renderer otherwise draws spikes through the
+    /// gaps.
+    /// </summary>
+    private static (double[] X, double[] Y) StripNonFinite(double[] xs, double[] ys)
+    {
+        var n = Math.Min(xs.Length, ys.Length);
+        var bx = new List<double>(n);
+        var by = new List<double>(n);
+        for (var i = 0; i < n; i++)
+        {
+            if (double.IsFinite(xs[i]) && double.IsFinite(ys[i]))
+            {
+                bx.Add(xs[i]);
+                by.Add(ys[i]);
+            }
+        }
+        return (bx.ToArray(), by.ToArray());
     }
 
     private void DrawMetadataAnnotation((SpectrumDataset Dataset, int Index)[] plotEntries)

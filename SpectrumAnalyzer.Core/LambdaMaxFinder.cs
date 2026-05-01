@@ -60,12 +60,125 @@ public sealed record LambdaMaxResult
 }
 
 /// <summary>
+/// One manually-added λmax marker. Stored alongside the formatting config so
+/// it survives session save/load. The dataset is identified by a stable key
+/// (Title → SourceFilePath → synthetic) and the wavelength is stored as the
+/// already-refined nm value (snapped to the local maximum at click time).
+/// </summary>
+public sealed record ManualLambdaMaxEntry
+{
+    public required string DatasetKey { get; init; }
+
+    public required double WavelengthNm { get; init; }
+}
+
+/// <summary>
+/// Default snap window (nm) used when refining a click-added λmax marker
+/// against the underlying data points.
+/// </summary>
+public static class LambdaMaxManualDefaults
+{
+    public const double SnapWindowNm = 5.0;
+}
+
+/// <summary>
 /// Locates absorbance maxima (λmax) on UV-Vis wavelength scans. Operates in
 /// Absorbance space; transmittance datasets are converted on the fly.
 /// Datasets that are neither A nor T are ignored.
 /// </summary>
 public static class LambdaMaxFinder
 {
+    /// <summary>
+    /// Builds a <see cref="LambdaMaxResult"/> from a clicked wavelength by
+    /// snapping to the local absorbance maximum within
+    /// <paramref name="snapWindowNm"/> nm of the click and refining the
+    /// position with parabolic interpolation. Returns <c>null</c> when the
+    /// dataset is not a wavelength scan, has no Absorbance representation,
+    /// or has no finite samples within the snap window (and the global
+    /// nearest-neighbour fallback also fails).
+    /// </summary>
+    /// <remarks>
+    /// Using the same Absorbance-space + parabolic interpolation pipeline as
+    /// <see cref="Find"/> guarantees that a manual marker placed directly on
+    /// the same peak the auto-detector found will land on the identical
+    /// wavelength, so the two cannot disagree numerically.
+    /// </remarks>
+    public static LambdaMaxResult? RefineManualPeak(
+        SpectrumDataset dataset,
+        double clickedWavelengthNm,
+        double snapWindowNm = LambdaMaxManualDefaults.SnapWindowNm)
+    {
+        ArgumentNullException.ThrowIfNull(dataset);
+
+        if (!dataset.IsWavelengthScan) return null;
+        if (!SpectrumYAxisConverter.CanDisplay(dataset, YAxisDisplayMode.Absorbance)) return null;
+        if (!double.IsFinite(clickedWavelengthNm)) return null;
+
+        var xs = dataset.XValues;
+        var ys = SpectrumYAxisConverter.GetDisplayYValues(dataset, YAxisDisplayMode.Absorbance);
+        if (xs.Length == 0) return null;
+
+        var window = double.IsFinite(snapWindowNm) ? Math.Abs(snapWindowNm) : 0.0;
+        var lo = clickedWavelengthNm - window;
+        var hi = clickedWavelengthNm + window;
+
+        var bestIdx = -1;
+        var bestY = double.NegativeInfinity;
+        for (var i = 0; i < xs.Length; i++)
+        {
+            if (xs[i] < lo || xs[i] > hi) continue;
+            if (!double.IsFinite(ys[i])) continue;
+            if (ys[i] > bestY)
+            {
+                bestY = ys[i];
+                bestIdx = i;
+            }
+        }
+
+        // Window is empty (clicked outside the scan range, or window=0):
+        // fall back to the globally nearest finite sample so the marker
+        // still lands somewhere meaningful.
+        if (bestIdx < 0)
+        {
+            var bestDist = double.PositiveInfinity;
+            for (var i = 0; i < xs.Length; i++)
+            {
+                if (!double.IsFinite(ys[i])) continue;
+                var d = Math.Abs(xs[i] - clickedWavelengthNm);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    bestIdx = i;
+                    bestY = ys[i];
+                }
+            }
+            if (bestIdx < 0) return null;
+        }
+
+        var interpX = xs[bestIdx];
+        var interpY = bestY;
+        if (bestIdx > 0 && bestIdx < xs.Length - 1
+            && double.IsFinite(ys[bestIdx - 1]) && double.IsFinite(ys[bestIdx + 1]))
+        {
+            var (px, py) = ParabolicInterpolate(
+                xs[bestIdx - 1], ys[bestIdx - 1],
+                xs[bestIdx], ys[bestIdx],
+                xs[bestIdx + 1], ys[bestIdx + 1]);
+            if (double.IsFinite(px) && double.IsFinite(py))
+            {
+                interpX = px;
+                interpY = py;
+            }
+        }
+
+        return new LambdaMaxResult
+        {
+            WavelengthNm = interpX,
+            AbsorbanceValue = interpY,
+            SampleIndex = bestIdx,
+        };
+    }
+
     public static IReadOnlyList<LambdaMaxResult> Find(
         SpectrumDataset dataset,
         LambdaMaxFinderConfig config)

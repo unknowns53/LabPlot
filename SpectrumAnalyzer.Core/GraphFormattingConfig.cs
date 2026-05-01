@@ -89,6 +89,14 @@ public sealed class GraphFormattingConfig
     /// </summary>
     public int LambdaMaxCount { get; set; } = 3;
 
+    /// <summary>
+    /// User-added λmax markers placed via click on the spectrum. They are
+    /// rendered alongside the auto-detected peaks (with a distinct shape /
+    /// label) when <see cref="ShowLambdaMaxMarkers"/> is on. Each entry binds
+    /// to a dataset by stable key (Title → SourceFilePath → synthetic).
+    /// </summary>
+    public IList<ManualLambdaMaxEntry> ManualLambdaMaxEntries { get; set; } = new List<ManualLambdaMaxEntry>();
+
     // ----------- Temperature scan: cloud-point detection -----------
     public bool ShowCloudPointMarkers { get; set; }
 
@@ -145,6 +153,7 @@ public sealed class GraphFormattingConfig
         IntegrationRegions = NormalizeIntegrationRegions(IntegrationRegions);
         Calibration = NormalizeCalibration(Calibration);
         CloudPointMethod = NormalizeCloudPointMethod(CloudPointMethod);
+        ManualLambdaMaxEntries = NormalizeManualLambdaMaxEntries(ManualLambdaMaxEntries);
 
         if (!IsFiniteRange(LambdaMaxMinAbsorbance, 0.0, 100.0))
         {
@@ -343,6 +352,33 @@ public sealed class GraphFormattingConfig
             {
                 continue;
             }
+
+            result.Add(raw);
+        }
+
+        return result;
+    }
+
+    private static IList<ManualLambdaMaxEntry> NormalizeManualLambdaMaxEntries(IList<ManualLambdaMaxEntry>? source)
+    {
+        if (source is null || source.Count == 0)
+        {
+            return new List<ManualLambdaMaxEntry>();
+        }
+
+        var result = new List<ManualLambdaMaxEntry>(source.Count);
+        // Defensive (key, wavelength) deduplication: a damaged session
+        // shouldn't end up with two identical manual markers stacked on
+        // top of each other. Wavelengths within 1e-6 nm collapse.
+        var seen = new HashSet<(string Key, long Bucket)>();
+        foreach (var raw in source)
+        {
+            if (raw is null) continue;
+            if (string.IsNullOrWhiteSpace(raw.DatasetKey)) continue;
+            if (!double.IsFinite(raw.WavelengthNm)) continue;
+
+            var bucket = (long)Math.Round(raw.WavelengthNm * 1_000_000.0);
+            if (!seen.Add((raw.DatasetKey, bucket))) continue;
 
             result.Add(raw);
         }

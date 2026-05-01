@@ -725,6 +725,68 @@
                                                          TextChanged="LambdaMaxNumericTextBox_TextChanged" />
                                             </StackPanel>
                                         </Grid>
+
+                                        <Separator Margin="0,8,0,6" Background="#E2E8F0" />
+
+                                        <TextBlock Text="手動 λmax 補正"
+                                                   Style="{StaticResource GroupLabelStyle}"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock Text="自動検出が外す場合に、グラフをクリックしてマーカーを追加できます。クリック位置の近傍 ±5 nm の極大に snap します"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   Margin="0,0,0,6"
+                                                   TextWrapping="Wrap" />
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="AddManualLambdaMaxButton"
+                                                    Grid.Column="0"
+                                                    Content="+ クリックで追加"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="AddManualLambdaMaxButton_Click"
+                                                    ToolTip="ボタンを押した後、グラフ上をクリックすると λmax マーカーを追加（Esc / 右クリック / 同ボタン再押下でキャンセル）" />
+                                            <Button x:Name="ClearManualLambdaMaxButton"
+                                                    Grid.Column="2"
+                                                    Content="× 全削除"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="ClearManualLambdaMaxButton_Click"
+                                                    ToolTip="読み込まれた全データセットの手動 λmax マーカーを削除" />
+                                        </Grid>
+                                        <TextBlock x:Name="ManualLambdaMaxEmptyTextBlock"
+                                                   Text="手動マーカーはまだありません"
+                                                   FontSize="11"
+                                                   Foreground="#94A3B8"
+                                                   FontStyle="Italic"
+                                                   Margin="0,2,0,0" />
+                                        <ItemsControl x:Name="ManualLambdaMaxItemsControl">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="4" />
+                                                            <ColumnDefinition Width="24" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding DisplayText}"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip="{Binding DisplayText}" />
+                                                        <Button Grid.Column="2"
+                                                                Content="×"
+                                                                Padding="0"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Click="RemoveManualLambdaMaxButton_Click"
+                                                                Tag="{Binding}"
+                                                                ToolTip="このマーカーを削除" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                 </Expander>
 

@@ -97,6 +97,13 @@ public partial class MainWindow : Window
     private bool _integrationResizeIsLeftEdge;
     private string? _integrationResizeOriginalText;
 
+    // Click-to-add gesture for manually-corrected λmax markers. Persisted in
+    // GraphFormattingConfig.ManualLambdaMaxEntries; rendered as a filled
+    // triangle (vs. open triangle for auto-detected peaks) so the user can
+    // tell them apart.
+    private readonly ObservableCollection<ManualLambdaMaxEntryVm> _manualLambdaMaxEntryVms = new();
+    private bool _isManualLambdaMaxAddMode;
+
     public MainWindow()
     {
         // Suppress event handlers that fire during XAML parse (ComboBox.SelectionChanged
@@ -119,6 +126,8 @@ public partial class MainWindow : Window
         PeakAssignmentItemsControl.ItemsSource = _peakAssignmentVms;
         IntegrationRegionItemsControl.ItemsSource = _integrationRegionVms;
         IntegrationResultItemsControl.ItemsSource = _integrationResultRowVms;
+        ManualLambdaMaxItemsControl.ItemsSource = _manualLambdaMaxEntryVms;
+        UpdateManualLambdaMaxEmptyVisibility();
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
         RegisterShortcuts();
         Loaded += MainWindow_Loaded;
@@ -560,6 +569,7 @@ public partial class MainWindow : Window
                 && lambdaCount >= 0
                 ? lambdaCount
                 : 3,
+            ManualLambdaMaxEntries = _manualLambdaMaxEntryVms.Select(vm => vm.ToModel()).ToList(),
             ShowCloudPointMarkers = ShowCloudPointCheckBox.IsChecked == true,
             CloudPointMethod = GetSelectedCloudPointMethodConfigValue(),
             CloudPointThresholdPercent = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var cpThreshold)
@@ -620,6 +630,7 @@ public partial class MainWindow : Window
             ShowLambdaMaxCheckBox.IsChecked = config.ShowLambdaMaxMarkers;
             LambdaMaxMinAbsorbanceTextBox.Text = config.LambdaMaxMinAbsorbance.ToString("0.###", CultureInfo.InvariantCulture);
             LambdaMaxCountTextBox.Text = config.LambdaMaxCount.ToString(CultureInfo.InvariantCulture);
+            ApplyManualLambdaMaxEntries(config.ManualLambdaMaxEntries);
             ShowCloudPointCheckBox.IsChecked = config.ShowCloudPointMarkers;
             if (!SelectComboBoxItemByTag(CloudPointMethodComboBox, config.CloudPointMethod ?? "Midpoint"))
             {
@@ -2809,6 +2820,7 @@ public partial class MainWindow : Window
     {
         if (_spectrumPlot is null) return;
         if (_isIntegrationDragMode) return;  // add-region mode handles its own move
+        if (_isManualLambdaMaxAddMode) return; // manual λmax add owns the cursor / clicks
 
         var pos = e.GetPosition(_spectrumPlot);
 
@@ -2842,6 +2854,7 @@ public partial class MainWindow : Window
         if (_spectrumPlot is null) return;
         if (_isIntegrationDragMode) return;
         if (_isIntegrationResizing) return;
+        if (_isManualLambdaMaxAddMode) return;
 
         var pos = e.GetPosition(_spectrumPlot);
         var (vm, isLeft) = FindIntegrationEdgeAt(pos);
@@ -2937,6 +2950,246 @@ public partial class MainWindow : Window
         }
 
         SetStatus("ドラッグ操作を取り消しました", false);
+    }
+
+    // -------------- Manual λmax markers (click-to-add) --------------
+
+    /// <summary>
+    /// View-model wrapper for a manually-added λmax marker. Immutable; the
+    /// list is rebuilt rather than mutated in place because the underlying
+    /// model has no editable fields.
+    /// </summary>
+    private sealed class ManualLambdaMaxEntryVm
+    {
+        public required string DatasetKey { get; init; }
+        public required double WavelengthNm { get; init; }
+        public required string DisplayName { get; init; }
+
+        public string DisplayText => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DisplayName}: λmax = {WavelengthNm:0.#} nm");
+
+        public ManualLambdaMaxEntry ToModel() => new()
+        {
+            DatasetKey = DatasetKey,
+            WavelengthNm = WavelengthNm,
+        };
+    }
+
+    /// <summary>
+    /// Stable per-dataset key, mirroring the calibration window's scheme so
+    /// renames / reorderings round-trip through session files. Title takes
+    /// precedence over the source path so a user-renamed dataset keeps its
+    /// markers when the file is moved.
+    /// </summary>
+    private static string BuildLambdaMaxDatasetKey(SpectrumDataset dataset, int index)
+    {
+        if (!string.IsNullOrWhiteSpace(dataset.Title)) return dataset.Title!;
+        if (!string.IsNullOrWhiteSpace(dataset.SourceFilePath)) return dataset.SourceFilePath!;
+        return $"dataset#{index}";
+    }
+
+    private string ResolveDisplayNameForDatasetKey(string datasetKey)
+    {
+        for (var i = 0; i < _loadedDatasets.Count; i++)
+        {
+            var ds = _loadedDatasets[i];
+            if (string.Equals(BuildLambdaMaxDatasetKey(ds, i), datasetKey, StringComparison.Ordinal))
+            {
+                return GetCustomLegendName(i)
+                    ?? Path.GetFileNameWithoutExtension(ds.SourceFilePath)
+                    ?? $"dataset {i + 1}";
+            }
+        }
+
+        // Fallback for entries restored from a saved session before the
+        // matching file is opened: take the filename portion of the key
+        // when it looks like a path, otherwise the key itself.
+        try
+        {
+            var name = Path.GetFileNameWithoutExtension(datasetKey);
+            return string.IsNullOrWhiteSpace(name) ? datasetKey : name;
+        }
+        catch (ArgumentException)
+        {
+            return datasetKey;
+        }
+    }
+
+    private void ApplyManualLambdaMaxEntries(IList<ManualLambdaMaxEntry>? entries)
+    {
+        _manualLambdaMaxEntryVms.Clear();
+        if (entries is null)
+        {
+            UpdateManualLambdaMaxEmptyVisibility();
+            return;
+        }
+
+        foreach (var entry in entries)
+        {
+            if (entry is null) continue;
+            if (string.IsNullOrWhiteSpace(entry.DatasetKey)) continue;
+            if (!double.IsFinite(entry.WavelengthNm)) continue;
+
+            _manualLambdaMaxEntryVms.Add(new ManualLambdaMaxEntryVm
+            {
+                DatasetKey = entry.DatasetKey,
+                WavelengthNm = entry.WavelengthNm,
+                DisplayName = ResolveDisplayNameForDatasetKey(entry.DatasetKey),
+            });
+        }
+
+        UpdateManualLambdaMaxEmptyVisibility();
+    }
+
+    private void UpdateManualLambdaMaxEmptyVisibility()
+    {
+        ManualLambdaMaxEmptyTextBlock.Visibility = _manualLambdaMaxEntryVms.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ClearManualLambdaMaxButton.IsEnabled = _manualLambdaMaxEntryVms.Count > 0;
+    }
+
+    private void AddManualLambdaMaxButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isManualLambdaMaxAddMode)
+        {
+            ExitManualLambdaMaxAddMode(canceled: true);
+            return;
+        }
+
+        EnterManualLambdaMaxAddMode();
+    }
+
+    private void EnterManualLambdaMaxAddMode()
+    {
+        if (_spectrumPlot is null) return;
+        if (_currentDataset is null || !_currentDataset.IsWavelengthScan)
+        {
+            SetStatus("波長スキャンを選択してから手動 λmax を追加してください", true);
+            return;
+        }
+        if (_isIntegrationDragMode || _isIntegrationResizing) return;
+
+        _isManualLambdaMaxAddMode = true;
+        _spectrumPlot.Cursor = Cursors.Cross;
+        _spectrumPlot.PreviewMouseLeftButtonDown += ManualLambdaMaxAdd_PreviewMouseLeftButtonDown;
+        _spectrumPlot.PreviewMouseRightButtonDown += ManualLambdaMaxAdd_PreviewMouseRightButtonDown;
+        PreviewKeyDown += ManualLambdaMaxAdd_PreviewKeyDown;
+
+        AddManualLambdaMaxButton.Content = "✕ クリック取消";
+        SetStatus("グラフ上の λmax 位置をクリック（Esc / 右クリック / 同ボタン再押下でキャンセル）", false);
+    }
+
+    private void ExitManualLambdaMaxAddMode(bool canceled)
+    {
+        if (!_isManualLambdaMaxAddMode || _spectrumPlot is null) return;
+
+        _isManualLambdaMaxAddMode = false;
+        _spectrumPlot.Cursor = null;
+        _spectrumPlot.PreviewMouseLeftButtonDown -= ManualLambdaMaxAdd_PreviewMouseLeftButtonDown;
+        _spectrumPlot.PreviewMouseRightButtonDown -= ManualLambdaMaxAdd_PreviewMouseRightButtonDown;
+        PreviewKeyDown -= ManualLambdaMaxAdd_PreviewKeyDown;
+
+        AddManualLambdaMaxButton.Content = "+ クリックで追加";
+        if (canceled)
+        {
+            SetStatus("手動 λmax 追加をキャンセルしました", false);
+        }
+    }
+
+    private void ManualLambdaMaxAdd_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_spectrumPlot is null || _currentDataset is null)
+        {
+            ExitManualLambdaMaxAddMode(canceled: true);
+            return;
+        }
+
+        var pos = e.GetPosition(_spectrumPlot);
+        var coord = _spectrumPlot.Plot.GetCoordinates(
+            new ScottPlot.Pixel((float)pos.X, (float)pos.Y));
+        if (!double.IsFinite(coord.X))
+        {
+            ExitManualLambdaMaxAddMode(canceled: true);
+            e.Handled = true;
+            return;
+        }
+
+        var refined = LambdaMaxFinder.RefineManualPeak(_currentDataset, coord.X);
+        if (refined is null)
+        {
+            SetStatus("クリック位置の近傍に有効なデータ点がありませんでした", true);
+            ExitManualLambdaMaxAddMode(canceled: true);
+            e.Handled = true;
+            return;
+        }
+
+        var datasetIndex = _loadedDatasets.IndexOf(_currentDataset);
+        if (datasetIndex < 0) datasetIndex = _activeIndex;
+
+        var key = BuildLambdaMaxDatasetKey(_currentDataset, datasetIndex);
+        var displayName = (datasetIndex >= 0 ? GetCustomLegendName(datasetIndex) : null)
+            ?? Path.GetFileNameWithoutExtension(_currentDataset.SourceFilePath)
+            ?? $"dataset {Math.Max(0, datasetIndex) + 1}";
+
+        // De-duplicate against existing entries within ±0.05 nm so repeated
+        // clicks on the same peak don't stack.
+        var existing = _manualLambdaMaxEntryVms.FirstOrDefault(vm =>
+            string.Equals(vm.DatasetKey, key, StringComparison.Ordinal)
+            && Math.Abs(vm.WavelengthNm - refined.WavelengthNm) < 0.05);
+        if (existing is null)
+        {
+            _manualLambdaMaxEntryVms.Add(new ManualLambdaMaxEntryVm
+            {
+                DatasetKey = key,
+                WavelengthNm = refined.WavelengthNm,
+                DisplayName = displayName,
+            });
+            UpdateManualLambdaMaxEmptyVisibility();
+            SetStatus(
+                string.Create(CultureInfo.InvariantCulture,
+                    $"手動 λmax を {refined.WavelengthNm:0.#} nm に追加しました"),
+                false);
+            SchedulePlotCurrentDataset();
+        }
+        else
+        {
+            SetStatus("近接位置に既に手動マーカーがあるため追加をスキップしました", false);
+        }
+
+        ExitManualLambdaMaxAddMode(canceled: false);
+        e.Handled = true;
+    }
+
+    private void ManualLambdaMaxAdd_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        ExitManualLambdaMaxAddMode(canceled: true);
+        e.Handled = true;
+    }
+
+    private void ManualLambdaMaxAdd_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        ExitManualLambdaMaxAddMode(canceled: true);
+        e.Handled = true;
+    }
+
+    private void RemoveManualLambdaMaxButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ManualLambdaMaxEntryVm vm }) return;
+        _manualLambdaMaxEntryVms.Remove(vm);
+        UpdateManualLambdaMaxEmptyVisibility();
+        SchedulePlotCurrentDataset();
+    }
+
+    private void ClearManualLambdaMaxButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_manualLambdaMaxEntryVms.Count == 0) return;
+        _manualLambdaMaxEntryVms.Clear();
+        UpdateManualLambdaMaxEmptyVisibility();
+        SetStatus("手動 λmax マーカーをすべて削除しました", false);
+        SchedulePlotCurrentDataset();
     }
 
     private (IntegrationRegionVm? Vm, bool IsLeft) FindIntegrationEdgeAt(Point pos)
@@ -3288,6 +3541,18 @@ public partial class MainWindow : Window
         LambdaMaxHintTextBlock.Visibility = hasWavelengthScan
             ? Visibility.Collapsed
             : Visibility.Visible;
+
+        var canAddManual = hasWavelengthScan && _currentDataset?.IsWavelengthScan == true;
+        AddManualLambdaMaxButton.IsEnabled = canAddManual || _isManualLambdaMaxAddMode;
+        ClearManualLambdaMaxButton.IsEnabled = _manualLambdaMaxEntryVms.Count > 0;
+        ManualLambdaMaxItemsControl.IsEnabled = hasWavelengthScan;
+
+        // If the user switched to a non-wavelength-scan dataset while the
+        // click-to-add mode was armed, bail out to avoid stale state.
+        if (_isManualLambdaMaxAddMode && !canAddManual)
+        {
+            ExitManualLambdaMaxAddMode(canceled: true);
+        }
     }
 
     private void UpdateCloudPointUi(SpectrumDataset? dataset)
@@ -3645,13 +3910,12 @@ public partial class MainWindow : Window
         {
             if (!dataset.IsWavelengthScan) continue;
 
-            var peaks = LambdaMaxFinder.Find(dataset, config);
-            if (peaks.Count == 0) continue;
-
             var color = ResolveDatasetColor(datasetIndex);
             var displayYs = SpectrumYAxisConverter.GetDisplayYValues(dataset, yDisplayMode);
             var xs = dataset.XValues;
 
+            // -- Auto-detected peaks --
+            var peaks = LambdaMaxFinder.Find(dataset, config);
             foreach (var peak in peaks)
             {
                 if (!peak.HasResult) continue;
@@ -3664,33 +3928,83 @@ public partial class MainWindow : Window
                     : double.NaN;
                 if (!double.IsFinite(displayY)) continue;
 
-                var line = _spectrumPlot.Plot.Add.VerticalLine(peak.WavelengthNm);
-                line.LineStyle.Color = color.WithAlpha((byte)170);
-                line.LineStyle.Pattern = ScottPlot.LinePattern.Dotted;
-                line.LineStyle.Width = 1;
-                line.LegendText = string.Empty;
+                DrawLambdaMaxMarker(
+                    peak.WavelengthNm, displayY, color,
+                    isManual: false, axisLimits, labelOffset);
+            }
 
-                var marker = _spectrumPlot.Plot.Add.Marker(peak.WavelengthNm, displayY);
-                marker.MarkerStyle.Shape = ScottPlot.MarkerShape.OpenTriangleDown;
-                marker.MarkerStyle.Size = 8;
-                marker.MarkerStyle.LineColor = color;
-                marker.MarkerStyle.LineWidth = 1.5f;
-                marker.MarkerStyle.FillColor = ScottPlot.Colors.White;
-                marker.LegendText = string.Empty;
+            // -- Manual markers --
+            // Resolve Y by nearest-neighbour index lookup rather than
+            // InterpolateY, because that helper assumes ascending X but
+            // JASCO wavelength scans may be sampled either way.
+            var datasetKey = BuildLambdaMaxDatasetKey(dataset, datasetIndex);
+            foreach (var vm in _manualLambdaMaxEntryVms)
+            {
+                if (!string.Equals(vm.DatasetKey, datasetKey, StringComparison.Ordinal)) continue;
+                if (xs.Length == 0) continue;
 
-                var labelText = string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"λmax = {peak.WavelengthNm:0.#} nm");
-                var labelY = displayY + labelOffset;
-                if (labelY > axisLimits.Top) labelY = displayY - labelOffset;
+                var nearest = -1;
+                var bestDist = double.PositiveInfinity;
+                for (var i = 0; i < xs.Length; i++)
+                {
+                    var d = Math.Abs(xs[i] - vm.WavelengthNm);
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        nearest = i;
+                    }
+                }
+                if (nearest < 0) continue;
+                var manualY = displayYs[nearest];
+                if (!double.IsFinite(manualY)) continue;
 
-                var text = _spectrumPlot.Plot.Add.Text(labelText, peak.WavelengthNm, labelY);
-                text.LabelFontColor = color;
-                text.LabelFontSize = 10;
-                text.LabelAlignment = ScottPlot.Alignment.LowerCenter;
-                text.LabelBold = false;
+                DrawLambdaMaxMarker(
+                    vm.WavelengthNm, manualY, color,
+                    isManual: true, axisLimits, labelOffset);
             }
         }
+    }
+
+    private void DrawLambdaMaxMarker(
+        double wavelengthNm,
+        double displayY,
+        ScottPlot.Color color,
+        bool isManual,
+        ScottPlot.AxisLimits axisLimits,
+        double labelOffset)
+    {
+        if (_spectrumPlot is null) return;
+
+        var line = _spectrumPlot.Plot.Add.VerticalLine(wavelengthNm);
+        line.LineStyle.Color = color.WithAlpha((byte)170);
+        line.LineStyle.Pattern = isManual ? ScottPlot.LinePattern.Dashed : ScottPlot.LinePattern.Dotted;
+        line.LineStyle.Width = 1;
+        line.LegendText = string.Empty;
+
+        var marker = _spectrumPlot.Plot.Add.Marker(wavelengthNm, displayY);
+        // Manual markers use a filled triangle in the dataset colour so the
+        // user can tell their click-added points apart from auto-detected
+        // peaks at a glance.
+        marker.MarkerStyle.Shape = isManual
+            ? ScottPlot.MarkerShape.FilledTriangleDown
+            : ScottPlot.MarkerShape.OpenTriangleDown;
+        marker.MarkerStyle.Size = 8;
+        marker.MarkerStyle.LineColor = color;
+        marker.MarkerStyle.LineWidth = 1.5f;
+        marker.MarkerStyle.FillColor = isManual ? color : ScottPlot.Colors.White;
+        marker.LegendText = string.Empty;
+
+        var labelText = isManual
+            ? string.Create(CultureInfo.InvariantCulture, $"λmax = {wavelengthNm:0.#} nm (手動)")
+            : string.Create(CultureInfo.InvariantCulture, $"λmax = {wavelengthNm:0.#} nm");
+        var labelY = displayY + labelOffset;
+        if (labelY > axisLimits.Top) labelY = displayY - labelOffset;
+
+        var text = _spectrumPlot.Plot.Add.Text(labelText, wavelengthNm, labelY);
+        text.LabelFontColor = color;
+        text.LabelFontSize = 10;
+        text.LabelAlignment = ScottPlot.Alignment.LowerCenter;
+        text.LabelBold = false;
     }
 
     private void DrawCloudPointMarkers(

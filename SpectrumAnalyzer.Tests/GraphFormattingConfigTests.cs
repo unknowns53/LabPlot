@@ -126,6 +126,57 @@ public sealed class GraphFormattingConfigTests
     }
 
     [Fact]
+    public void Defaults_ManualLambdaMaxEntriesIsEmpty()
+    {
+        var config = new GraphFormattingConfig();
+        Assert.NotNull(config.ManualLambdaMaxEntries);
+        Assert.Empty(config.ManualLambdaMaxEntries);
+    }
+
+    [Fact]
+    public void Normalize_ManualLambdaMaxEntries_DropsInvalidEntries()
+    {
+        var config = new GraphFormattingConfig
+        {
+            ManualLambdaMaxEntries = new List<ManualLambdaMaxEntry>
+            {
+                new() { DatasetKey = "good", WavelengthNm = 280.0 },
+                new() { DatasetKey = "  ", WavelengthNm = 300.0 },             // blank key
+                new() { DatasetKey = "nan", WavelengthNm = double.NaN },        // non-finite
+                new() { DatasetKey = "inf", WavelengthNm = double.PositiveInfinity },
+            },
+        };
+
+        config.Normalize();
+
+        Assert.Single(config.ManualLambdaMaxEntries);
+        Assert.Equal("good", config.ManualLambdaMaxEntries[0].DatasetKey);
+        Assert.Equal(280.0, config.ManualLambdaMaxEntries[0].WavelengthNm);
+    }
+
+    [Fact]
+    public void Normalize_ManualLambdaMaxEntries_DeduplicatesByKeyAndWavelength()
+    {
+        var config = new GraphFormattingConfig
+        {
+            ManualLambdaMaxEntries = new List<ManualLambdaMaxEntry>
+            {
+                new() { DatasetKey = "ds1", WavelengthNm = 280.0 },
+                new() { DatasetKey = "ds1", WavelengthNm = 280.0 },  // exact duplicate
+                new() { DatasetKey = "ds1", WavelengthNm = 350.0 },  // different wavelength, kept
+                new() { DatasetKey = "ds2", WavelengthNm = 280.0 },  // different dataset, kept
+            },
+        };
+
+        config.Normalize();
+
+        Assert.Equal(3, config.ManualLambdaMaxEntries.Count);
+        Assert.Contains(config.ManualLambdaMaxEntries, e => e.DatasetKey == "ds1" && e.WavelengthNm == 280.0);
+        Assert.Contains(config.ManualLambdaMaxEntries, e => e.DatasetKey == "ds1" && e.WavelengthNm == 350.0);
+        Assert.Contains(config.ManualLambdaMaxEntries, e => e.DatasetKey == "ds2" && e.WavelengthNm == 280.0);
+    }
+
+    [Fact]
     public void Normalize_CalibrationSamples_RemoveDuplicatesAndEmpty()
     {
         var config = new GraphFormattingConfig

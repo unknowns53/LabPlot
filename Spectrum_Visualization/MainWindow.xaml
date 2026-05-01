@@ -14,6 +14,7 @@
         TextOptions.TextRenderingMode="ClearType"
         UseLayoutRounding="True">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <Style x:Key="SectionStyle" TargetType="Border">
             <Setter Property="Background" Value="White" />
             <Setter Property="BorderBrush" Value="#E2E8F0" />
@@ -1499,7 +1500,43 @@
                                                                       ToolTip="ベースライン補正の方法">
                                                                 <core:BaselineMethod>None</core:BaselineMethod>
                                                                 <core:BaselineMethod>Linear</core:BaselineMethod>
+                                                                <core:BaselineMethod>ConvexHull</core:BaselineMethod>
+                                                                <core:BaselineMethod>RubberBand</core:BaselineMethod>
+                                                                <core:BaselineMethod>RubberBandHull</core:BaselineMethod>
+                                                                <core:BaselineMethod>Polynomial</core:BaselineMethod>
                                                             </ComboBox>
+                                                        </Grid>
+                                                        <Grid Visibility="{Binding IsRubberBand, Converter={StaticResource BoolToVisibility}}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="56" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="Segments"
+                                                                       FontSize="11"
+                                                                       Foreground="#64748B"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="2"
+                                                                     Text="{Binding RubberBandSegmentsText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                                     ToolTip="ラバーバンドの分割数 (2 以上、既定 16)" />
+                                                        </Grid>
+                                                        <Grid Visibility="{Binding IsPolynomial, Converter={StaticResource BoolToVisibility}}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="56" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="Order"
+                                                                       FontSize="11"
+                                                                       Foreground="#64748B"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="2"
+                                                                     Text="{Binding PolynomialOrderText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                                     ToolTip="多項式の次数 (1 - 5、既定 2)" />
                                                         </Grid>
                                                     </StackPanel>
                                                 </Border>

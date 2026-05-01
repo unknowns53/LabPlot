@@ -16,6 +16,37 @@ public enum BaselineMethod
     /// the data point-by-point before integration.
     /// </summary>
     Linear = 1,
+
+    /// <summary>
+    /// Lower convex hull of the data points within the region (anchored at
+    /// the region endpoints). Useful when the underlying baseline is curved
+    /// rather than a chord — common for IR / Raman spectra.
+    /// </summary>
+    ConvexHull = 2,
+
+    /// <summary>
+    /// Rubber-band: split [XMin, XMax] into N equal-width segments, take the
+    /// lowest Y in each, and connect those minima with linear segments. The
+    /// baseline can ride along peak edges if N is too large for the peak
+    /// width — see <see cref="RubberBandHull"/> for a smoother variant.
+    /// Tunable via <see cref="IntegrationRegion.RubberBandSegments"/>.
+    /// </summary>
+    RubberBand = 3,
+
+    /// <summary>
+    /// Polynomial of order P fitted (least squares) through the lower convex
+    /// hull vertices within the region. P is set by
+    /// <see cref="IntegrationRegion.PolynomialOrder"/> and capped at 5.
+    /// </summary>
+    Polynomial = 4,
+
+    /// <summary>
+    /// Bruker OPUS-style rubber-band: take the segment minima as in
+    /// <see cref="RubberBand"/>, then keep only the lower convex hull of
+    /// those minima — so the baseline never rises onto a peak even when N
+    /// is larger than the peak width.
+    /// </summary>
+    RubberBandHull = 5,
 }
 
 /// <summary>
@@ -31,11 +62,29 @@ public sealed record IntegrationRegion
 
     public BaselineMethod BaselineMethod { get; init; } = BaselineMethod.Linear;
 
+    /// <summary>
+    /// Number of equal-width segments used by the RubberBand baseline. Only
+    /// consulted when <see cref="BaselineMethod"/> is
+    /// <see cref="BaselineMethod.RubberBand"/>.
+    /// </summary>
+    public int RubberBandSegments { get; init; } = 16;
+
+    /// <summary>
+    /// Order of the polynomial fitted by the Polynomial baseline. Only
+    /// consulted when <see cref="BaselineMethod"/> is
+    /// <see cref="BaselineMethod.Polynomial"/>. Capped at 5 by the integrator.
+    /// </summary>
+    public int PolynomialOrder { get; init; } = 2;
+
     public bool IsValid =>
         !string.IsNullOrWhiteSpace(Label)
         && double.IsFinite(XMin)
         && double.IsFinite(XMax)
-        && XMin < XMax;
+        && XMin < XMax
+        && (BaselineMethod is not (BaselineMethod.RubberBand or BaselineMethod.RubberBandHull)
+            || RubberBandSegments >= 2)
+        && (BaselineMethod != BaselineMethod.Polynomial
+            || (PolynomialOrder >= 1 && PolynomialOrder <= 5));
 }
 
 /// <summary>

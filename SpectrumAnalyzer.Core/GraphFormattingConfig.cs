@@ -234,9 +234,24 @@ public sealed class GraphFormattingConfig
         }
 
         var result = new List<IntegrationRegion>(source.Count);
-        foreach (var region in source)
+        foreach (var raw in source)
         {
-            if (region is null || !region.IsValid)
+            if (raw is null)
+            {
+                continue;
+            }
+
+            // Defensive clamp for the new method-specific parameters: hand-
+            // edited config files (and old sessions that pre-date the
+            // properties — which deserialize to 0) should not break loading.
+            // Out-of-range values silently snap to the defaults / valid range.
+            var region = raw with
+            {
+                RubberBandSegments = Math.Clamp(raw.RubberBandSegments <= 0 ? 16 : raw.RubberBandSegments, 2, 1024),
+                PolynomialOrder = Math.Clamp(raw.PolynomialOrder <= 0 ? 2 : raw.PolynomialOrder, 1, 5),
+            };
+
+            if (!region.IsValid)
             {
                 continue;
             }

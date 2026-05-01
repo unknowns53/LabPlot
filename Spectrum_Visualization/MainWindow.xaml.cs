@@ -312,6 +312,8 @@ public partial class MainWindow : Window
         private string _xMinText = string.Empty;
         private string _xMaxText = string.Empty;
         private BaselineMethod _baseline = BaselineMethod.Linear;
+        private string _rubberBandSegmentsText = "16";
+        private string _polynomialOrderText = "2";
 
         public string Label
         {
@@ -354,8 +356,39 @@ public partial class MainWindow : Window
                 if (_baseline == value) return;
                 _baseline = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsRubberBand));
+                OnPropertyChanged(nameof(IsPolynomial));
             }
         }
+
+        public string RubberBandSegmentsText
+        {
+            get => _rubberBandSegmentsText;
+            set
+            {
+                if (_rubberBandSegmentsText == value) return;
+                _rubberBandSegmentsText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string PolynomialOrderText
+        {
+            get => _polynomialOrderText;
+            set
+            {
+                if (_polynomialOrderText == value) return;
+                _polynomialOrderText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        // Both rubber-band variants share the Segments knob, so the same
+        // Visibility flag drives the inline TextBox for either.
+        public bool IsRubberBand =>
+            _baseline is BaselineMethod.RubberBand or BaselineMethod.RubberBandHull;
+
+        public bool IsPolynomial => _baseline == BaselineMethod.Polynomial;
 
         public IntegrationRegion? ToModel()
         {
@@ -369,12 +402,24 @@ public partial class MainWindow : Window
                 return null;
             }
 
+            // Failed parses fall back to defaults so a transient typo
+            // (empty / mid-edit text) doesn't invalidate the whole region.
+            // Out-of-range values silently clamp.
+            var segments = int.TryParse(
+                _rubberBandSegmentsText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var s)
+                ? s : 16;
+            var order = int.TryParse(
+                _polynomialOrderText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var o)
+                ? o : 2;
+
             var region = new IntegrationRegion
             {
                 Label = _label.Trim(),
                 XMin = xMin,
                 XMax = xMax,
                 BaselineMethod = _baseline,
+                RubberBandSegments = Math.Clamp(segments, 2, 1024),
+                PolynomialOrder = Math.Clamp(order, 1, 5),
             };
             return region.IsValid ? region : null;
         }
@@ -3184,6 +3229,8 @@ public partial class MainWindow : Window
                 XMinText = region.XMin.ToString("G", CultureInfo.InvariantCulture),
                 XMaxText = region.XMax.ToString("G", CultureInfo.InvariantCulture),
                 Baseline = region.BaselineMethod,
+                RubberBandSegmentsText = region.RubberBandSegments.ToString(CultureInfo.InvariantCulture),
+                PolynomialOrderText = region.PolynomialOrder.ToString(CultureInfo.InvariantCulture),
             };
             vm.PropertyChanged += IntegrationRegionVm_PropertyChanged;
             _integrationRegionVms.Add(vm);
@@ -3311,7 +3358,7 @@ public partial class MainWindow : Window
 
         var regions = _integrationRegionVms
             .Select(vm => vm.ToModel())
-            .Where(region => region is not null && region.BaselineMethod == BaselineMethod.Linear)
+            .Where(region => region is not null && region.BaselineMethod != BaselineMethod.None)
             .Cast<IntegrationRegion>()
             .ToArray();
 
@@ -3345,21 +3392,66 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                var yAtMin = InterpolateY(xs, displayYs, region.XMin);
-                var yAtMax = InterpolateY(xs, displayYs, region.XMax);
-                if (yAtMin is null || yAtMax is null)
+                // Linear keeps the cheap chord; everything else samples the
+                // actual baseline curve from the integrator (Absorbance space)
+                // and converts to the active display space before plotting.
+                if (region.BaselineMethod == BaselineMethod.Linear)
+                {
+                    var yAtMin = InterpolateY(xs, displayYs, region.XMin);
+                    var yAtMax = InterpolateY(xs, displayYs, region.XMax);
+                    if (yAtMin is null || yAtMax is null)
+                    {
+                        continue;
+                    }
+
+                    var line = _spectrumPlot.Plot.Add.Line(region.XMin, yAtMin.Value, region.XMax, yAtMax.Value);
+                    line.LineStyle.Color = datasetColor.WithAlpha((byte)110);
+                    line.LineStyle.Width = 1;
+                    line.LineStyle.Pattern = ScottPlot.LinePattern.Solid;
+                    line.MarkerStyle.IsVisible = false;
+                    continue;
+                }
+
+                var curve = SpectrumIntegrator.BuildBaselineCurve(dataset, region);
+                if (curve is null)
                 {
                     continue;
                 }
 
-                var line = _spectrumPlot.Plot.Add.Line(region.XMin, yAtMin.Value, region.XMax, yAtMax.Value);
-                line.LineStyle.Color = datasetColor.WithAlpha((byte)110);
-                line.LineStyle.Width = 1;
-                line.LineStyle.Pattern = ScottPlot.LinePattern.Solid;
-                line.MarkerStyle.IsVisible = false;
-                line.LegendText = string.Empty;
+                var (gridX, baselineY) = curve.Value;
+                var displayBaselineY = ConvertAbsorbanceBaselineToDisplay(baselineY, yDisplayMode);
+
+                var scatter = _spectrumPlot.Plot.Add.Scatter(gridX, displayBaselineY);
+                scatter.LineStyle.Color = datasetColor.WithAlpha((byte)110);
+                scatter.LineStyle.Width = 1;
+                scatter.LineStyle.Pattern = ScottPlot.LinePattern.Solid;
+                scatter.MarkerStyle.IsVisible = false;
+                scatter.LegendText = string.Empty;
             }
         }
+    }
+
+    /// <summary>
+    /// Convert a baseline Y array (always in Absorbance space, as
+    /// <see cref="SpectrumIntegrator.BuildBaselineCurve"/> returns it) into
+    /// the currently displayed Y axis space so the plot overlay sits on the
+    /// curve regardless of A / T toggle. Native mode is treated as A — the
+    /// integrator only emits a curve when the dataset is A-compatible.
+    /// </summary>
+    private static double[] ConvertAbsorbanceBaselineToDisplay(double[] absorbanceY, YAxisDisplayMode displayMode)
+    {
+        if (displayMode != YAxisDisplayMode.Transmittance)
+        {
+            return absorbanceY;
+        }
+
+        var result = new double[absorbanceY.Length];
+        for (var i = 0; i < absorbanceY.Length; i++)
+        {
+            result[i] = SpectrumYAxisConverter.AbsorbanceToTransmittancePercent(absorbanceY[i]);
+        }
+
+        return result;
     }
 
     private ScottPlot.Color ResolveDatasetColor(int datasetIndex)

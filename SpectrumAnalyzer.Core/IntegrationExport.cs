@@ -93,7 +93,7 @@ public sealed class IntegrationExport
             sheet.Cell(r, 2).Value = row.Region.Label;
             SetNumeric(sheet.Cell(r, 3), row.Region.XMin);
             SetNumeric(sheet.Cell(r, 4), row.Region.XMax);
-            sheet.Cell(r, 5).Value = row.Region.BaselineMethod.ToString();
+            sheet.Cell(r, 5).Value = FormatBaseline(row.Region);
             SetNumeric(sheet.Cell(r, 6), row.Result.Area);
             SetNumeric(sheet.Cell(r, 7), row.Result.RawArea);
             SetNumeric(sheet.Cell(r, 8), row.Result.BaselineArea);
@@ -121,7 +121,7 @@ public sealed class IntegrationExport
                 Quote(row.Region.Label),
                 FormatDouble(row.Region.XMin),
                 FormatDouble(row.Region.XMax),
-                row.Region.BaselineMethod.ToString(),
+                Quote(FormatBaseline(row.Region)),
                 FormatDouble(row.Result.Area),
                 FormatDouble(row.Result.RawArea),
                 FormatDouble(row.Result.BaselineArea),
@@ -129,6 +129,14 @@ public sealed class IntegrationExport
                 Quote(row.YUnits)));
         }
     }
+
+    private static string FormatBaseline(IntegrationRegion region) => region.BaselineMethod switch
+    {
+        BaselineMethod.RubberBand => $"RubberBand({region.RubberBandSegments})",
+        BaselineMethod.RubberBandHull => $"RubberBandHull({region.RubberBandSegments})",
+        BaselineMethod.Polynomial => $"Polynomial({region.PolynomialOrder})",
+        _ => region.BaselineMethod.ToString(),
+    };
 
     private static string FormatDouble(double value)
     {

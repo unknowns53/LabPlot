@@ -69,6 +69,90 @@ public sealed class CloudPointDetectorTests
     }
 
     [Fact]
+    public void Detect_SecondDerivativeExtremum_PicksOnsetForHeating()
+    {
+        // Sigmoid: T(°C) = 100 / (1 + exp((Temp - 35)/2)). For a heating
+        // sweep the onset (curvature peak on the pre-transition baseline
+        // side) lies analytically at Temp ≈ 31.5 — below the inflection at
+        // 35 °C.
+        var points = SampleSigmoid(start: 25.0, stop: 45.0, step: 0.25, center: 35.0, k: 2.0);
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+        var config = new CloudPointDetectionConfig
+        {
+            Method = CloudPointMethod.SecondDerivativeExtremum,
+            SmoothingWindow = 3,
+        };
+
+        var result = CloudPointDetector.Detect(dataset, config);
+
+        Assert.True(result.HasResult);
+        Assert.Equal(CloudPointMethod.SecondDerivativeExtremum, result.Method);
+        Assert.Equal(ScanDirection.Heating, result.Direction);
+        Assert.InRange(result.TemperatureCelsius, 30.5, 32.5);
+    }
+
+    [Fact]
+    public void Detect_SecondDerivativeExtremum_PicksOnsetForCooling()
+    {
+        // Same sigmoid, recorded with cooling direction (firstX > lastX).
+        // The "baseline" side of the original sweep is at high T after
+        // ascending sort, so the onset should land near 38.5 °C.
+        var points = SampleSigmoid(start: 25.0, stop: 45.0, step: 0.25, center: 35.0, k: 2.0);
+        var dataset = MakeTemperatureScan(points, firstX: 45, lastX: 25);
+        var config = new CloudPointDetectionConfig
+        {
+            Method = CloudPointMethod.SecondDerivativeExtremum,
+            SmoothingWindow = 3,
+        };
+
+        var result = CloudPointDetector.Detect(dataset, config);
+
+        Assert.True(result.HasResult);
+        Assert.Equal(ScanDirection.Cooling, result.Direction);
+        Assert.InRange(result.TemperatureCelsius, 37.5, 39.5);
+    }
+
+    [Fact]
+    public void Detect_SecondDerivativeExtremum_OnsetIsStrictlyBeforeInflection()
+    {
+        // Sanity check: for a heating sigmoid the onset method must return a
+        // temperature strictly below the inflection picked by the
+        // first-derivative-peak method, otherwise the two UI options are
+        // indistinguishable.
+        var points = SampleSigmoid(start: 25.0, stop: 45.0, step: 0.25, center: 35.0, k: 2.0);
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+
+        var inflection = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.FirstDerivativePeak });
+        var onset = CloudPointDetector.Detect(
+            dataset,
+            new CloudPointDetectionConfig { Method = CloudPointMethod.SecondDerivativeExtremum });
+
+        Assert.True(inflection.HasResult);
+        Assert.True(onset.HasResult);
+        Assert.True(
+            onset.TemperatureCelsius < inflection.TemperatureCelsius,
+            $"Onset {onset.TemperatureCelsius} should be below inflection {inflection.TemperatureCelsius}");
+    }
+
+    [Fact]
+    public void Detect_SecondDerivativeExtremum_LinearRampReturnsEmpty()
+    {
+        // A pure linear ramp has zero curvature everywhere, so the onset
+        // method has nothing to lock onto.
+        var dataset = MakeTemperatureScan(SampleLinear(30, 100, 50, 0, 21), firstX: 30, lastX: 50);
+        var config = new CloudPointDetectionConfig
+        {
+            Method = CloudPointMethod.SecondDerivativeExtremum,
+        };
+
+        var result = CloudPointDetector.Detect(dataset, config);
+
+        Assert.False(result.HasResult);
+    }
+
+    [Fact]
     public void Detect_NonTemperatureScan_ReturnsEmpty()
     {
         var dataset = new SpectrumDataset
@@ -214,6 +298,24 @@ public sealed class CloudPointDetectorTests
             RawLastX = lastX,
             Points = points,
         };
+    }
+
+    private static List<SpectrumDataPoint> SampleSigmoid(
+        double start,
+        double stop,
+        double step,
+        double center,
+        double k)
+    {
+        var result = new List<SpectrumDataPoint>();
+        for (var x = start; x <= stop + 1e-9; x += step)
+        {
+            var y = 100.0 / (1.0 + Math.Exp((x - center) / k));
+            result.Add(new SpectrumDataPoint { X = x, Y = y });
+        }
+
+        result.Sort((a, b) => a.X.CompareTo(b.X));
+        return result;
     }
 
     private static List<SpectrumDataPoint> SampleLinear(double x0, double y0, double x1, double y1, int count)

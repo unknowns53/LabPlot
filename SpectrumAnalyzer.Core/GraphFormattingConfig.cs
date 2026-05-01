@@ -86,8 +86,8 @@ public sealed class GraphFormattingConfig
 
     /// <summary>
     /// Selected cloud-point estimation method. Values: <c>"Midpoint"</c>,
-    /// <c>"FirstDerivativePeak"</c>. Anything else normalises back to
-    /// Midpoint.
+    /// <c>"FirstDerivativePeak"</c>, <c>"SecondDerivativeExtremum"</c>.
+    /// Anything else normalises back to Midpoint.
     /// </summary>
     public string? CloudPointMethod { get; set; }
 
@@ -280,6 +280,12 @@ public sealed class GraphFormattingConfig
             || normalized.Equals("Derivative", StringComparison.OrdinalIgnoreCase))
         {
             return "FirstDerivativePeak";
+        }
+
+        if (normalized.Equals("SecondDerivativeExtremum", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("SecondDerivative", StringComparison.OrdinalIgnoreCase))
+        {
+            return "SecondDerivativeExtremum";
         }
 
         return null;

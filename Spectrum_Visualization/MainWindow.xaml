@@ -1354,10 +1354,11 @@
                                                 <ComboBox x:Name="CloudPointMethodComboBox"
                                                           Style="{StaticResource InputComboBoxStyle}"
                                                           SelectedIndex="0"
-                                                          ToolTip="中点法: T 閾値の通過温度を線形補間 / 1次微分極大法: 平滑化後の dT/dTemp が最大の温度"
+                                                          ToolTip="中点法: T 閾値の通過温度を線形補間 / 1次微分極大法: 平滑化後の dT/dTemp が最大の温度（変曲点）/ 2次微分極大法: 転移オンセット側の curvature ピーク"
                                                           SelectionChanged="CloudPointOption_Changed">
                                                     <ComboBoxItem Content="中点法（T 閾値）" Tag="Midpoint" />
                                                     <ComboBoxItem Content="1次微分極大法" Tag="FirstDerivativePeak" />
+                                                    <ComboBoxItem Content="2次微分極大法（オンセット）" Tag="SecondDerivativeExtremum" />
                                                 </ComboBox>
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">

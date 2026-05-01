@@ -19,6 +19,16 @@ public enum CloudPointMethod
     /// after smoothing with a small moving average.
     /// </summary>
     FirstDerivativePeak = 1,
+
+    /// <summary>
+    /// Second-derivative extremum (onset) method: returns the temperature at
+    /// which |d²T/dTemp²| is largest, restricted to the side of the
+    /// inflection point that corresponds to the *start* of the original
+    /// sweep. For a sigmoid this picks the curvature peak adjacent to the
+    /// pre-transition baseline rather than the inflection itself, giving an
+    /// estimate of the transition onset.
+    /// </summary>
+    SecondDerivativeExtremum = 2,
 }
 
 /// <summary>
@@ -122,6 +132,7 @@ public static class CloudPointDetector
         {
             CloudPointMethod.Midpoint => DetectByMidpoint(xs, ts, config, direction),
             CloudPointMethod.FirstDerivativePeak => DetectByDerivative(xs, ts, config, direction),
+            CloudPointMethod.SecondDerivativeExtremum => DetectBySecondDerivativeExtremum(xs, ts, config, direction),
             _ => CloudPointResult.Empty(config.Method, direction),
         };
     }
@@ -173,7 +184,114 @@ public static class CloudPointDetector
         ScanDirection direction)
     {
         var smoothed = MovingAverage(ts, Math.Max(1, config.SmoothingWindow));
+        var bestIndex = FindFirstDerivativePeakIndex(xs, smoothed);
 
+        if (bestIndex < 0)
+        {
+            return CloudPointResult.Empty(CloudPointMethod.FirstDerivativePeak, direction);
+        }
+
+        return new CloudPointResult
+        {
+            Method = CloudPointMethod.FirstDerivativePeak,
+            TemperatureCelsius = xs[bestIndex],
+            TransmittancePercentAtTc = smoothed[bestIndex],
+            Direction = direction,
+        };
+    }
+
+    private static CloudPointResult DetectBySecondDerivativeExtremum(
+        double[] xs,
+        double[] ts,
+        CloudPointDetectionConfig config,
+        ScanDirection direction)
+    {
+        // Find the curvature peak (|d²T/dTemp²| max) on the side of the
+        // inflection that corresponds to the original sweep's *baseline*
+        // — i.e. the start of the experiment. Result reads as a transition
+        // onset rather than the inflection itself.
+        var smoothed = MovingAverage(ts, Math.Max(1, config.SmoothingWindow));
+        var inflectionIndex = FindFirstDerivativePeakIndex(xs, smoothed);
+        if (inflectionIndex < 1 || inflectionIndex >= smoothed.Length - 1)
+        {
+            return CloudPointResult.Empty(CloudPointMethod.SecondDerivativeExtremum, direction);
+        }
+
+        // Sorted X is always ascending after the reader. The "baseline side"
+        // of the sweep depends on whether the original scan was heating
+        // (started at low T → indices 1..inflection) or cooling (started at
+        // high T → indices inflection..end). When the direction is unknown
+        // we search both sides and pick the larger magnitude.
+        //
+        // The first/last `radius` points of `smoothed` see one-sided averages,
+        // which injects a spurious curvature spike at the very edge even on
+        // strictly linear data. Trim those points from the search so a true
+        // sigmoid is required to produce a non-zero result.
+        var radius = Math.Max(1, config.SmoothingWindow) / 2;
+        var lowerBound = radius + 1;
+        var upperBound = smoothed.Length - 2 - radius;
+        if (lowerBound > upperBound)
+        {
+            return CloudPointResult.Empty(CloudPointMethod.SecondDerivativeExtremum, direction);
+        }
+
+        var (searchStart, searchEnd) = direction switch
+        {
+            ScanDirection.Heating => (lowerBound, Math.Min(inflectionIndex, upperBound)),
+            ScanDirection.Cooling => (Math.Max(inflectionIndex, lowerBound), upperBound),
+            _ => (lowerBound, upperBound),
+        };
+
+        if (searchStart > searchEnd)
+        {
+            return CloudPointResult.Empty(CloudPointMethod.SecondDerivativeExtremum, direction);
+        }
+
+        var bestIndex = -1;
+        var bestAbsCurvature = 0.0;
+        for (var i = searchStart; i <= searchEnd; i++)
+        {
+            if (i < 1 || i >= smoothed.Length - 1) continue;
+            if (!double.IsFinite(smoothed[i - 1])
+                || !double.IsFinite(smoothed[i])
+                || !double.IsFinite(smoothed[i + 1]))
+            {
+                continue;
+            }
+
+            var dxLeft = xs[i] - xs[i - 1];
+            var dxRight = xs[i + 1] - xs[i];
+            if (dxLeft <= 0 || dxRight <= 0) continue;
+
+            // Centred non-uniform second difference.
+            var slopeLeft = (smoothed[i] - smoothed[i - 1]) / dxLeft;
+            var slopeRight = (smoothed[i + 1] - smoothed[i]) / dxRight;
+            var curvature = 2.0 * (slopeRight - slopeLeft) / (dxLeft + dxRight);
+
+            var absCurvature = Math.Abs(curvature);
+            if (absCurvature > bestAbsCurvature)
+            {
+                bestAbsCurvature = absCurvature;
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex < 0 || bestAbsCurvature <= 0)
+        {
+            return CloudPointResult.Empty(CloudPointMethod.SecondDerivativeExtremum, direction);
+        }
+
+        return new CloudPointResult
+        {
+            Method = CloudPointMethod.SecondDerivativeExtremum,
+            TemperatureCelsius = xs[bestIndex],
+            TransmittancePercentAtTc = smoothed[bestIndex],
+            Direction = direction,
+        };
+    }
+
+    private static int FindFirstDerivativePeakIndex(double[] xs, double[] smoothed)
+    {
         var bestIndex = -1;
         var bestSlope = 0.0;
         for (var i = 1; i < smoothed.Length - 1; i++)
@@ -192,18 +310,7 @@ public static class CloudPointDetector
             }
         }
 
-        if (bestIndex < 0)
-        {
-            return CloudPointResult.Empty(CloudPointMethod.FirstDerivativePeak, direction);
-        }
-
-        return new CloudPointResult
-        {
-            Method = CloudPointMethod.FirstDerivativePeak,
-            TemperatureCelsius = xs[bestIndex],
-            TransmittancePercentAtTc = smoothed[bestIndex],
-            Direction = direction,
-        };
+        return bestIndex;
     }
 
     private static double[] MovingAverage(double[] source, int window)

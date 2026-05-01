@@ -3264,6 +3264,7 @@ public partial class MainWindow : Window
         return GetSelectedComboBoxTag(CloudPointMethodComboBox) switch
         {
             "FirstDerivativePeak" => CloudPointMethod.FirstDerivativePeak,
+            "SecondDerivativeExtremum" => CloudPointMethod.SecondDerivativeExtremum,
             _ => CloudPointMethod.Midpoint,
         };
     }
@@ -3423,9 +3424,13 @@ public partial class MainWindow : Window
                 ScanDirection.Cooling => "降温",
                 _ => "方向不明",
             };
-            var methodLabel = result.Method == CloudPointMethod.Midpoint
-                ? $"中点法 T={result.TransmittancePercentAtTc:0.#}%"
-                : "1次微分極大";
+            var methodLabel = result.Method switch
+            {
+                CloudPointMethod.Midpoint => $"中点法 T={result.TransmittancePercentAtTc:0.#}%",
+                CloudPointMethod.FirstDerivativePeak => "1次微分極大",
+                CloudPointMethod.SecondDerivativeExtremum => "2次微分極大（オンセット）",
+                _ => result.Method.ToString(),
+            };
             lines.Add(string.Format(
                 CultureInfo.InvariantCulture,
                 "{0} ({1}, {2}): Tc = {3:0.00} °C",

@@ -52,16 +52,22 @@ public sealed class GraphFormattingConfigTests
         var midpoint = new GraphFormattingConfig { CloudPointMethod = "Midpoint" };
         var derivative = new GraphFormattingConfig { CloudPointMethod = "FirstDerivativePeak" };
         var legacy = new GraphFormattingConfig { CloudPointMethod = "Derivative" };
+        var second = new GraphFormattingConfig { CloudPointMethod = "SecondDerivativeExtremum" };
+        var secondLegacy = new GraphFormattingConfig { CloudPointMethod = "SecondDerivative" };
         var unknown = new GraphFormattingConfig { CloudPointMethod = "Bogus" };
 
         midpoint.Normalize();
         derivative.Normalize();
         legacy.Normalize();
+        second.Normalize();
+        secondLegacy.Normalize();
         unknown.Normalize();
 
         Assert.Equal("Midpoint", midpoint.CloudPointMethod);
         Assert.Equal("FirstDerivativePeak", derivative.CloudPointMethod);
         Assert.Equal("FirstDerivativePeak", legacy.CloudPointMethod);
+        Assert.Equal("SecondDerivativeExtremum", second.CloudPointMethod);
+        Assert.Equal("SecondDerivativeExtremum", secondLegacy.CloudPointMethod);
         Assert.Null(unknown.CloudPointMethod);
     }
 

@@ -31,6 +31,16 @@ public sealed class SpectrumDataset
     /// </summary>
     public double? RawLastX { get; init; }
 
+    /// <summary>
+    /// Free-form key/value pairs recovered from the source file's footer
+    /// (e.g. JASCO's `[測定情報]` and `[付属品情報]` sections). Keys are kept
+    /// in their original language so that callers don't need to know an
+    /// internal vocabulary; convenience accessors below pull out the
+    /// commonly used fields.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     public IReadOnlyList<SpectrumDataPoint> Points { get; init; } = Array.Empty<SpectrumDataPoint>();
 
     public double[] XValues => _xValues ??= Points.Select(point => point.X).ToArray();
@@ -69,6 +79,47 @@ public sealed class SpectrumDataset
     public bool IsWavelengthScan =>
         !string.IsNullOrWhiteSpace(RawXUnits)
         && RawXUnits.Equals("NANOMETERS", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Measurement wavelength reported by the JASCO footer (`測定情報` →
+    /// `測定波長`, e.g. "500 nm"). Returned as the raw string so the unit
+    /// suffix is preserved verbatim. Null when the field is absent.
+    /// </summary>
+    public string? MeasurementWavelengthText => GetMetadata("測定波長");
+
+    /// <summary>
+    /// Temperature ramp rate reported by the JASCO footer (`付属品情報` →
+    /// `温度勾配`, e.g. "1 C/min"). Null when the scan was not run with a
+    /// temperature accessory.
+    /// </summary>
+    public string? TemperatureRampRateText => GetMetadata("温度勾配");
+
+    /// <summary>
+    /// Accessory model name reported by the JASCO footer (`付属品情報` →
+    /// `付属品`, e.g. "ETC-505"). Null when no accessory is recorded.
+    /// </summary>
+    public string? AccessoryName => GetMetadata("付属品");
+
+    /// <summary>
+    /// Photometric mode reported by the JASCO footer (`測定情報` →
+    /// `測光モード`, e.g. "%T", "Abs"). Useful for distinguishing manual
+    /// %T sweeps from absorbance sweeps when YUNITS alone is ambiguous.
+    /// </summary>
+    public string? PhotometricMode => GetMetadata("測光モード");
+
+    /// <summary>
+    /// Spectrometer band-pass reported by the JASCO footer (`測定情報` →
+    /// `UV/Vis バンド幅`, e.g. "2 nm"). Useful when comparing scans at
+    /// different resolution settings.
+    /// </summary>
+    public string? BandPassText => GetMetadata("UV/Vis バンド幅");
+
+    private string? GetMetadata(string key)
+    {
+        return Metadata.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value.Trim()
+            : null;
+    }
 
     /// <summary>
     /// Recovers the scan direction from the source file's FIRSTX / LASTX

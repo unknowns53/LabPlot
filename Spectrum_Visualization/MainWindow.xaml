@@ -1379,6 +1379,21 @@
                                                    Margin="0,8,0,0"
                                                    TextWrapping="Wrap"
                                                    Visibility="Collapsed" />
+                                        <Border BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,8,0,0">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ShowMetadataCheckBox"
+                                                          Content="測定メタデータをグラフに表示"
+                                                          ToolTip="ファイルフッタの [測定情報] / [付属品情報] から測定波長・温度勾配・付属品名などを読み取り、プロット右上に小さく表示"
+                                                          Checked="MetadataOption_Changed"
+                                                          Unchecked="MetadataOption_Changed" />
+                                                <TextBlock x:Name="MetadataHintTextBlock"
+                                                           Text="温度スキャンを開くとメタデータ表示が利用できます"
+                                                           FontSize="11"
+                                                           Foreground="#64748B"
+                                                           Margin="0,4,0,0"
+                                                           Visibility="Collapsed" />
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Expander>
 

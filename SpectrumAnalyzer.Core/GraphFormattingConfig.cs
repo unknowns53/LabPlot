@@ -96,6 +96,13 @@ public sealed class GraphFormattingConfig
     /// </summary>
     public double CloudPointThresholdPercent { get; set; } = 50.0;
 
+    /// <summary>
+    /// When <c>true</c>, the JASCO footer metadata of the active temperature
+    /// scan (measurement wavelength, ramp rate, accessory, ...) is rendered
+    /// as a small annotation on the plot.
+    /// </summary>
+    public bool ShowTemperatureScanMetadata { get; set; }
+
     // User preferences (persisted alongside the formatting defaults).
     public string? DefaultOutputDirectory { get; set; }
 

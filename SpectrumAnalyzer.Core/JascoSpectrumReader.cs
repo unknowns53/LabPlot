@@ -9,16 +9,25 @@ namespace SpectrumAnalyzer.Core;
 /// <remarks>
 /// File layout: header rows of "KEY{sep}VALUE" pairs (TITLE, DATA TYPE, ORIGIN,
 /// XUNITS, YUNITS, FIRSTX, LASTX, NPOINTS, DELTAX, ...) followed by an "XYDATA"
-/// marker line, then two-column numeric rows until a blank line. Anything after
-/// the blank line (Shift-JIS metadata footer with sample / instrument settings)
-/// is ignored. The separator is tab for V-series TXT exports and comma for FTIR
-/// CSV exports; both are auto-detected per row.
+/// marker line, then two-column numeric rows. After the data block a blank line
+/// separates the Shift-JIS metadata footer with `[測定情報]` / `[付属品情報]`
+/// sections; the parser walks through that footer too and surfaces the
+/// key/value pairs via <see cref="SpectrumDataset.Metadata"/>. The separator is
+/// tab for V-series TXT exports and comma for FTIR CSV exports; both are
+/// auto-detected per row.
 /// </remarks>
 public sealed class JascoSpectrumReader : ISpectrumDataReader
 {
-    private static readonly Encoding LenientUtf8 = new UTF8Encoding(false, false);
+    private static readonly Encoding ShiftJis = ResolveShiftJisEncoding();
 
     private static readonly char[] FieldSeparators = { '\t', ',' };
+
+    private enum ParserState
+    {
+        Header,
+        Data,
+        Footer,
+    }
 
     public SpectrumDataset Read(string filePath)
     {
@@ -32,60 +41,70 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
             throw new FileNotFoundException("Spectrum data file was not found.", filePath);
         }
 
-        using var reader = new StreamReader(filePath, LenientUtf8, true);
+        using var reader = new StreamReader(filePath, ShiftJis, detectEncodingFromByteOrderMarks: true);
         return Parse(reader, filePath);
     }
 
     public SpectrumDataset Parse(TextReader reader, string? sourceFilePath)
     {
         var header = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal);
         var points = new List<SpectrumDataPoint>();
-        var inDataSection = false;
+        var state = ParserState.Header;
 
         while (reader.ReadLine() is { } rawLine)
         {
             var line = rawLine.TrimEnd();
-            if (!inDataSection)
+
+            switch (state)
             {
-                if (line.Equals("XYDATA", StringComparison.OrdinalIgnoreCase))
-                {
-                    inDataSection = true;
-                    continue;
-                }
+                case ParserState.Header:
+                    if (line.Equals("XYDATA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        state = ParserState.Data;
+                        continue;
+                    }
 
-                if (line.Length == 0)
-                {
-                    continue;
-                }
+                    if (line.Length == 0)
+                    {
+                        continue;
+                    }
 
-                var separatorIndex = line.IndexOfAny(FieldSeparators);
-                if (separatorIndex < 0)
-                {
-                    continue;
-                }
-
-                var key = line[..separatorIndex].Trim();
-                var value = line[(separatorIndex + 1)..].Trim();
-                if (key.Length > 0)
-                {
-                    header[key] = value;
-                }
-            }
-            else
-            {
-                if (line.Length == 0)
-                {
+                    TryAddPair(line, header, StringComparer.OrdinalIgnoreCase);
                     break;
-                }
 
-                if (TryParseDataRow(line, out var point))
-                {
-                    points.Add(point);
-                }
+                case ParserState.Data:
+                    if (line.Length == 0)
+                    {
+                        state = ParserState.Footer;
+                        continue;
+                    }
+
+                    if (TryParseDataRow(line, out var point))
+                    {
+                        points.Add(point);
+                    }
+                    break;
+
+                case ParserState.Footer:
+                    if (line.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    // Section markers like "[測定情報]" delimit footer
+                    // groups but don't carry their own value. Skip them.
+                    if (line.Length >= 2 && line[0] == '[' && line[^1] == ']')
+                    {
+                        continue;
+                    }
+
+                    TryAddPair(line, metadata, StringComparer.Ordinal);
+                    break;
             }
         }
 
-        if (!inDataSection)
+        if (state == ParserState.Header)
         {
             throw new InvalidDataException("XYDATA marker not found - is this a JASCO ASCII export?");
         }
@@ -115,8 +134,51 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
             XLabel = AxisLabelMapper.MapX(xUnits),
             YLabel = AxisLabelMapper.MapY(yUnits),
             Title = title,
+            Metadata = metadata,
             Points = points,
         };
+    }
+
+    private static void TryAddPair(
+        string line,
+        IDictionary<string, string> sink,
+        StringComparer keyComparer)
+    {
+        var separatorIndex = line.IndexOfAny(FieldSeparators);
+        if (separatorIndex < 0) return;
+
+        var key = line[..separatorIndex].Trim();
+        var value = line[(separatorIndex + 1)..].Trim();
+        if (key.Length == 0) return;
+
+        // Footer entries with empty values (e.g. an unfilled `タイトル` slot
+        // in the comment section) shouldn't shadow real data — keep them
+        // out of the dictionary entirely.
+        if (ReferenceEquals(keyComparer, StringComparer.Ordinal) && value.Length == 0)
+        {
+            return;
+        }
+
+        sink[key] = value;
+    }
+
+    private static Encoding ResolveShiftJisEncoding()
+    {
+        // .NET (Core) ships only ASCII / UTF / Latin-1 by default. Register
+        // the code-page provider so Shift-JIS is available without the
+        // caller having to do it.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        try
+        {
+            return Encoding.GetEncoding("shift_jis");
+        }
+        catch (ArgumentException)
+        {
+            // Extreme fallback: a pure-ASCII reader. Loses the Japanese
+            // footer but keeps the data readable on platforms where the
+            // code page is genuinely unavailable.
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false);
+        }
     }
 
     private static double? TryParseHeaderDouble(IReadOnlyDictionary<string, string> header, string key)

@@ -510,6 +510,7 @@ public partial class MainWindow : Window
             CloudPointThresholdPercent = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var cpThreshold)
                 ? cpThreshold
                 : 50.0,
+            ShowTemperatureScanMetadata = ShowMetadataCheckBox.IsChecked == true,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
         };
 
@@ -565,6 +566,7 @@ public partial class MainWindow : Window
                 CloudPointMethodComboBox.SelectedIndex = 0;
             }
             CloudPointThresholdTextBox.Text = config.CloudPointThresholdPercent.ToString("0.##", CultureInfo.InvariantCulture);
+            ShowMetadataCheckBox.IsChecked = config.ShowTemperatureScanMetadata;
         }
         finally
         {
@@ -1273,6 +1275,7 @@ public partial class MainWindow : Window
         DrawIntegrationBaselines(plotEntries, yDisplayMode);
         DrawLambdaMaxMarkers(plotEntries, yRange);
         DrawCloudPointMarkers(plotEntries, yRange);
+        DrawMetadataAnnotation(plotEntries);
 
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
@@ -2420,6 +2423,12 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
+    private void MetadataOption_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        SchedulePlotCurrentDataset();
+    }
+
     private void PeakAssignmentEnableAllButton_Click(object sender, RoutedEventArgs e)
     {
         SetAllPeakAssignmentsEnabled(true);
@@ -2986,6 +2995,7 @@ public partial class MainWindow : Window
 
         UpdateLambdaMaxUi(dataset);
         UpdateCloudPointUi(dataset);
+        UpdateMetadataUi(dataset);
     }
 
     private void UpdateLambdaMaxUi(SpectrumDataset? dataset)
@@ -3016,6 +3026,18 @@ public partial class MainWindow : Window
             CloudPointResultTextBlock.Text = string.Empty;
             CloudPointResultTextBlock.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void UpdateMetadataUi(SpectrumDataset? dataset)
+    {
+        // Footer metadata only shows up on JASCO temperature scans (the
+        // only file class we actively parse the Shift-JIS footer for).
+        var hasTemperatureScan = AnyDatasetMatches(static d => d.IsTemperatureScan)
+                                 || dataset?.IsTemperatureScan == true;
+        ShowMetadataCheckBox.IsEnabled = hasTemperatureScan;
+        MetadataHintTextBlock.Visibility = hasTemperatureScan
+            ? Visibility.Collapsed
+            : Visibility.Visible;
     }
 
     private bool AnyDatasetMatches(Func<SpectrumDataset, bool> predicate)
@@ -3456,6 +3478,64 @@ public partial class MainWindow : Window
 
         CloudPointResultTextBlock.Text = string.Join(Environment.NewLine, lines);
         CloudPointResultTextBlock.Visibility = Visibility.Visible;
+    }
+
+    private void DrawMetadataAnnotation((SpectrumDataset Dataset, int Index)[] plotEntries)
+    {
+        if (_spectrumPlot is null
+            || ShowMetadataCheckBox.IsChecked != true
+            || plotEntries.Length == 0)
+        {
+            return;
+        }
+
+        // Surface metadata only for temperature scans (the only file class
+        // whose Shift-JIS footer we currently parse). Use the first matching
+        // dataset; in heating/cooling pairs the instrument settings are
+        // identical so this is rarely surprising.
+        var dataset = plotEntries.Select(e => e.Dataset).FirstOrDefault(d => d.IsTemperatureScan);
+        if (dataset is null) return;
+
+        var lines = BuildMetadataLines(dataset);
+        if (lines.Count == 0) return;
+
+        var annotation = _spectrumPlot.Plot.Add.Annotation(string.Join("\n", lines));
+        annotation.Alignment = ScottPlot.Alignment.UpperRight;
+        annotation.LabelFontSize = 10;
+        annotation.LabelFontName = "Arial";
+        annotation.LabelFontColor = ScottPlot.Color.FromHex("#0F172A");
+        annotation.LabelBackgroundColor = ScottPlot.Color.FromHex("#FFFFFF").WithAlpha((byte)220);
+        annotation.LabelBorderColor = ScottPlot.Color.FromHex("#CBD5E1");
+        annotation.LabelBorderWidth = 1;
+        annotation.LabelPadding = 6;
+        annotation.OffsetX = 8;
+        annotation.OffsetY = 8;
+    }
+
+    private static List<string> BuildMetadataLines(SpectrumDataset dataset)
+    {
+        var lines = new List<string>(5);
+        if (dataset.MeasurementWavelengthText is { } wavelength)
+        {
+            lines.Add($"測定波長: {wavelength}");
+        }
+        if (dataset.TemperatureRampRateText is { } ramp)
+        {
+            lines.Add($"温度勾配: {ramp}");
+        }
+        if (dataset.AccessoryName is { } accessory)
+        {
+            lines.Add($"付属品: {accessory}");
+        }
+        if (dataset.BandPassText is { } bandpass)
+        {
+            lines.Add($"バンド幅: {bandpass}");
+        }
+        if (dataset.PhotometricMode is { } mode)
+        {
+            lines.Add($"測光モード: {mode}");
+        }
+        return lines;
     }
 
     private string? GetSelectedYAxisDisplayModeConfigValue()

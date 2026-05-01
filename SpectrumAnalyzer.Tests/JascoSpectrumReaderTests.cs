@@ -1,3 +1,4 @@
+using System.Text;
 using SpectrumAnalyzer.Core;
 
 namespace SpectrumAnalyzer.Tests;
@@ -205,6 +206,110 @@ public sealed class JascoSpectrumReaderTests
         Assert.Equal(520.799, dataset.Points[0].Y);
         Assert.Equal(-1.17549E-038, dataset.Points[1].Y);
         Assert.Equal(64.3598, dataset.Points[2].Y);
+    }
+
+    [Fact]
+    public void Parse_ExtractsTemperatureFooterMetadata()
+    {
+        const string sample = """
+            TITLE
+            XUNITS	Temperature[C]
+            YUNITS	TRANSMITTANCE
+            FIRSTX	50
+            LASTX	90
+            XYDATA
+            50.01	100.124
+            70.03	91.0084
+            90.05	14.8993
+
+            [コメント情報]
+            タイトル
+            オペレーター
+
+            [測定情報]
+            機種名	V-750
+            測光モード	%T
+            UV/Vis バンド幅	2 nm
+            測定波長	500 nm
+
+            [付属品情報]
+            付属品	ETC-505
+            温度勾配	1 C/min
+            試料センサー	ホルダー
+            """;
+
+        var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), "footer.txt");
+
+        Assert.Equal("500 nm", dataset.MeasurementWavelengthText);
+        Assert.Equal("1 C/min", dataset.TemperatureRampRateText);
+        Assert.Equal("ETC-505", dataset.AccessoryName);
+        Assert.Equal("2 nm", dataset.BandPassText);
+        Assert.Equal("%T", dataset.PhotometricMode);
+
+        // Empty footer slots like the comment-section "タイトル	" line must
+        // not shadow real header keys, so they should be dropped instead of
+        // being stored with an empty value.
+        Assert.False(dataset.Metadata.ContainsKey("タイトル"));
+        Assert.False(dataset.Metadata.ContainsKey("オペレーター"));
+        Assert.True(dataset.Metadata.ContainsKey("機種名"));
+        Assert.Equal("V-750", dataset.Metadata["機種名"]);
+    }
+
+    [Fact]
+    public void Parse_LeavesMetadataEmptyWhenNoFooter()
+    {
+        const string sample = """
+            XUNITS	NANOMETERS
+            YUNITS	ABSORBANCE
+            XYDATA
+            200	0.10
+            500	0.85
+            """;
+
+        var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), null);
+
+        Assert.Empty(dataset.Metadata);
+        Assert.Null(dataset.MeasurementWavelengthText);
+        Assert.Null(dataset.TemperatureRampRateText);
+        Assert.Null(dataset.AccessoryName);
+    }
+
+    [Fact]
+    public void Read_DecodesShiftJisFooterFromActualFile()
+    {
+        // Round-trip a Shift-JIS encoded file through the file-based Read
+        // method to confirm the encoding handling, not just the line-level
+        // parsing logic.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var sjis = Encoding.GetEncoding("shift_jis");
+
+        const string sample =
+            "TITLE\t\n" +
+            "XUNITS\tTemperature[C]\n" +
+            "YUNITS\tTRANSMITTANCE\n" +
+            "FIRSTX\t50\n" +
+            "LASTX\t90\n" +
+            "XYDATA\n" +
+            "50.01\t100.124\n" +
+            "90.05\t14.8993\n" +
+            "\n" +
+            "[付属品情報]\n" +
+            "付属品\tETC-505\n" +
+            "温度勾配\t1 C/min\n";
+
+        var temp = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(temp, sample, sjis);
+            var dataset = new JascoSpectrumReader().Read(temp);
+
+            Assert.Equal("ETC-505", dataset.AccessoryName);
+            Assert.Equal("1 C/min", dataset.TemperatureRampRateText);
+        }
+        finally
+        {
+            File.Delete(temp);
+        }
     }
 
     [Fact]

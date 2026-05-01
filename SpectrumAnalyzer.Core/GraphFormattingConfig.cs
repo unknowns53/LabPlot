@@ -59,6 +59,13 @@ public sealed class GraphFormattingConfig
     /// </summary>
     public IList<string> EnabledIrPeakAssignmentLabels { get; set; } = new List<string>();
 
+    /// <summary>
+    /// User-defined integration regions persisted alongside the formatting
+    /// defaults and session files. Always integrated against each dataset's
+    /// native Y values regardless of any A↔T display override.
+    /// </summary>
+    public IList<IntegrationRegion> IntegrationRegions { get; set; } = new List<IntegrationRegion>();
+
     // User preferences (persisted alongside the formatting defaults).
     public string? DefaultOutputDirectory { get; set; }
 
@@ -76,6 +83,7 @@ public sealed class GraphFormattingConfig
         InvertXAxisMode = NormalizeInvertXAxisMode(InvertXAxisMode);
         YAxisDisplayMode = NormalizeYAxisDisplayMode(YAxisDisplayMode);
         EnabledIrPeakAssignmentLabels = NormalizeEnabledLabels(EnabledIrPeakAssignmentLabels);
+        IntegrationRegions = NormalizeIntegrationRegions(IntegrationRegions);
 
         if (!IsPositive(FontSize))
         {
@@ -163,6 +171,27 @@ public sealed class GraphFormattingConfig
         }
 
         return null;
+    }
+
+    private static IList<IntegrationRegion> NormalizeIntegrationRegions(IList<IntegrationRegion>? source)
+    {
+        if (source is null || source.Count == 0)
+        {
+            return new List<IntegrationRegion>();
+        }
+
+        var result = new List<IntegrationRegion>(source.Count);
+        foreach (var region in source)
+        {
+            if (region is null || !region.IsValid)
+            {
+                continue;
+            }
+
+            result.Add(region);
+        }
+
+        return result;
     }
 
     private static IList<string> NormalizeEnabledLabels(IList<string>? source)

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.IO;
 using System.Buffers.Binary;
 using System.Text.Json;
@@ -61,6 +62,8 @@ public partial class MainWindow : Window
     private readonly List<DatasetStyle> _datasetStyles = new();
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
     private readonly ObservableCollection<PeakAssignmentVm> _peakAssignmentVms = new();
+    private readonly ObservableCollection<IntegrationRegionVm> _integrationRegionVms = new();
+    private readonly ObservableCollection<IntegrationResultRowVm> _integrationResultRowVms = new();
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
     private readonly AnalysisSessionStore _sessionStore = new();
 
@@ -96,6 +99,8 @@ public partial class MainWindow : Window
         ApplyFormattingConfigToControls(_formattingDefaults);
         DatasetListBox.ItemsSource = _datasetEntries;
         PeakAssignmentItemsControl.ItemsSource = _peakAssignmentVms;
+        IntegrationRegionItemsControl.ItemsSource = _integrationRegionVms;
+        IntegrationResultItemsControl.ItemsSource = _integrationResultRowVms;
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
         RegisterShortcuts();
         Loaded += MainWindow_Loaded;
@@ -283,6 +288,126 @@ public partial class MainWindow : Window
         }
     }
 
+    public sealed class IntegrationRegionVm : INotifyPropertyChanged
+    {
+        private string _label = string.Empty;
+        private string _xMinText = string.Empty;
+        private string _xMaxText = string.Empty;
+        private BaselineMethod _baseline = BaselineMethod.Linear;
+
+        public string Label
+        {
+            get => _label;
+            set
+            {
+                if (_label == value) return;
+                _label = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string XMinText
+        {
+            get => _xMinText;
+            set
+            {
+                if (_xMinText == value) return;
+                _xMinText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string XMaxText
+        {
+            get => _xMaxText;
+            set
+            {
+                if (_xMaxText == value) return;
+                _xMaxText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public BaselineMethod Baseline
+        {
+            get => _baseline;
+            set
+            {
+                if (_baseline == value) return;
+                _baseline = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public IntegrationRegion? ToModel()
+        {
+            if (string.IsNullOrWhiteSpace(_label))
+            {
+                return null;
+            }
+
+            if (!TryParseDouble(_xMinText, out var xMin) || !TryParseDouble(_xMaxText, out var xMax))
+            {
+                return null;
+            }
+
+            var region = new IntegrationRegion
+            {
+                Label = _label.Trim(),
+                XMin = xMin,
+                XMax = xMax,
+                BaselineMethod = _baseline,
+            };
+            return region.IsValid ? region : null;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+    public sealed class IntegrationResultRowVm
+    {
+        public string DatasetName { get; init; } = string.Empty;
+        public string RegionLabel { get; init; } = string.Empty;
+        public string AreaText { get; init; } = string.Empty;
+        public string Tooltip { get; init; } = string.Empty;
+
+        public static IntegrationResultRowVm From(string datasetName, SpectrumDataset dataset, IntegrationResult result)
+        {
+            var areaText = result.HasResult
+                ? result.Area.ToString("G6", CultureInfo.InvariantCulture)
+                : "—";
+
+            string tooltip;
+            if (result.HasResult)
+            {
+                var unit = string.IsNullOrWhiteSpace(dataset.RawYUnits) ? "?" : dataset.RawYUnits;
+                tooltip =
+                    $"Area = {result.Area.ToString("G6", CultureInfo.InvariantCulture)}\n"
+                    + $"Raw = {result.RawArea.ToString("G6", CultureInfo.InvariantCulture)}\n"
+                    + $"Baseline = {result.BaselineArea.ToString("G6", CultureInfo.InvariantCulture)}\n"
+                    + $"N = {result.PointCount}\n"
+                    + $"YUNITS = {unit}";
+            }
+            else
+            {
+                tooltip = "領域が dataset の X 範囲外、または有効な点が不足しています";
+            }
+
+            return new IntegrationResultRowVm
+            {
+                DatasetName = datasetName,
+                RegionLabel = result.Region.Label,
+                AreaText = areaText,
+                Tooltip = tooltip,
+            };
+        }
+    }
+
     private void LoadFormattingDefaults()
     {
         _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
@@ -348,6 +473,11 @@ public partial class MainWindow : Window
                 .Where(vm => vm.IsEnabled)
                 .Select(vm => vm.Label)
                 .ToList(),
+            IntegrationRegions = _integrationRegionVms
+                .Select(vm => vm.ToModel())
+                .Where(region => region is not null)
+                .Cast<IntegrationRegion>()
+                .ToList(),
             DefaultLineColorHex = GetSelectedLineColorConfigValue(),
             LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
                 ? lineWidth
@@ -399,6 +529,7 @@ public partial class MainWindow : Window
             }
 
             ApplyEnabledPeakAssignments(config.EnabledIrPeakAssignmentLabels);
+            ApplyIntegrationRegions(config.IntegrationRegions);
         }
         finally
         {
@@ -1003,6 +1134,7 @@ public partial class MainWindow : Window
         if (_currentDataset is null || _spectrumPlot is null)
         {
             UpdatePeakAssignmentUi(null);
+            UpdateIntegrationResults();
             SetGraphActionsEnabled(false);
             return;
         }
@@ -1076,10 +1208,13 @@ public partial class MainWindow : Window
         }
 
         DrawPeakAssignments(activeDataset, yRange);
+        DrawIntegrationRegions(yRange);
 
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
         SetGraphActionsEnabled(true);
+
+        UpdateIntegrationResults();
 
         if (inconvertibleCount > 0 && yDisplayMode != YAxisDisplayMode.Native)
         {
@@ -2219,6 +2354,164 @@ public partial class MainWindow : Window
         }
     }
 
+    private void AddIntegrationRegionButton_Click(object sender, RoutedEventArgs e)
+    {
+        var vm = new IntegrationRegionVm
+        {
+            Label = $"region {_integrationRegionVms.Count + 1}",
+            Baseline = BaselineMethod.Linear,
+        };
+        vm.PropertyChanged += IntegrationRegionVm_PropertyChanged;
+        _integrationRegionVms.Add(vm);
+        UpdateIntegrationResults();
+        SchedulePlotCurrentDataset();
+    }
+
+    private void RemoveIntegrationRegionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is IntegrationRegionVm vm)
+        {
+            vm.PropertyChanged -= IntegrationRegionVm_PropertyChanged;
+            _integrationRegionVms.Remove(vm);
+            UpdateIntegrationResults();
+            SchedulePlotCurrentDataset();
+        }
+    }
+
+    private void ClearIntegrationRegionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_integrationRegionVms.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var vm in _integrationRegionVms)
+        {
+            vm.PropertyChanged -= IntegrationRegionVm_PropertyChanged;
+        }
+
+        _integrationRegionVms.Clear();
+        UpdateIntegrationResults();
+        SchedulePlotCurrentDataset();
+    }
+
+    private void ExportIntegrationResultsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var validRegions = _integrationRegionVms
+            .Select(vm => vm.ToModel())
+            .Where(region => region is not null)
+            .Cast<IntegrationRegion>()
+            .ToArray();
+
+        if (validRegions.Length == 0)
+        {
+            SetStatus("出力できる積分結果がありません（領域を追加してください）", true);
+            return;
+        }
+
+        var datasets = GetDatasetsToPlotWithIndices();
+        if (datasets.Length == 0)
+        {
+            SetStatus("データセットが読み込まれていません", true);
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "積分結果を保存",
+            Filter = "Excelブック (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv",
+            FileName = "integration_results",
+        };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var rows = new List<IntegrationExportRow>();
+        foreach (var (dataset, index) in datasets)
+        {
+            var datasetName = GetCustomLegendName(index)
+                ?? Path.GetFileNameWithoutExtension(dataset.SourceFilePath)
+                ?? $"dataset {index + 1}";
+
+            foreach (var region in validRegions)
+            {
+                rows.Add(new IntegrationExportRow
+                {
+                    DatasetName = datasetName,
+                    Region = region,
+                    Result = SpectrumIntegrator.Integrate(dataset, region),
+                    YUnits = dataset.RawYUnits ?? string.Empty,
+                });
+            }
+        }
+
+        var export = new IntegrationExport { Rows = rows };
+
+        try
+        {
+            var extension = Path.GetExtension(dialog.FileName);
+            if (extension.Equals(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                export.WriteCsv(dialog.FileName);
+            }
+            else
+            {
+                export.WriteXlsx(dialog.FileName);
+            }
+
+            SetStatus($"積分結果を保存しました: {dialog.FileName}", false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus($"保存に失敗しました: {ex.Message}", true);
+        }
+    }
+
+    private void IntegrationRegionVm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents)
+        {
+            return;
+        }
+
+        UpdateIntegrationResults();
+        SchedulePlotCurrentDataset();
+    }
+
+    private void UpdateIntegrationResults()
+    {
+        _integrationResultRowVms.Clear();
+
+        var validRegions = _integrationRegionVms
+            .Select(vm => vm.ToModel())
+            .Where(region => region is not null)
+            .Cast<IntegrationRegion>()
+            .ToArray();
+
+        if (validRegions.Length > 0)
+        {
+            var datasets = GetDatasetsToPlotWithIndices();
+            foreach (var (dataset, index) in datasets)
+            {
+                var datasetName = GetCustomLegendName(index)
+                    ?? Path.GetFileNameWithoutExtension(dataset.SourceFilePath)
+                    ?? $"dataset {index + 1}";
+
+                foreach (var region in validRegions)
+                {
+                    var result = SpectrumIntegrator.Integrate(dataset, region);
+                    _integrationResultRowVms.Add(IntegrationResultRowVm.From(datasetName, dataset, result));
+                }
+            }
+        }
+
+        IntegrationResultEmptyHintTextBlock.Visibility =
+            _integrationResultRowVms.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
@@ -2308,6 +2601,42 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ApplyIntegrationRegions(IList<IntegrationRegion>? regions)
+    {
+        foreach (var existing in _integrationRegionVms)
+        {
+            existing.PropertyChanged -= IntegrationRegionVm_PropertyChanged;
+        }
+
+        _integrationRegionVms.Clear();
+
+        if (regions is null)
+        {
+            UpdateIntegrationResults();
+            return;
+        }
+
+        foreach (var region in regions)
+        {
+            if (region is null || !region.IsValid)
+            {
+                continue;
+            }
+
+            var vm = new IntegrationRegionVm
+            {
+                Label = region.Label,
+                XMinText = region.XMin.ToString("G", CultureInfo.InvariantCulture),
+                XMaxText = region.XMax.ToString("G", CultureInfo.InvariantCulture),
+                Baseline = region.BaselineMethod,
+            };
+            vm.PropertyChanged += IntegrationRegionVm_PropertyChanged;
+            _integrationRegionVms.Add(vm);
+        }
+
+        UpdateIntegrationResults();
+    }
+
     private void UpdatePeakAssignmentUi(SpectrumDataset? dataset)
     {
         var enabled = dataset?.IsInfraredSpectrum == true;
@@ -2317,6 +2646,42 @@ public partial class MainWindow : Window
         PeakAssignmentHintTextBlock.Visibility = enabled
             ? Visibility.Collapsed
             : Visibility.Visible;
+    }
+
+    private void DrawIntegrationRegions(AxisDataRange yRange)
+    {
+        if (_spectrumPlot is null || _integrationRegionVms.Count == 0 || !yRange.HasValue)
+        {
+            return;
+        }
+
+        var axisLimits = _spectrumPlot.Plot.Axes.GetLimits();
+        var bandBottom = axisLimits.Bottom;
+        var bandTop = axisLimits.Top;
+        var ySpan = bandTop - bandBottom;
+        var yPad = ySpan > 0 ? ySpan * 100.0 : 1.0;
+
+        // Slate-400, deliberately neutral so it does not collide with dataset
+        // colors or IR peak assignment colors.
+        var color = ScottPlot.Color.FromHex("94A3B8");
+
+        foreach (var vm in _integrationRegionVms)
+        {
+            var region = vm.ToModel();
+            if (region is null)
+            {
+                continue;
+            }
+
+            var rect = _spectrumPlot.Plot.Add.Rectangle(
+                region.XMin, region.XMax,
+                bandBottom - yPad, bandTop + yPad);
+            rect.FillStyle.Color = color.WithAlpha((byte)50);
+            rect.LineStyle.Color = color;
+            rect.LineStyle.Pattern = ScottPlot.LinePattern.Dashed;
+            rect.LineStyle.Width = 1;
+            rect.LegendText = string.Empty;
+        }
     }
 
     private void DrawPeakAssignments(SpectrumDataset dataset, AxisDataRange yRange)

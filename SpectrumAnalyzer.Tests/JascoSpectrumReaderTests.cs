@@ -67,6 +67,58 @@ public sealed class JascoSpectrumReaderTests
         Assert.Equal(3, dataset.Points.Count);
         Assert.Equal(50.01, dataset.Points[0].X);
         Assert.Equal(90.05, dataset.Points[2].X);
+        Assert.True(dataset.IsTemperatureScan);
+        Assert.False(dataset.IsWavelengthScan);
+        Assert.Equal(50.0, dataset.RawFirstX);
+        Assert.Equal(90.0, dataset.RawLastX);
+        Assert.Equal(ScanDirection.Heating, dataset.OriginalScanDirection);
+    }
+
+    [Fact]
+    public void Parse_PreservesFirstxLastxForCoolingScan()
+    {
+        const string sample = """
+            TITLE
+            XUNITS	Temperature[C]
+            YUNITS	TRANSMITTANCE
+            FIRSTX	90
+            LASTX	50
+            NPOINTS	3
+            XYDATA
+            89.98	13.5549
+            70.03	62.5
+            50.01	101.0
+
+            """;
+
+        var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), "cooling.txt");
+
+        Assert.Equal(90.0, dataset.RawFirstX);
+        Assert.Equal(50.0, dataset.RawLastX);
+        Assert.Equal(ScanDirection.Cooling, dataset.OriginalScanDirection);
+    }
+
+    [Fact]
+    public void Parse_FlagsWavelengthScan()
+    {
+        const string sample = """
+            XUNITS	NANOMETERS
+            YUNITS	ABSORBANCE
+            FIRSTX	800
+            LASTX	200
+            XYDATA
+            200	0.10
+            500	0.85
+            800	0.05
+
+            """;
+
+        var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), null);
+
+        Assert.True(dataset.IsWavelengthScan);
+        Assert.False(dataset.IsTemperatureScan);
+        Assert.Equal(800.0, dataset.RawFirstX);
+        Assert.Equal(200.0, dataset.RawLastX);
     }
 
     [Fact]

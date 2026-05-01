@@ -101,6 +101,8 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
         var yUnits = header.TryGetValue("YUNITS", out var yu) ? yu : null;
         var title = header.TryGetValue("TITLE", out var t) && t.Length > 0 ? t : null;
         var dataType = header.TryGetValue("DATA TYPE", out var dt) && dt.Length > 0 ? dt : null;
+        var firstX = TryParseHeaderDouble(header, "FIRSTX");
+        var lastX = TryParseHeaderDouble(header, "LASTX");
 
         return new SpectrumDataset
         {
@@ -108,11 +110,25 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
             RawXUnits = xUnits,
             RawYUnits = yUnits,
             RawDataType = dataType,
+            RawFirstX = firstX,
+            RawLastX = lastX,
             XLabel = AxisLabelMapper.MapX(xUnits),
             YLabel = AxisLabelMapper.MapY(yUnits),
             Title = title,
             Points = points,
         };
+    }
+
+    private static double? TryParseHeaderDouble(IReadOnlyDictionary<string, string> header, string key)
+    {
+        if (!header.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : null;
     }
 
     private static bool TryParseDataRow(string line, out SpectrumDataPoint point)

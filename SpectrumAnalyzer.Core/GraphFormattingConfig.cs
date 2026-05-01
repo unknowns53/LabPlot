@@ -66,6 +66,36 @@ public sealed class GraphFormattingConfig
     /// </summary>
     public IList<IntegrationRegion> IntegrationRegions { get; set; } = new List<IntegrationRegion>();
 
+    // ----------- Wavelength scan: λmax markers -----------
+    public bool ShowLambdaMaxMarkers { get; set; }
+
+    /// <summary>
+    /// Minimum absorbance for a local maximum to be flagged as λmax. Defaults
+    /// to 0.05 to filter out baseline noise.
+    /// </summary>
+    public double LambdaMaxMinAbsorbance { get; set; } = 0.05;
+
+    /// <summary>
+    /// Maximum number of λmax markers to render per dataset. 0 means
+    /// unlimited.
+    /// </summary>
+    public int LambdaMaxCount { get; set; } = 3;
+
+    // ----------- Temperature scan: cloud-point detection -----------
+    public bool ShowCloudPointMarkers { get; set; }
+
+    /// <summary>
+    /// Selected cloud-point estimation method. Values: <c>"Midpoint"</c>,
+    /// <c>"FirstDerivativePeak"</c>. Anything else normalises back to
+    /// Midpoint.
+    /// </summary>
+    public string? CloudPointMethod { get; set; }
+
+    /// <summary>
+    /// Transmittance threshold (%) used by the midpoint method.
+    /// </summary>
+    public double CloudPointThresholdPercent { get; set; } = 50.0;
+
     // User preferences (persisted alongside the formatting defaults).
     public string? DefaultOutputDirectory { get; set; }
 
@@ -84,6 +114,22 @@ public sealed class GraphFormattingConfig
         YAxisDisplayMode = NormalizeYAxisDisplayMode(YAxisDisplayMode);
         EnabledIrPeakAssignmentLabels = NormalizeEnabledLabels(EnabledIrPeakAssignmentLabels);
         IntegrationRegions = NormalizeIntegrationRegions(IntegrationRegions);
+        CloudPointMethod = NormalizeCloudPointMethod(CloudPointMethod);
+
+        if (!IsFiniteRange(LambdaMaxMinAbsorbance, 0.0, 100.0))
+        {
+            LambdaMaxMinAbsorbance = 0.05;
+        }
+
+        if (LambdaMaxCount < 0 || LambdaMaxCount > 50)
+        {
+            LambdaMaxCount = 3;
+        }
+
+        if (!IsFiniteRange(CloudPointThresholdPercent, 0.001, 100.0))
+        {
+            CloudPointThresholdPercent = 50.0;
+        }
 
         if (!IsPositive(FontSize))
         {
@@ -218,6 +264,30 @@ public sealed class GraphFormattingConfig
         }
 
         return result;
+    }
+
+    private static string? NormalizeCloudPointMethod(string? text)
+    {
+        var normalized = NormalizeOptionalText(text);
+        if (normalized is null) return null;
+
+        if (normalized.Equals("Midpoint", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Midpoint";
+        }
+
+        if (normalized.Equals("FirstDerivativePeak", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("Derivative", StringComparison.OrdinalIgnoreCase))
+        {
+            return "FirstDerivativePeak";
+        }
+
+        return null;
+    }
+
+    private static bool IsFiniteRange(double value, double min, double max)
+    {
+        return double.IsFinite(value) && value >= min && value <= max;
     }
 
     private static string? NormalizeYAxisDisplayMode(string? text)

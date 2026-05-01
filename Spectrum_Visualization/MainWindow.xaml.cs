@@ -497,6 +497,19 @@ public partial class MainWindow : Window
             MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
                 ? markerSize
                 : GraphFormattingConfig.DefaultMarkerSize,
+            ShowLambdaMaxMarkers = ShowLambdaMaxCheckBox.IsChecked == true,
+            LambdaMaxMinAbsorbance = TryParseNonNegativeDouble(LambdaMaxMinAbsorbanceTextBox.Text, out var lambdaMin)
+                ? lambdaMin
+                : 0.05,
+            LambdaMaxCount = int.TryParse(LambdaMaxCountTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lambdaCount)
+                && lambdaCount >= 0
+                ? lambdaCount
+                : 3,
+            ShowCloudPointMarkers = ShowCloudPointCheckBox.IsChecked == true,
+            CloudPointMethod = GetSelectedCloudPointMethodConfigValue(),
+            CloudPointThresholdPercent = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var cpThreshold)
+                ? cpThreshold
+                : 50.0,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
         };
 
@@ -542,6 +555,16 @@ public partial class MainWindow : Window
 
             ApplyEnabledPeakAssignments(config.EnabledIrPeakAssignmentLabels);
             ApplyIntegrationRegions(config.IntegrationRegions);
+
+            ShowLambdaMaxCheckBox.IsChecked = config.ShowLambdaMaxMarkers;
+            LambdaMaxMinAbsorbanceTextBox.Text = config.LambdaMaxMinAbsorbance.ToString("0.###", CultureInfo.InvariantCulture);
+            LambdaMaxCountTextBox.Text = config.LambdaMaxCount.ToString(CultureInfo.InvariantCulture);
+            ShowCloudPointCheckBox.IsChecked = config.ShowCloudPointMarkers;
+            if (!SelectComboBoxItemByTag(CloudPointMethodComboBox, config.CloudPointMethod ?? "Midpoint"))
+            {
+                CloudPointMethodComboBox.SelectedIndex = 0;
+            }
+            CloudPointThresholdTextBox.Text = config.CloudPointThresholdPercent.ToString("0.##", CultureInfo.InvariantCulture);
         }
         finally
         {
@@ -1248,6 +1271,8 @@ public partial class MainWindow : Window
         DrawPeakAssignments(activeDataset, yRange);
         DrawIntegrationRegions(yRange);
         DrawIntegrationBaselines(plotEntries, yDisplayMode);
+        DrawLambdaMaxMarkers(plotEntries, yRange);
+        DrawCloudPointMarkers(plotEntries, yRange);
 
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
@@ -2371,6 +2396,30 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
+    private void LambdaMaxOption_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        SchedulePlotCurrentDataset();
+    }
+
+    private void LambdaMaxNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        SchedulePlotCurrentDataset();
+    }
+
+    private void CloudPointOption_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        SchedulePlotCurrentDataset();
+    }
+
+    private void CloudPointNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        SchedulePlotCurrentDataset();
+    }
+
     private void PeakAssignmentEnableAllButton_Click(object sender, RoutedEventArgs e)
     {
         SetAllPeakAssignmentsEnabled(true);
@@ -2934,6 +2983,48 @@ public partial class MainWindow : Window
         PeakAssignmentHintTextBlock.Visibility = enabled
             ? Visibility.Collapsed
             : Visibility.Visible;
+
+        UpdateLambdaMaxUi(dataset);
+        UpdateCloudPointUi(dataset);
+    }
+
+    private void UpdateLambdaMaxUi(SpectrumDataset? dataset)
+    {
+        var hasWavelengthScan = AnyDatasetMatches(static d => d.IsWavelengthScan)
+                                || dataset?.IsWavelengthScan == true;
+        ShowLambdaMaxCheckBox.IsEnabled = hasWavelengthScan;
+        LambdaMaxMinAbsorbanceTextBox.IsEnabled = hasWavelengthScan;
+        LambdaMaxCountTextBox.IsEnabled = hasWavelengthScan;
+        LambdaMaxHintTextBlock.Visibility = hasWavelengthScan
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void UpdateCloudPointUi(SpectrumDataset? dataset)
+    {
+        var hasTemperatureScan = AnyDatasetMatches(static d => d.IsTemperatureScan)
+                                 || dataset?.IsTemperatureScan == true;
+        ShowCloudPointCheckBox.IsEnabled = hasTemperatureScan;
+        CloudPointMethodComboBox.IsEnabled = hasTemperatureScan;
+        CloudPointThresholdTextBox.IsEnabled = hasTemperatureScan;
+        CloudPointHintTextBlock.Visibility = hasTemperatureScan
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        if (!hasTemperatureScan || ShowCloudPointCheckBox.IsChecked != true)
+        {
+            CloudPointResultTextBlock.Text = string.Empty;
+            CloudPointResultTextBlock.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private bool AnyDatasetMatches(Func<SpectrumDataset, bool> predicate)
+    {
+        for (var i = 0; i < _loadedDatasets.Count; i++)
+        {
+            if (predicate(_loadedDatasets[i])) return true;
+        }
+        return false;
     }
 
     private void DrawIntegrationRegions(AxisDataRange yRange)
@@ -3136,6 +3227,230 @@ public partial class MainWindow : Window
             text.LabelFontSize = 9;
             text.LabelAlignment = ScottPlot.Alignment.UpperCenter;
         }
+    }
+
+    private LambdaMaxFinderConfig BuildLambdaMaxConfig()
+    {
+        var minAbs = TryParseNonNegativeDouble(LambdaMaxMinAbsorbanceTextBox.Text, out var parsed)
+            ? parsed
+            : 0.05;
+        var maxCount = int.TryParse(LambdaMaxCountTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var c) && c >= 0
+            ? c
+            : 3;
+        return new LambdaMaxFinderConfig
+        {
+            MinimumAbsorbance = minAbs,
+            MaxPeaks = maxCount,
+            Window = 3,
+        };
+    }
+
+    private CloudPointDetectionConfig BuildCloudPointConfig()
+    {
+        var threshold = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var parsed)
+            ? parsed
+            : 50.0;
+        var method = GetSelectedCloudPointMethod();
+        return new CloudPointDetectionConfig
+        {
+            Method = method,
+            TransmittanceThresholdPercent = threshold,
+            SmoothingWindow = 3,
+        };
+    }
+
+    private CloudPointMethod GetSelectedCloudPointMethod()
+    {
+        return GetSelectedComboBoxTag(CloudPointMethodComboBox) switch
+        {
+            "FirstDerivativePeak" => CloudPointMethod.FirstDerivativePeak,
+            _ => CloudPointMethod.Midpoint,
+        };
+    }
+
+    private string? GetSelectedCloudPointMethodConfigValue()
+    {
+        var tag = GetSelectedComboBoxTag(CloudPointMethodComboBox);
+        return string.IsNullOrWhiteSpace(tag) ? null : tag;
+    }
+
+    private void DrawLambdaMaxMarkers(
+        (SpectrumDataset Dataset, int Index)[] plotEntries,
+        AxisDataRange yRange)
+    {
+        if (_spectrumPlot is null
+            || ShowLambdaMaxCheckBox.IsChecked != true
+            || plotEntries.Length == 0
+            || !yRange.HasValue)
+        {
+            return;
+        }
+
+        var config = BuildLambdaMaxConfig();
+        var axisLimits = _spectrumPlot.Plot.Axes.GetLimits();
+        var ySpan = axisLimits.Top - axisLimits.Bottom;
+        var labelOffset = ySpan > 0 ? ySpan * 0.04 : 0.05;
+        var yDisplayMode = GetSelectedYAxisDisplayMode();
+
+        foreach (var (dataset, datasetIndex) in plotEntries)
+        {
+            if (!dataset.IsWavelengthScan) continue;
+
+            var peaks = LambdaMaxFinder.Find(dataset, config);
+            if (peaks.Count == 0) continue;
+
+            var color = ResolveDatasetColor(datasetIndex);
+            var displayYs = SpectrumYAxisConverter.GetDisplayYValues(dataset, yDisplayMode);
+            var xs = dataset.XValues;
+
+            foreach (var peak in peaks)
+            {
+                if (!peak.HasResult) continue;
+
+                // Marker the data-point Y in the *displayed* unit so the
+                // dot sits visually on the curve even when the user picked
+                // Transmittance display.
+                var displayY = peak.SampleIndex >= 0 && peak.SampleIndex < displayYs.Length
+                    ? displayYs[peak.SampleIndex]
+                    : double.NaN;
+                if (!double.IsFinite(displayY)) continue;
+
+                var line = _spectrumPlot.Plot.Add.VerticalLine(peak.WavelengthNm);
+                line.LineStyle.Color = color.WithAlpha((byte)170);
+                line.LineStyle.Pattern = ScottPlot.LinePattern.Dotted;
+                line.LineStyle.Width = 1;
+                line.LegendText = string.Empty;
+
+                var marker = _spectrumPlot.Plot.Add.Marker(peak.WavelengthNm, displayY);
+                marker.MarkerStyle.Shape = ScottPlot.MarkerShape.OpenTriangleDown;
+                marker.MarkerStyle.Size = 8;
+                marker.MarkerStyle.LineColor = color;
+                marker.MarkerStyle.LineWidth = 1.5f;
+                marker.MarkerStyle.FillColor = ScottPlot.Colors.White;
+                marker.LegendText = string.Empty;
+
+                var labelText = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"λmax = {peak.WavelengthNm:0.#} nm");
+                var labelY = displayY + labelOffset;
+                if (labelY > axisLimits.Top) labelY = displayY - labelOffset;
+
+                var text = _spectrumPlot.Plot.Add.Text(labelText, peak.WavelengthNm, labelY);
+                text.LabelFontColor = color;
+                text.LabelFontSize = 10;
+                text.LabelAlignment = ScottPlot.Alignment.LowerCenter;
+                text.LabelBold = false;
+            }
+        }
+    }
+
+    private void DrawCloudPointMarkers(
+        (SpectrumDataset Dataset, int Index)[] plotEntries,
+        AxisDataRange yRange)
+    {
+        CloudPointResultTextBlock.Visibility = Visibility.Collapsed;
+        CloudPointResultTextBlock.Text = string.Empty;
+
+        if (_spectrumPlot is null
+            || ShowCloudPointCheckBox.IsChecked != true
+            || plotEntries.Length == 0
+            || !yRange.HasValue)
+        {
+            return;
+        }
+
+        var config = BuildCloudPointConfig();
+        var axisLimits = _spectrumPlot.Plot.Axes.GetLimits();
+        var ySpan = axisLimits.Top - axisLimits.Bottom;
+        var yPad = ySpan > 0 ? ySpan * 100.0 : 1.0;
+        var labelY = ySpan > 0 ? axisLimits.Top - ySpan * 0.05 : axisLimits.Top;
+        var yDisplayMode = GetSelectedYAxisDisplayMode();
+
+        var rows = new List<(SpectrumDataset Dataset, int Index, CloudPointResult Result, string DisplayName)>();
+        foreach (var (dataset, datasetIndex) in plotEntries)
+        {
+            if (!dataset.IsTemperatureScan) continue;
+
+            var result = CloudPointDetector.Detect(dataset, config);
+            if (!result.HasResult) continue;
+
+            var displayName = GetCustomLegendName(datasetIndex)
+                ?? Path.GetFileNameWithoutExtension(dataset.SourceFilePath)
+                ?? $"dataset {datasetIndex + 1}";
+            rows.Add((dataset, datasetIndex, result, displayName));
+
+            var color = ResolveDatasetColor(datasetIndex);
+            var line = _spectrumPlot.Plot.Add.VerticalLine(result.TemperatureCelsius);
+            line.LineStyle.Color = color.WithAlpha((byte)200);
+            line.LineStyle.Pattern = ScottPlot.LinePattern.Dashed;
+            line.LineStyle.Width = 1.5f;
+            line.LegendText = string.Empty;
+
+            // Marker on the curve at the detected Y (display space).
+            var displayYs = SpectrumYAxisConverter.GetDisplayYValues(dataset, yDisplayMode);
+            var markerY = InterpolateY(dataset.XValues, displayYs, result.TemperatureCelsius);
+            if (markerY is { } my && double.IsFinite(my))
+            {
+                var marker = _spectrumPlot.Plot.Add.Marker(result.TemperatureCelsius, my);
+                marker.MarkerStyle.Shape = ScottPlot.MarkerShape.FilledCircle;
+                marker.MarkerStyle.Size = 7;
+                marker.MarkerStyle.LineColor = color;
+                marker.MarkerStyle.FillColor = color;
+                marker.LegendText = string.Empty;
+            }
+
+            var labelText = string.Create(
+                CultureInfo.InvariantCulture,
+                $"Tc = {result.TemperatureCelsius:0.0} °C");
+            var text = _spectrumPlot.Plot.Add.Text(labelText, result.TemperatureCelsius, labelY);
+            text.LabelFontColor = color;
+            text.LabelFontSize = 10;
+            text.LabelAlignment = ScottPlot.Alignment.UpperCenter;
+        }
+
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        // Result panel: per-dataset Tc + ΔT when both heating and cooling present.
+        var lines = new List<string>(rows.Count + 1);
+        foreach (var (_, _, result, name) in rows)
+        {
+            var dirLabel = result.Direction switch
+            {
+                ScanDirection.Heating => "昇温",
+                ScanDirection.Cooling => "降温",
+                _ => "方向不明",
+            };
+            var methodLabel = result.Method == CloudPointMethod.Midpoint
+                ? $"中点法 T={result.TransmittancePercentAtTc:0.#}%"
+                : "1次微分極大";
+            lines.Add(string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} ({1}, {2}): Tc = {3:0.00} °C",
+                name, dirLabel, methodLabel, result.TemperatureCelsius));
+        }
+
+        var heating = rows
+            .Where(r => r.Result.Direction == ScanDirection.Heating)
+            .Select(r => r.Result)
+            .FirstOrDefault();
+        var cooling = rows
+            .Where(r => r.Result.Direction == ScanDirection.Cooling)
+            .Select(r => r.Result)
+            .FirstOrDefault();
+        var delta = HysteresisAnalyzer.ComputeHysteresis(heating, cooling);
+        if (double.IsFinite(delta))
+        {
+            lines.Add(string.Format(
+                CultureInfo.InvariantCulture,
+                "ヒステリシス ΔT = Tc(降温) − Tc(昇温) = {0:+0.00;-0.00;0.00} °C",
+                delta));
+        }
+
+        CloudPointResultTextBlock.Text = string.Join(Environment.NewLine, lines);
+        CloudPointResultTextBlock.Visibility = Visibility.Visible;
     }
 
     private string? GetSelectedYAxisDisplayModeConfigValue()

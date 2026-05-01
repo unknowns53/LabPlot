@@ -1096,59 +1096,6 @@
                                     </StackPanel>
                                 </Expander>
 
-                                <Expander Header="IR ピーク帰属" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
-                                    <StackPanel Margin="0,8,0,0">
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Button x:Name="PeakAssignmentEnableAllButton"
-                                                Grid.Column="0"
-                                                Content="全 ON"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Click="PeakAssignmentEnableAllButton_Click" />
-                                        <Button x:Name="PeakAssignmentDisableAllButton"
-                                                Grid.Column="2"
-                                                Content="全 OFF"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Click="PeakAssignmentDisableAllButton_Click" />
-                                    </Grid>
-                                    <TextBlock x:Name="PeakAssignmentHintTextBlock"
-                                               Text="IR データを開くと帰属が表示できます"
-                                               FontSize="11"
-                                               Foreground="#64748B"
-                                               Margin="0,0,0,6"
-                                               Visibility="Collapsed" />
-                                    <ItemsControl x:Name="PeakAssignmentItemsControl">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,3,0,3">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="14" />
-                                                        <ColumnDefinition Width="6" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Border Grid.Column="0"
-                                                            Width="14" Height="14"
-                                                            Background="{Binding ColorBrush}"
-                                                            BorderBrush="#475569"
-                                                            BorderThickness="1"
-                                                            CornerRadius="2"
-                                                            VerticalAlignment="Center" />
-                                                    <CheckBox Grid.Column="2"
-                                                              Content="{Binding Label}"
-                                                              IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                              Checked="PeakAssignmentCheckBox_Changed"
-                                                              Unchecked="PeakAssignmentCheckBox_Changed" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    </StackPanel>
-                                </Expander>
-
                                 <Expander Header="枠とグリッド" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                     <StackPanel Margin="0,8,0,0">
                                     <Grid Margin="0,0,0,10">
@@ -1281,9 +1228,160 @@
                             </Expander>
                         </Border>
 
-                        <!-- Section: Integration -->
+                        <!-- Section: Analysis -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="積分" IsExpanded="False">
+                            <Expander Header="解析" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
+
+                                <Expander Header="IR ピーク帰属" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button x:Name="PeakAssignmentEnableAllButton"
+                                                Grid.Column="0"
+                                                Content="全 ON"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="PeakAssignmentEnableAllButton_Click" />
+                                        <Button x:Name="PeakAssignmentDisableAllButton"
+                                                Grid.Column="2"
+                                                Content="全 OFF"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="PeakAssignmentDisableAllButton_Click" />
+                                    </Grid>
+                                    <TextBlock x:Name="PeakAssignmentHintTextBlock"
+                                               Text="IR データを開くと帰属が表示できます"
+                                               FontSize="11"
+                                               Foreground="#64748B"
+                                               Margin="0,0,0,6"
+                                               Visibility="Collapsed" />
+                                    <ItemsControl x:Name="PeakAssignmentItemsControl">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,3,0,3">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition Width="6" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0"
+                                                            Width="14" Height="14"
+                                                            Background="{Binding ColorBrush}"
+                                                            BorderBrush="#475569"
+                                                            BorderThickness="1"
+                                                            CornerRadius="2"
+                                                            VerticalAlignment="Center" />
+                                                    <CheckBox Grid.Column="2"
+                                                              Content="{Binding Label}"
+                                                              IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              Checked="PeakAssignmentCheckBox_Changed"
+                                                              Unchecked="PeakAssignmentCheckBox_Changed" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="波長スキャン解析（λmax）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock x:Name="LambdaMaxHintTextBlock"
+                                                   Text="波長スキャンを開くと λmax 検出が利用できます"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   Margin="0,0,0,6"
+                                                   Visibility="Collapsed" />
+                                        <CheckBox x:Name="ShowLambdaMaxCheckBox"
+                                                  Content="λmax にマーカーを表示"
+                                                  Margin="0,0,0,8"
+                                                  ToolTip="極大点を自動検出して垂直線とラベル（例: λmax = 280 nm）を描画。Absorbance ベースで検出（Transmittance データは A に変換）"
+                                                  Checked="LambdaMaxOption_Changed"
+                                                  Unchecked="LambdaMaxOption_Changed" />
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="検出閾値（A）"
+                                                           Style="{StaticResource FieldLabelStyle}" />
+                                                <TextBox x:Name="LambdaMaxMinAbsorbanceTextBox"
+                                                         Text="0.05"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         ToolTip="この絶対値以上の極大のみマーカーを表示"
+                                                         TextChanged="LambdaMaxNumericTextBox_TextChanged" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="最大マーカー数"
+                                                           Style="{StaticResource FieldLabelStyle}" />
+                                                <TextBox x:Name="LambdaMaxCountTextBox"
+                                                         Text="3"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         ToolTip="絶対値の高い順に上位 N 個まで描画（0 で無制限）"
+                                                         TextChanged="LambdaMaxNumericTextBox_TextChanged" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="温度スキャン解析（Tc / ヒステリシス）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock x:Name="CloudPointHintTextBlock"
+                                                   Text="温度スキャン（Transmittance）を開くと Tc 検出が利用できます"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   Margin="0,0,0,6"
+                                                   Visibility="Collapsed" />
+                                        <CheckBox x:Name="ShowCloudPointCheckBox"
+                                                  Content="曇点（Tc）を抽出して表示"
+                                                  Margin="0,0,0,8"
+                                                  ToolTip="温度スキャンから Tc を自動推定し、グラフ上に垂直線で表示。昇温・降温の両方が読み込まれていれば ΔT も計算"
+                                                  Checked="CloudPointOption_Changed"
+                                                  Unchecked="CloudPointOption_Changed" />
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="検出方法"
+                                                           Style="{StaticResource FieldLabelStyle}" />
+                                                <ComboBox x:Name="CloudPointMethodComboBox"
+                                                          Style="{StaticResource InputComboBoxStyle}"
+                                                          SelectedIndex="0"
+                                                          ToolTip="中点法: T 閾値の通過温度を線形補間 / 1次微分極大法: 平滑化後の dT/dTemp が最大の温度"
+                                                          SelectionChanged="CloudPointOption_Changed">
+                                                    <ComboBoxItem Content="中点法（T 閾値）" Tag="Midpoint" />
+                                                    <ComboBoxItem Content="1次微分極大法" Tag="FirstDerivativePeak" />
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="閾値（T %）"
+                                                           Style="{StaticResource FieldLabelStyle}" />
+                                                <TextBox x:Name="CloudPointThresholdTextBox"
+                                                         Text="50"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         ToolTip="中点法で使う透過率の閾値。50 % が標準（古典的 T₅₀ 定義）"
+                                                         TextChanged="CloudPointNumericTextBox_TextChanged" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock x:Name="CloudPointResultTextBlock"
+                                                   Text=""
+                                                   FontSize="11"
+                                                   FontFamily="Consolas, Cascadia Mono, monospace"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,8,0,0"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="Collapsed" />
+                                    </StackPanel>
+                                </Expander>
+
+                                <Expander Header="積分" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                 <StackPanel Margin="0,8,0,0">
                                     <Grid Margin="0,0,0,6">
                                         <Grid.ColumnDefinitions>
@@ -1435,6 +1533,9 @@
                                             Margin="0,10,0,0"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Click="ExportIntegrationResultsButton_Click" />
+                                </StackPanel>
+                                </Expander>
+
                                 </StackPanel>
                             </Expander>
                         </Border>

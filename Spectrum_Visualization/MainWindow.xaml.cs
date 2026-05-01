@@ -79,6 +79,14 @@ public partial class MainWindow : Window
     private Point? _datasetDragStartPoint;
     private InsertionAdorner? _datasetInsertionAdorner;
 
+    // Mouse-drag region selection for the integration feature.
+    private Canvas? _integrationDragOverlay;
+    private System.Windows.Shapes.Rectangle? _integrationDragPreview;
+    private bool _isIntegrationDragMode;
+    private bool _integrationDragStarted;
+    private Point _integrationDragStartPoint;
+    private IntegrationRegionVm? _integrationDragTargetVm;
+
     public MainWindow()
     {
         // Suppress event handlers that fire during XAML parse (ComboBox.SelectionChanged
@@ -385,13 +393,17 @@ public partial class MainWindow : Window
             string tooltip;
             if (result.HasResult)
             {
-                var unit = string.IsNullOrWhiteSpace(dataset.RawYUnits) ? "?" : dataset.RawYUnits;
+                var native = string.IsNullOrWhiteSpace(dataset.RawYUnits) ? "?" : dataset.RawYUnits;
                 tooltip =
-                    $"Area = {result.Area.ToString("G6", CultureInfo.InvariantCulture)}\n"
+                    $"Area = {result.Area.ToString("G6", CultureInfo.InvariantCulture)} (Absorbance)\n"
                     + $"Raw = {result.RawArea.ToString("G6", CultureInfo.InvariantCulture)}\n"
                     + $"Baseline = {result.BaselineArea.ToString("G6", CultureInfo.InvariantCulture)}\n"
                     + $"N = {result.PointCount}\n"
-                    + $"YUNITS = {unit}";
+                    + $"Native YUNITS = {native}";
+            }
+            else if (!SpectrumYAxisConverter.CanDisplay(dataset, YAxisDisplayMode.Absorbance))
+            {
+                tooltip = "Absorbance に変換できないデータセットのため積分できません";
             }
             else
             {
@@ -1084,6 +1096,14 @@ public partial class MainWindow : Window
             _spectrumPlot.MouseWheel += SpectrumPlot_MouseInteractionFinished;
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_spectrumPlot);
+
+            _integrationDragOverlay = new Canvas
+            {
+                Background = null,
+                IsHitTestVisible = false,
+            };
+            PlotHost.Children.Add(_integrationDragOverlay);
+
             UpdatePlotHostAspectRatio();
             InitializeEmptyPlot();
 
@@ -2356,15 +2376,264 @@ public partial class MainWindow : Window
 
     private void AddIntegrationRegionButton_Click(object sender, RoutedEventArgs e)
     {
+        // Re-clicking the button while drag mode is active acts as a cancel.
+        if (_isIntegrationDragMode)
+        {
+            ExitIntegrationDragMode(canceled: true);
+            return;
+        }
+
+        if (!ConfirmAbsorbanceForIntegration())
+        {
+            return;
+        }
+
+        var newRegion = AddIntegrationRegionInternal();
+
+        if (_spectrumPlot is not null && _loadedDatasets.Count > 0)
+        {
+            EnterIntegrationDragMode(newRegion);
+        }
+    }
+
+    private IntegrationRegionVm AddIntegrationRegionInternal(double? xMin = null, double? xMax = null)
+    {
         var vm = new IntegrationRegionVm
         {
             Label = $"region {_integrationRegionVms.Count + 1}",
             Baseline = BaselineMethod.Linear,
         };
+
+        if (xMin is double xMinValue)
+        {
+            vm.XMinText = xMinValue.ToString("G6", CultureInfo.InvariantCulture);
+        }
+
+        if (xMax is double xMaxValue)
+        {
+            vm.XMaxText = xMaxValue.ToString("G6", CultureInfo.InvariantCulture);
+        }
+
         vm.PropertyChanged += IntegrationRegionVm_PropertyChanged;
         _integrationRegionVms.Add(vm);
         UpdateIntegrationResults();
         SchedulePlotCurrentDataset();
+        return vm;
+    }
+
+    /// <summary>
+    /// When the Y axis is not Absorbance and the loaded dataset can be
+    /// expressed as Absorbance (i.e. its native YUNITS is A or T%), prompt
+    /// the user before adding the region. Returns false if the user
+    /// cancels the whole operation.
+    /// </summary>
+    private bool ConfirmAbsorbanceForIntegration()
+    {
+        var displayMode = GetSelectedYAxisDisplayMode();
+        if (displayMode == YAxisDisplayMode.Absorbance)
+        {
+            return true;
+        }
+
+        if (!CanAnyLoadedDatasetUseAbsorbance())
+        {
+            return true;
+        }
+
+        var dialog = new AbsorbanceConfirmDialog { Owner = this };
+        dialog.ShowDialog();
+
+        switch (dialog.Choice)
+        {
+            case AbsorbanceConfirmDialog.DialogChoice.SwitchAndAdd:
+                SelectComboBoxItemByTag(YAxisDisplayComboBox, "Absorbance");
+                return true;
+            case AbsorbanceConfirmDialog.DialogChoice.AddWithoutSwitch:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool CanAnyLoadedDatasetUseAbsorbance()
+    {
+        foreach (var dataset in _loadedDatasets)
+        {
+            if (SpectrumYAxisConverter.CanDisplay(dataset, YAxisDisplayMode.Absorbance))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void EnterIntegrationDragMode(IntegrationRegionVm targetVm)
+    {
+        if (_spectrumPlot is null || _isIntegrationDragMode)
+        {
+            return;
+        }
+
+        _isIntegrationDragMode = true;
+        _integrationDragStarted = false;
+        _integrationDragTargetVm = targetVm;
+
+        _spectrumPlot.Cursor = Cursors.Cross;
+        _spectrumPlot.PreviewMouseLeftButtonDown += IntegrationDrag_MouseLeftButtonDown;
+        _spectrumPlot.PreviewMouseMove += IntegrationDrag_MouseMove;
+        _spectrumPlot.PreviewMouseLeftButtonUp += IntegrationDrag_MouseLeftButtonUp;
+        _spectrumPlot.PreviewMouseRightButtonDown += IntegrationDrag_MouseRightButtonDown;
+        PreviewKeyDown += IntegrationDrag_KeyDown;
+
+        AddIntegrationRegionButton.Content = "✕ ドラッグ取消";
+        SetStatus($"「{targetVm.Label}」をグラフ上でドラッグして範囲を指定（Esc / 右クリック / 同ボタン再押下でキャンセル）", false);
+    }
+
+    private void ExitIntegrationDragMode(bool canceled)
+    {
+        if (!_isIntegrationDragMode || _spectrumPlot is null)
+        {
+            return;
+        }
+
+        _isIntegrationDragMode = false;
+        _integrationDragStarted = false;
+        _integrationDragTargetVm = null;
+
+        _spectrumPlot.Cursor = null;
+        _spectrumPlot.PreviewMouseLeftButtonDown -= IntegrationDrag_MouseLeftButtonDown;
+        _spectrumPlot.PreviewMouseMove -= IntegrationDrag_MouseMove;
+        _spectrumPlot.PreviewMouseLeftButtonUp -= IntegrationDrag_MouseLeftButtonUp;
+        _spectrumPlot.PreviewMouseRightButtonDown -= IntegrationDrag_MouseRightButtonDown;
+        PreviewKeyDown -= IntegrationDrag_KeyDown;
+
+        if (_spectrumPlot.IsMouseCaptured)
+        {
+            _spectrumPlot.ReleaseMouseCapture();
+        }
+
+        ClearIntegrationDragPreview();
+
+        AddIntegrationRegionButton.Content = "+ 領域追加";
+        if (canceled)
+        {
+            SetStatus("ドラッグ範囲指定をスキップしました（数値入力で編集できます）", false);
+        }
+    }
+
+    private void ClearIntegrationDragPreview()
+    {
+        if (_integrationDragPreview is not null && _integrationDragOverlay is not null)
+        {
+            _integrationDragOverlay.Children.Remove(_integrationDragPreview);
+            _integrationDragPreview = null;
+        }
+    }
+
+    private void IntegrationDrag_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_spectrumPlot is null || _integrationDragOverlay is null)
+        {
+            return;
+        }
+
+        _integrationDragStartPoint = e.GetPosition(_integrationDragOverlay);
+        _integrationDragStarted = true;
+
+        ClearIntegrationDragPreview();
+        _integrationDragPreview = new System.Windows.Shapes.Rectangle
+        {
+            Stroke = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
+            StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 4, 2 },
+            Fill = new SolidColorBrush(Color.FromArgb(50, 0x94, 0xA3, 0xB8)),
+            Width = 0,
+            Height = _integrationDragOverlay.ActualHeight,
+        };
+        Canvas.SetLeft(_integrationDragPreview, _integrationDragStartPoint.X);
+        Canvas.SetTop(_integrationDragPreview, 0);
+        _integrationDragOverlay.Children.Add(_integrationDragPreview);
+
+        _spectrumPlot.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void IntegrationDrag_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_integrationDragStarted || _integrationDragPreview is null || _integrationDragOverlay is null)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(_integrationDragOverlay);
+        var left = Math.Min(_integrationDragStartPoint.X, current.X);
+        var width = Math.Abs(current.X - _integrationDragStartPoint.X);
+        Canvas.SetLeft(_integrationDragPreview, left);
+        Canvas.SetTop(_integrationDragPreview, 0);
+        _integrationDragPreview.Width = width;
+        _integrationDragPreview.Height = _integrationDragOverlay.ActualHeight;
+        e.Handled = true;
+    }
+
+    private void IntegrationDrag_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_spectrumPlot is null || _integrationDragTargetVm is null)
+        {
+            ExitIntegrationDragMode(canceled: true);
+            return;
+        }
+
+        if (!_integrationDragStarted)
+        {
+            ExitIntegrationDragMode(canceled: true);
+            return;
+        }
+
+        var endInPlot = e.GetPosition(_spectrumPlot);
+        var startInPlot = _integrationDragStartPoint;
+
+        // The pixel width threshold suppresses accidental clicks (no real drag).
+        if (Math.Abs(endInPlot.X - startInPlot.X) < 3)
+        {
+            ExitIntegrationDragMode(canceled: true);
+            e.Handled = true;
+            return;
+        }
+
+        var c1 = _spectrumPlot.Plot.GetCoordinates(new ScottPlot.Pixel((float)startInPlot.X, (float)startInPlot.Y));
+        var c2 = _spectrumPlot.Plot.GetCoordinates(new ScottPlot.Pixel((float)endInPlot.X, (float)endInPlot.Y));
+
+        var x1 = Math.Min(c1.X, c2.X);
+        var x2 = Math.Max(c1.X, c2.X);
+
+        if (!double.IsFinite(x1) || !double.IsFinite(x2) || x1 == x2)
+        {
+            ExitIntegrationDragMode(canceled: true);
+            e.Handled = true;
+            return;
+        }
+
+        var targetLabel = _integrationDragTargetVm.Label;
+        _integrationDragTargetVm.XMinText = x1.ToString("G6", CultureInfo.InvariantCulture);
+        _integrationDragTargetVm.XMaxText = x2.ToString("G6", CultureInfo.InvariantCulture);
+        SetStatus($"「{targetLabel}」の範囲を [{x1:G6}, {x2:G6}] に設定しました", false);
+        ExitIntegrationDragMode(canceled: false);
+        e.Handled = true;
+    }
+
+    private void IntegrationDrag_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        ExitIntegrationDragMode(canceled: true);
+        e.Handled = true;
+    }
+
+    private void IntegrationDrag_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            ExitIntegrationDragMode(canceled: true);
+            e.Handled = true;
+        }
     }
 
     private void RemoveIntegrationRegionButton_Click(object sender, RoutedEventArgs e)

@@ -2,10 +2,11 @@ namespace SpectrumAnalyzer.Core;
 
 /// <summary>
 /// Trapezoidal-rule integration of a spectrum dataset over a user-defined
-/// region, with optional linear baseline subtraction. Always operates on the
-/// dataset's native Y values (no Absorbance ↔ Transmittance conversion); the
-/// caller is responsible for choosing a region that makes sense for the
-/// underlying YUNITS.
+/// region, with optional linear baseline subtraction. Always operates in
+/// Absorbance space — the dataset is internally converted from Transmittance
+/// (T %) when needed via <see cref="SpectrumYAxisConverter"/>. Datasets whose
+/// YUNITS cannot be expressed as Absorbance (Reflectance, temperature, …)
+/// return an empty result.
 /// </summary>
 public static class SpectrumIntegrator
 {
@@ -19,8 +20,13 @@ public static class SpectrumIntegrator
             return Empty(region);
         }
 
+        if (!SpectrumYAxisConverter.CanDisplay(dataset, YAxisDisplayMode.Absorbance))
+        {
+            return Empty(region);
+        }
+
         var xs = dataset.XValues;
-        var ys = dataset.YValues;
+        var ys = SpectrumYAxisConverter.GetDisplayYValues(dataset, YAxisDisplayMode.Absorbance);
         if (xs.Length < 2)
         {
             return Empty(region);

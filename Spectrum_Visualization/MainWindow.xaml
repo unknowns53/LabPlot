@@ -1149,135 +1149,6 @@
                                     </StackPanel>
                                 </Expander>
 
-                                <Expander Header="積分" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
-                                    <StackPanel Margin="0,8,0,0">
-                                    <Grid Margin="0,0,0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Button x:Name="AddIntegrationRegionButton"
-                                                Grid.Column="0"
-                                                Content="+ 領域追加"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Click="AddIntegrationRegionButton_Click" />
-                                        <Button x:Name="ClearIntegrationRegionsButton"
-                                                Grid.Column="2"
-                                                Content="× 全削除"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Click="ClearIntegrationRegionsButton_Click" />
-                                    </Grid>
-
-                                    <Grid Margin="0,0,0,4">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="4" />
-                                            <ColumnDefinition Width="60" />
-                                            <ColumnDefinition Width="4" />
-                                            <ColumnDefinition Width="60" />
-                                            <ColumnDefinition Width="4" />
-                                            <ColumnDefinition Width="76" />
-                                            <ColumnDefinition Width="4" />
-                                            <ColumnDefinition Width="24" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="ラベル" FontSize="11" Foreground="#64748B" />
-                                        <TextBlock Grid.Column="2" Text="X Min" FontSize="11" Foreground="#64748B" />
-                                        <TextBlock Grid.Column="4" Text="X Max" FontSize="11" Foreground="#64748B" />
-                                        <TextBlock Grid.Column="6" Text="Baseline" FontSize="11" Foreground="#64748B" />
-                                    </Grid>
-
-                                    <ItemsControl x:Name="IntegrationRegionItemsControl">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,2,0,2">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="4" />
-                                                        <ColumnDefinition Width="60" />
-                                                        <ColumnDefinition Width="4" />
-                                                        <ColumnDefinition Width="60" />
-                                                        <ColumnDefinition Width="4" />
-                                                        <ColumnDefinition Width="76" />
-                                                        <ColumnDefinition Width="4" />
-                                                        <ColumnDefinition Width="24" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBox Grid.Column="0"
-                                                             Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
-                                                             Style="{StaticResource InputTextBoxStyle}"
-                                                             ToolTip="領域の名前" />
-                                                    <TextBox Grid.Column="2"
-                                                             Text="{Binding XMinText, UpdateSourceTrigger=PropertyChanged}"
-                                                             Style="{StaticResource InputTextBoxStyle}"
-                                                             ToolTip="X 範囲の最小値" />
-                                                    <TextBox Grid.Column="4"
-                                                             Text="{Binding XMaxText, UpdateSourceTrigger=PropertyChanged}"
-                                                             Style="{StaticResource InputTextBoxStyle}"
-                                                             ToolTip="X 範囲の最大値" />
-                                                    <ComboBox Grid.Column="6"
-                                                              SelectedItem="{Binding Baseline}"
-                                                              Style="{StaticResource InputComboBoxStyle}"
-                                                              ToolTip="ベースライン補正の方法">
-                                                        <core:BaselineMethod>None</core:BaselineMethod>
-                                                        <core:BaselineMethod>Linear</core:BaselineMethod>
-                                                    </ComboBox>
-                                                    <Button Grid.Column="8"
-                                                            Content="×"
-                                                            Padding="0"
-                                                            Style="{StaticResource SecondaryButtonStyle}"
-                                                            Click="RemoveIntegrationRegionButton_Click"
-                                                            ToolTip="この領域を削除" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-
-                                    <TextBlock Text="結果（ネイティブ Y 値で積分）"
-                                               Style="{StaticResource FieldLabelStyle}"
-                                               Margin="0,10,0,4" />
-                                    <TextBlock x:Name="IntegrationResultEmptyHintTextBlock"
-                                               Text="領域を追加すると結果が表示されます"
-                                               FontSize="11"
-                                               Foreground="#64748B"
-                                               Margin="0,0,0,4"
-                                               Visibility="Visible" />
-                                    <ItemsControl x:Name="IntegrationResultItemsControl">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,2,0,2">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="4" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="4" />
-                                                        <ColumnDefinition Width="80" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0"
-                                                               Text="{Binding DatasetName}"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               ToolTip="{Binding DatasetName}" />
-                                                    <TextBlock Grid.Column="2"
-                                                               Text="{Binding RegionLabel}"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               ToolTip="{Binding Tooltip}" />
-                                                    <TextBlock Grid.Column="4"
-                                                               Text="{Binding AreaText}"
-                                                               TextAlignment="Right"
-                                                               FontFamily="Consolas, Cascadia Mono, monospace"
-                                                               ToolTip="{Binding Tooltip}" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-
-                                    <Button x:Name="ExportIntegrationResultsButton"
-                                            Content="結果を CSV / XLSX 出力"
-                                            Margin="0,10,0,0"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Click="ExportIntegrationResultsButton_Click" />
-                                    </StackPanel>
-                                </Expander>
-
                                 <Expander Header="枠とグリッド" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                     <StackPanel Margin="0,8,0,0">
                                     <Grid Margin="0,0,0,10">
@@ -1406,6 +1277,161 @@
                                     <ComboBoxItem Content="3:2" Tag="3:2" />
                                     <ComboBoxItem Content="1:1" Tag="1:1" />
                                 </ComboBox>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
+                        <!-- Section: Integration -->
+                        <Border Style="{StaticResource SectionStyle}">
+                            <Expander Header="積分" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button x:Name="AddIntegrationRegionButton"
+                                                Grid.Column="0"
+                                                Content="+ 領域追加"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="AddIntegrationRegionButton_Click"
+                                                ToolTip="ボタンを押した後にグラフをドラッグすると X 範囲が埋まります。ドラッグせず数値入力でも編集可能です。" />
+                                        <Button x:Name="ClearIntegrationRegionsButton"
+                                                Grid.Column="2"
+                                                Content="× 全削除"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="ClearIntegrationRegionsButton_Click" />
+                                    </Grid>
+
+                                    <ItemsControl x:Name="IntegrationRegionItemsControl">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,2,0,4"
+                                                        Padding="6,4,6,6"
+                                                        Background="#F8FAFC"
+                                                        BorderBrush="#E2E8F0"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4">
+                                                    <StackPanel>
+                                                        <Grid Margin="0,0,0,4">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="36" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="24" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="ラベル"
+                                                                       FontSize="11"
+                                                                       Foreground="#64748B"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="2"
+                                                                     Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                                     ToolTip="領域の名前" />
+                                                            <Button Grid.Column="4"
+                                                                    Content="×"
+                                                                    Padding="0"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Click="RemoveIntegrationRegionButton_Click"
+                                                                    ToolTip="この領域を削除" />
+                                                        </Grid>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="36" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="6" />
+                                                                <ColumnDefinition Width="36" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="6" />
+                                                                <ColumnDefinition Width="56" />
+                                                                <ColumnDefinition Width="4" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="X Min"
+                                                                       FontSize="11"
+                                                                       Foreground="#64748B"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="2"
+                                                                     Text="{Binding XMinText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                                     ToolTip="X 範囲の最小値" />
+                                                            <TextBlock Grid.Column="4"
+                                                                       Text="X Max"
+                                                                       FontSize="11"
+                                                                       Foreground="#64748B"
+                                                                       VerticalAlignment="Center" />
+                                                            <TextBox Grid.Column="6"
+                                                                     Text="{Binding XMaxText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                                     ToolTip="X 範囲の最大値" />
+                                                            <TextBlock Grid.Column="8"
+                                                                       Text="Baseline"
+                                                                       FontSize="11"
+                                                                       Foreground="#64748B"
+                                                                       VerticalAlignment="Center" />
+                                                            <ComboBox Grid.Column="10"
+                                                                      SelectedItem="{Binding Baseline}"
+                                                                      Style="{StaticResource InputComboBoxStyle}"
+                                                                      ToolTip="ベースライン補正の方法">
+                                                                <core:BaselineMethod>None</core:BaselineMethod>
+                                                                <core:BaselineMethod>Linear</core:BaselineMethod>
+                                                            </ComboBox>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="結果（Absorbance ベースで積分）"
+                                               Style="{StaticResource FieldLabelStyle}"
+                                               Margin="0,10,0,4" />
+                                    <TextBlock x:Name="IntegrationResultEmptyHintTextBlock"
+                                               Text="領域を追加すると結果が表示されます"
+                                               FontSize="11"
+                                               Foreground="#64748B"
+                                               Margin="0,0,0,4"
+                                               Visibility="Visible" />
+                                    <ItemsControl x:Name="IntegrationResultItemsControl">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,2,0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="4" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="4" />
+                                                        <ColumnDefinition Width="80" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding DatasetName}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding DatasetName}" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding RegionLabel}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Tooltip}" />
+                                                    <TextBlock Grid.Column="4"
+                                                               Text="{Binding AreaText}"
+                                                               TextAlignment="Right"
+                                                               FontFamily="Consolas, Cascadia Mono, monospace"
+                                                               ToolTip="{Binding Tooltip}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Button x:Name="ExportIntegrationResultsButton"
+                                            Content="結果を CSV / XLSX 出力"
+                                            Margin="0,10,0,0"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Click="ExportIntegrationResultsButton_Click" />
                                 </StackPanel>
                             </Expander>
                         </Border>

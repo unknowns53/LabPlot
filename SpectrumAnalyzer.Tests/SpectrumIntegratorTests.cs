@@ -190,6 +190,59 @@ public sealed class SpectrumIntegratorTests
         Assert.False(result.HasResult);
     }
 
+    [Fact]
+    public void Integrate_TransmittanceDataset_IntegratesInAbsorbanceSpace()
+    {
+        // T = 10 % is constant → A = -log10(0.10) = 1.0. Integrated over X in [0, 10]
+        // the area should be 1.0 * 10 = 10. Without the Absorbance conversion the
+        // raw integral would be 10 % * 10 = 100.
+        var dataset = MakeTransmittanceDataset(SampleConstant(10.0, 0, 10, 11));
+        var region = new IntegrationRegion
+        {
+            Label = "abs",
+            XMin = 0,
+            XMax = 10,
+            BaselineMethod = BaselineMethod.None,
+        };
+
+        var result = SpectrumIntegrator.Integrate(dataset, region);
+
+        Assert.True(result.HasResult);
+        Assert.Equal(10.0, result.RawArea, precision: 9);
+    }
+
+    [Fact]
+    public void Integrate_NonAbsorbanceCompatibleDataset_ReturnsEmpty()
+    {
+        // RawYUnits that is not A or T (here Reflectance) cannot be expressed as
+        // Absorbance, so integration is refused.
+        var dataset = new SpectrumDataset
+        {
+            RawXUnits = "NANOMETERS",
+            RawYUnits = "REFLECTANCE",
+            XLabel = "Wavelength / nm",
+            YLabel = "Reflectance",
+            Points = SampleConstant(0.5, 0, 10, 11),
+        };
+        var region = new IntegrationRegion { Label = "r", XMin = 0, XMax = 10 };
+
+        var result = SpectrumIntegrator.Integrate(dataset, region);
+
+        Assert.False(result.HasResult);
+    }
+
+    private static SpectrumDataset MakeTransmittanceDataset(List<SpectrumDataPoint> points)
+    {
+        return new SpectrumDataset
+        {
+            RawXUnits = "NANOMETERS",
+            RawYUnits = "TRANSMITTANCE",
+            XLabel = "Wavelength / nm",
+            YLabel = "Transmittance / %",
+            Points = points,
+        };
+    }
+
     private static SpectrumDataset MakeDataset(List<SpectrumDataPoint> points)
     {
         return new SpectrumDataset

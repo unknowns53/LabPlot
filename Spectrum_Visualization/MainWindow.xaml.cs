@@ -87,6 +87,16 @@ public partial class MainWindow : Window
     private Point _integrationDragStartPoint;
     private IntegrationRegionVm? _integrationDragTargetVm;
 
+    // Edge-resize for already-defined integration regions. The user can
+    // grab the left or right edge of a band rectangle and drag it; the
+    // bound XMinText / XMaxText updates live so the plot re-renders and
+    // the result panel recalculates as the mouse moves.
+    private const double IntegrationEdgeHitTolerancePixels = 5.0;
+    private bool _isIntegrationResizing;
+    private IntegrationRegionVm? _integrationResizeTargetVm;
+    private bool _integrationResizeIsLeftEdge;
+    private string? _integrationResizeOriginalText;
+
     public MainWindow()
     {
         // Suppress event handlers that fire during XAML parse (ComboBox.SelectionChanged
@@ -1137,6 +1147,17 @@ public partial class MainWindow : Window
             _spectrumPlot = new WpfPlot();
             _spectrumPlot.PreviewMouseUp += SpectrumPlot_MouseInteractionFinished;
             _spectrumPlot.MouseWheel += SpectrumPlot_MouseInteractionFinished;
+
+            // Permanent handlers that drive the edge-resize gesture for
+            // existing integration regions. They no-op while the
+            // add-region drag mode is active so the two gestures stay
+            // mutually exclusive.
+            _spectrumPlot.PreviewMouseMove += IntegrationResize_PreviewMouseMove;
+            _spectrumPlot.PreviewMouseLeftButtonDown += IntegrationResize_PreviewMouseLeftButtonDown;
+            _spectrumPlot.PreviewMouseLeftButtonUp += IntegrationResize_PreviewMouseLeftButtonUp;
+            _spectrumPlot.PreviewMouseRightButtonDown += IntegrationResize_PreviewMouseRightButtonDown;
+            PreviewKeyDown += IntegrationResize_PreviewKeyDown;
+
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_spectrumPlot);
 
@@ -2711,6 +2732,184 @@ public partial class MainWindow : Window
             ExitIntegrationDragMode(canceled: true);
             e.Handled = true;
         }
+    }
+
+    // -------------- Edge resize for existing integration regions --------------
+
+    private void IntegrationResize_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_spectrumPlot is null) return;
+        if (_isIntegrationDragMode) return;  // add-region mode handles its own move
+
+        var pos = e.GetPosition(_spectrumPlot);
+
+        if (_isIntegrationResizing && _integrationResizeTargetVm is not null)
+        {
+            var coords = _spectrumPlot.Plot.GetCoordinates(
+                new ScottPlot.Pixel((float)pos.X, (float)pos.Y));
+            if (!double.IsFinite(coords.X)) return;
+
+            var formatted = coords.X.ToString("G6", CultureInfo.InvariantCulture);
+            if (_integrationResizeIsLeftEdge)
+            {
+                _integrationResizeTargetVm.XMinText = formatted;
+            }
+            else
+            {
+                _integrationResizeTargetVm.XMaxText = formatted;
+            }
+            e.Handled = true;
+            return;
+        }
+
+        // Idle: hover detection so the user gets a visual cue when an
+        // edge is grabbable.
+        var hover = FindIntegrationEdgeAt(pos);
+        _spectrumPlot.Cursor = hover.Vm is null ? null : Cursors.SizeWE;
+    }
+
+    private void IntegrationResize_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_spectrumPlot is null) return;
+        if (_isIntegrationDragMode) return;
+        if (_isIntegrationResizing) return;
+
+        var pos = e.GetPosition(_spectrumPlot);
+        var (vm, isLeft) = FindIntegrationEdgeAt(pos);
+        if (vm is null) return;
+
+        _isIntegrationResizing = true;
+        _integrationResizeTargetVm = vm;
+        _integrationResizeIsLeftEdge = isLeft;
+        _integrationResizeOriginalText = isLeft ? vm.XMinText : vm.XMaxText;
+
+        _spectrumPlot.Cursor = Cursors.SizeWE;
+        _spectrumPlot.CaptureMouse();
+
+        var side = isLeft ? "X Min" : "X Max";
+        SetStatus($"「{vm.Label}」の {side} をドラッグ中（Esc / 右クリックで取消）", false);
+
+        // Suppress ScottPlot's default pan-on-drag for this gesture.
+        e.Handled = true;
+    }
+
+    private void IntegrationResize_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isIntegrationResizing) return;
+
+        var label = _integrationResizeTargetVm?.Label;
+
+        if (_spectrumPlot is { IsMouseCaptured: true })
+        {
+            _spectrumPlot.ReleaseMouseCapture();
+        }
+
+        _isIntegrationResizing = false;
+        _integrationResizeTargetVm = null;
+        _integrationResizeOriginalText = null;
+
+        if (_spectrumPlot is not null)
+        {
+            _spectrumPlot.Cursor = null;
+        }
+
+        if (label is not null)
+        {
+            SetStatus($"「{label}」の範囲を更新しました", false);
+        }
+
+        e.Handled = true;
+    }
+
+    private void IntegrationResize_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isIntegrationResizing) return;
+
+        CancelIntegrationResize();
+        e.Handled = true;
+    }
+
+    private void IntegrationResize_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_isIntegrationResizing) return;
+        if (e.Key != Key.Escape) return;
+
+        CancelIntegrationResize();
+        e.Handled = true;
+    }
+
+    private void CancelIntegrationResize()
+    {
+        if (_integrationResizeTargetVm is not null && _integrationResizeOriginalText is not null)
+        {
+            // Roll the dragged edge back to where the gesture started.
+            if (_integrationResizeIsLeftEdge)
+            {
+                _integrationResizeTargetVm.XMinText = _integrationResizeOriginalText;
+            }
+            else
+            {
+                _integrationResizeTargetVm.XMaxText = _integrationResizeOriginalText;
+            }
+        }
+
+        if (_spectrumPlot is { IsMouseCaptured: true })
+        {
+            _spectrumPlot.ReleaseMouseCapture();
+        }
+
+        _isIntegrationResizing = false;
+        _integrationResizeTargetVm = null;
+        _integrationResizeOriginalText = null;
+
+        if (_spectrumPlot is not null)
+        {
+            _spectrumPlot.Cursor = null;
+        }
+
+        SetStatus("ドラッグ操作を取り消しました", false);
+    }
+
+    private (IntegrationRegionVm? Vm, bool IsLeft) FindIntegrationEdgeAt(Point pos)
+    {
+        if (_spectrumPlot is null || _integrationRegionVms.Count == 0)
+        {
+            return (null, false);
+        }
+
+        IntegrationRegionVm? bestVm = null;
+        var bestIsLeft = false;
+        var bestDist = double.MaxValue;
+
+        foreach (var vm in _integrationRegionVms)
+        {
+            if (!TryParseDouble(vm.XMinText, out var xMin)
+                || !TryParseDouble(vm.XMaxText, out var xMax))
+            {
+                continue;
+            }
+
+            var pixelMin = _spectrumPlot.Plot.GetPixel(new ScottPlot.Coordinates(xMin, 0));
+            var pixelMax = _spectrumPlot.Plot.GetPixel(new ScottPlot.Coordinates(xMax, 0));
+
+            var dLeft = Math.Abs(pos.X - pixelMin.X);
+            var dRight = Math.Abs(pos.X - pixelMax.X);
+
+            if (dLeft <= IntegrationEdgeHitTolerancePixels && dLeft < bestDist)
+            {
+                bestVm = vm;
+                bestIsLeft = true;
+                bestDist = dLeft;
+            }
+            if (dRight <= IntegrationEdgeHitTolerancePixels && dRight < bestDist)
+            {
+                bestVm = vm;
+                bestIsLeft = false;
+                bestDist = dRight;
+            }
+        }
+
+        return (bestVm, bestIsLeft);
     }
 
     private void RemoveIntegrationRegionButton_Click(object sender, RoutedEventArgs e)

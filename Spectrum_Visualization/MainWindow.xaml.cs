@@ -569,6 +569,9 @@ public partial class MainWindow : Window
             ShowCloudPointFitParameters = ShowSigmoidFitParametersCheckBox.IsChecked == true,
             ShowTemperatureScanMetadata = ShowMetadataCheckBox.IsChecked == true,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
+            // Calibration has its own editor window — preserve whatever was
+            // last saved there instead of clobbering it with a default.
+            Calibration = _formattingDefaults.Calibration,
         };
 
         config.Normalize();
@@ -652,6 +655,8 @@ public partial class MainWindow : Window
         }
 
         DefaultOutputDirectoryTextBox.Text = config.DefaultOutputDirectory ?? string.Empty;
+
+        UpdateCalibrationUi();
     }
 
     private void BrowseDefaultOutputDirectoryButton_Click(object sender, RoutedEventArgs e)
@@ -768,6 +773,7 @@ public partial class MainWindow : Window
 
         RefreshDatasetEntries();
         SyncStyleControlsFromActiveDataset();
+        UpdateCalibrationUi();
     }
 
     private void OverlayCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -2140,6 +2146,7 @@ public partial class MainWindow : Window
                 _spectrumPlot.Plot.Clear();
                 InitializeEmptyPlot();
             }
+            UpdateCalibrationUi();
             return;
         }
 
@@ -2148,6 +2155,7 @@ public partial class MainWindow : Window
         RefreshDatasetEntries();
         SyncStyleControlsFromActiveDataset();
         PlotCurrentDataset();
+        UpdateCalibrationUi();
     }
 
     private void LineColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -4430,5 +4438,270 @@ public partial class MainWindow : Window
         {
             return Colors.Gray;
         }
+    }
+
+    // ===== Beer-Lambert calibration curve =====
+
+    private void OpenCalibrationEditorButton_Click(object sender, RoutedEventArgs e)
+    {
+        var datasets = BuildCalibrationDatasetInputs();
+        if (datasets.Count < 2)
+        {
+            SetStatus("検量線の作成には 2 件以上のデータセットが必要です（重ね描きで複数読み込んでください）", true);
+            return;
+        }
+
+        var regions = _integrationRegionVms
+            .Select(vm => vm.ToModel())
+            .OfType<IntegrationRegion>()
+            .ToList();
+
+        var window = new CalibrationCurveWindow(
+            _formattingDefaults.Calibration,
+            datasets,
+            regions,
+            GetDefaultOutputDirectoryIfExists())
+        {
+            Owner = this,
+        };
+
+        if (window.ShowDialog() == true)
+        {
+            _formattingDefaults.Calibration = window.ResultConfig;
+            try
+            {
+                SaveFormattingDefaults();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                SetStatus($"検量線設定を保存できませんでした: {ex.Message}", true);
+            }
+
+            UpdateCalibrationUi();
+            SetStatus("検量線を更新しました", false);
+        }
+    }
+
+    private void ExportCalibrationResultsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var calibration = _formattingDefaults.Calibration;
+        if (calibration is null)
+        {
+            SetStatus("検量線が未設定です", true);
+            return;
+        }
+
+        var datasets = BuildCalibrationDatasetInputs();
+        if (datasets.Count == 0)
+        {
+            SetStatus("出力できるデータセットがありません", true);
+            return;
+        }
+
+        var regions = _integrationRegionVms
+            .Select(vm => vm.ToModel())
+            .OfType<IntegrationRegion>()
+            .ToList();
+
+        var (result, exportRows) = ComputeCalibrationFit(calibration, datasets, regions);
+        if (!result.HasFit)
+        {
+            SetStatus("フィット未確定（濃度を 2 件以上入力してください）", true);
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "検量線結果を保存",
+            Filter = "Excelブック (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv",
+            FileName = "calibration_curve",
+        };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var export = new CalibrationExport
+        {
+            Config = calibration,
+            Result = result,
+            Rows = exportRows,
+        };
+
+        try
+        {
+            var ext = Path.GetExtension(dialog.FileName);
+            if (string.Equals(ext, ".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                export.WriteCsv(dialog.FileName);
+            }
+            else
+            {
+                export.WriteXlsx(dialog.FileName);
+            }
+
+            SetStatus($"検量線結果を保存しました: {dialog.FileName}", false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus($"保存に失敗しました: {ex.Message}", true);
+        }
+    }
+
+    private void UpdateCalibrationUi()
+    {
+        var hasMinimumDatasets = _loadedDatasets.Count >= 2;
+        OpenCalibrationEditorButton.IsEnabled = hasMinimumDatasets;
+        CalibrationHintTextBlock.Visibility = hasMinimumDatasets ? Visibility.Collapsed : Visibility.Visible;
+
+        var calibration = _formattingDefaults.Calibration;
+        if (calibration is null || _loadedDatasets.Count == 0)
+        {
+            CalibrationSummaryBorder.Visibility = Visibility.Collapsed;
+            ExportCalibrationResultsButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var datasets = BuildCalibrationDatasetInputs();
+        var regions = _integrationRegionVms
+            .Select(vm => vm.ToModel())
+            .OfType<IntegrationRegion>()
+            .ToList();
+        var (result, _) = ComputeCalibrationFit(calibration, datasets, regions);
+
+        if (result.HasFit)
+        {
+            var lines = new List<string>
+            {
+                $"モード: {SpectrumQuantifier.GetSignalLabel(calibration)}",
+            };
+
+            if (calibration.Mode == CalibrationQuantificationMode.SingleWavelength)
+            {
+                var epsText = double.IsFinite(result.EpsilonPerCmPerMolar)
+                    ? result.EpsilonPerCmPerMolar.ToString("0.000E+0", CultureInfo.InvariantCulture)
+                    : "—";
+                lines.Add($"ε = {epsText} M⁻¹·cm⁻¹  (l = {calibration.PathLengthCm.ToString("0.###", CultureInfo.InvariantCulture)} cm)");
+            }
+            else
+            {
+                lines.Add($"slope = {result.Slope.ToString("0.###E+0", CultureInfo.InvariantCulture)}");
+            }
+
+            if (calibration.FitMode == CalibrationFitMode.WithIntercept && double.IsFinite(result.Intercept))
+            {
+                lines.Add($"intercept = {result.Intercept.ToString("0.####", CultureInfo.InvariantCulture)}");
+            }
+
+            var rSquaredText = double.IsFinite(result.RSquared)
+                ? result.RSquared.ToString("0.0000", CultureInfo.InvariantCulture)
+                : "—";
+            lines.Add($"R² = {rSquaredText}    N = {result.N}");
+
+            CalibrationSummaryTextBlock.Text = string.Join("\n", lines);
+            CalibrationSummaryBorder.Visibility = Visibility.Visible;
+            ExportCalibrationResultsButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CalibrationSummaryTextBlock.Text = "検量線が未確定（エディタで濃度を 2 件以上割り当ててください）";
+            CalibrationSummaryBorder.Visibility = Visibility.Visible;
+            ExportCalibrationResultsButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private (CalibrationResult Result, IReadOnlyList<CalibrationExportRow> Rows) ComputeCalibrationFit(
+        CalibrationCurveConfig calibration,
+        IReadOnlyList<CalibrationCurveWindow.CalibrationDatasetInput> datasets,
+        IReadOnlyList<IntegrationRegion> regions)
+    {
+        var savedByKey = calibration.Samples
+            .GroupBy(s => s.DatasetKey, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+        var inputs = new List<CalibrationFitInput>(datasets.Count);
+        var unitConcentrations = new List<double?>(datasets.Count);
+        foreach (var ds in datasets)
+        {
+            savedByKey.TryGetValue(ds.DatasetKey, out var saved);
+            var unitValue = saved?.ConcentrationInUnit;
+            var molarValue = unitValue is { } u
+                ? CalibrationUnitConverter.ToMolar(u, calibration.ConcentrationUnit, calibration.MolarMass)
+                : null;
+            unitConcentrations.Add(unitValue);
+            inputs.Add(new CalibrationFitInput
+            {
+                DatasetKey = ds.DatasetKey,
+                DisplayName = ds.DisplayName,
+                ConcentrationMolar = molarValue,
+                Signal = SpectrumQuantifier.Quantify(ds.Dataset, calibration, regions),
+                IsExcluded = saved?.IsExcluded ?? false,
+            });
+        }
+
+        var result = CalibrationFitter.Fit(
+            inputs,
+            calibration.FitMode,
+            calibration.Mode,
+            calibration.PathLengthCm);
+
+        var rows = new List<CalibrationExportRow>(datasets.Count);
+        for (var i = 0; i < datasets.Count; i++)
+        {
+            rows.Add(new CalibrationExportRow
+            {
+                DatasetName = datasets[i].DisplayName,
+                ConcentrationInUnit = unitConcentrations[i],
+                ConcentrationMolar = result.Points[i].ConcentrationMolar,
+                Signal = result.Points[i].Signal,
+                Predicted = result.Points[i].Predicted,
+                Residual = result.Points[i].Residual,
+                IsExcluded = result.Points[i].IsExcluded,
+            });
+        }
+
+        return (result, rows);
+    }
+
+    private IReadOnlyList<CalibrationCurveWindow.CalibrationDatasetInput> BuildCalibrationDatasetInputs()
+    {
+        var result = new List<CalibrationCurveWindow.CalibrationDatasetInput>(_loadedDatasets.Count);
+        for (var i = 0; i < _loadedDatasets.Count; i++)
+        {
+            var dataset = _loadedDatasets[i];
+            var displayName = GetCustomLegendName(i)
+                ?? Path.GetFileNameWithoutExtension(dataset.SourceFilePath)
+                ?? $"dataset {i + 1}";
+            var key = BuildCalibrationDatasetKey(dataset, displayName, i);
+            result.Add(new CalibrationCurveWindow.CalibrationDatasetInput
+            {
+                DatasetKey = key,
+                DisplayName = displayName,
+                Dataset = dataset,
+            });
+        }
+
+        return result;
+    }
+
+    private static string BuildCalibrationDatasetKey(SpectrumDataset dataset, string displayName, int index)
+    {
+        // Stable key for round-tripping per-sample state through the
+        // session file. Title is preferred (set explicitly by the user
+        // when renaming a dataset); otherwise the source path; otherwise
+        // a synthetic fallback so duplicates don't collapse onto one row.
+        if (!string.IsNullOrWhiteSpace(dataset.Title))
+        {
+            return dataset.Title!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(dataset.SourceFilePath))
+        {
+            return dataset.SourceFilePath!;
+        }
+
+        return $"{displayName}#{index}";
     }
 }

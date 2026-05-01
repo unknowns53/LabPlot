@@ -93,4 +93,61 @@ public sealed class GraphFormattingConfigTests
         Assert.Equal("Midpoint", config.CloudPointMethod);
         Assert.Equal(80.0, config.CloudPointThresholdPercent);
     }
+
+    [Fact]
+    public void Normalize_NullCalibration_StaysNull()
+    {
+        var config = new GraphFormattingConfig();
+        config.Normalize();
+        Assert.Null(config.Calibration);
+    }
+
+    [Fact]
+    public void Normalize_CalibrationConfig_ResetsInvalidScalarFields()
+    {
+        var config = new GraphFormattingConfig
+        {
+            Calibration = new CalibrationCurveConfig
+            {
+                WavelengthNm = double.NaN,
+                PathLengthCm = -1,
+                MolarMass = -100,
+                IntegrationRegionLabel = "  ",
+            },
+        };
+
+        config.Normalize();
+
+        Assert.NotNull(config.Calibration);
+        Assert.Equal(280.0, config.Calibration!.WavelengthNm);
+        Assert.Equal(1.0, config.Calibration.PathLengthCm);
+        Assert.Null(config.Calibration.MolarMass);
+        Assert.Null(config.Calibration.IntegrationRegionLabel);
+    }
+
+    [Fact]
+    public void Normalize_CalibrationSamples_RemoveDuplicatesAndEmpty()
+    {
+        var config = new GraphFormattingConfig
+        {
+            Calibration = new CalibrationCurveConfig
+            {
+                Samples = new List<CalibrationSample>
+                {
+                    new() { DatasetKey = "a", ConcentrationInUnit = 1.0 },
+                    new() { DatasetKey = "a", ConcentrationInUnit = 99.0 },
+                    new() { DatasetKey = "  ", ConcentrationInUnit = 5.0 },
+                    new() { DatasetKey = "b", ConcentrationInUnit = double.NaN },
+                },
+            },
+        };
+
+        config.Normalize();
+
+        Assert.Equal(2, config.Calibration!.Samples.Count);
+        Assert.Equal("a", config.Calibration.Samples[0].DatasetKey);
+        Assert.Equal(1.0, config.Calibration.Samples[0].ConcentrationInUnit);
+        Assert.Equal("b", config.Calibration.Samples[1].DatasetKey);
+        Assert.Null(config.Calibration.Samples[1].ConcentrationInUnit);
+    }
 }

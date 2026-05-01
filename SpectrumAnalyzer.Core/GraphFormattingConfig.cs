@@ -66,6 +66,14 @@ public sealed class GraphFormattingConfig
     /// </summary>
     public IList<IntegrationRegion> IntegrationRegions { get; set; } = new List<IntegrationRegion>();
 
+    /// <summary>
+    /// Beer-Lambert calibration curve configuration. <c>null</c> until the
+    /// user opens the calibration editor for the first time. The associated
+    /// integration region (when in IntegrationArea mode) lives in
+    /// <see cref="IntegrationRegions"/> and is referenced here by label.
+    /// </summary>
+    public CalibrationCurveConfig? Calibration { get; set; }
+
     // ----------- Wavelength scan: λmax markers -----------
     public bool ShowLambdaMaxMarkers { get; set; }
 
@@ -135,6 +143,7 @@ public sealed class GraphFormattingConfig
         YAxisDisplayMode = NormalizeYAxisDisplayMode(YAxisDisplayMode);
         EnabledIrPeakAssignmentLabels = NormalizeEnabledLabels(EnabledIrPeakAssignmentLabels);
         IntegrationRegions = NormalizeIntegrationRegions(IntegrationRegions);
+        Calibration = NormalizeCalibration(Calibration);
         CloudPointMethod = NormalizeCloudPointMethod(CloudPointMethod);
 
         if (!IsFiniteRange(LambdaMaxMinAbsorbance, 0.0, 100.0))
@@ -271,6 +280,71 @@ public sealed class GraphFormattingConfig
             }
 
             result.Add(region);
+        }
+
+        return result;
+    }
+
+    private static CalibrationCurveConfig? NormalizeCalibration(CalibrationCurveConfig? source)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        // Defensive clamping for hand-edited config files and old sessions
+        // that pre-date the properties (deserialize to 0). The wavelength
+        // window is generous so we cover UV (≥190 nm) through far-IR
+        // expressed in nm; out-of-range values fall back to the default.
+        if (!IsFiniteRange(source.WavelengthNm, 1.0, 1_000_000.0))
+        {
+            source.WavelengthNm = 280.0;
+        }
+
+        if (!IsPositive(source.PathLengthCm))
+        {
+            source.PathLengthCm = 1.0;
+        }
+
+        if (source.MolarMass is { } mw && !IsPositive(mw))
+        {
+            source.MolarMass = null;
+        }
+
+        source.IntegrationRegionLabel = NormalizeOptionalText(source.IntegrationRegionLabel);
+        source.Samples = NormalizeCalibrationSamples(source.Samples);
+        return source;
+    }
+
+    private static IList<CalibrationSample> NormalizeCalibrationSamples(IList<CalibrationSample>? source)
+    {
+        if (source is null || source.Count == 0)
+        {
+            return new List<CalibrationSample>();
+        }
+
+        var result = new List<CalibrationSample>(source.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var raw in source)
+        {
+            if (raw is null || string.IsNullOrWhiteSpace(raw.DatasetKey))
+            {
+                continue;
+            }
+
+            if (raw.ConcentrationInUnit is { } c && !double.IsFinite(c))
+            {
+                raw.ConcentrationInUnit = null;
+            }
+
+            // Skip duplicates so a damaged session doesn't end up with two
+            // entries for the same dataset (the editor keys by DatasetKey).
+            if (!seen.Add(raw.DatasetKey))
+            {
+                continue;
+            }
+
+            result.Add(raw);
         }
 
         return result;

@@ -1,0 +1,214 @@
+<Window x:Class="Spectrum_Visualization.AbsorbanceConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Y 軸を Absorbance に切り替えますか？"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        SizeToContent="Height"
+        Width="440"
+        Background="Transparent"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <Style x:Key="DialogPrimaryButton" TargetType="Button">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#2563EB" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    CornerRadius="6"
+                                    Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True" />
+                            </Border>
+                            <Border x:Name="FocusRing"
+                                    CornerRadius="8"
+                                    BorderBrush="#60A5FA"
+                                    BorderThickness="2"
+                                    Margin="-2"
+                                    Opacity="0"
+                                    IsHitTestVisible="False" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1D4ED8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1E3A8A" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="FocusRing" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DialogSecondaryButton" TargetType="Button">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="#334155" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    CornerRadius="6"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True" />
+                            </Border>
+                            <Border x:Name="FocusRing"
+                                    CornerRadius="8"
+                                    BorderBrush="#60A5FA"
+                                    BorderThickness="2"
+                                    Margin="-2"
+                                    Opacity="0"
+                                    IsHitTestVisible="False" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#F1F5F9" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#94A3B8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#E2E8F0" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#64748B" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="FocusRing" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Border Margin="16"
+            Background="White"
+            CornerRadius="10"
+            BorderBrush="#E2E8F0"
+            BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect ShadowDepth="2"
+                              BlurRadius="20"
+                              Opacity="0.18"
+                              Color="#0F172A" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Header with icon -->
+            <Grid Grid.Row="0" Margin="24,22,24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0"
+                        Width="36" Height="36"
+                        CornerRadius="18"
+                        Background="#DBEAFE"
+                        VerticalAlignment="Top">
+                    <TextBlock Text="?"
+                               FontFamily="Segoe UI"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="#1D4ED8"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                    <TextBlock Text="Y 軸を Absorbance に切り替えますか？"
+                               FontWeight="SemiBold"
+                               FontSize="15"
+                               Foreground="#0F172A"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="積分は Absorbance 表示で行うのが一般的です。Absorbance に切り替えると Beer-Lambert 則に基づいた解釈ができます。"
+                               Margin="0,8,0,0"
+                               FontSize="12.5"
+                               Foreground="#475569"
+                               TextWrapping="Wrap"
+                               LineHeight="18" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Spacer -->
+            <Border Grid.Row="1" Height="20" />
+
+            <!-- Action bar -->
+            <Border Grid.Row="2"
+                    Background="#F8FAFC"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,10,10"
+                    Padding="20,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="CancelButton"
+                            Grid.Column="0"
+                            Content="キャンセル"
+                            Style="{StaticResource DialogSecondaryButton}"
+                            IsCancel="True"
+                            Click="CancelButton_Click" />
+                    <Button x:Name="NoButton"
+                            Grid.Column="2"
+                            Content="そのまま追加"
+                            Style="{StaticResource DialogSecondaryButton}"
+                            Click="NoButton_Click" />
+                    <Button x:Name="YesButton"
+                            Grid.Column="4"
+                            Content="切り替えて追加"
+                            Style="{StaticResource DialogPrimaryButton}"
+                            IsDefault="True"
+                            Click="YesButton_Click" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

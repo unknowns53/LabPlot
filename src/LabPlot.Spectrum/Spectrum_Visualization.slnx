@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="../LabPlot.Core/LabPlot.Core.csproj" />
+  <Project Path="../LabPlot.Core.Wpf/LabPlot.Core.Wpf.csproj" />
   <Project Path="Spectrum_Visualization/Spectrum_Visualization.csproj" />
   <Project Path="SpectrumAnalyzer.Core/SpectrumAnalyzer.Core.csproj" />
   <Project Path="SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj" />

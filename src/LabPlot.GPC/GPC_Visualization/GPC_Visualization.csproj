@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GpcAnalyzer.Core\GpcAnalyzer.Core.csproj" />
+    <ProjectReference Include="..\..\LabPlot.Core.Wpf\LabPlot.Core.Wpf.csproj" />
   </ItemGroup>
 
   <ItemGroup>

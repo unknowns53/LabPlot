@@ -540,6 +540,7 @@
                                                    Style="{StaticResource FieldLabelStyle}" />
                                         <ComboBox x:Name="LegendPositionComboBox"
                                                   Style="{StaticResource InputComboBoxStyle}"
+                                                  Margin="0,0,0,8"
                                                   SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
                                             <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
                                             <ComboBoxItem Content="左上" Tag="UpperLeft" />
@@ -547,6 +548,13 @@
                                             <ComboBoxItem Content="左下" Tag="LowerLeft" />
                                             <ComboBoxItem Content="右中央" Tag="MiddleRight" />
                                         </ComboBox>
+
+                                        <TextBlock Text="凡例フォントサイズ"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="LegendFontSizeTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 ToolTip="空欄で自動"
+                                                 TextChanged="GraphAppearanceNumericTextBox_TextChanged" />
                                     </StackPanel>
                                 </Expander>
 

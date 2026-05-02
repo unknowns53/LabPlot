@@ -95,6 +95,20 @@ public sealed class GraphFormattingConfigTests
     }
 
     [Theory]
+    [InlineData(null, null)]
+    [InlineData(0.0, null)]
+    [InlineData(-1.0, null)]
+    [InlineData(10.5, 10.5)]
+    public void Normalize_LegendFontSize_AllowsPositiveOverrideOnly(double? input, double? expected)
+    {
+        var config = new GraphFormattingConfig { LegendFontSize = input };
+
+        config.Normalize();
+
+        Assert.Equal(expected, config.LegendFontSize);
+    }
+
+    [Theory]
     [InlineData("Number", "Number")]
     [InlineData("number", "Number")]
     [InlineData("Intensity", "Intensity")]

@@ -583,6 +583,7 @@ public partial class MainWindow : Window
             ShowTemperatureScanMetadata = ShowMetadataCheckBox.IsChecked == true,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
             LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
+            LegendFontSize = GetLegendFontSize(),
             LegendPosition = GetComboBoxTag(LegendPositionComboBox)
                 ?? GraphFormattingConfigBase.DefaultLegendPositionValue,
             // Calibration has its own editor window — preserve whatever was
@@ -631,6 +632,7 @@ public partial class MainWindow : Window
             }
 
             SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
+            LegendFontSizeTextBox.Text = config.FormatLegendFontSize();
             SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
 
             ApplyEnabledPeakAssignments(config.EnabledIrPeakAssignmentLabels);
@@ -3992,6 +3994,13 @@ public partial class MainWindow : Window
         return TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var value)
             ? (float)value
             : (float)GraphFormattingConfig.DefaultFontSize;
+    }
+
+    private double? GetLegendFontSize()
+    {
+        return TryParsePositiveDouble(LegendFontSizeTextBox.Text, out var value)
+            ? value
+            : null;
     }
 
     private float GetPlotFrameWidth()

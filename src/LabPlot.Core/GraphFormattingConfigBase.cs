@@ -53,6 +53,12 @@ public abstract class GraphFormattingConfigBase
     public string? LegendVisibility { get; set; }
 
     /// <summary>
+    /// Optional legend font size. When null, the legend keeps the historical
+    /// derived size of one point smaller than the graph base font size.
+    /// </summary>
+    public double? LegendFontSize { get; set; }
+
+    /// <summary>
     /// Legend placement, mapped 1:1 onto <c>ScottPlot.Alignment</c>. One of
     /// <c>"UpperRight"</c>, <c>"UpperLeft"</c>, <c>"LowerRight"</c>,
     /// <c>"LowerLeft"</c>, <c>"MiddleRight"</c>. Any other value normalizes
@@ -87,6 +93,11 @@ public abstract class GraphFormattingConfigBase
             FontSize = DefaultFontSize;
         }
 
+        if (LegendFontSize is { } legendFontSize && !ConfigNormalizer.IsPositive(legendFontSize))
+        {
+            LegendFontSize = null;
+        }
+
         if (!ConfigNormalizer.IsPositive(PlotFrameWidth))
         {
             PlotFrameWidth = DefaultPlotFrameWidth;
@@ -116,6 +127,13 @@ public abstract class GraphFormattingConfigBase
     public string FormatFontSize()
     {
         return ConfigNormalizer.FormatNumber(FontSize);
+    }
+
+    public string FormatLegendFontSize()
+    {
+        return LegendFontSize is { } legendFontSize
+            ? ConfigNormalizer.FormatNumber(legendFontSize)
+            : string.Empty;
     }
 
     public string FormatFrameWidth()

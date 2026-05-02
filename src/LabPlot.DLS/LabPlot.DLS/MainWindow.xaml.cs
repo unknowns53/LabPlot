@@ -675,6 +675,7 @@ public partial class MainWindow : Window
             YAxisMinPercent = AxisRangePanel.YMinValue ?? GraphFormattingConfig.DefaultYAxisMinPercent,
             YAxisMaxPercent = AxisRangePanel.YMaxValue ?? GraphFormattingConfig.DefaultYAxisMaxPercent,
             LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
+            LegendFontSize = GetLegendFontSize(),
             LegendPosition = GetComboBoxTag(LegendPositionComboBox)
                 ?? GraphFormattingConfig.DefaultLegendPositionValue,
             DefaultDistributionMode = GetComboBoxTag(DefaultDistributionComboBox)
@@ -720,6 +721,7 @@ public partial class MainWindow : Window
                 config.YAxisMode == "Manual" ? config.YAxisMinPercent : null,
                 config.YAxisMode == "Manual" ? config.YAxisMaxPercent : null);
             SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
+            LegendFontSizeTextBox.Text = config.FormatLegendFontSize();
             SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
             SelectComboBoxByTag(DefaultDistributionComboBox, config.DefaultDistributionMode);
             DefaultRunIndexTextBox.Text = config.DefaultRunIndex.ToString(CultureInfo.InvariantCulture);
@@ -751,6 +753,11 @@ public partial class MainWindow : Window
         => TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
             ? fontSize
             : GraphFormattingConfig.DefaultFontSize;
+
+    private double? GetLegendFontSize()
+        => TryParsePositiveDouble(LegendFontSizeTextBox.Text, out var fontSize)
+            ? fontSize
+            : null;
 
     private double GetPlotFrameWidth()
         => TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var width)

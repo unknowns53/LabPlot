@@ -418,6 +418,7 @@ public partial class MainWindow : Window
             DefaultCalibrationFilePath = DefaultCalibrationPathTextBox.Text,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
             LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
+            LegendFontSize = GetLegendFontSize(),
             LegendPosition = GetComboBoxTag(LegendPositionComboBox)
                 ?? GraphFormattingConfigBase.DefaultLegendPositionValue,
         };
@@ -453,6 +454,7 @@ public partial class MainWindow : Window
             }
 
             SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
+            LegendFontSizeTextBox.Text = config.FormatLegendFontSize();
             SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
         }
         finally
@@ -3105,6 +3107,13 @@ public partial class MainWindow : Window
         return TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
             ? (float)fontSize
             : (float)GraphFormattingConfig.DefaultFontSize;
+    }
+
+    private double? GetLegendFontSize()
+    {
+        return TryParsePositiveDouble(LegendFontSizeTextBox.Text, out var fontSize)
+            ? fontSize
+            : null;
     }
 
     private float GetPlotFrameWidth()

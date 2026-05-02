@@ -421,6 +421,7 @@
                                         <TextBlock Style="{StaticResource FieldLabelStyle}" Text="位置" />
                                         <ComboBox x:Name="LegendPositionComboBox"
                                                   Style="{StaticResource InputComboBoxStyle}"
+                                                  Margin="0,0,0,8"
                                                   SelectionChanged="FormatComboBox_SelectionChanged">
                                             <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
                                             <ComboBoxItem Content="左上" Tag="UpperLeft" />
@@ -428,6 +429,12 @@
                                             <ComboBoxItem Content="左下" Tag="LowerLeft" />
                                             <ComboBoxItem Content="右中央" Tag="MiddleRight" />
                                         </ComboBox>
+
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="凡例フォントサイズ" />
+                                        <TextBox x:Name="LegendFontSizeTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 ToolTip="空欄で自動"
+                                                 TextChanged="FormatTextBox_TextChanged" />
                                     </StackPanel>
                                 </Expander>
 

@@ -202,7 +202,9 @@ public static class PlotAppearance
         plot.Axes.Left.Label.FontSize = fontSize;
         plot.Axes.Bottom.TickLabelStyle.FontSize = Math.Max(6 * scale, fontSize - scale);
         plot.Axes.Left.TickLabelStyle.FontSize = Math.Max(6 * scale, fontSize - scale);
-        plot.Legend.FontSize = Math.Max(6 * scale, fontSize - scale);
+        plot.Legend.FontSize = config.LegendFontSize is { } legendFontSize
+            ? Math.Max(6 * scale, (float)legendFontSize * scale)
+            : Math.Max(6 * scale, fontSize - scale);
     }
 
     /// <summary>

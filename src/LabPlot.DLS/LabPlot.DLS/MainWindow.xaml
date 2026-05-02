@@ -32,6 +32,29 @@
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     Content="DLS xlsx を開く..."
                                     Click="OpenButton_Click"
+                                    Margin="0,0,0,8" />
+                            <Button x:Name="ExportButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="解析結果を保存..."
+                                    Click="ExportButton_Click"
+                                    IsEnabled="False"
+                                    Margin="0,0,0,4" />
+                            <Button x:Name="SavePngButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="PNG として保存..."
+                                    Click="SavePngButton_Click"
+                                    IsEnabled="False"
+                                    Margin="0,0,0,8" />
+                            <Button x:Name="SaveSessionButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="解析条件を保存..."
+                                    Click="SaveSessionButton_Click"
+                                    IsEnabled="False"
+                                    Margin="0,0,0,4" />
+                            <Button x:Name="LoadSessionButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="解析条件を読み込み..."
+                                    Click="LoadSessionButton_Click"
                                     Margin="0,0,0,4" />
                         </StackPanel>
                     </Border>
@@ -198,6 +221,240 @@
                         </Expander>
                     </Border>
 
+                    <!-- Section: Measurement metadata (active sheet) -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="測定条件"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               Foreground="#0F172A" />
+                                    <TextBlock x:Name="ActiveMetadataLabel"
+                                               Text="(選択中シート)"
+                                               FontSize="11"
+                                               Foreground="#94A3B8"
+                                               VerticalAlignment="Bottom"
+                                               Margin="6,0,0,2" />
+                                </StackPanel>
+                            </Expander.Header>
+                            <StackPanel Margin="0,8,0,0">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="温度 (°C)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataTemperatureTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataTemperatureTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="濃度 (mg/mL)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataConcentrationTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataConcentrationTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="溶媒" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="MetadataSolventTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,10"
+                                         LostFocus="MetadataSolventTextBox_LostFocus"
+                                         KeyDown="MetadataTextBox_KeyDown" />
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="屈折率" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataRefractiveIndexTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="粘度 (mPa·s)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataViscosityTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataViscosityTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="装置設定"
+                                           FontSize="11"
+                                           Foreground="#94A3B8"
+                                           Margin="0,0,0,4" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="波長 (nm)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataWavelengthTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataWavelengthTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="散乱角 (°)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataScatteringAngleTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataScatteringAngleTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+
+                    <!-- Section: Cumulant analysis (active sheet) -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="キュムラント解析"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               Foreground="#0F172A" />
+                                    <TextBlock x:Name="ActiveCumulantLabel"
+                                               Text="(選択中シート)"
+                                               FontSize="11"
+                                               Foreground="#94A3B8"
+                                               VerticalAlignment="Bottom"
+                                               Margin="6,0,0,2" />
+                                </StackPanel>
+                            </Expander.Header>
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="フィット範囲 (μs)"
+                                           Style="{StaticResource FieldLabelStyle}" />
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="CumulantFitMinTextBox"
+                                             Grid.Column="0"
+                                             Style="{StaticResource InputTextBoxStyle}"
+                                             LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                             KeyDown="MetadataTextBox_KeyDown" />
+                                    <TextBox x:Name="CumulantFitMaxTextBox"
+                                             Grid.Column="2"
+                                             Style="{StaticResource InputTextBoxStyle}"
+                                             LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                             KeyDown="MetadataTextBox_KeyDown" />
+                                </Grid>
+                                <TextBlock Text="空欄で自動検出 (g₂-1 ≧ 0.1 を保持)"
+                                           FontSize="11"
+                                           Foreground="#94A3B8"
+                                           Margin="0,-6,0,10" />
+
+                                <Border BorderBrush="#E2E8F0"
+                                        BorderThickness="0,1,0,0"
+                                        Padding="0,8,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                                   Text="Z-average 径"
+                                                   Foreground="#475569"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock x:Name="CumulantZAverageText"
+                                                   Grid.Row="0" Grid.Column="2"
+                                                   Text="—"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,0,0,4" />
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                                   Text="PdI"
+                                                   Foreground="#475569"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock x:Name="CumulantPdiText"
+                                                   Grid.Row="1" Grid.Column="2"
+                                                   Text="—"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,0,0,4" />
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                                   Text="Γ"
+                                                   Foreground="#475569"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock x:Name="CumulantGammaText"
+                                                   Grid.Row="2" Grid.Column="2"
+                                                   Text="—"
+                                                   FontSize="12"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,0,0,4" />
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                                   Text="適用範囲"
+                                                   Foreground="#475569"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock x:Name="CumulantRangeText"
+                                                   Grid.Row="3" Grid.Column="2"
+                                                   Text="—"
+                                                   FontSize="12"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,0,0,4" />
+
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                                   Text="R²"
+                                                   Foreground="#475569"
+                                                   FontSize="12"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock x:Name="CumulantRSquaredText"
+                                                   Grid.Row="4" Grid.Column="2"
+                                                   Text="—"
+                                                   FontSize="12"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,0,0,4" />
+
+                                        <TextBlock x:Name="CumulantStatusText"
+                                                   Grid.Row="5" Grid.ColumnSpan="3"
+                                                   Text=""
+                                                   FontSize="11"
+                                                   Foreground="#B45309"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"
+                                                   Visibility="Collapsed" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+
                     <Border Style="{StaticResource SectionStyle}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="表示" />
@@ -210,6 +467,7 @@
                                 <ComboBoxItem Content="Number (%)" Tag="Number" IsSelected="True" />
                                 <ComboBoxItem Content="Intensity (%)" Tag="Intensity" />
                                 <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                                <ComboBoxItem Content="自己相関 g₂-1" Tag="Correlation" />
                             </ComboBox>
 
                             <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Run" />

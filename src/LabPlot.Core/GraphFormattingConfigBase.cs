@@ -23,6 +23,7 @@ public abstract class GraphFormattingConfigBase
     public const double DefaultPlotFrameWidth = 1;
     public const string DefaultPlotFrameColorHex = "#475569";
     public const string DefaultBackgroundColorHex = "#FFFFFF";
+    public const string DefaultLegendPositionValue = "UpperRight";
 
     public string? FontName { get; set; }
     public double FontSize { get; set; } = DefaultFontSize;
@@ -43,6 +44,25 @@ public abstract class GraphFormattingConfigBase
     public double MarkerSize { get; set; } = DefaultMarkerSize;
 
     /// <summary>
+    /// Legend visibility override. <c>null</c> or <c>"Auto"</c> defers to
+    /// the per-app auto-show heuristic (e.g. multiple datasets overlaid, or
+    /// at least one dataset with a custom legend name); <c>"Always"</c>
+    /// forces it on; <c>"Never"</c> hides it regardless of dataset count.
+    /// Any other value normalizes back to <c>null</c>.
+    /// </summary>
+    public string? LegendVisibility { get; set; }
+
+    /// <summary>
+    /// Legend placement, mapped 1:1 onto <c>ScottPlot.Alignment</c>. One of
+    /// <c>"UpperRight"</c>, <c>"UpperLeft"</c>, <c>"LowerRight"</c>,
+    /// <c>"LowerLeft"</c>, <c>"MiddleRight"</c>. Any other value normalizes
+    /// back to <see cref="DefaultLegendPositionValue"/>. Edge-anchored
+    /// "outside" placements are not exposed because they need a different
+    /// ScottPlot API path.
+    /// </summary>
+    public string LegendPosition { get; set; } = DefaultLegendPositionValue;
+
+    /// <summary>
     /// User preference for the directory the export dialogs open to. Persisted
     /// alongside the formatting defaults so it survives app restarts.
     /// </summary>
@@ -59,6 +79,8 @@ public abstract class GraphFormattingConfigBase
         AspectRatio = ConfigNormalizer.NormalizeOptionalText(AspectRatio);
         DefaultLineColorHex = ConfigNormalizer.NormalizeOptionalHex(DefaultLineColorHex);
         DefaultOutputDirectory = ConfigNormalizer.NormalizeOptionalText(DefaultOutputDirectory);
+        LegendVisibility = NormalizeLegendVisibility(LegendVisibility);
+        LegendPosition = NormalizeLegendPosition(LegendPosition);
 
         if (!ConfigNormalizer.IsPositive(FontSize))
         {
@@ -109,5 +131,48 @@ public abstract class GraphFormattingConfigBase
     public string FormatMarkerSize()
     {
         return ConfigNormalizer.FormatNumber(MarkerSize);
+    }
+
+    private static string? NormalizeLegendVisibility(string? text)
+    {
+        var normalized = ConfigNormalizer.NormalizeOptionalText(text);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        if (normalized.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (normalized.Equals("Always", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Always";
+        }
+
+        if (normalized.Equals("Never", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Never";
+        }
+
+        return null;
+    }
+
+    private static string NormalizeLegendPosition(string? text)
+    {
+        var normalized = ConfigNormalizer.NormalizeOptionalText(text);
+        if (normalized is null)
+        {
+            return DefaultLegendPositionValue;
+        }
+
+        if (normalized.Equals("UpperRight", StringComparison.OrdinalIgnoreCase)) return "UpperRight";
+        if (normalized.Equals("UpperLeft", StringComparison.OrdinalIgnoreCase)) return "UpperLeft";
+        if (normalized.Equals("LowerRight", StringComparison.OrdinalIgnoreCase)) return "LowerRight";
+        if (normalized.Equals("LowerLeft", StringComparison.OrdinalIgnoreCase)) return "LowerLeft";
+        if (normalized.Equals("MiddleRight", StringComparison.OrdinalIgnoreCase)) return "MiddleRight";
+
+        return DefaultLegendPositionValue;
     }
 }

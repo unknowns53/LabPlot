@@ -411,6 +411,9 @@ public partial class MainWindow : Window
                 : GraphFormattingConfig.DefaultMarkerSize,
             DefaultCalibrationFilePath = DefaultCalibrationPathTextBox.Text,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
+            LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
+            LegendPosition = GetComboBoxTag(LegendPositionComboBox)
+                ?? GraphFormattingConfigBase.DefaultLegendPositionValue,
         };
 
         config.Normalize();
@@ -442,6 +445,9 @@ public partial class MainWindow : Window
             {
                 AspectRatioComboBox.SelectedIndex = 0;
             }
+
+            SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
+            SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
         }
         finally
         {
@@ -1690,14 +1696,8 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (ShouldShowLegend(entries.Select(entry => entry.Index)))
-        {
-            _chromatogramPlot.Plot.ShowLegend();
-        }
-        else
-        {
-            _chromatogramPlot.Plot.HideLegend();
-        }
+        ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: ShouldShowLegend(entries.Select(entry => entry.Index)));
 
         _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
@@ -1748,14 +1748,8 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (ShouldShowLegend(entries.Select(entry => entry.Index)))
-        {
-            _chromatogramPlot.Plot.ShowLegend();
-        }
-        else
-        {
-            _chromatogramPlot.Plot.HideLegend();
-        }
+        ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: ShouldShowLegend(entries.Select(entry => entry.Index)));
 
         _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, $"{activeDataset.XLabel} (log scale)"));

@@ -248,6 +248,31 @@
                                     </StackPanel>
                                 </Expander>
 
+                                <Expander Header="凡例" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="表示" />
+                                        <ComboBox x:Name="LegendVisibilityComboBox"
+                                                  Style="{StaticResource InputComboBoxStyle}"
+                                                  SelectionChanged="FormatComboBox_SelectionChanged"
+                                                  Margin="0,0,0,8">
+                                            <ComboBoxItem Content="自動 (2件以上で表示)" Tag="Auto" IsSelected="True" />
+                                            <ComboBoxItem Content="常に表示" Tag="Always" />
+                                            <ComboBoxItem Content="非表示" Tag="Never" />
+                                        </ComboBox>
+
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="位置" />
+                                        <ComboBox x:Name="LegendPositionComboBox"
+                                                  Style="{StaticResource InputComboBoxStyle}"
+                                                  SelectionChanged="FormatComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
+                                            <ComboBoxItem Content="左上" Tag="UpperLeft" />
+                                            <ComboBoxItem Content="右下" Tag="LowerRight" />
+                                            <ComboBoxItem Content="左下" Tag="LowerLeft" />
+                                            <ComboBoxItem Content="右中央" Tag="MiddleRight" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Expander>
+
                                 <Expander Header="線スタイル" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                     <StackPanel Margin="0,8,0,0">
                                         <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定の線色" />
@@ -298,34 +323,6 @@
                                     <ComboBoxItem Content="4:3" Tag="4:3" />
                                     <ComboBoxItem Content="3:2" Tag="3:2" />
                                     <ComboBoxItem Content="1:1" Tag="1:1" />
-                                </ComboBox>
-                            </StackPanel>
-                        </Expander>
-                    </Border>
-
-                    <!-- Section: Legend -->
-                    <Border Style="{StaticResource SectionStyle}">
-                        <Expander Header="凡例" IsExpanded="False">
-                            <StackPanel Margin="0,8,0,0">
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="表示" />
-                                <ComboBox x:Name="LegendVisibilityComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          SelectionChanged="FormatComboBox_SelectionChanged"
-                                          Margin="0,0,0,8">
-                                    <ComboBoxItem Content="自動 (2件以上で表示)" Tag="Auto" IsSelected="True" />
-                                    <ComboBoxItem Content="常に表示" Tag="Always" />
-                                    <ComboBoxItem Content="非表示" Tag="Never" />
-                                </ComboBox>
-
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="位置" />
-                                <ComboBox x:Name="LegendPositionComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          SelectionChanged="FormatComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
-                                    <ComboBoxItem Content="左上" Tag="UpperLeft" />
-                                    <ComboBoxItem Content="右下" Tag="LowerRight" />
-                                    <ComboBoxItem Content="左下" Tag="LowerLeft" />
-                                    <ComboBoxItem Content="右中央" Tag="MiddleRight" />
                                 </ComboBox>
                             </StackPanel>
                         </Expander>

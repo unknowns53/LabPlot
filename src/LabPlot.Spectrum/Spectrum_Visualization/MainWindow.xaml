@@ -484,6 +484,33 @@
                                     </StackPanel>
                                 </Expander>
 
+                                <Expander Header="凡例" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="表示"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <ComboBox x:Name="LegendVisibilityComboBox"
+                                                  Style="{StaticResource InputComboBoxStyle}"
+                                                  Margin="0,0,0,8"
+                                                  SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="自動 (2件以上で表示)" Tag="Auto" IsSelected="True" />
+                                            <ComboBoxItem Content="常に表示" Tag="Always" />
+                                            <ComboBoxItem Content="非表示" Tag="Never" />
+                                        </ComboBox>
+
+                                        <TextBlock Text="位置"
+                                                   Style="{StaticResource FieldLabelStyle}" />
+                                        <ComboBox x:Name="LegendPositionComboBox"
+                                                  Style="{StaticResource InputComboBoxStyle}"
+                                                  SelectionChanged="GraphAppearanceComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
+                                            <ComboBoxItem Content="左上" Tag="UpperLeft" />
+                                            <ComboBoxItem Content="右下" Tag="LowerRight" />
+                                            <ComboBoxItem Content="左下" Tag="LowerLeft" />
+                                            <ComboBoxItem Content="右中央" Tag="MiddleRight" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Expander>
+
                                 <Expander Header="メタデータ" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                     <StackPanel Margin="0,8,0,0">
                                         <CheckBox x:Name="ShowMetadataCheckBox"

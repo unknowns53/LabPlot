@@ -576,6 +576,9 @@ public partial class MainWindow : Window
             ShowCloudPointFitParameters = ShowSigmoidFitParametersCheckBox.IsChecked == true,
             ShowTemperatureScanMetadata = ShowMetadataCheckBox.IsChecked == true,
             DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
+            LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
+            LegendPosition = GetComboBoxTag(LegendPositionComboBox)
+                ?? GraphFormattingConfigBase.DefaultLegendPositionValue,
             // Calibration has its own editor window — preserve whatever was
             // last saved there instead of clobbering it with a default.
             Calibration = _formattingDefaults.Calibration,
@@ -620,6 +623,9 @@ public partial class MainWindow : Window
             {
                 YAxisDisplayComboBox.SelectedIndex = 0;
             }
+
+            SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
+            SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
 
             ApplyEnabledPeakAssignments(config.EnabledIrPeakAssignmentLabels);
             ApplyIntegrationRegions(config.IntegrationRegions);
@@ -1276,14 +1282,8 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (ShouldShowLegend(plotEntries.Select(entry => entry.Index)))
-        {
-            _spectrumPlot.Plot.ShowLegend();
-        }
-        else
-        {
-            _spectrumPlot.Plot.HideLegend();
-        }
+        ApplyLegend(_spectrumPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: ShouldShowLegend(plotEntries.Select(entry => entry.Index)));
 
         _spectrumPlot.Plot.Title(GetGraphTitle(Path.GetFileNameWithoutExtension(activeDataset.SourceFilePath) ?? "Spectrum"));
         _spectrumPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));

@@ -420,28 +420,12 @@ public partial class MainWindow : Window
     private void ApplyLegend(int seriesCount)
     {
         if (_plot is null) return;
-        var plot = _plot.Plot;
-
-        if (seriesCount == 0)
-        {
-            plot.Legend.IsVisible = false;
-            return;
-        }
 
         // "Auto" preserves the Batch 3a behaviour: legend appears only when
         // 2+ datasets are overlaid, since a single-series plot has nothing
-        // to disambiguate.
-        bool show = _formattingConfig.LegendVisibility switch
-        {
-            "Always" => true,
-            "Never" => false,
-            _ => seriesCount >= 2,
-        };
-        plot.Legend.IsVisible = show;
-        if (show)
-        {
-            plot.Legend.Alignment = MapAlignment(_formattingConfig.LegendPosition);
-        }
+        // to disambiguate. seriesCount == 0 forces autoShow false so an
+        // empty plot never shows an empty legend frame in Auto mode.
+        PlotAppearance.ApplyLegend(_plot.Plot, _formattingConfig, autoShow: seriesCount >= 2);
     }
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
@@ -572,16 +556,6 @@ public partial class MainWindow : Window
     }
 
     // ---------- Generic helpers ----------
-
-    private static ScottPlot.Alignment MapAlignment(string position) => position switch
-    {
-        "UpperRight" => ScottPlot.Alignment.UpperRight,
-        "UpperLeft" => ScottPlot.Alignment.UpperLeft,
-        "LowerRight" => ScottPlot.Alignment.LowerRight,
-        "LowerLeft" => ScottPlot.Alignment.LowerLeft,
-        "MiddleRight" => ScottPlot.Alignment.MiddleRight,
-        _ => ScottPlot.Alignment.UpperRight,
-    };
 
     private static DistributionMode DistributionModeFromTag(string? tag) => tag switch
     {

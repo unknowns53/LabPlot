@@ -256,4 +256,37 @@ public static class PlotAppearance
         plot.Axes.FrameWidth((float)config.PlotFrameWidth * scale);
         plot.Axes.FrameColor(ColorFromHex(config.PlotFrameColorHex, GraphFormattingConfigBase.DefaultPlotFrameColorHex));
     }
+
+    /// <summary>
+    /// Applies legend visibility and placement from <paramref name="config"/>.
+    /// <paramref name="autoShow"/> is the per-app auto-show decision (e.g.
+    /// 2+ overlaid datasets, or any dataset has a custom legend name) that
+    /// kicks in when <see cref="GraphFormattingConfigBase.LegendVisibility"/>
+    /// is <c>null</c>/<c>"Auto"</c>. <c>"Always"</c> forces visible,
+    /// <c>"Never"</c> forces hidden regardless of <paramref name="autoShow"/>.
+    /// </summary>
+    public static void ApplyLegend(ScottPlot.Plot plot, GraphFormattingConfigBase config, bool autoShow)
+    {
+        bool show = config.LegendVisibility switch
+        {
+            "Always" => true,
+            "Never" => false,
+            _ => autoShow,
+        };
+        plot.Legend.IsVisible = show;
+        if (show)
+        {
+            plot.Legend.Alignment = MapLegendAlignment(config.LegendPosition);
+        }
+    }
+
+    private static ScottPlot.Alignment MapLegendAlignment(string position) => position switch
+    {
+        "UpperRight" => ScottPlot.Alignment.UpperRight,
+        "UpperLeft" => ScottPlot.Alignment.UpperLeft,
+        "LowerRight" => ScottPlot.Alignment.LowerRight,
+        "LowerLeft" => ScottPlot.Alignment.LowerLeft,
+        "MiddleRight" => ScottPlot.Alignment.MiddleRight,
+        _ => ScottPlot.Alignment.UpperRight,
+    };
 }

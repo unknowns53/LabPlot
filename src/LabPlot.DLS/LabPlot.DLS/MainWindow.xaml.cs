@@ -88,6 +88,7 @@ public partial class MainWindow : Window
 
     private void DatasetListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!IsInitialized) return;
         _selectedDataset = DatasetListBox.SelectedItem as DlsDataset;
         UpdateRunCombo();
         UpdateDistributionTypeAvailability();
@@ -96,6 +97,10 @@ public partial class MainWindow : Window
 
     private void DistributionTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // SelectionChanged fires once during InitializeComponent because
+        // ComboBoxItem.IsSelected="True" is applied while RunComboBox has
+        // not been parsed yet. Skip until the XAML tree is fully built.
+        if (!IsInitialized) return;
         if (DistributionTypeComboBox.SelectedItem is not ComboBoxItem item) return;
         _selectedMode = (item.Tag as string) switch
         {
@@ -109,6 +114,7 @@ public partial class MainWindow : Window
 
     private void RunComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!IsInitialized) return;
         if (_suppressRunComboEvents) return;
         _selectedRunIndex = Math.Max(0, RunComboBox.SelectedIndex);
         RefreshPlot();

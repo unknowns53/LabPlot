@@ -124,7 +124,7 @@ public partial class MainWindow : Window
         AddShortcut(System.Windows.Input.Key.L, System.Windows.Input.ModifierKeys.Control,
             () => ToggleCheckBox(OverlayCheckBox));
         AddShortcut(System.Windows.Input.Key.G, System.Windows.Input.ModifierKeys.Control,
-            () => ToggleCheckBox(PlotGridCheckBox));
+            () => GraphFormatPanel.TogglePlotGrid());
         AddShortcut(System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.None,
             FocusLegendNameTextBox);
     }
@@ -392,36 +392,29 @@ public partial class MainWindow : Window
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
     {
-        var config = new GraphFormattingConfig
-        {
-            FontName = GetSelectedGraphFontName(),
-            FontSize = GetPlotFontSize(),
-            ShowGrid = PlotGridCheckBox.IsChecked == true,
-            ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
-            ShowMajorTicks = MajorTicksCheckBox.IsChecked == true,
-            ShowMinorTicks = MinorTicksCheckBox.IsChecked == true,
-            ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
-            PlotFrameWidth = GetPlotFrameWidth(),
-            PlotFrameColorHex = PlotFrameColorPicker.HexValue ?? GraphFormattingConfig.DefaultPlotFrameColorHex,
-            BackgroundColorHex = BackgroundColorPicker.HexValue ?? GraphFormattingConfig.DefaultBackgroundColorHex,
-            ShowTitle = TitleVisibleCheckBox.IsChecked == true,
-            TitleBold = TitleBoldCheckBox.IsChecked == true,
-            AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
-            AspectRatio = GetSelectedAspectRatioConfigValue(),
-            DefaultLineColorHex = LineColorPicker.HexValue,
-            LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
-                ? lineWidth
-                : GraphFormattingConfig.DefaultLineWidth,
-            MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
-                ? markerSize
-                : GraphFormattingConfig.DefaultMarkerSize,
-            DefaultCalibrationFilePath = DefaultCalibrationPathTextBox.Text,
-            DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
-            LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
-            LegendFontSize = GetLegendFontSize(),
-            LegendPosition = GetComboBoxTag(LegendPositionComboBox)
-                ?? GraphFormattingConfigBase.DefaultLegendPositionValue,
-        };
+        var config = new GraphFormattingConfig();
+        // Pull all GraphFormattingConfigBase properties (font / ticks / frame /
+        // background / aspect ratio / legend) from the shared panel, then layer
+        // GPC-specific properties on top.
+        GraphFormatPanel.Capture(config);
+
+        // Title / axis label visibility lives in the standalone "グラフラベル"
+        // section, not in GraphFormatPanel.
+        config.ShowTitle = TitleVisibleCheckBox.IsChecked == true;
+        config.TitleBold = TitleBoldCheckBox.IsChecked == true;
+        config.AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true;
+
+        // Per-dataset line style controls live in their own panel.
+        config.DefaultLineColorHex = LineColorPicker.HexValue;
+        config.LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
+            ? lineWidth
+            : GraphFormattingConfig.DefaultLineWidth;
+        config.MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
+            ? markerSize
+            : GraphFormattingConfig.DefaultMarkerSize;
+
+        config.DefaultCalibrationFilePath = DefaultCalibrationPathTextBox.Text;
+        config.DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text;
 
         config.Normalize();
         return config;
@@ -431,31 +424,15 @@ public partial class MainWindow : Window
     {
         config.Normalize();
 
+        // GraphFormatPanel suppresses its own change events while writing.
+        GraphFormatPanel.Apply(config);
+
         _suppressGraphAppearanceEvents = true;
         try
         {
-            SelectGraphFontComboBoxValue(config.FontName);
-            GraphFontSizeTextBox.Text = config.FormatFontSize();
-            PlotGridCheckBox.IsChecked = config.ShowGrid;
-            YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
-            MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
-            MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
-            PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
-            PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
-            PlotFrameColorPicker.SetHexValue(config.PlotFrameColorHex);
-            BackgroundColorPicker.SetHexValue(config.BackgroundColorHex);
             TitleVisibleCheckBox.IsChecked = config.ShowTitle;
             TitleBoldCheckBox.IsChecked = config.TitleBold;
             AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
-
-            if (!SelectComboBoxItemByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto"))
-            {
-                AspectRatioComboBox.SelectedIndex = 0;
-            }
-
-            SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
-            LegendFontSizeTextBox.Text = config.FormatLegendFontSize();
-            SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
         }
         finally
         {
@@ -2891,66 +2868,30 @@ public partial class MainWindow : Window
         }
     }
 
-    private void GraphAppearanceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        ApplyGraphAppearanceAndRefresh();
-    }
-
-    private void GraphFormatColor_ColorChanged(object? sender, EventArgs e)
+    private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e)
     {
         if (_suppressGraphAppearanceEvents) return;
         ApplyGraphAppearanceAndRefresh();
     }
 
-    private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
+    private void GraphFormatPanel_AspectRatioChanged(object? sender, EventArgs e)
     {
-        // IsEditable=True の ComboBox は SelectionChanged だけだとリストにないフォント名を打ち込んだとき
-        // 反映されない。テンプレート内の編集用 TextBox を取り出して TextChanged を購読し、
-        // 自由入力でも再描画が走るようにする。
-        if (GraphFontComboBox.Template?.FindName("PART_EditableTextBox", GraphFontComboBox) is TextBox editableTextBox)
-        {
-            editableTextBox.TextChanged -= GraphFontComboBox_EditableTextChanged;
-            editableTextBox.TextChanged += GraphFontComboBox_EditableTextChanged;
-        }
+        if (_suppressGraphAppearanceEvents) return;
+        // Resize PlotHost; the trailing GraphFormatChanged event (the panel
+        // raises both for AspectRatio changes) handles the actual Refresh.
+        UpdatePlotHostAspectRatio();
     }
 
-    private void GraphFontComboBox_EditableTextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        // SelectedItem が同じままで Text だけが変わるケースをここで拾う。
-        SchedulePlotCurrentDataset();
-    }
-
+    // Title / axis-label CheckBoxes still live in MainWindow (the standalone
+    // "グラフラベル" Section is outside GraphFormatPanel's scope), so they keep
+    // routing through this handler.
     private void GraphAppearanceCheckBox_Changed(object sender, RoutedEventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
+        if (_suppressGraphAppearanceEvents) return;
         ApplyGraphAppearanceAndRefresh();
     }
 
     private void GraphLabelTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        SchedulePlotCurrentDataset();
-    }
-
-    private void GraphAppearanceNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_suppressGraphAppearanceEvents)
         {
@@ -3001,17 +2942,6 @@ public partial class MainWindow : Window
         return double.IsFinite(min) && double.IsFinite(max) && min < max;
     }
 
-    private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        UpdatePlotHostAspectRatio();
-        _chromatogramPlot?.Refresh();
-    }
-
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
@@ -3035,99 +2965,9 @@ public partial class MainWindow : Window
         _chromatogramPlot.Refresh();
     }
 
-    private void SelectGraphFontComboBoxValue(string? fontName)
-    {
-        if (string.IsNullOrWhiteSpace(fontName)
-            || fontName.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            GraphFontComboBox.SelectedIndex = 0;
-            return;
-        }
-
-        if (SelectComboBoxItemByTag(GraphFontComboBox, fontName))
-        {
-            return;
-        }
-
-        GraphFontComboBox.SelectedIndex = -1;
-        GraphFontComboBox.Text = fontName;
-    }
-
-    private string? GetSelectedGraphFontName()
-    {
-        if (GraphFontComboBox.SelectedItem is ComboBoxItem item
-            && item.Tag is string selectedTag
-            && !selectedTag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return selectedTag;
-        }
-
-        var text = GraphFontComboBox.Text.Trim();
-        return string.IsNullOrWhiteSpace(text) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : text;
-    }
-
-    private static bool SelectComboBoxItemByTag(ComboBox comboBox, string? tag)
-    {
-        var desiredTag = string.IsNullOrWhiteSpace(tag) ? "Auto" : tag.Trim();
-
-        for (var i = 0; i < comboBox.Items.Count; i++)
-        {
-            if (comboBox.Items[i] is ComboBoxItem item
-                && item.Tag is string itemTag
-                && itemTag.Equals(desiredTag, StringComparison.OrdinalIgnoreCase))
-            {
-                comboBox.SelectedIndex = i;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string? GetSelectedComboBoxTag(ComboBox comboBox)
-    {
-        return comboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
-            ? tag
-            : null;
-    }
-
-    private string? GetSelectedAspectRatioConfigValue()
-    {
-        var ratioText = GetSelectedComboBoxTag(AspectRatioComboBox) ?? AspectRatioComboBox.Text.Trim();
-        return string.IsNullOrWhiteSpace(ratioText)
-            || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : ratioText;
-    }
-
-    private float GetPlotFontSize()
-    {
-        return TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
-            ? (float)fontSize
-            : (float)GraphFormattingConfig.DefaultFontSize;
-    }
-
-    private double? GetLegendFontSize()
-    {
-        return TryParsePositiveDouble(LegendFontSizeTextBox.Text, out var fontSize)
-            ? fontSize
-            : null;
-    }
-
-    private float GetPlotFrameWidth()
-    {
-        return TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var width)
-            ? (float)width
-            : (float)GraphFormattingConfig.DefaultPlotFrameWidth;
-    }
-
     private double? GetSelectedAspectRatio()
     {
-        var ratioText = AspectRatioComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
-            ? tag
-            : AspectRatioComboBox.Text.Trim();
+        var ratioText = GraphFormatPanel.AspectRatioTag;
 
         if (string.IsNullOrWhiteSpace(ratioText)
             || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase))

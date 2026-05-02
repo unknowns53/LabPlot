@@ -1,6 +1,13 @@
+using LabPlot.Core;
+
 namespace GpcAnalyzer.Core;
 
-public interface IGpcDataReader
+/// <summary>
+/// Marker interface for GPC chromatogram readers (LabSolutions TXT today,
+/// future formats added per file). Reuses
+/// <see cref="IDataReader{TDataset}"/> so the contract stays in sync with
+/// the other LabPlot apps' reader interfaces.
+/// </summary>
+public interface IGpcDataReader : IDataReader<GpcDataset>
 {
-    GpcDataset Read(string filePath);
 }

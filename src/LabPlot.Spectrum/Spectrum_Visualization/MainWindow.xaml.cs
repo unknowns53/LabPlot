@@ -16,6 +16,7 @@ using SpectrumAnalyzer.Core;
 using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
+using static LabPlot.Core.PlotAppearance;
 
 namespace Spectrum_Visualization;
 
@@ -39,12 +40,6 @@ public partial class MainWindow : Window
     private const int DefaultExportWidth = 3600;
     private const int DefaultExportHeight = 2160;
     private const int SquareExportWidth = 3000;
-
-    // ScottPlot 5.x's TickMarkStyle defaults; multiply by display scale for export.
-    private const float MajorTickLengthBase = 4f;
-    private const float MajorTickWidthBase = 1f;
-    private const float MinorTickLengthBase = 2f;
-    private const float MinorTickWidthBase = 1f;
 
     private static readonly TimeSpan PlotRefreshDebounceInterval = TimeSpan.FromMilliseconds(200);
 
@@ -1432,13 +1427,6 @@ public partial class MainWindow : Window
         ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor && yAxisVisible);
     }
 
-    private static void ConfigureTickMarkStyle(ScottPlot.TickMarkStyle style, float lengthBase, float widthBase, float scale, bool visible)
-    {
-        style.Length = visible ? lengthBase * scale : 0f;
-        style.Width = widthBase * scale;
-        style.Hairline = false;
-    }
-
     private void ApplyPlotTitleStyle(ScottPlot.Plot plot)
     {
         plot.Axes.Title.Label.IsVisible = TitleVisibleCheckBox.IsChecked == true;
@@ -1454,7 +1442,7 @@ public partial class MainWindow : Window
 
     private void ApplyPlotBackground(ScottPlot.Plot plot)
     {
-        var color = GetScottPlotColor(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
+        var color = ColorFromHex(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
         plot.FigureBackground.Color = color;
         plot.DataBackground.Color = color;
     }
@@ -1479,15 +1467,6 @@ public partial class MainWindow : Window
         }
 
         ResetLabelFontTypeface(plot);
-    }
-
-    private static void ResetLabelFontTypeface(ScottPlot.Plot plot)
-    {
-        plot.Axes.Title.Label.Font = null;
-        plot.Axes.Bottom.Label.Font = null;
-        plot.Axes.Left.Label.Font = null;
-        plot.Axes.Bottom.TickLabelStyle.Font = null;
-        plot.Axes.Left.TickLabelStyle.Font = null;
     }
 
     private void ApplyPlotFontSize(ScottPlot.Plot plot, float scale = 1f)
@@ -1529,7 +1508,7 @@ public partial class MainWindow : Window
         plot.Axes.Right.FrameLineStyle.IsVisible = frameVisible;
 
         plot.Axes.FrameWidth(GetPlotFrameWidth() * scale);
-        plot.Axes.FrameColor(GetScottPlotColor(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
+        plot.Axes.FrameColor(ColorFromHex(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
     }
 
     private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex, float scale = 1f)
@@ -4610,18 +4589,6 @@ public partial class MainWindow : Window
     {
         var extension = saveFormat == GraphSaveFormat.Svg ? ".svg" : ".png";
         return Path.ChangeExtension(filePath, extension);
-    }
-
-    private static ScottPlot.Color GetScottPlotColor(string hex, string fallback)
-    {
-        try
-        {
-            return ScottPlot.Color.FromHex(new[] { hex }).First();
-        }
-        catch
-        {
-            return ScottPlot.Color.FromHex(new[] { fallback }).First();
-        }
     }
 
     private static void ApplyPngDpiMetadata(string filePath, int dpi)

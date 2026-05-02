@@ -14,6 +14,7 @@ using GpcAnalyzer.Core;
 using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
+using static LabPlot.Core.PlotAppearance;
 
 namespace GPC_Visualization;
 
@@ -37,11 +38,6 @@ public partial class MainWindow : Window
     private const int DefaultExportWidth = 3600;
     private const int DefaultExportHeight = 2160;
     private const int SquareExportWidth = 3000;
-    // ScottPlot 5.x の TickMarkStyle 既定値。表示倍率を掛けて適用するベース値として保持する。
-    private const float MajorTickLengthBase = 4f;
-    private const float MajorTickWidthBase = 1f;
-    private const float MinorTickLengthBase = 2f;
-    private const float MinorTickWidthBase = 1f;
     private const int OverlayDownsampleMinSeriesCount = 3;
     private const int OverlayDownsampleMinTotalPoints = 120_000;
     private const int OverlayDisplayPointBudget = 120_000;
@@ -1845,15 +1841,6 @@ public partial class MainWindow : Window
         ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor && yAxisVisible);
     }
 
-    private static void ConfigureTickMarkStyle(ScottPlot.TickMarkStyle style, float lengthBase, float widthBase, float scale, bool visible)
-    {
-        // 非表示時は Length=0 で線を消す。Width は描画されないが念のためベース値を維持。
-        style.Length = visible ? lengthBase * scale : 0f;
-        style.Width = widthBase * scale;
-        // Hairline=true だと Width が 1px に固定されてしまうので、明示的に解除しておく。
-        style.Hairline = false;
-    }
-
     private void ApplyPlotTitleStyle(ScottPlot.Plot plot)
     {
         plot.Axes.Title.Label.IsVisible = TitleVisibleCheckBox.IsChecked == true;
@@ -1869,7 +1856,7 @@ public partial class MainWindow : Window
 
     private void ApplyPlotBackground(ScottPlot.Plot plot)
     {
-        var color = GetScottPlotColor(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
+        var color = ColorFromHex(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
         plot.FigureBackground.Color = color;
         plot.DataBackground.Color = color;
     }
@@ -1897,15 +1884,6 @@ public partial class MainWindow : Window
         // 後段の Bold/Italic 設定が無視される。Font を null に戻して FontName + Bold/Italic から
         // 都度解決させる。
         ResetLabelFontTypeface(plot);
-    }
-
-    private static void ResetLabelFontTypeface(ScottPlot.Plot plot)
-    {
-        plot.Axes.Title.Label.Font = null;
-        plot.Axes.Bottom.Label.Font = null;
-        plot.Axes.Left.Label.Font = null;
-        plot.Axes.Bottom.TickLabelStyle.Font = null;
-        plot.Axes.Left.TickLabelStyle.Font = null;
     }
 
     private void ApplyPlotFontSize(ScottPlot.Plot plot, float scale = 1f)
@@ -1951,7 +1929,7 @@ public partial class MainWindow : Window
 
         // 線幅・色は全エッジに共通設定（IsVisible=false のエッジは描画されない）
         plot.Axes.FrameWidth(GetPlotFrameWidth() * scale);
-        plot.Axes.FrameColor(GetScottPlotColor(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
+        plot.Axes.FrameColor(ColorFromHex(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
     }
 
     private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex, float scale = 1f)
@@ -3567,18 +3545,6 @@ public partial class MainWindow : Window
         return TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex)
             ? hex
             : GraphFormattingConfig.DefaultPlotFrameColorHex;
-    }
-
-    private static ScottPlot.Color GetScottPlotColor(string hex, string fallbackHex)
-    {
-        try
-        {
-            return ScottPlot.Color.FromHex(new[] { hex }).First();
-        }
-        catch
-        {
-            return ScottPlot.Color.FromHex(new[] { fallbackHex }).First();
-        }
     }
 
     private void SyncPlotFrameColorInputFromComboBox()

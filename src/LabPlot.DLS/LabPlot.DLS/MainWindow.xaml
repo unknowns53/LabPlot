@@ -39,6 +39,7 @@
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="読み込み済みデータセット" />
                             <ListBox x:Name="DatasetListBox"
+                                     SelectionMode="Extended"
                                      SelectionChanged="DatasetListBox_SelectionChanged"
                                      MinHeight="120"
                                      MaxHeight="280"
@@ -52,6 +53,11 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="#94A3B8"
+                                       TextWrapping="Wrap"
+                                       Text="Ctrl/Shift クリックで複数選択して重ね描きできるよ" />
                             <TextBlock x:Name="DatasetCountText"
                                        Margin="0,6,0,0"
                                        FontSize="12"

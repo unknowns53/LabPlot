@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using DlsAnalyzer.Core;
@@ -10,10 +11,24 @@ namespace LabPlot.DLS;
 
 public partial class MainWindow : Window
 {
+    // Stable per-dataset overlay palette. Index is the dataset's position in
+    // _datasets, so a sheet keeps its colour even as the user toggles the
+    // selection on/off in the sidebar.
+    private static readonly string[] AutoLineColors =
+    [
+        "#2563EB",
+        "#DC2626",
+        "#16A34A",
+        "#EA580C",
+        "#7C3AED",
+        "#0891B2",
+        "#4B5563",
+    ];
+
     private readonly ZetasizerXlsxReader _reader = new();
     private readonly List<DlsDataset> _datasets = new();
+    private readonly List<DlsDataset> _selectedDatasets = new();
     private WpfPlot? _plot;
-    private DlsDataset? _selectedDataset;
     private DistributionMode _selectedMode = DistributionMode.Number;
     private int _selectedRunIndex;
     private bool _suppressRunComboEvents;
@@ -43,9 +58,10 @@ public partial class MainWindow : Window
     {
         if (_plot is null) return;
         _plot.Plot.Clear();
+        _plot.Plot.HideLegend();
         _plot.Plot.Title("Particle Size Distribution");
         _plot.Plot.XLabel("Size (d.nm)");
-        _plot.Plot.YLabel("Number (%)");
+        _plot.Plot.YLabel(ModeLabel(_selectedMode));
         ApplyLogXTicks();
         _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
         _plot.Refresh();
@@ -78,7 +94,7 @@ public partial class MainWindow : Window
             if (_datasets.Count > 0)
                 DatasetListBox.SelectedIndex = 0;
             else
-                ClearActiveDataset();
+                ClearActiveDatasets();
         }
         catch (Exception ex)
         {
@@ -89,7 +105,14 @@ public partial class MainWindow : Window
     private void DatasetListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!IsInitialized) return;
-        _selectedDataset = DatasetListBox.SelectedItem as DlsDataset;
+        // Snapshot the selection in dataset order (not click order) so the
+        // overlay palette stays predictable as the user toggles items.
+        _selectedDatasets.Clear();
+        foreach (var ds in _datasets)
+        {
+            if (DatasetListBox.SelectedItems.Contains(ds))
+                _selectedDatasets.Add(ds);
+        }
         UpdateRunCombo();
         UpdateDistributionTypeAvailability();
         RefreshPlot();
@@ -120,15 +143,16 @@ public partial class MainWindow : Window
         RefreshPlot();
     }
 
-    private void ClearActiveDataset()
+    private void ClearActiveDatasets()
     {
-        _selectedDataset = null;
+        _selectedDatasets.Clear();
         InitializeEmptyPlot();
     }
 
     private void UpdateDistributionTypeAvailability()
     {
-        // Disable distribution kinds that are not present on the active dataset.
+        // Enable a distribution kind if at least one selected dataset has it;
+        // datasets lacking the kind are silently skipped during overlay draw.
         for (int i = 0; i < DistributionTypeComboBox.Items.Count; i++)
         {
             if (DistributionTypeComboBox.Items[i] is not ComboBoxItem item) continue;
@@ -138,17 +162,28 @@ public partial class MainWindow : Window
                 "Volume" => DistributionMode.Volume,
                 _ => DistributionMode.Number,
             };
-            item.IsEnabled = GetDistribution(_selectedDataset, mode) is not null;
+            item.IsEnabled = _selectedDatasets.Count == 0
+                || _selectedDatasets.Any(ds => GetDistribution(ds, mode) is not null);
         }
     }
 
     private void UpdateRunCombo()
     {
-        var distribution = GetDistribution(_selectedDataset, _selectedMode);
+        // Run picker only makes sense for a single-dataset selection. With
+        // multiple datasets each one keeps its own ActiveRunIndex (default 0)
+        // since runs are not aligned across measurements.
         _suppressRunComboEvents = true;
         try
         {
             RunComboBox.Items.Clear();
+            if (_selectedDatasets.Count != 1)
+            {
+                RunComboBox.IsEnabled = false;
+                _selectedRunIndex = 0;
+                return;
+            }
+
+            var distribution = GetDistribution(_selectedDatasets[0], _selectedMode);
             if (distribution is null || distribution.RunCount == 0)
             {
                 RunComboBox.IsEnabled = false;
@@ -173,47 +208,94 @@ public partial class MainWindow : Window
     {
         if (_plot is null) return;
 
-        if (_selectedDataset is null)
+        if (_selectedDatasets.Count == 0)
         {
             InitializeEmptyPlot();
             return;
         }
 
-        var distribution = GetDistribution(_selectedDataset, _selectedMode);
-        if (distribution is null || distribution.RunCount == 0)
+        _plot.Plot.Clear();
+
+        var anyDrawn = false;
+        foreach (var dataset in _selectedDatasets)
         {
-            _plot.Plot.Clear();
-            _plot.Plot.Title($"{_selectedDataset.SheetName} ({ModeLabel(_selectedMode)})");
+            var distribution = GetDistribution(dataset, _selectedMode);
+            if (distribution is null || distribution.RunCount == 0) continue;
+
+            var runIndex = _selectedDatasets.Count == 1
+                ? Math.Clamp(_selectedRunIndex, 0, distribution.RunCount - 1)
+                : Math.Clamp(distribution.ActiveRunIndex, 0, distribution.RunCount - 1);
+            var run = distribution.Runs[runIndex];
+            var sizes = distribution.SizeBinsNm;
+            var n = Math.Min(run.Count, sizes.Count);
+            if (n == 0) continue;
+
+            var xs = new double[n];
+            var ys = new double[n];
+            for (int p = 0; p < n; p++)
+            {
+                xs[p] = Math.Log10(Math.Max(sizes[p], 1e-6));
+                ys[p] = run[p];
+            }
+
+            var scatter = _plot.Plot.Add.Scatter(xs, ys);
+            scatter.LineWidth = 2;
+            scatter.MarkerSize = 0;
+            ApplyDatasetColor(scatter, dataset);
+            scatter.LegendText = dataset.SheetName;
+            anyDrawn = true;
+        }
+
+        if (!anyDrawn)
+        {
+            // All selected datasets lack the chosen distribution. Render an
+            // empty labelled plot so the user notices the mode mismatch.
+            _plot.Plot.HideLegend();
+            _plot.Plot.Title($"{ModeLabel(_selectedMode)} データなし");
             _plot.Plot.XLabel("Size (d.nm)");
             _plot.Plot.YLabel(ModeLabel(_selectedMode));
             ApplyLogXTicks();
+            _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
             _plot.Refresh();
             return;
         }
 
-        var runIndex = Math.Clamp(_selectedRunIndex, 0, distribution.RunCount - 1);
-        var run = distribution.Runs[runIndex];
-        var sizes = distribution.SizeBinsNm;
-        var n = Math.Min(run.Count, sizes.Count);
+        if (_selectedDatasets.Count >= 2)
+            _plot.Plot.ShowLegend();
+        else
+            _plot.Plot.HideLegend();
 
-        var xs = new double[n];
-        var ys = new double[n];
-        for (int i = 0; i < n; i++)
-        {
-            xs[i] = Math.Log10(Math.Max(sizes[i], 1e-6));
-            ys[i] = run[i];
-        }
-
-        _plot.Plot.Clear();
-        var scatter = _plot.Plot.Add.Scatter(xs, ys);
-        scatter.LineWidth = 2;
-        scatter.MarkerSize = 0;
-        _plot.Plot.Title($"{_selectedDataset.SheetName} ({ModeLabel(_selectedMode)}, Run {runIndex + 1})");
+        _plot.Plot.Title(BuildTitle());
         _plot.Plot.XLabel("Size (d.nm)");
         _plot.Plot.YLabel(ModeLabel(_selectedMode));
         ApplyLogXTicks();
         _plot.Plot.Axes.AutoScale();
         _plot.Refresh();
+    }
+
+    private string BuildTitle()
+    {
+        if (_selectedDatasets.Count == 1)
+        {
+            var dataset = _selectedDatasets[0];
+            var distribution = GetDistribution(dataset, _selectedMode);
+            var runLabel = distribution is { RunCount: > 1 }
+                ? $", Run {Math.Clamp(_selectedRunIndex, 0, distribution.RunCount - 1) + 1}"
+                : string.Empty;
+            return $"{dataset.SheetName} ({ModeLabel(_selectedMode)}{runLabel})";
+        }
+
+        return $"Particle Size Distribution ({ModeLabel(_selectedMode)}, {_selectedDatasets.Count} datasets)";
+    }
+
+    private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
+    {
+        // Colour is keyed off the dataset's position in _datasets so it stays
+        // stable as the user toggles selection on/off in the sidebar.
+        var index = _datasets.IndexOf(dataset);
+        if (index < 0) index = 0;
+        var hex = AutoLineColors[index % AutoLineColors.Length];
+        scatter.Color = ScottPlot.Color.FromHex(new[] { hex }).First();
     }
 
     private void ApplyLogXTicks()
@@ -228,7 +310,7 @@ public partial class MainWindow : Window
         {
             var label = exponent switch
             {
-                < 0 => (Math.Pow(10, exponent)).ToString("0.#", CultureInfo.InvariantCulture),
+                < 0 => Math.Pow(10, exponent).ToString("0.#", CultureInfo.InvariantCulture),
                 _ => Math.Pow(10, exponent).ToString("0", CultureInfo.InvariantCulture),
             };
             generator.AddMajor(exponent, label);

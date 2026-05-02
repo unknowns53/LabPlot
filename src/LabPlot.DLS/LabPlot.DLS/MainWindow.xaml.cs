@@ -62,7 +62,7 @@ public partial class MainWindow : Window
 
     private void RegisterShortcuts()
     {
-        AddShortcut(Key.G, ModifierKeys.Control, () => ToggleCheckBox(PlotGridCheckBox));
+        AddShortcut(Key.G, ModifierKeys.Control, () => GraphFormatPanel.TogglePlotGrid());
     }
 
     private void AddShortcut(Key key, ModifierKeys modifiers, Action handler)
@@ -74,16 +74,6 @@ public partial class MainWindow : Window
             handler();
             e.Handled = true;
         }));
-    }
-
-    private static void ToggleCheckBox(CheckBox checkBox)
-    {
-        if (checkBox is null || !checkBox.IsEnabled)
-        {
-            return;
-        }
-
-        checkBox.IsChecked = checkBox.IsChecked != true;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -351,27 +341,7 @@ public partial class MainWindow : Window
         RefreshPlot();
     }
 
-    private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
-    {
-        // IsEditable=True の ComboBox は SelectionChanged だけだとリストにないフォント名を
-        // 打ち込んだとき反映されない。テンプレート内の編集用 TextBox を取り出して
-        // TextChanged を購読し、自由入力でも再描画が走るようにする（GPC と同じ手法）。
-        if (GraphFontComboBox.Template?.FindName("PART_EditableTextBox", GraphFontComboBox) is TextBox editableTextBox)
-        {
-            editableTextBox.TextChanged -= GraphFontComboBox_EditableTextChanged;
-            editableTextBox.TextChanged += GraphFontComboBox_EditableTextChanged;
-        }
-    }
-
-    private void GraphFontComboBox_EditableTextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (!IsInitialized) return;
-        if (_suppressFormattingEvents) return;
-        _formattingConfig = CaptureFormattingConfigFromControls();
-        RefreshPlot();
-    }
-
-    private void ColorPicker_ColorChanged(object? sender, EventArgs e)
+    private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e)
     {
         if (!IsInitialized) return;
         if (_suppressFormattingEvents) return;
@@ -667,49 +637,43 @@ public partial class MainWindow : Window
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
     {
-        var config = new GraphFormattingConfig
-        {
-            FontName = GetSelectedGraphFontName(),
-            FontSize = GetPlotFontSize(),
-            ShowGrid = PlotGridCheckBox.IsChecked == true,
-            ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
-            ShowMajorTicks = MajorTicksCheckBox.IsChecked == true,
-            ShowMinorTicks = MinorTicksCheckBox.IsChecked == true,
-            ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
-            PlotFrameWidth = GetPlotFrameWidth(),
-            PlotFrameColorHex = PlotFrameColorPicker.HexValue ?? GraphFormattingConfig.DefaultPlotFrameColorHex,
-            BackgroundColorHex = BackgroundColorPicker.HexValue ?? GraphFormattingConfig.DefaultBackgroundColorHex,
-            ShowTitle = TitleVisibleCheckBox.IsChecked == true,
-            TitleBold = TitleBoldCheckBox.IsChecked == true,
-            AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
-            AspectRatio = GetSelectedAspectRatioConfigValue(),
-            // Per-sheet line style controls live in their own panel and
-            // mutate _datasetItems[i].Style directly, so capture preserves
-            // whatever default seeded the file load (factory defaults at
-            // first; future Phase 4 Batch 6 session loads will replace
-            // these via _formattingConfig assignment).
-            DefaultLineColorHex = _formattingConfig.DefaultLineColorHex,
-            LineWidth = _formattingConfig.LineWidth,
-            MarkerSize = _formattingConfig.MarkerSize,
-            DefaultOutputDirectory = _formattingConfig.DefaultOutputDirectory,
-            // Axis range: empty textboxes mean "Auto" (let ScottPlot auto-scale).
-            // Both endpoints must be filled for the axis to flip into "Manual".
-            XAxisMode = (AxisRangePanel.XMinValue.HasValue && AxisRangePanel.XMaxValue.HasValue)
-                ? "Manual" : "Auto",
-            XAxisMinNm = AxisRangePanel.XMinValue ?? GraphFormattingConfig.DefaultXAxisMinNm,
-            XAxisMaxNm = AxisRangePanel.XMaxValue ?? GraphFormattingConfig.DefaultXAxisMaxNm,
-            YAxisMode = (AxisRangePanel.YMinValue.HasValue && AxisRangePanel.YMaxValue.HasValue)
-                ? "Manual" : "Auto",
-            YAxisMinPercent = AxisRangePanel.YMinValue ?? GraphFormattingConfig.DefaultYAxisMinPercent,
-            YAxisMaxPercent = AxisRangePanel.YMaxValue ?? GraphFormattingConfig.DefaultYAxisMaxPercent,
-            LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
-            LegendFontSize = GetLegendFontSize(),
-            LegendPosition = GetComboBoxTag(LegendPositionComboBox)
-                ?? GraphFormattingConfig.DefaultLegendPositionValue,
-            DefaultDistributionMode = GetComboBoxTag(DefaultDistributionComboBox)
-                ?? GraphFormattingConfig.DefaultDistributionModeValue,
-            DefaultRunIndex = TryParseInt(DefaultRunIndexTextBox.Text, out var idx) ? idx : 0,
-        };
+        var config = new GraphFormattingConfig();
+        // Pull all GraphFormattingConfigBase properties (font / ticks / frame /
+        // background / aspect ratio / legend) from the shared panel, then layer
+        // DLS-specific properties on top.
+        GraphFormatPanel.Capture(config);
+
+        // Title / axis label visibility lives in the standalone "グラフラベル"
+        // section, not in GraphFormatPanel.
+        config.ShowTitle = TitleVisibleCheckBox.IsChecked == true;
+        config.TitleBold = TitleBoldCheckBox.IsChecked == true;
+        config.AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true;
+
+        // Per-sheet line style controls live in their own panel and mutate
+        // _datasetItems[i].Style directly, so capture preserves whatever
+        // default seeded the file load (factory defaults at first; future
+        // Phase 4 Batch 6 session loads will replace these via
+        // _formattingConfig assignment).
+        config.DefaultLineColorHex = _formattingConfig.DefaultLineColorHex;
+        config.LineWidth = _formattingConfig.LineWidth;
+        config.MarkerSize = _formattingConfig.MarkerSize;
+        config.DefaultOutputDirectory = _formattingConfig.DefaultOutputDirectory;
+
+        // Axis range: empty textboxes mean "Auto" (let ScottPlot auto-scale).
+        // Both endpoints must be filled for the axis to flip into "Manual".
+        config.XAxisMode = (AxisRangePanel.XMinValue.HasValue && AxisRangePanel.XMaxValue.HasValue)
+            ? "Manual" : "Auto";
+        config.XAxisMinNm = AxisRangePanel.XMinValue ?? GraphFormattingConfig.DefaultXAxisMinNm;
+        config.XAxisMaxNm = AxisRangePanel.XMaxValue ?? GraphFormattingConfig.DefaultXAxisMaxNm;
+        config.YAxisMode = (AxisRangePanel.YMinValue.HasValue && AxisRangePanel.YMaxValue.HasValue)
+            ? "Manual" : "Auto";
+        config.YAxisMinPercent = AxisRangePanel.YMinValue ?? GraphFormattingConfig.DefaultYAxisMinPercent;
+        config.YAxisMaxPercent = AxisRangePanel.YMaxValue ?? GraphFormattingConfig.DefaultYAxisMaxPercent;
+
+        config.DefaultDistributionMode = GetComboBoxTag(DefaultDistributionComboBox)
+            ?? GraphFormattingConfig.DefaultDistributionModeValue;
+        config.DefaultRunIndex = TryParseInt(DefaultRunIndexTextBox.Text, out var idx) ? idx : 0;
+
         config.Normalize();
         return config;
     }
@@ -718,23 +682,15 @@ public partial class MainWindow : Window
     {
         config.Normalize();
 
+        // GraphFormatPanel suppresses its own change events while writing.
+        GraphFormatPanel.Apply(config);
+
         _suppressFormattingEvents = true;
         try
         {
-            SelectComboBoxByTag(GraphFontComboBox, config.FontName ?? "Auto");
-            GraphFontSizeTextBox.Text = config.FormatFontSize();
-            PlotGridCheckBox.IsChecked = config.ShowGrid;
-            YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
-            MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
-            MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
-            PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
-            PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
-            PlotFrameColorPicker.SetHexValue(config.PlotFrameColorHex);
-            BackgroundColorPicker.SetHexValue(config.BackgroundColorHex);
             TitleVisibleCheckBox.IsChecked = config.ShowTitle;
             TitleBoldCheckBox.IsChecked = config.TitleBold;
             AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
-            SelectComboBoxByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto");
             // Per-sheet line style controls are driven by
             // SyncStyleControlsFromActiveItem (selection change), not by
             // the global formatting config — that decoupling is what lets
@@ -748,9 +704,6 @@ public partial class MainWindow : Window
             AxisRangePanel.SetYValues(
                 config.YAxisMode == "Manual" ? config.YAxisMinPercent : null,
                 config.YAxisMode == "Manual" ? config.YAxisMaxPercent : null);
-            SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
-            LegendFontSizeTextBox.Text = config.FormatLegendFontSize();
-            SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
             SelectComboBoxByTag(DefaultDistributionComboBox, config.DefaultDistributionMode);
             DefaultRunIndexTextBox.Text = config.DefaultRunIndex.ToString(CultureInfo.InvariantCulture);
         }
@@ -758,47 +711,6 @@ public partial class MainWindow : Window
         {
             _suppressFormattingEvents = false;
         }
-    }
-
-    // ---------- Capture helpers ----------
-
-    private string? GetSelectedGraphFontName()
-    {
-        if (GraphFontComboBox.SelectedItem is ComboBoxItem item
-            && item.Tag is string selectedTag
-            && !selectedTag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return selectedTag;
-        }
-
-        var text = GraphFontComboBox.Text.Trim();
-        return string.IsNullOrWhiteSpace(text) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : text;
-    }
-
-    private double GetPlotFontSize()
-        => TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
-            ? fontSize
-            : GraphFormattingConfig.DefaultFontSize;
-
-    private double? GetLegendFontSize()
-        => TryParsePositiveDouble(LegendFontSizeTextBox.Text, out var fontSize)
-            ? fontSize
-            : null;
-
-    private double GetPlotFrameWidth()
-        => TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var width)
-            ? width
-            : GraphFormattingConfig.DefaultPlotFrameWidth;
-
-    private string? GetSelectedAspectRatioConfigValue()
-    {
-        var ratioText = GetComboBoxTag(AspectRatioComboBox) ?? AspectRatioComboBox.Text.Trim();
-        return string.IsNullOrWhiteSpace(ratioText)
-            || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : ratioText;
     }
 
     // ---------- Generic helpers ----------

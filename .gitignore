@@ -28,6 +28,7 @@ packages/
 *.gpcjson
 *.spjson
 *.zip
+.claude/
 
 # Bundled samples and screenshots are exempt
 !**/samples/

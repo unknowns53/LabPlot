@@ -198,6 +198,78 @@
                         </Expander>
                     </Border>
 
+                    <!-- Section: Measurement metadata (active sheet) -->
+                    <Border Style="{StaticResource SectionStyle}">
+                        <Expander IsExpanded="False">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="測定条件"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               Foreground="#0F172A" />
+                                    <TextBlock x:Name="ActiveMetadataLabel"
+                                               Text="(選択中シート)"
+                                               FontSize="11"
+                                               Foreground="#94A3B8"
+                                               VerticalAlignment="Bottom"
+                                               Margin="6,0,0,2" />
+                                </StackPanel>
+                            </Expander.Header>
+                            <StackPanel Margin="0,8,0,0">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="温度 (°C)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataTemperatureTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataTemperatureTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="濃度 (mg/mL)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataConcentrationTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataConcentrationTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="溶媒" Style="{StaticResource FieldLabelStyle}" />
+                                <TextBox x:Name="MetadataSolventTextBox"
+                                         Style="{StaticResource InputTextBoxStyle}"
+                                         Margin="0,0,0,10"
+                                         LostFocus="MetadataSolventTextBox_LostFocus"
+                                         KeyDown="MetadataTextBox_KeyDown" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="屈折率" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataRefractiveIndexTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="粘度 (mPa·s)" Style="{StaticResource FieldLabelStyle}" />
+                                        <TextBox x:Name="MetadataViscosityTextBox"
+                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                 LostFocus="MetadataViscosityTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Expander>
+                    </Border>
+
                     <Border Style="{StaticResource SectionStyle}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="表示" />

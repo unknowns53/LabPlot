@@ -52,6 +52,7 @@ public partial class MainWindow : Window
     private bool _suppressRunComboEvents;
     private bool _suppressFormattingEvents;
     private bool _suppressStyleControlEvents;
+    private bool _suppressMetadataControlEvents;
 
     public MainWindow()
     {
@@ -92,6 +93,7 @@ public partial class MainWindow : Window
             // Per-dataset style controls start disabled until the user
             // selects a sheet (no file loaded yet → _activeItemIndex = -1).
             SyncStyleControlsFromActiveItem();
+            SyncMetadataControlsFromActiveItem();
             _selectedMode = DistributionModeFromTag(_formattingConfig.DefaultDistributionMode);
             SelectComboBoxByTag(DistributionTypeComboBox, _formattingConfig.DefaultDistributionMode);
             _selectedRunIndex = Math.Max(0, _formattingConfig.DefaultRunIndex);
@@ -186,6 +188,7 @@ public partial class MainWindow : Window
         }
         _activeItemIndex = activeItem is null ? -1 : _datasetItems.IndexOf(activeItem);
         SyncStyleControlsFromActiveItem();
+        SyncMetadataControlsFromActiveItem();
 
         UpdateRunCombo();
         UpdateDistributionTypeAvailability();
@@ -279,6 +282,173 @@ public partial class MainWindow : Window
         }
     }
 
+    // Pushes the active sheet's measurement metadata into the panel
+    // controls. Mirrors SyncStyleControlsFromActiveItem but for the
+    // "測定条件 (選択中シート)" section. Suppresses change events so
+    // writing values back does not retrigger the per-control LostFocus
+    // commit path.
+    private void SyncMetadataControlsFromActiveItem()
+    {
+        bool hasActive = _activeItemIndex >= 0 && _activeItemIndex < _datasetItems.Count;
+        MetadataTemperatureTextBox.IsEnabled = hasActive;
+        MetadataConcentrationTextBox.IsEnabled = hasActive;
+        MetadataSolventTextBox.IsEnabled = hasActive;
+        MetadataRefractiveIndexTextBox.IsEnabled = hasActive;
+        MetadataViscosityTextBox.IsEnabled = hasActive;
+
+        if (!hasActive)
+        {
+            ActiveMetadataLabel.Text = "(選択中シート)";
+            _suppressMetadataControlEvents = true;
+            try
+            {
+                MetadataTemperatureTextBox.Text = string.Empty;
+                MetadataConcentrationTextBox.Text = string.Empty;
+                MetadataSolventTextBox.Text = string.Empty;
+                MetadataRefractiveIndexTextBox.Text = string.Empty;
+                MetadataViscosityTextBox.Text = string.Empty;
+            }
+            finally
+            {
+                _suppressMetadataControlEvents = false;
+            }
+            return;
+        }
+
+        var metadata = _datasetItems[_activeItemIndex].Metadata;
+        ActiveMetadataLabel.Text = $"({_datasetItems[_activeItemIndex].SheetName})";
+
+        _suppressMetadataControlEvents = true;
+        try
+        {
+            MetadataTemperatureTextBox.Text = FormatNullableDouble(metadata.TemperatureCelsius);
+            MetadataConcentrationTextBox.Text = FormatNullableDouble(metadata.ConcentrationMgPerMl);
+            MetadataSolventTextBox.Text = metadata.Solvent ?? string.Empty;
+            MetadataRefractiveIndexTextBox.Text = FormatNullableDouble(metadata.RefractiveIndex);
+            MetadataViscosityTextBox.Text = FormatNullableDouble(metadata.ViscosityMpas);
+        }
+        finally
+        {
+            _suppressMetadataControlEvents = false;
+        }
+    }
+
+    // Shared Enter-to-commit for all metadata textboxes. The textboxes
+    // commit on LostFocus, so Enter just bounces focus to the window to
+    // fire that path. Moving focus to a sibling control would scroll the
+    // sidebar — bouncing to the window keeps the layout stable.
+    private void MetadataTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        Keyboard.ClearFocus();
+        FocusManager.SetFocusedElement(this, this);
+        e.Handled = true;
+    }
+
+    private void MetadataTemperatureTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // Temperature accepts negatives (rare DLS sub-zero protocols).
+        CommitNumericMetadata(MetadataTemperatureTextBox, NumericConstraint.AnyFinite,
+            (item, value) => item.Metadata.TemperatureCelsius = value);
+    }
+
+    private void MetadataConcentrationTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // Concentration of zero is meaningful (pure solvent baseline run).
+        CommitNumericMetadata(MetadataConcentrationTextBox, NumericConstraint.NonNegative,
+            (item, value) => item.Metadata.ConcentrationMgPerMl = value);
+    }
+
+    private void MetadataRefractiveIndexTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // Refractive index n > 0; air ~1.0, water ~1.33, organic solvents up to ~1.6.
+        CommitNumericMetadata(MetadataRefractiveIndexTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.RefractiveIndex = value);
+    }
+
+    private void MetadataViscosityTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // Dynamic viscosity > 0; water ~0.89 mPa·s at 25°C.
+        CommitNumericMetadata(MetadataViscosityTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.ViscosityMpas = value);
+    }
+
+    private void MetadataSolventTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressMetadataControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var solvent = MetadataSolventTextBox.Text.Trim();
+        _datasetItems[_activeItemIndex].Metadata.Solvent =
+            string.IsNullOrWhiteSpace(solvent) ? null : solvent;
+    }
+
+    // Constraint check passed to CommitNumericMetadata. `null` means any
+    // finite double is accepted; otherwise the constraint rejects values
+    // outside its domain (e.g. NonNegative rejects negative numbers).
+    private enum NumericConstraint
+    {
+        AnyFinite,
+        NonNegative,
+        Positive,
+    }
+
+    // Shared parse + commit flow for numeric metadata. Empty input clears
+    // the value (back to null). Invalid or out-of-range input reverts the
+    // textbox to the last committed value. Stokes-Einstein calculations
+    // (Batch 5) read from item.Metadata, so Batch 4a does not refresh
+    // the plot on commit.
+    private void CommitNumericMetadata(
+        TextBox textBox,
+        NumericConstraint constraint,
+        Action<DlsDatasetItem, double?> apply)
+    {
+        if (!IsInitialized) return;
+        if (_suppressMetadataControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var item = _datasetItems[_activeItemIndex];
+        var raw = textBox.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            apply(item, null);
+            _suppressMetadataControlEvents = true;
+            try { textBox.Text = string.Empty; }
+            finally { _suppressMetadataControlEvents = false; }
+            return;
+        }
+
+        bool ok = constraint switch
+        {
+            NumericConstraint.Positive => TryParsePositiveDouble(raw, out _),
+            NumericConstraint.NonNegative => TryParseNonNegativeDouble(raw, out _),
+            _ => TryParseDouble(raw, out _),
+        };
+
+        if (!ok)
+        {
+            // Revert to the last committed value so the textbox does not
+            // hold input the model cannot represent.
+            SyncMetadataControlsFromActiveItem();
+            return;
+        }
+
+        // We just verified the input parses; one extra TryParseDouble call
+        // unifies the value extraction across all three constraints.
+        TryParseDouble(raw, out var value);
+        apply(item, value);
+
+        // Normalize the visible text (e.g. "1.20" → "1.2").
+        _suppressMetadataControlEvents = true;
+        try { textBox.Text = FormatDouble(value); }
+        finally { _suppressMetadataControlEvents = false; }
+    }
+
+    private static string FormatNullableDouble(double? value)
+        => value.HasValue ? FormatDouble(value.Value) : string.Empty;
+
     private void DistributionTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         // SelectionChanged fires once during InitializeComponent because
@@ -354,6 +524,7 @@ public partial class MainWindow : Window
         _selectedDatasets.Clear();
         _activeItemIndex = -1;
         SyncStyleControlsFromActiveItem();
+        SyncMetadataControlsFromActiveItem();
         InitializeEmptyPlot();
     }
 
@@ -750,13 +921,30 @@ public partial class MainWindow : Window
         public double MarkerSize { get; set; } = GraphFormattingConfigBase.DefaultMarkerSize;
     }
 
+    // Mutable metadata state edited from the "測定条件 (選択中シート)" panel.
+    // Mirrors DlsDatasetMetadata (which is an immutable record on the
+    // DlsAnalyzer.Core side) so the UI can write back without rebuilding
+    // the dataset. Stokes-Einstein calculations (Batch 5) and session
+    // save (Batch 6) read from here, not from Dataset.Metadata, because
+    // the user enters these values after the file is loaded.
+    private sealed class DlsDatasetMetadataState
+    {
+        public double? TemperatureCelsius { get; set; }
+        public string? Solvent { get; set; }
+        public double? ConcentrationMgPerMl { get; set; }
+        public double? RefractiveIndex { get; set; }
+        public double? ViscosityMpas { get; set; }
+    }
+
     // ListBox row VM. Holds the underlying DlsDataset, the per-sheet
-    // style, and a notifying ColorBrush so the color swatch updates as
-    // soon as RefreshPlot() recomputes the palette / overrides.
+    // style, the per-sheet measurement metadata, and a notifying
+    // ColorBrush so the color swatch updates as soon as RefreshPlot()
+    // recomputes the palette / overrides.
     private sealed class DlsDatasetItem : INotifyPropertyChanged
     {
         public DlsDataset Dataset { get; }
         public DlsDatasetStyle Style { get; } = new();
+        public DlsDatasetMetadataState Metadata { get; } = new();
         public string SheetName => Dataset.SheetName;
 
         private SolidColorBrush _colorBrush = new(Colors.Gray);
@@ -774,6 +962,14 @@ public partial class MainWindow : Window
         public DlsDatasetItem(DlsDataset dataset)
         {
             Dataset = dataset;
+            // Seed the editable metadata from whatever the reader produced.
+            // Zetasizer xlsx never embeds these fields, so in practice all
+            // values start out null and the user fills them in by hand.
+            Metadata.TemperatureCelsius = dataset.Metadata.TemperatureCelsius;
+            Metadata.Solvent = dataset.Metadata.Solvent;
+            Metadata.ConcentrationMgPerMl = dataset.Metadata.ConcentrationMgPerMl;
+            Metadata.RefractiveIndex = dataset.Metadata.RefractiveIndex;
+            Metadata.ViscosityMpas = dataset.Metadata.ViscosityMpas;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

@@ -1,4 +1,4 @@
-using System.Globalization;
+using LabPlot.Core;
 
 namespace GpcAnalyzer.Core;
 
@@ -40,38 +40,38 @@ public sealed class GraphFormattingConfig
 
     public void Normalize()
     {
-        FontName = NormalizeOptionalText(FontName);
-        AspectRatio = NormalizeOptionalText(AspectRatio);
-        DefaultLineColorHex = NormalizeOptionalHex(DefaultLineColorHex);
-        DefaultCalibrationFilePath = NormalizeOptionalText(DefaultCalibrationFilePath);
-        DefaultOutputDirectory = NormalizeOptionalText(DefaultOutputDirectory);
+        FontName = ConfigNormalizer.NormalizeOptionalText(FontName);
+        AspectRatio = ConfigNormalizer.NormalizeOptionalText(AspectRatio);
+        DefaultLineColorHex = ConfigNormalizer.NormalizeOptionalHex(DefaultLineColorHex);
+        DefaultCalibrationFilePath = ConfigNormalizer.NormalizeOptionalText(DefaultCalibrationFilePath);
+        DefaultOutputDirectory = ConfigNormalizer.NormalizeOptionalText(DefaultOutputDirectory);
 
-        if (!IsPositive(FontSize))
+        if (!ConfigNormalizer.IsPositive(FontSize))
         {
             FontSize = DefaultFontSize;
         }
 
-        if (!IsPositive(PlotFrameWidth))
+        if (!ConfigNormalizer.IsPositive(PlotFrameWidth))
         {
             PlotFrameWidth = DefaultPlotFrameWidth;
         }
 
-        if (!IsHexColor(PlotFrameColorHex))
+        if (!ConfigNormalizer.IsHexColor(PlotFrameColorHex))
         {
             PlotFrameColorHex = DefaultPlotFrameColorHex;
         }
 
-        if (!IsHexColor(BackgroundColorHex))
+        if (!ConfigNormalizer.IsHexColor(BackgroundColorHex))
         {
             BackgroundColorHex = DefaultBackgroundColorHex;
         }
 
-        if (!IsPositive(LineWidth))
+        if (!ConfigNormalizer.IsPositive(LineWidth))
         {
             LineWidth = DefaultLineWidth;
         }
 
-        if (!IsNonNegative(MarkerSize))
+        if (!ConfigNormalizer.IsNonNegative(MarkerSize))
         {
             MarkerSize = DefaultMarkerSize;
         }
@@ -79,54 +79,21 @@ public sealed class GraphFormattingConfig
 
     public string FormatFontSize()
     {
-        return FormatNumber(FontSize);
+        return ConfigNormalizer.FormatNumber(FontSize);
     }
 
     public string FormatFrameWidth()
     {
-        return FormatNumber(PlotFrameWidth);
+        return ConfigNormalizer.FormatNumber(PlotFrameWidth);
     }
 
     public string FormatLineWidth()
     {
-        return FormatNumber(LineWidth);
+        return ConfigNormalizer.FormatNumber(LineWidth);
     }
 
     public string FormatMarkerSize()
     {
-        return FormatNumber(MarkerSize);
-    }
-
-    private static string? NormalizeOptionalText(string? text)
-    {
-        return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
-    }
-
-    private static string? NormalizeOptionalHex(string? text)
-    {
-        var normalized = NormalizeOptionalText(text);
-        return normalized is not null && IsHexColor(normalized) ? normalized : null;
-    }
-
-    private static bool IsPositive(double value)
-    {
-        return double.IsFinite(value) && value > 0;
-    }
-
-    private static bool IsNonNegative(double value)
-    {
-        return double.IsFinite(value) && value >= 0;
-    }
-
-    private static bool IsHexColor(string? value)
-    {
-        return value is { Length: 7 }
-            && value[0] == '#'
-            && value[1..].All(Uri.IsHexDigit);
-    }
-
-    private static string FormatNumber(double value)
-    {
-        return value.ToString("0.##", CultureInfo.InvariantCulture);
+        return ConfigNormalizer.FormatNumber(MarkerSize);
     }
 }

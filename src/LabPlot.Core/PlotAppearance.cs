@@ -1,10 +1,13 @@
 namespace LabPlot.Core;
 
 /// <summary>
-/// WPF-independent ScottPlot helpers shared by every LabPlot app. Each
-/// app's <c>ApplyPlotAppearance</c> path threads UI control state into
-/// these helpers; the helpers themselves only touch the
-/// <see cref="ScottPlot.Plot"/> object so they can be reused from a
+/// WPF-independent ScottPlot helpers shared by every LabPlot app. The
+/// <c>Apply*</c> family takes a <see cref="GraphFormattingConfigBase"/> snapshot
+/// and writes it onto a <see cref="ScottPlot.Plot"/>; the host MainWindow
+/// is responsible for capturing the snapshot from its UI controls (typically
+/// via <c>CaptureFormattingConfigFromControls()</c>) and calling
+/// <see cref="ApplyAll"/> from its <c>ApplyPlotAppearance</c> entry point.
+/// Because nothing here touches WPF types, the same code path runs from a
 /// future Avalonia or CLI front-end.
 /// </summary>
 /// <remarks>
@@ -80,5 +83,177 @@ public static class PlotAppearance
         {
             return ScottPlot.Color.FromHex(new[] { fallbackHex }).First();
         }
+    }
+
+    /// <summary>
+    /// Applies every shared formatting concern (font, font size, grid,
+    /// Y-axis tick labels, frame, tick marks, title, axis-label bold,
+    /// background) onto <paramref name="plot"/> from
+    /// <paramref name="config"/>. The order matches the original per-app
+    /// implementation so that frame visibility correctly reads the
+    /// up-to-date Y-axis tick label state.
+    /// </summary>
+    public static void ApplyAll(ScottPlot.Plot plot, GraphFormattingConfigBase config, float scale = 1f)
+    {
+        ApplyFont(plot, config);
+        ApplyFontSize(plot, config, scale);
+        ApplyGrid(plot, config);
+        ApplyYAxisTickLabels(plot, config);
+        ApplyFrame(plot, config, scale);
+        ApplyTickMarks(plot, config, scale);
+        ApplyTitleStyle(plot, config);
+        ApplyAxisLabelStyle(plot, config);
+        ApplyBackground(plot, config);
+    }
+
+    /// <summary>
+    /// Re-derives bottom and left tick-mark length / width from
+    /// base × <paramref name="scale"/> so the same source values produce
+    /// matching geometry whether we are rendering on screen (scale = 1)
+    /// or exporting at high DPI. Hiding the Y-axis tick labels also
+    /// hides the Y-axis tick lines themselves, matching the on-screen
+    /// "labels and ticks travel together" contract.
+    /// </summary>
+    public static void ApplyTickMarks(ScottPlot.Plot plot, GraphFormattingConfigBase config, float scale = 1f)
+    {
+        bool showMajor = config.ShowMajorTicks;
+        bool showMinor = config.ShowMinorTicks;
+        bool yAxisVisible = config.ShowYAxisTickLabels;
+
+        ConfigureTickMarkStyle(plot.Axes.Bottom.MajorTickStyle, MajorTickLengthBase, MajorTickWidthBase, scale, showMajor);
+        ConfigureTickMarkStyle(plot.Axes.Bottom.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor);
+        ConfigureTickMarkStyle(plot.Axes.Left.MajorTickStyle, MajorTickLengthBase, MajorTickWidthBase, scale, showMajor && yAxisVisible);
+        ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor && yAxisVisible);
+    }
+
+    /// <summary>
+    /// Applies title visibility and bold weight from <paramref name="config"/>.
+    /// </summary>
+    public static void ApplyTitleStyle(ScottPlot.Plot plot, GraphFormattingConfigBase config)
+    {
+        plot.Axes.Title.Label.IsVisible = config.ShowTitle;
+        plot.Axes.Title.Label.Bold = config.TitleBold;
+    }
+
+    /// <summary>
+    /// Applies axis-label bold weight (X and Y receive the same value)
+    /// from <paramref name="config"/>.
+    /// </summary>
+    public static void ApplyAxisLabelStyle(ScottPlot.Plot plot, GraphFormattingConfigBase config)
+    {
+        plot.Axes.Bottom.Label.Bold = config.AxisLabelBold;
+        plot.Axes.Left.Label.Bold = config.AxisLabelBold;
+    }
+
+    /// <summary>
+    /// Paints the figure and data backgrounds with the same color, falling
+    /// back to <see cref="GraphFormattingConfigBase.DefaultBackgroundColorHex"/>
+    /// when the configured hex is invalid.
+    /// </summary>
+    public static void ApplyBackground(ScottPlot.Plot plot, GraphFormattingConfigBase config)
+    {
+        var color = ColorFromHex(config.BackgroundColorHex, GraphFormattingConfigBase.DefaultBackgroundColorHex);
+        plot.FigureBackground.Color = color;
+        plot.DataBackground.Color = color;
+    }
+
+    /// <summary>
+    /// Applies the configured font name to <paramref name="plot"/>. When
+    /// the name is null / empty, the plot falls back to ScottPlot's
+    /// automatic font selection. <see cref="ResetLabelFontTypeface"/> is
+    /// called afterwards so subsequent Bold / Italic changes are honoured
+    /// instead of being shadowed by the cached typeface that
+    /// <c>Plot.Font.Set</c> installs.
+    /// </summary>
+    public static void ApplyFont(ScottPlot.Plot plot, GraphFormattingConfigBase config)
+    {
+        var fontName = config.FontName;
+        if (string.IsNullOrWhiteSpace(fontName))
+        {
+            plot.Font.Automatic();
+            ResetLabelFontTypeface(plot);
+            return;
+        }
+
+        try
+        {
+            plot.Font.Set(fontName);
+        }
+        catch
+        {
+            plot.Font.Automatic();
+        }
+
+        ResetLabelFontTypeface(plot);
+    }
+
+    /// <summary>
+    /// Sets every label and tick-label font size from
+    /// <paramref name="config"/> × <paramref name="scale"/>. The title is
+    /// 2 pt larger than the base; tick labels and the legend sit one
+    /// scaled point smaller, with a 6 × scale floor to stay readable at
+    /// tiny scales.
+    /// </summary>
+    public static void ApplyFontSize(ScottPlot.Plot plot, GraphFormattingConfigBase config, float scale = 1f)
+    {
+        var fontSize = (float)config.FontSize * scale;
+        plot.Axes.Title.Label.FontSize = fontSize + (2 * scale);
+        plot.Axes.Bottom.Label.FontSize = fontSize;
+        plot.Axes.Left.Label.FontSize = fontSize;
+        plot.Axes.Bottom.TickLabelStyle.FontSize = Math.Max(6 * scale, fontSize - scale);
+        plot.Axes.Left.TickLabelStyle.FontSize = Math.Max(6 * scale, fontSize - scale);
+        plot.Legend.FontSize = Math.Max(6 * scale, fontSize - scale);
+    }
+
+    /// <summary>
+    /// Toggles ScottPlot's grid on or off according to
+    /// <see cref="GraphFormattingConfigBase.ShowGrid"/>.
+    /// </summary>
+    public static void ApplyGrid(ScottPlot.Plot plot, GraphFormattingConfigBase config)
+    {
+        if (config.ShowGrid)
+        {
+            plot.ShowGrid();
+        }
+        else
+        {
+            plot.HideGrid();
+        }
+    }
+
+    /// <summary>
+    /// Toggles Y-axis tick label visibility from
+    /// <see cref="GraphFormattingConfigBase.ShowYAxisTickLabels"/>.
+    /// <see cref="ApplyTickMarks"/> reads the same flag to keep the
+    /// Y-axis tick lines in sync with the labels.
+    /// </summary>
+    public static void ApplyYAxisTickLabels(ScottPlot.Plot plot, GraphFormattingConfigBase config)
+    {
+        plot.Axes.Left.TickLabelStyle.IsVisible = config.ShowYAxisTickLabels;
+    }
+
+    /// <summary>
+    /// Applies frame edge visibility, width and color. The bottom edge
+    /// is always visible because every LabPlot app shows X-axis numerics
+    /// at all times; the left edge follows
+    /// <see cref="GraphFormattingConfigBase.ShowYAxisTickLabels"/> so the
+    /// numbered axis keeps a frame even when the user hides the box; the
+    /// top and right edges follow
+    /// <see cref="GraphFormattingConfigBase.ShowPlotFrame"/>. Width and
+    /// color are applied to all four edges; the per-edge IsVisible flags
+    /// suppress drawing on the hidden edges.
+    /// </summary>
+    public static void ApplyFrame(ScottPlot.Plot plot, GraphFormattingConfigBase config, float scale = 1f)
+    {
+        bool frameVisible = config.ShowPlotFrame;
+        bool yLabelsVisible = config.ShowYAxisTickLabels;
+
+        plot.Axes.Bottom.FrameLineStyle.IsVisible = true;
+        plot.Axes.Left.FrameLineStyle.IsVisible = frameVisible || yLabelsVisible;
+        plot.Axes.Top.FrameLineStyle.IsVisible = frameVisible;
+        plot.Axes.Right.FrameLineStyle.IsVisible = frameVisible;
+
+        plot.Axes.FrameWidth((float)config.PlotFrameWidth * scale);
+        plot.Axes.FrameColor(ColorFromHex(config.PlotFrameColorHex, GraphFormattingConfigBase.DefaultPlotFrameColorHex));
     }
 }

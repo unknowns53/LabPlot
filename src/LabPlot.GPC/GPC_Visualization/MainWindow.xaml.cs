@@ -73,6 +73,12 @@ public partial class MainWindow : Window
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
+
+    // Cache of the per-app "auto-show" decision from the most recent plot
+    // pass. Format-panel handlers (legend visibility / position combo box)
+    // read this to refresh the legend without re-running the heavy plot
+    // path; per-dataset state changes update it via the Plot* methods.
+    private bool _currentLegendAutoShow;
     private bool _forceFullResolutionPlot;
     private bool _currentPlotUsesDownsampledData;
     private bool _suppressRepresentativePeakSelection;
@@ -1696,8 +1702,9 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
+        _currentLegendAutoShow = ShouldShowLegend(entries.Select(entry => entry.Index));
         ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
-            autoShow: ShouldShowLegend(entries.Select(entry => entry.Index)));
+            autoShow: _currentLegendAutoShow);
 
         _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
@@ -1748,8 +1755,9 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
+        _currentLegendAutoShow = ShouldShowLegend(entries.Select(entry => entry.Index));
         ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
-            autoShow: ShouldShowLegend(entries.Select(entry => entry.Index)));
+            autoShow: _currentLegendAutoShow);
 
         _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, $"{activeDataset.XLabel} (log scale)"));
@@ -3015,6 +3023,13 @@ public partial class MainWindow : Window
         }
 
         ApplyPlotAppearance();
+        // Re-evaluate legend visibility / position so changes to the legend
+        // combo boxes (or any other format control) reflect immediately
+        // instead of waiting for the next dataset replot. _currentLegendAutoShow
+        // is set by the most recent Plot* pass and stays in sync with the
+        // currently rendered series set.
+        ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: _currentLegendAutoShow);
         _chromatogramPlot.Refresh();
     }
 

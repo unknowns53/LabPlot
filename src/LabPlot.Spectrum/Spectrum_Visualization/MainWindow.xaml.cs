@@ -72,6 +72,12 @@ public partial class MainWindow : Window
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
 
+    // Cache of the per-app "auto-show" decision from the most recent plot
+    // pass. Format-panel handlers (legend visibility / position combo box)
+    // read this to refresh the legend without re-running the heavy plot
+    // path; per-dataset state changes update it via the Plot* methods.
+    private bool _currentLegendAutoShow;
+
     private const string DatasetReorderDataFormat = "Spectrum.DatasetEntryIndex";
     private Point? _datasetDragStartPoint;
     private InsertionAdorner? _datasetInsertionAdorner;
@@ -1282,8 +1288,9 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
+        _currentLegendAutoShow = ShouldShowLegend(plotEntries.Select(entry => entry.Index));
         ApplyLegend(_spectrumPlot.Plot, CaptureFormattingConfigFromControls(),
-            autoShow: ShouldShowLegend(plotEntries.Select(entry => entry.Index)));
+            autoShow: _currentLegendAutoShow);
 
         _spectrumPlot.Plot.Title(GetGraphTitle(Path.GetFileNameWithoutExtension(activeDataset.SourceFilePath) ?? "Spectrum"));
         _spectrumPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
@@ -3091,6 +3098,15 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        // Reflect legend visibility / position immediately. The debounced
+        // SchedulePlotCurrentDataset redraws every series and would also
+        // call ApplyLegend, but the user-visible delay is jarring for a
+        // simple combo-box toggle; this short path makes the change feel
+        // live while the heavy redraw catches up.
+        ApplyLegend(_spectrumPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: _currentLegendAutoShow);
+        _spectrumPlot.Refresh();
 
         SchedulePlotCurrentDataset();
     }

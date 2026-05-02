@@ -14,7 +14,6 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
     public const double DefaultXAxisMaxNm = 10000.0;
     public const double DefaultYAxisMinPercent = 0.0;
     public const double DefaultYAxisMaxPercent = 30.0;
-    public const string DefaultLegendPositionValue = "UpperRight";
     public const string DefaultDistributionModeValue = "Number";
 
     /// <summary>
@@ -40,24 +39,6 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
     public double YAxisMaxPercent { get; set; } = DefaultYAxisMaxPercent;
 
     /// <summary>
-    /// Legend visibility override. <c>null</c> or <c>"Auto"</c> shows the
-    /// legend only when 2+ datasets are selected (Batch 3a behaviour);
-    /// <c>"Always"</c> forces it on; <c>"Never"</c> hides it regardless of
-    /// the selection count. Any other value normalizes back to <c>null</c>.
-    /// </summary>
-    public string? LegendVisibility { get; set; }
-
-    /// <summary>
-    /// Legend placement, mapped 1:1 onto <c>ScottPlot.Alignment</c>. One of
-    /// <c>"UpperRight"</c>, <c>"UpperLeft"</c>, <c>"LowerRight"</c>,
-    /// <c>"LowerLeft"</c>, <c>"MiddleRight"</c>. Any other value normalizes
-    /// back to <see cref="DefaultLegendPositionValue"/>. Edge-anchored
-    /// "outside" placements are not exposed yet because they need a
-    /// different ScottPlot API path; revisit in 3b-2.
-    /// </summary>
-    public string LegendPosition { get; set; } = DefaultLegendPositionValue;
-
-    /// <summary>
     /// Distribution kind shown by default when a workbook is loaded.
     /// One of <c>"Number"</c>, <c>"Intensity"</c>, <c>"Volume"</c>; any
     /// other value normalizes back to <see cref="DefaultDistributionModeValue"/>.
@@ -79,8 +60,6 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
 
         XAxisMode = NormalizeAxisMode(XAxisMode);
         YAxisMode = NormalizeAxisMode(YAxisMode);
-        LegendVisibility = NormalizeLegendVisibility(LegendVisibility);
-        LegendPosition = NormalizeLegendPosition(LegendPosition);
         DefaultDistributionMode = NormalizeDistributionMode(DefaultDistributionMode);
 
         if (!ConfigNormalizer.IsPositive(XAxisMinNm))
@@ -138,49 +117,6 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
         }
 
         return null;
-    }
-
-    private static string? NormalizeLegendVisibility(string? text)
-    {
-        var normalized = ConfigNormalizer.NormalizeOptionalText(text);
-        if (normalized is null)
-        {
-            return null;
-        }
-
-        if (normalized.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        if (normalized.Equals("Always", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Always";
-        }
-
-        if (normalized.Equals("Never", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Never";
-        }
-
-        return null;
-    }
-
-    private static string NormalizeLegendPosition(string? text)
-    {
-        var normalized = ConfigNormalizer.NormalizeOptionalText(text);
-        if (normalized is null)
-        {
-            return DefaultLegendPositionValue;
-        }
-
-        if (normalized.Equals("UpperRight", StringComparison.OrdinalIgnoreCase)) return "UpperRight";
-        if (normalized.Equals("UpperLeft", StringComparison.OrdinalIgnoreCase)) return "UpperLeft";
-        if (normalized.Equals("LowerRight", StringComparison.OrdinalIgnoreCase)) return "LowerRight";
-        if (normalized.Equals("LowerLeft", StringComparison.OrdinalIgnoreCase)) return "LowerLeft";
-        if (normalized.Equals("MiddleRight", StringComparison.OrdinalIgnoreCase)) return "MiddleRight";
-
-        return DefaultLegendPositionValue;
     }
 
     private static string NormalizeDistributionMode(string? text)

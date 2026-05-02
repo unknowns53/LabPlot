@@ -15,6 +15,7 @@ using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 using static LabPlot.Core.PlotAppearance;
+using static LabPlot.Core.Wpf.FormatHelpers;
 
 namespace GPC_Visualization;
 
@@ -72,6 +73,12 @@ public partial class MainWindow : Window
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
+
+    // Cache of the per-app "auto-show" decision from the most recent plot
+    // pass. Format-panel handlers (legend visibility / position combo box)
+    // read this to refresh the legend without re-running the heavy plot
+    // path; per-dataset state changes update it via the Plot* methods.
+    private bool _currentLegendAutoShow;
     private bool _forceFullResolutionPlot;
     private bool _currentPlotUsesDownsampledData;
     private bool _suppressRepresentativePeakSelection;
@@ -101,7 +108,7 @@ public partial class MainWindow : Window
         AddShortcut(System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control,
             () => ExportDataButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.R, System.Windows.Input.ModifierKeys.Control,
-            () => AutoAxisRangeButton_Click(this, new RoutedEventArgs()));
+            () => AxisRangePanel.ResetToAuto());
         AddShortcut(System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
             () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
@@ -117,7 +124,7 @@ public partial class MainWindow : Window
         AddShortcut(System.Windows.Input.Key.L, System.Windows.Input.ModifierKeys.Control,
             () => ToggleCheckBox(OverlayCheckBox));
         AddShortcut(System.Windows.Input.Key.G, System.Windows.Input.ModifierKeys.Control,
-            () => ToggleCheckBox(PlotGridCheckBox));
+            () => GraphFormatPanel.TogglePlotGrid());
         AddShortcut(System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.None,
             FocusLegendNameTextBox);
     }
@@ -385,32 +392,29 @@ public partial class MainWindow : Window
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
     {
-        var config = new GraphFormattingConfig
-        {
-            FontName = GetSelectedGraphFontName(),
-            FontSize = GetPlotFontSize(),
-            ShowGrid = PlotGridCheckBox.IsChecked == true,
-            ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
-            ShowMajorTicks = MajorTicksCheckBox.IsChecked == true,
-            ShowMinorTicks = MinorTicksCheckBox.IsChecked == true,
-            ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
-            PlotFrameWidth = GetPlotFrameWidth(),
-            PlotFrameColorHex = GetPlotFrameColorHex(),
-            BackgroundColorHex = GetBackgroundColorHex(),
-            ShowTitle = TitleVisibleCheckBox.IsChecked == true,
-            TitleBold = TitleBoldCheckBox.IsChecked == true,
-            AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
-            AspectRatio = GetSelectedAspectRatioConfigValue(),
-            DefaultLineColorHex = GetSelectedLineColorConfigValue(),
-            LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
-                ? lineWidth
-                : GraphFormattingConfig.DefaultLineWidth,
-            MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
-                ? markerSize
-                : GraphFormattingConfig.DefaultMarkerSize,
-            DefaultCalibrationFilePath = DefaultCalibrationPathTextBox.Text,
-            DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
-        };
+        var config = new GraphFormattingConfig();
+        // Pull all GraphFormattingConfigBase properties (font / ticks / frame /
+        // background / aspect ratio / legend) from the shared panel, then layer
+        // GPC-specific properties on top.
+        GraphFormatPanel.Capture(config);
+
+        // Title / axis label visibility lives in the standalone "グラフラベル"
+        // section, not in GraphFormatPanel.
+        config.ShowTitle = TitleVisibleCheckBox.IsChecked == true;
+        config.TitleBold = TitleBoldCheckBox.IsChecked == true;
+        config.AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true;
+
+        // Per-dataset line style controls live in their own panel.
+        config.DefaultLineColorHex = LineColorPicker.HexValue;
+        config.LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
+            ? lineWidth
+            : GraphFormattingConfig.DefaultLineWidth;
+        config.MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
+            ? markerSize
+            : GraphFormattingConfig.DefaultMarkerSize;
+
+        config.DefaultCalibrationFilePath = DefaultCalibrationPathTextBox.Text;
+        config.DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text;
 
         config.Normalize();
         return config;
@@ -420,27 +424,15 @@ public partial class MainWindow : Window
     {
         config.Normalize();
 
+        // GraphFormatPanel suppresses its own change events while writing.
+        GraphFormatPanel.Apply(config);
+
         _suppressGraphAppearanceEvents = true;
         try
         {
-            SelectGraphFontComboBoxValue(config.FontName);
-            GraphFontSizeTextBox.Text = config.FormatFontSize();
-            PlotGridCheckBox.IsChecked = config.ShowGrid;
-            YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
-            MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
-            MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
-            PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
-            PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
-            SetPlotFrameColorInput(config.PlotFrameColorHex);
-            SetBackgroundColorInput(config.BackgroundColorHex);
             TitleVisibleCheckBox.IsChecked = config.ShowTitle;
             TitleBoldCheckBox.IsChecked = config.TitleBold;
             AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
-
-            if (!SelectComboBoxItemByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto"))
-            {
-                AspectRatioComboBox.SelectedIndex = 0;
-            }
         }
         finally
         {
@@ -450,12 +442,7 @@ public partial class MainWindow : Window
         _suppressStyleControlEvents = true;
         try
         {
-            if (!SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex ?? "Auto"))
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex is null ? "Auto" : "Custom");
-            }
-
-            SetLineColorInput(config.DefaultLineColorHex);
+            LineColorPicker.SetHexValue(config.DefaultLineColorHex);
             LegendNameTextBox.Clear();
             LineWidthTextBox.Text = config.FormatLineWidth();
             MarkerSizeTextBox.Text = config.FormatMarkerSize();
@@ -721,10 +708,8 @@ public partial class MainWindow : Window
         TitleTextBox.Clear();
         XLabelTextBox.Clear();
         YLabelTextBox.Clear();
-        XMinTextBox.Clear();
-        XMaxTextBox.Clear();
-        YMinTextBox.Clear();
-        YMaxTextBox.Clear();
+        AxisRangePanel.SetXValues(null, null);
+        AxisRangePanel.SetYValues(null, null);
         ApplyFormattingConfigToControls(_formattingDefaults);
 
         foreach (var style in _datasetStyles)
@@ -1010,10 +995,10 @@ public partial class MainWindow : Window
             Mode = MolecularWeightCheckBox.IsChecked == true
                 ? nameof(AnalysisSessionAxisMode.MolecularWeight)
                 : nameof(AnalysisSessionAxisMode.RetentionTime),
-            XMin = TryParseAxisInput(XMinTextBox.Text),
-            XMax = TryParseAxisInput(XMaxTextBox.Text),
-            YMin = TryParseAxisInput(YMinTextBox.Text),
-            YMax = TryParseAxisInput(YMaxTextBox.Text),
+            XMin = AxisRangePanel.XMinValue,
+            XMax = AxisRangePanel.XMaxValue,
+            YMin = AxisRangePanel.YMinValue,
+            YMax = AxisRangePanel.YMaxValue,
         };
 
         var labels = new AnalysisSessionLabels
@@ -1217,10 +1202,8 @@ public partial class MainWindow : Window
         XLabelTextBox.Text = session.Labels.XLabel ?? string.Empty;
         YLabelTextBox.Text = session.Labels.YLabel ?? string.Empty;
 
-        XMinTextBox.Text = FormatAxisOrEmpty(session.Axes.XMin);
-        XMaxTextBox.Text = FormatAxisOrEmpty(session.Axes.XMax);
-        YMinTextBox.Text = FormatAxisOrEmpty(session.Axes.YMin);
-        YMaxTextBox.Text = FormatAxisOrEmpty(session.Axes.YMax);
+        AxisRangePanel.SetXValues(session.Axes.XMin, session.Axes.XMax);
+        AxisRangePanel.SetYValues(session.Axes.YMin, session.Axes.YMax);
 
         SetGraphActionsEnabled(true);
         // PlotCurrentDataset() で _datasetSelectedPeakIds が反映されるので、
@@ -1245,29 +1228,6 @@ public partial class MainWindow : Window
                 return;
             }
         }
-    }
-
-    private static double? TryParseAxisInput(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
-
-        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-            && double.IsFinite(value)
-            ? value
-            : null;
-    }
-
-    private static string FormatAxisOrEmpty(double? value)
-    {
-        if (!value.HasValue || !double.IsFinite(value.Value))
-        {
-            return string.Empty;
-        }
-
-        return value.Value.ToString("G", CultureInfo.InvariantCulture);
     }
 
     private static string? NullIfWhiteSpace(string? value)
@@ -1721,14 +1681,9 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (ShouldShowLegend(entries.Select(entry => entry.Index)))
-        {
-            _chromatogramPlot.Plot.ShowLegend();
-        }
-        else
-        {
-            _chromatogramPlot.Plot.HideLegend();
-        }
+        _currentLegendAutoShow = ShouldShowLegend(entries.Select(entry => entry.Index));
+        ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: _currentLegendAutoShow);
 
         _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
@@ -1779,14 +1734,9 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (ShouldShowLegend(entries.Select(entry => entry.Index)))
-        {
-            _chromatogramPlot.Plot.ShowLegend();
-        }
-        else
-        {
-            _chromatogramPlot.Plot.HideLegend();
-        }
+        _currentLegendAutoShow = ShouldShowLegend(entries.Select(entry => entry.Index));
+        ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: _currentLegendAutoShow);
 
         _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, $"{activeDataset.XLabel} (log scale)"));
@@ -1879,22 +1829,6 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(name) ? $"dataset {index + 1}" : name;
     }
 
-    private static bool TryParsePositiveDouble(string text, out double value)
-    {
-        return TryParseDouble(text, out value) && value > 0;
-    }
-
-    private static bool TryParseNonNegativeDouble(string text, out double value)
-    {
-        return TryParseDouble(text, out value) && value >= 0;
-    }
-
-    private static bool TryParseDouble(string text, out double value)
-    {
-        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out value)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
-    }
-
     private bool ShouldShowLegend(IEnumerable<int> datasetIndices)
     {
         var indices = datasetIndices.ToArray();
@@ -1950,13 +1884,10 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (!TryReadOptionalDouble(XMinTextBox, "X Min", out var xMin)
-            || !TryReadOptionalDouble(XMaxTextBox, "X Max", out var xMax)
-            || !TryReadOptionalDouble(YMinTextBox, "Y Min", out var yMin)
-            || !TryReadOptionalDouble(YMaxTextBox, "Y Max", out var yMax))
-        {
-            return false;
-        }
+        var xMin = AxisRangePanel.XMinValue;
+        var xMax = AxisRangePanel.XMaxValue;
+        var yMin = AxisRangePanel.YMinValue;
+        var yMax = AxisRangePanel.YMaxValue;
 
         if (xIsMolecularWeight
             && (!TryConvertMolecularWeightLimit(ref xMin, "X Min")
@@ -2029,26 +1960,6 @@ public partial class MainWindow : Window
         }
 
         return true;
-    }
-
-    private bool TryReadOptionalDouble(TextBox textBox, string label, out double? value)
-    {
-        value = null;
-        var text = textBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return true;
-        }
-
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var parsed)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
-        {
-            value = parsed;
-            return true;
-        }
-
-        SetStatus($"{label} must be a number.", true);
-        return false;
     }
 
     private string GetGraphTitle(string defaultTitle)
@@ -2498,12 +2409,8 @@ public partial class MainWindow : Window
         {
             if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
             {
-                if (!SelectComboBoxItemByTag(LineColorComboBox, _formattingDefaults.DefaultLineColorHex ?? "Auto"))
-                {
-                    SelectComboBoxItemByTag(LineColorComboBox, _formattingDefaults.DefaultLineColorHex is null ? "Auto" : "Custom");
-                }
-
-                SetLineColorInput(_formattingDefaults.DefaultLineColorHex);
+                LineColorPicker.DefaultHex = _formattingDefaults.DefaultLineColorHex ?? AutoLineColors[0];
+                LineColorPicker.SetHexValue(_formattingDefaults.DefaultLineColorHex);
                 LegendNameTextBox.Clear();
                 LineWidthTextBox.Text = _formattingDefaults.FormatLineWidth();
                 MarkerSizeTextBox.Text = _formattingDefaults.FormatMarkerSize();
@@ -2513,12 +2420,12 @@ public partial class MainWindow : Window
 
             var style = _datasetStyles[_activeIndex];
 
-            if (!SelectComboBoxItemByTag(LineColorComboBox, style.ColorHex ?? "Auto"))
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, style.ColorHex is null ? "Auto" : "Custom");
-            }
-
-            SetLineColorInput(style.ColorHex);
+            // The picker's preview falls back to DefaultHex when ColorHex is null
+            // (Auto). Make that fallback match the auto-palette colour used at
+            // draw time for this dataset index, so the preview swatch matches
+            // the line on the plot.
+            LineColorPicker.DefaultHex = AutoLineColors[_activeIndex % AutoLineColors.Length];
+            LineColorPicker.SetHexValue(style.ColorHex);
             LegendNameTextBox.Text = style.LegendName ?? string.Empty;
             LineWidthTextBox.Text = style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
@@ -2891,99 +2798,18 @@ public partial class MainWindow : Window
         PlotCurrentDataset();
     }
 
-    private void LineColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
     {
-        if (_suppressStyleControlEvents)
-        {
-            return;
-        }
-        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
-        {
-            return;
-        }
+        if (_suppressStyleControlEvents) return;
+        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count) return;
 
+        // Per-dataset line colour: null = "use auto palette",
+        // "#RRGGBB" = explicit override. ColorPickerPanel handles the
+        // preset / hex / preview triplet, so we only mirror its output
+        // into the active dataset's style record.
         var style = _datasetStyles[_activeIndex];
-        if (LineColorComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
-        {
-            if (tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-            {
-                style.ColorHex = null;
-            }
-            else if (!tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-            {
-                style.ColorHex = NormalizeHexColorCode(tag);
-            }
-        }
+        style.ColorHex = LineColorPicker.HexValue;
 
-        _suppressStyleControlEvents = true;
-        try
-        {
-            SetLineColorInput(style.ColorHex);
-        }
-        finally
-        {
-            _suppressStyleControlEvents = false;
-        }
-
-        RefreshDatasetEntries();
-        PlotCurrentDataset();
-    }
-
-    private void LineColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressStyleControlEvents || LineColorHexTextBox is null || LineColorPreviewBorder is null)
-        {
-            return;
-        }
-        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
-        {
-            string? inputHex = null;
-            if (!IsAutoColorText(LineColorHexTextBox.Text)
-                && TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex))
-            {
-                inputHex = hex;
-            }
-
-            _suppressStyleControlEvents = true;
-            try
-            {
-                SelectColorComboBoxValue(LineColorComboBox, inputHex, true);
-            }
-            finally
-            {
-                _suppressStyleControlEvents = false;
-            }
-
-            UpdateLineColorPreview(inputHex);
-            return;
-        }
-
-        var style = _datasetStyles[_activeIndex];
-        if (IsAutoColorText(LineColorHexTextBox.Text))
-        {
-            style.ColorHex = null;
-        }
-        else if (TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex))
-        {
-            style.ColorHex = hex;
-        }
-        else
-        {
-            UpdateLineColorPreview(style.ColorHex);
-            return;
-        }
-
-        _suppressStyleControlEvents = true;
-        try
-        {
-            SelectColorComboBoxValue(LineColorComboBox, style.ColorHex, true);
-        }
-        finally
-        {
-            _suppressStyleControlEvents = false;
-        }
-
-        UpdateLineColorPreview(style.ColorHex);
         RefreshDatasetEntries();
         SchedulePlotCurrentDataset();
     }
@@ -3042,119 +2868,26 @@ public partial class MainWindow : Window
         }
     }
 
-    private void GraphAppearanceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(sender, PlotFrameColorComboBox)
-            && PlotFrameColorHexTextBox is not null
-            && PlotFrameColorPreviewBorder is not null)
-        {
-            _suppressGraphAppearanceEvents = true;
-            try
-            {
-                SyncPlotFrameColorInputFromComboBox();
-            }
-            finally
-            {
-                _suppressGraphAppearanceEvents = false;
-            }
-        }
-        else if (ReferenceEquals(sender, BackgroundColorComboBox)
-            && BackgroundColorHexTextBox is not null
-            && BackgroundColorPreviewBorder is not null)
-        {
-            _suppressGraphAppearanceEvents = true;
-            try
-            {
-                SyncBackgroundColorInputFromComboBox();
-            }
-            finally
-            {
-                _suppressGraphAppearanceEvents = false;
-            }
-        }
-
+        if (_suppressGraphAppearanceEvents) return;
         ApplyGraphAppearanceAndRefresh();
     }
 
-    private void BackgroundColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void GraphFormatPanel_AspectRatioChanged(object? sender, EventArgs e)
     {
-        if (_suppressGraphAppearanceEvents || BackgroundColorHexTextBox is null || BackgroundColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var hex = GetBackgroundColorHex();
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            SelectColorComboBoxValue(BackgroundColorComboBox, hex, false);
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
-        }
-
-        UpdateBackgroundColorPreview(hex);
-        ApplyGraphAppearanceAndRefresh();
+        if (_suppressGraphAppearanceEvents) return;
+        // Resize PlotHost; the trailing GraphFormatChanged event (the panel
+        // raises both for AspectRatio changes) handles the actual Refresh.
+        UpdatePlotHostAspectRatio();
     }
 
-    private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
-    {
-        // IsEditable=True の ComboBox は SelectionChanged だけだとリストにないフォント名を打ち込んだとき
-        // 反映されない。テンプレート内の編集用 TextBox を取り出して TextChanged を購読し、
-        // 自由入力でも再描画が走るようにする。
-        if (GraphFontComboBox.Template?.FindName("PART_EditableTextBox", GraphFontComboBox) is TextBox editableTextBox)
-        {
-            editableTextBox.TextChanged -= GraphFontComboBox_EditableTextChanged;
-            editableTextBox.TextChanged += GraphFontComboBox_EditableTextChanged;
-        }
-    }
-
-    private void GraphFontComboBox_EditableTextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        // SelectedItem が同じままで Text だけが変わるケースをここで拾う。
-        SchedulePlotCurrentDataset();
-    }
-
-    private void PlotFrameColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents || PlotFrameColorHexTextBox is null || PlotFrameColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var hex = GetPlotFrameColorHex();
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            SelectColorComboBoxValue(PlotFrameColorComboBox, hex, false);
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
-        }
-
-        UpdatePlotFrameColorPreview(hex);
-        ApplyGraphAppearanceAndRefresh();
-    }
-
+    // Title / axis-label CheckBoxes still live in MainWindow (the standalone
+    // "グラフラベル" Section is outside GraphFormatPanel's scope), so they keep
+    // routing through this handler.
     private void GraphAppearanceCheckBox_Changed(object sender, RoutedEventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
+        if (_suppressGraphAppearanceEvents) return;
         ApplyGraphAppearanceAndRefresh();
     }
 
@@ -3168,45 +2901,11 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
-    private void GraphAppearanceNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void AxisRangePanel_Committed(object? sender, EventArgs e)
     {
         if (_suppressGraphAppearanceEvents)
         {
             return;
-        }
-
-        SchedulePlotCurrentDataset();
-    }
-
-    private void AxisRangeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key != System.Windows.Input.Key.Enter && e.Key != System.Windows.Input.Key.Return)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        CommitAxisRangeFromInputs();
-    }
-
-    private void AxisRangeTextBox_LostFocus(object sender, RoutedEventArgs e)
-    {
-        CommitAxisRangeFromInputs();
-    }
-
-    private void AutoAxisRangeButton_Click(object sender, RoutedEventArgs e)
-    {
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            XMinTextBox.Clear();
-            XMaxTextBox.Clear();
-            YMinTextBox.Clear();
-            YMaxTextBox.Clear();
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
         }
 
         PlotCurrentDataset();
@@ -3234,69 +2933,13 @@ public partial class MainWindow : Window
         var xMin = xIsMolecularWeight ? Math.Pow(10, limits.Left) : limits.Left;
         var xMax = xIsMolecularWeight ? Math.Pow(10, limits.Right) : limits.Right;
 
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            XMinTextBox.Text = FormatAxisLimit(xMin);
-            XMaxTextBox.Text = FormatAxisLimit(xMax);
-            YMinTextBox.Text = FormatAxisLimit(limits.Bottom);
-            YMaxTextBox.Text = FormatAxisLimit(limits.Top);
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
-        }
+        AxisRangePanel.SetXValues(xMin, xMax);
+        AxisRangePanel.SetYValues(limits.Bottom, limits.Top);
     }
 
     private static bool IsFiniteRange(double min, double max)
     {
         return double.IsFinite(min) && double.IsFinite(max) && min < max;
-    }
-
-    private static string FormatAxisLimit(double value)
-    {
-        return value.ToString("G6", CultureInfo.InvariantCulture);
-    }
-
-    private void CommitAxisRangeFromInputs()
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (!IsAxisRangeInputValidOrEmpty(XMinTextBox)
-            || !IsAxisRangeInputValidOrEmpty(XMaxTextBox)
-            || !IsAxisRangeInputValidOrEmpty(YMinTextBox)
-            || !IsAxisRangeInputValidOrEmpty(YMaxTextBox))
-        {
-            return;
-        }
-
-        PlotCurrentDataset();
-    }
-
-    private static bool IsAxisRangeInputValidOrEmpty(TextBox textBox)
-    {
-        var text = textBox.Text.Trim();
-        if (string.IsNullOrEmpty(text))
-        {
-            return true;
-        }
-
-        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out _)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out _);
-    }
-
-    private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        UpdatePlotHostAspectRatio();
-        _chromatogramPlot?.Refresh();
     }
 
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -3312,284 +2955,19 @@ public partial class MainWindow : Window
         }
 
         ApplyPlotAppearance();
+        // Re-evaluate legend visibility / position so changes to the legend
+        // combo boxes (or any other format control) reflect immediately
+        // instead of waiting for the next dataset replot. _currentLegendAutoShow
+        // is set by the most recent Plot* pass and stays in sync with the
+        // currently rendered series set.
+        ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: _currentLegendAutoShow);
         _chromatogramPlot.Refresh();
-    }
-
-    private void SelectGraphFontComboBoxValue(string? fontName)
-    {
-        if (string.IsNullOrWhiteSpace(fontName)
-            || fontName.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            GraphFontComboBox.SelectedIndex = 0;
-            return;
-        }
-
-        if (SelectComboBoxItemByTag(GraphFontComboBox, fontName))
-        {
-            return;
-        }
-
-        GraphFontComboBox.SelectedIndex = -1;
-        GraphFontComboBox.Text = fontName;
-    }
-
-    private string? GetSelectedGraphFontName()
-    {
-        if (GraphFontComboBox.SelectedItem is ComboBoxItem item
-            && item.Tag is string selectedTag
-            && !selectedTag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return selectedTag;
-        }
-
-        var text = GraphFontComboBox.Text.Trim();
-        return string.IsNullOrWhiteSpace(text) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : text;
-    }
-
-    private static bool SelectComboBoxItemByTag(ComboBox comboBox, string? tag)
-    {
-        var desiredTag = string.IsNullOrWhiteSpace(tag) ? "Auto" : tag.Trim();
-
-        for (var i = 0; i < comboBox.Items.Count; i++)
-        {
-            if (comboBox.Items[i] is ComboBoxItem item
-                && item.Tag is string itemTag
-                && itemTag.Equals(desiredTag, StringComparison.OrdinalIgnoreCase))
-            {
-                comboBox.SelectedIndex = i;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static void SelectColorComboBoxValue(ComboBox comboBox, string? hex, bool allowAuto)
-    {
-        if (string.IsNullOrWhiteSpace(hex))
-        {
-            if (allowAuto && SelectComboBoxItemByTag(comboBox, "Auto"))
-            {
-                return;
-            }
-
-            SelectComboBoxItemByTag(comboBox, "Custom");
-            return;
-        }
-
-        if (!SelectComboBoxItemByTag(comboBox, hex))
-        {
-            SelectComboBoxItemByTag(comboBox, "Custom");
-        }
-    }
-
-    private static string? GetSelectedComboBoxTag(ComboBox comboBox)
-    {
-        return comboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
-            ? tag
-            : null;
-    }
-
-    private string? GetSelectedLineColorConfigValue()
-    {
-        if (IsAutoColorText(LineColorHexTextBox.Text))
-        {
-            return null;
-        }
-
-        return TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex)
-            ? hex
-            : null;
-    }
-
-    private string? GetSelectedAspectRatioConfigValue()
-    {
-        var ratioText = GetSelectedComboBoxTag(AspectRatioComboBox) ?? AspectRatioComboBox.Text.Trim();
-        return string.IsNullOrWhiteSpace(ratioText)
-            || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : ratioText;
-    }
-
-    private float GetPlotFontSize()
-    {
-        return TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
-            ? (float)fontSize
-            : (float)GraphFormattingConfig.DefaultFontSize;
-    }
-
-    private float GetPlotFrameWidth()
-    {
-        return TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var width)
-            ? (float)width
-            : (float)GraphFormattingConfig.DefaultPlotFrameWidth;
-    }
-
-    private string GetPlotFrameColorHex()
-    {
-        return TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex)
-            ? hex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-    }
-
-    private void SyncPlotFrameColorInputFromComboBox()
-    {
-        var tag = GetSelectedComboBoxTag(PlotFrameColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdatePlotFrameColorPreview(GetPlotFrameColorHex());
-            return;
-        }
-
-        SetPlotFrameColorInput(tag);
-    }
-
-    private void SetPlotFrameColorInput(string? hex)
-    {
-        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-
-        if (!SelectComboBoxItemByTag(PlotFrameColorComboBox, normalized))
-        {
-            SelectComboBoxItemByTag(PlotFrameColorComboBox, "Custom");
-        }
-
-        PlotFrameColorHexTextBox.Text = normalized;
-        UpdatePlotFrameColorPreview(normalized);
-    }
-
-    private void SetLineColorInput(string? hex)
-    {
-        LineColorHexTextBox.Text = string.IsNullOrWhiteSpace(hex) ? "Auto" : NormalizeHexColorCode(hex);
-        UpdateLineColorPreview(hex);
-    }
-
-    private void UpdatePlotFrameColorPreview(string? hex)
-    {
-        if (PlotFrameColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-        PlotFrameColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private string GetBackgroundColorHex()
-    {
-        return TryNormalizeHexColorCode(BackgroundColorHexTextBox.Text, out var hex)
-            ? hex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-    }
-
-    private void SyncBackgroundColorInputFromComboBox()
-    {
-        var tag = GetSelectedComboBoxTag(BackgroundColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdateBackgroundColorPreview(GetBackgroundColorHex());
-            return;
-        }
-
-        SetBackgroundColorInput(tag);
-    }
-
-    private void SetBackgroundColorInput(string? hex)
-    {
-        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-
-        if (!SelectComboBoxItemByTag(BackgroundColorComboBox, normalized))
-        {
-            SelectComboBoxItemByTag(BackgroundColorComboBox, "Custom");
-        }
-
-        BackgroundColorHexTextBox.Text = normalized;
-        UpdateBackgroundColorPreview(normalized);
-    }
-
-    private void UpdateBackgroundColorPreview(string? hex)
-    {
-        if (BackgroundColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-        BackgroundColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private void UpdateLineColorPreview(string? hex)
-    {
-        if (LineColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GetAutoLineColorPreviewHex();
-        LineColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private string GetAutoLineColorPreviewHex()
-    {
-        if (_activeIndex >= 0)
-        {
-            return AutoLineColors[_activeIndex % AutoLineColors.Length];
-        }
-
-        return _formattingDefaults.DefaultLineColorHex ?? AutoLineColors[0];
-    }
-
-    private static bool IsAutoColorText(string? text)
-    {
-        return string.IsNullOrWhiteSpace(text)
-            || text.Trim().Equals("Auto", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeHexColorCode(string text)
-    {
-        return TryNormalizeHexColorCode(text, out var hex) ? hex : "#000000";
-    }
-
-    private static bool TryNormalizeHexColorCode(string? text, out string hex)
-    {
-        hex = string.Empty;
-
-        var value = text?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        if (value.StartsWith('#'))
-        {
-            value = value[1..];
-        }
-
-        if (value.Length != 6 || !value.All(Uri.IsHexDigit))
-        {
-            return false;
-        }
-
-        hex = $"#{value.ToUpperInvariant()}";
-        return true;
     }
 
     private double? GetSelectedAspectRatio()
     {
-        var ratioText = AspectRatioComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
-            ? tag
-            : AspectRatioComboBox.Text.Trim();
+        var ratioText = GraphFormatPanel.AspectRatioTag;
 
         if (string.IsNullOrWhiteSpace(ratioText)
             || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase))
@@ -3822,15 +3200,4 @@ public partial class MainWindow : Window
         return result;
     }
 
-    private static Color HexToMediaColor(string hex)
-    {
-        try
-        {
-            return (Color)ColorConverter.ConvertFromString(hex);
-        }
-        catch
-        {
-            return Colors.Gray;
-        }
-    }
 }

@@ -17,6 +17,7 @@ using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 using static LabPlot.Core.PlotAppearance;
+using static LabPlot.Core.Wpf.FormatHelpers;
 
 namespace Spectrum_Visualization;
 
@@ -70,6 +71,12 @@ public partial class MainWindow : Window
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
+
+    // Cache of the per-app "auto-show" decision from the most recent plot
+    // pass. Format-panel handlers (legend visibility / position combo box)
+    // read this to refresh the legend without re-running the heavy plot
+    // path; per-dataset state changes update it via the Plot* methods.
+    private bool _currentLegendAutoShow;
 
     private const string DatasetReorderDataFormat = "Spectrum.DatasetEntryIndex";
     private Point? _datasetDragStartPoint;
@@ -138,11 +145,25 @@ public partial class MainWindow : Window
         AddShortcut(System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control,
             () => ExportDataButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.R, System.Windows.Input.ModifierKeys.Control,
-            () => AutoAxisRangeButton_Click(this, new RoutedEventArgs()));
+            () => AxisRangePanel.ResetToAuto());
         AddShortcut(System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
             () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
             () => SaveSessionButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.L, System.Windows.Input.ModifierKeys.Control,
+            () => ToggleCheckBox(OverlayCheckBox));
+        AddShortcut(System.Windows.Input.Key.G, System.Windows.Input.ModifierKeys.Control,
+            () => GraphFormatPanel.TogglePlotGrid());
+    }
+
+    private static void ToggleCheckBox(CheckBox checkBox)
+    {
+        if (checkBox is null || !checkBox.IsEnabled)
+        {
+            return;
+        }
+
+        checkBox.IsChecked = checkBox.IsChecked != true;
     }
 
     private void AddShortcut(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers, Action handler)
@@ -523,62 +544,70 @@ public partial class MainWindow : Window
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
     {
-        var config = new GraphFormattingConfig
-        {
-            FontName = GetSelectedGraphFontName(),
-            FontSize = GetPlotFontSize(),
-            ShowGrid = PlotGridCheckBox.IsChecked == true,
-            ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
-            ShowMajorTicks = MajorTicksCheckBox.IsChecked == true,
-            ShowMinorTicks = MinorTicksCheckBox.IsChecked == true,
-            ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
-            PlotFrameWidth = GetPlotFrameWidth(),
-            PlotFrameColorHex = GetPlotFrameColorHex(),
-            BackgroundColorHex = GetBackgroundColorHex(),
-            ShowTitle = TitleVisibleCheckBox.IsChecked == true,
-            TitleBold = TitleBoldCheckBox.IsChecked == true,
-            AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
-            AspectRatio = GetSelectedAspectRatioConfigValue(),
-            InvertXAxisMode = GetSelectedInvertXAxisModeConfigValue(),
-            YAxisDisplayMode = GetSelectedYAxisDisplayModeConfigValue(),
-            EnabledIrPeakAssignmentLabels = _peakAssignmentVms
-                .Where(vm => vm.IsEnabled)
-                .Select(vm => vm.Label)
-                .ToList(),
-            IntegrationRegions = _integrationRegionVms
-                .Select(vm => vm.ToModel())
-                .Where(region => region is not null)
-                .Cast<IntegrationRegion>()
-                .ToList(),
-            DefaultLineColorHex = GetSelectedLineColorConfigValue(),
-            LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
-                ? lineWidth
-                : GraphFormattingConfig.DefaultLineWidth,
-            MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
-                ? markerSize
-                : GraphFormattingConfig.DefaultMarkerSize,
-            ShowLambdaMaxMarkers = ShowLambdaMaxCheckBox.IsChecked == true,
-            LambdaMaxMinAbsorbance = TryParseNonNegativeDouble(LambdaMaxMinAbsorbanceTextBox.Text, out var lambdaMin)
-                ? lambdaMin
-                : 0.05,
-            LambdaMaxCount = int.TryParse(LambdaMaxCountTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lambdaCount)
-                && lambdaCount >= 0
-                ? lambdaCount
-                : 3,
-            ManualLambdaMaxEntries = _manualLambdaMaxEntryVms.Select(vm => vm.ToModel()).ToList(),
-            ShowCloudPointMarkers = ShowCloudPointCheckBox.IsChecked == true,
-            CloudPointMethod = GetSelectedCloudPointMethodConfigValue(),
-            CloudPointThresholdPercent = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var cpThreshold)
-                ? cpThreshold
-                : 50.0,
-            ShowCloudPointFitCurve = ShowSigmoidFitCurveCheckBox.IsChecked == true,
-            ShowCloudPointFitParameters = ShowSigmoidFitParametersCheckBox.IsChecked == true,
-            ShowTemperatureScanMetadata = ShowMetadataCheckBox.IsChecked == true,
-            DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text,
-            // Calibration has its own editor window — preserve whatever was
-            // last saved there instead of clobbering it with a default.
-            Calibration = _formattingDefaults.Calibration,
-        };
+        var config = new GraphFormattingConfig();
+        // Pull all GraphFormattingConfigBase properties (font / ticks / frame /
+        // background / aspect ratio / legend) from the shared panel, then layer
+        // Spectrum-specific properties on top.
+        GraphFormatPanel.Capture(config);
+
+        // Title / axis label visibility lives in the standalone "グラフラベル"
+        // section, not in GraphFormatPanel.
+        config.ShowTitle = TitleVisibleCheckBox.IsChecked == true;
+        config.TitleBold = TitleBoldCheckBox.IsChecked == true;
+        config.AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true;
+
+        // Spectrum-only InvertX / YAxisDisplay live inside the panel under
+        // ShowAxisOrientation=True; surface them through the panel accessors.
+        var invertTag = GraphFormatPanel.InvertXAxisModeTag;
+        config.InvertXAxisMode = string.IsNullOrWhiteSpace(invertTag)
+            || invertTag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : invertTag;
+        var yDisplayTag = GraphFormatPanel.YAxisDisplayModeTag;
+        config.YAxisDisplayMode = string.IsNullOrWhiteSpace(yDisplayTag)
+            ? null
+            : yDisplayTag;
+
+        config.EnabledIrPeakAssignmentLabels = _peakAssignmentVms
+            .Where(vm => vm.IsEnabled)
+            .Select(vm => vm.Label)
+            .ToList();
+        config.IntegrationRegions = _integrationRegionVms
+            .Select(vm => vm.ToModel())
+            .Where(region => region is not null)
+            .Cast<IntegrationRegion>()
+            .ToList();
+
+        // Per-dataset line style controls live in their own panel.
+        config.DefaultLineColorHex = LineColorPicker.HexValue;
+        config.LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
+            ? lineWidth
+            : GraphFormattingConfig.DefaultLineWidth;
+        config.MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
+            ? markerSize
+            : GraphFormattingConfig.DefaultMarkerSize;
+
+        config.ShowLambdaMaxMarkers = ShowLambdaMaxCheckBox.IsChecked == true;
+        config.LambdaMaxMinAbsorbance = TryParseNonNegativeDouble(LambdaMaxMinAbsorbanceTextBox.Text, out var lambdaMin)
+            ? lambdaMin
+            : 0.05;
+        config.LambdaMaxCount = int.TryParse(LambdaMaxCountTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lambdaCount)
+            && lambdaCount >= 0
+            ? lambdaCount
+            : 3;
+        config.ManualLambdaMaxEntries = _manualLambdaMaxEntryVms.Select(vm => vm.ToModel()).ToList();
+        config.ShowCloudPointMarkers = ShowCloudPointCheckBox.IsChecked == true;
+        config.CloudPointMethod = GetSelectedCloudPointMethodConfigValue();
+        config.CloudPointThresholdPercent = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var cpThreshold)
+            ? cpThreshold
+            : 50.0;
+        config.ShowCloudPointFitCurve = ShowSigmoidFitCurveCheckBox.IsChecked == true;
+        config.ShowCloudPointFitParameters = ShowSigmoidFitParametersCheckBox.IsChecked == true;
+        config.ShowTemperatureScanMetadata = ShowMetadataCheckBox.IsChecked == true;
+        config.DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text;
+        // Calibration has its own editor window — preserve whatever was
+        // last saved there instead of clobbering it with a default.
+        config.Calibration = _formattingDefaults.Calibration;
 
         config.Normalize();
         return config;
@@ -588,37 +617,17 @@ public partial class MainWindow : Window
     {
         config.Normalize();
 
+        // GraphFormatPanel suppresses its own change events while writing.
+        GraphFormatPanel.Apply(config);
+        GraphFormatPanel.SetInvertXAxisModeTag(config.InvertXAxisMode);
+        GraphFormatPanel.SetYAxisDisplayModeTag(config.YAxisDisplayMode);
+
         _suppressGraphAppearanceEvents = true;
         try
         {
-            SelectGraphFontComboBoxValue(config.FontName);
-            GraphFontSizeTextBox.Text = config.FormatFontSize();
-            PlotGridCheckBox.IsChecked = config.ShowGrid;
-            YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
-            MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
-            MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
-            PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
-            PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
-            SetPlotFrameColorInput(config.PlotFrameColorHex);
-            SetBackgroundColorInput(config.BackgroundColorHex);
             TitleVisibleCheckBox.IsChecked = config.ShowTitle;
             TitleBoldCheckBox.IsChecked = config.TitleBold;
             AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
-
-            if (!SelectComboBoxItemByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto"))
-            {
-                AspectRatioComboBox.SelectedIndex = 0;
-            }
-
-            if (!SelectComboBoxItemByTag(InvertXAxisComboBox, config.InvertXAxisMode ?? "Auto"))
-            {
-                InvertXAxisComboBox.SelectedIndex = 0;
-            }
-
-            if (!SelectComboBoxItemByTag(YAxisDisplayComboBox, config.YAxisDisplayMode ?? "Native"))
-            {
-                YAxisDisplayComboBox.SelectedIndex = 0;
-            }
 
             ApplyEnabledPeakAssignments(config.EnabledIrPeakAssignmentLabels);
             ApplyIntegrationRegions(config.IntegrationRegions);
@@ -646,12 +655,7 @@ public partial class MainWindow : Window
         _suppressStyleControlEvents = true;
         try
         {
-            if (!SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex ?? "Auto"))
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex is null ? "Auto" : "Custom");
-            }
-
-            SetLineColorInput(config.DefaultLineColorHex);
+            LineColorPicker.SetHexValue(config.DefaultLineColorHex);
             LegendNameTextBox.Clear();
             LineWidthTextBox.Text = config.FormatLineWidth();
             MarkerSizeTextBox.Text = config.FormatMarkerSize();
@@ -755,18 +759,8 @@ public partial class MainWindow : Window
             // those stale values would otherwise override AutoScale on the new
             // data, so clear them here. Overlay mode keeps the existing view
             // because the user is usually comparing peaks at a chosen zoom.
-            _suppressGraphAppearanceEvents = true;
-            try
-            {
-                XMinTextBox.Clear();
-                XMaxTextBox.Clear();
-                YMinTextBox.Clear();
-                YMaxTextBox.Clear();
-            }
-            finally
-            {
-                _suppressGraphAppearanceEvents = false;
-            }
+            AxisRangePanel.SetXValues(null, null);
+            AxisRangePanel.SetYValues(null, null);
         }
 
         _loadedDatasets.Add(dataset);
@@ -796,10 +790,8 @@ public partial class MainWindow : Window
         TitleTextBox.Clear();
         XLabelTextBox.Clear();
         YLabelTextBox.Clear();
-        XMinTextBox.Clear();
-        XMaxTextBox.Clear();
-        YMinTextBox.Clear();
-        YMaxTextBox.Clear();
+        AxisRangePanel.SetXValues(null, null);
+        AxisRangePanel.SetYValues(null, null);
         ApplyFormattingConfigToControls(_formattingDefaults);
 
         foreach (var style in _datasetStyles)
@@ -1022,10 +1014,10 @@ public partial class MainWindow : Window
             },
             Axes = new AnalysisSessionAxes
             {
-                XMin = TryParseOptionalDouble(XMinTextBox.Text),
-                XMax = TryParseOptionalDouble(XMaxTextBox.Text),
-                YMin = TryParseOptionalDouble(YMinTextBox.Text),
-                YMax = TryParseOptionalDouble(YMaxTextBox.Text),
+                XMin = AxisRangePanel.XMinValue,
+                XMax = AxisRangePanel.XMaxValue,
+                YMin = AxisRangePanel.YMinValue,
+                YMax = AxisRangePanel.YMaxValue,
             },
         };
 
@@ -1109,10 +1101,8 @@ public partial class MainWindow : Window
         YLabelTextBox.Text = labels.YLabel ?? string.Empty;
 
         var axes = session.Axes;
-        XMinTextBox.Text = FormatOptional(axes.XMin);
-        XMaxTextBox.Text = FormatOptional(axes.XMax);
-        YMinTextBox.Text = FormatOptional(axes.YMin);
-        YMaxTextBox.Text = FormatOptional(axes.YMax);
+        AxisRangePanel.SetXValues(axes.XMin, axes.XMax);
+        AxisRangePanel.SetYValues(axes.YMin, axes.YMax);
 
         FilePathTextBlock.Text = _loadedDatasets.Count > 1
             ? $"{_loadedDatasets.Count} files (latest: {_currentDataset.SourceFilePath})"
@@ -1122,29 +1112,6 @@ public partial class MainWindow : Window
         SyncStyleControlsFromActiveDataset();
         UpdatePlotHostAspectRatio();
         PlotCurrentDataset();
-    }
-
-    private static double? TryParseOptionalDouble(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
-
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var parsed)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
-        {
-            return parsed;
-        }
-
-        return null;
-    }
-
-    private static string FormatOptional(double? value)
-    {
-        return value.HasValue
-            ? value.Value.ToString("G", CultureInfo.InvariantCulture)
-            : string.Empty;
     }
 
     private void SaveGraphButton_Click(object sender, RoutedEventArgs e)
@@ -1317,14 +1284,9 @@ public partial class MainWindow : Window
             ApplySeriesStyle(signal, datasetIndex);
         }
 
-        if (ShouldShowLegend(plotEntries.Select(entry => entry.Index)))
-        {
-            _spectrumPlot.Plot.ShowLegend();
-        }
-        else
-        {
-            _spectrumPlot.Plot.HideLegend();
-        }
+        _currentLegendAutoShow = ShouldShowLegend(plotEntries.Select(entry => entry.Index));
+        ApplyLegend(_spectrumPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: _currentLegendAutoShow);
 
         _spectrumPlot.Plot.Title(GetGraphTitle(Path.GetFileNameWithoutExtension(activeDataset.SourceFilePath) ?? "Spectrum"));
         _spectrumPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
@@ -1333,7 +1295,7 @@ public partial class MainWindow : Window
 
         // IR convention: high wavenumbers on the left (4000 → 400 cm⁻¹).
         // The user can override this through the format panel (Auto / Inverted / Normal).
-        var invertX = GetSelectedInvertXAxisModeConfigValue() switch
+        var invertX = GraphFormatPanel.InvertXAxisModeTag switch
         {
             "Inverted" => true,
             "Normal" => false,
@@ -1462,22 +1424,6 @@ public partial class MainWindow : Window
         return ExportDpi / DisplayDpi;
     }
 
-    private static bool TryParsePositiveDouble(string text, out double value)
-    {
-        return TryParseDouble(text, out value) && value > 0;
-    }
-
-    private static bool TryParseNonNegativeDouble(string text, out double value)
-    {
-        return TryParseDouble(text, out value) && value >= 0;
-    }
-
-    private static bool TryParseDouble(string text, out double value)
-    {
-        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out value)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
-    }
-
     private bool ShouldShowLegend(IEnumerable<int> datasetIndices)
     {
         var indices = datasetIndices.ToArray();
@@ -1520,13 +1466,10 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (!TryReadOptionalDouble(XMinTextBox, "X Min", out var xMin)
-            || !TryReadOptionalDouble(XMaxTextBox, "X Max", out var xMax)
-            || !TryReadOptionalDouble(YMinTextBox, "Y Min", out var yMin)
-            || !TryReadOptionalDouble(YMaxTextBox, "Y Max", out var yMax))
-        {
-            return false;
-        }
+        var xMin = AxisRangePanel.XMinValue;
+        var xMax = AxisRangePanel.XMaxValue;
+        var yMin = AxisRangePanel.YMinValue;
+        var yMax = AxisRangePanel.YMaxValue;
 
         if (xMin.HasValue || xMax.HasValue)
         {
@@ -1597,26 +1540,6 @@ public partial class MainWindow : Window
         }
 
         return true;
-    }
-
-    private bool TryReadOptionalDouble(TextBox textBox, string label, out double? value)
-    {
-        value = null;
-        var text = textBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return true;
-        }
-
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var parsed)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
-        {
-            value = parsed;
-            return true;
-        }
-
-        SetStatus($"{label} must be a number.", true);
-        return false;
     }
 
     private string GetGraphTitle(string defaultTitle)
@@ -1691,16 +1614,11 @@ public partial class MainWindow : Window
         _suppressStyleControlEvents = true;
         try
         {
-            if (style.ColorHex is null)
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, "Auto");
-            }
-            else if (!SelectComboBoxItemByTag(LineColorComboBox, style.ColorHex))
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, "Custom");
-            }
-
-            SetLineColorInput(style.ColorHex);
+            // Match GPC's per-dataset auto-palette behaviour: the picker's
+            // "Auto" preview falls back to DefaultHex, so wire it to the
+            // colour the plot will actually draw for this dataset slot.
+            LineColorPicker.DefaultHex = AutoLineColors[_activeIndex % AutoLineColors.Length];
+            LineColorPicker.SetHexValue(style.ColorHex);
             LegendNameTextBox.Text = style.LegendName ?? string.Empty;
             LineWidthTextBox.Text = style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
@@ -2047,59 +1965,17 @@ public partial class MainWindow : Window
         UpdateCalibrationUi();
     }
 
-    private void LineColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
     {
-        if (_suppressStyleControlEvents)
-        {
-            return;
-        }
+        if (_suppressStyleControlEvents) return;
 
-        var tag = GetSelectedComboBoxTag(LineColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            ApplyDatasetStyle(style => style.ColorHex = null);
-            SetLineColorInput(null);
-            RefreshDatasetEntries();
-            PlotCurrentDataset();
-            return;
-        }
-
-        if (tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdateLineColorPreview(LineColorHexTextBox.Text);
-            return;
-        }
-
-        ApplyDatasetStyle(style => style.ColorHex = tag);
-        SetLineColorInput(tag);
+        // Per-dataset line colour: null = "use auto palette",
+        // "#RRGGBB" = explicit override. ColorPickerPanel already
+        // owns the preset / hex / preview triplet, so we just mirror
+        // its output into the active dataset's style record.
+        ApplyDatasetStyle(style => style.ColorHex = LineColorPicker.HexValue);
         RefreshDatasetEntries();
         PlotCurrentDataset();
-    }
-
-    private void LineColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressStyleControlEvents)
-        {
-            return;
-        }
-
-        var text = LineColorHexTextBox.Text;
-        if (IsAutoColorText(text))
-        {
-            ApplyDatasetStyle(style => style.ColorHex = null);
-            UpdateLineColorPreview(null);
-            RefreshDatasetEntries();
-            PlotCurrentDataset();
-            return;
-        }
-
-        if (TryNormalizeHexColorCode(text, out var hex))
-        {
-            ApplyDatasetStyle(style => style.ColorHex = hex);
-            UpdateLineColorPreview(hex);
-            RefreshDatasetEntries();
-            PlotCurrentDataset();
-        }
     }
 
     private void LegendNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -2153,82 +2029,44 @@ public partial class MainWindow : Window
         mutate(_datasetStyles[_activeIndex]);
     }
 
-    private void GraphAppearanceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (sender is ComboBox comboBox)
-        {
-            if (ReferenceEquals(comboBox, PlotFrameColorComboBox))
-            {
-                SyncPlotFrameColorInputFromComboBox();
-            }
-            else if (ReferenceEquals(comboBox, BackgroundColorComboBox))
-            {
-                SyncBackgroundColorInputFromComboBox();
-            }
-        }
-
+        if (_suppressGraphAppearanceEvents) return;
         ApplyGraphAppearanceAndRefresh();
     }
 
-    private void BackgroundColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void GraphFormatPanel_AspectRatioChanged(object? sender, EventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (TryNormalizeHexColorCode(BackgroundColorHexTextBox.Text, out var hex))
-        {
-            UpdateBackgroundColorPreview(hex);
-            ApplyGraphAppearanceAndRefresh();
-        }
+        if (_suppressGraphAppearanceEvents) return;
+        // Resize PlotHost; the trailing GraphFormatChanged event (the panel
+        // raises both for AspectRatio changes) handles SchedulePlotCurrentDataset
+        // through ApplyGraphAppearanceAndRefresh.
+        UpdatePlotHostAspectRatio();
     }
 
-    private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
+    private void GraphFormatPanel_AxisOrientationChanged(object? sender, EventArgs e)
     {
-        if (GraphFontComboBox.Template?.FindName("PART_EditableTextBox", GraphFontComboBox) is TextBox editable)
-        {
-            editable.TextChanged -= GraphFontComboBox_EditableTextChanged;
-            editable.TextChanged += GraphFontComboBox_EditableTextChanged;
-        }
+        if (_suppressGraphAppearanceEvents) return;
+        // X-axis flip needs a heavy redraw (limits flipped, IR override
+        // re-evaluated), so route to the debounced replot rather than the
+        // light Refresh path.
+        SchedulePlotCurrentDataset();
     }
 
-    private void GraphFontComboBox_EditableTextChanged(object sender, TextChangedEventArgs e)
+    private void GraphFormatPanel_YAxisDisplayChanged(object? sender, EventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        ApplyGraphAppearanceAndRefresh();
+        if (_suppressGraphAppearanceEvents) return;
+        // Native ↔ Absorbance ↔ Transmittance changes the underlying Y values
+        // for every series, so go through the debounced replot.
+        SchedulePlotCurrentDataset();
     }
 
-    private void PlotFrameColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex))
-        {
-            UpdatePlotFrameColorPreview(hex);
-            ApplyGraphAppearanceAndRefresh();
-        }
-    }
-
+    // Title / axis-label CheckBoxes still live in MainWindow (the standalone
+    // "グラフラベル" Section is outside GraphFormatPanel's scope), so they keep
+    // routing through this handler.
     private void GraphAppearanceCheckBox_Changed(object sender, RoutedEventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
+        if (_suppressGraphAppearanceEvents) return;
         ApplyGraphAppearanceAndRefresh();
     }
 
@@ -2242,43 +2080,30 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
-    private void GraphAppearanceNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void AxisRangePanel_Committed(object? sender, EventArgs e)
     {
         if (_suppressGraphAppearanceEvents)
         {
             return;
         }
 
-        ApplyGraphAppearanceAndRefresh();
-    }
-
-    private void AxisRangeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key == System.Windows.Input.Key.Enter)
-        {
-            CommitAxisRangeFromInputs();
-            e.Handled = true;
-        }
-    }
-
-    private void AxisRangeTextBox_LostFocus(object sender, RoutedEventArgs e)
-    {
-        CommitAxisRangeFromInputs();
-    }
-
-    private void AutoAxisRangeButton_Click(object sender, RoutedEventArgs e)
-    {
-        XMinTextBox.Clear();
-        XMaxTextBox.Clear();
-        YMinTextBox.Clear();
-        YMaxTextBox.Clear();
-
-        if (_currentDataset is null || _spectrumPlot is null)
+        if (_spectrumPlot is null || _currentDataset is null)
         {
             return;
         }
 
-        _spectrumPlot.Plot.Axes.AutoScale();
+        // After "Reset to auto" the panel returns null for all four values.
+        // The spectrum plot keeps the previous limits otherwise, so call
+        // AutoScale() explicitly to match the old AutoAxisRangeButton flow.
+        var allAuto = AxisRangePanel.XMinValue is null
+            && AxisRangePanel.XMaxValue is null
+            && AxisRangePanel.YMinValue is null
+            && AxisRangePanel.YMaxValue is null;
+        if (allAuto)
+        {
+            _spectrumPlot.Plot.Axes.AutoScale();
+        }
+
         PlotCurrentDataset();
     }
 
@@ -2295,67 +2120,14 @@ public partial class MainWindow : Window
         }
 
         var limits = _spectrumPlot.Plot.Axes.GetLimits();
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            XMinTextBox.Text = FormatAxisValue(limits.Left);
-            XMaxTextBox.Text = FormatAxisValue(limits.Right);
-            YMinTextBox.Text = FormatAxisValue(limits.Bottom);
-            YMaxTextBox.Text = FormatAxisValue(limits.Top);
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
-        }
+        AxisRangePanel.SetXValues(
+            double.IsFinite(limits.Left) ? limits.Left : null,
+            double.IsFinite(limits.Right) ? limits.Right : null);
+        AxisRangePanel.SetYValues(
+            double.IsFinite(limits.Bottom) ? limits.Bottom : null,
+            double.IsFinite(limits.Top) ? limits.Top : null);
     }
 
-    private static string FormatAxisValue(double value)
-    {
-        return double.IsFinite(value)
-            ? value.ToString("G6", CultureInfo.InvariantCulture)
-            : string.Empty;
-    }
-
-    private void CommitAxisRangeFromInputs()
-    {
-        if (_spectrumPlot is null || _currentDataset is null)
-        {
-            return;
-        }
-
-        PlotCurrentDataset();
-    }
-
-    private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        UpdatePlotHostAspectRatio();
-        SchedulePlotCurrentDataset();
-    }
-
-    private void InvertXAxisComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        SchedulePlotCurrentDataset();
-    }
-
-    private void YAxisDisplayComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        SchedulePlotCurrentDataset();
-    }
 
     private void PeakAssignmentCheckBox_Changed(object sender, RoutedEventArgs e)
     {
@@ -2502,7 +2274,7 @@ public partial class MainWindow : Window
         switch (dialog.Choice)
         {
             case AbsorbanceConfirmDialog.DialogChoice.SwitchAndAdd:
-                SelectComboBoxItemByTag(YAxisDisplayComboBox, "Absorbance");
+                GraphFormatPanel.SetYAxisDisplayModeTag("Absorbance");
                 return true;
             case AbsorbanceConfirmDialog.DialogChoice.AddWithoutSwitch:
                 return true;
@@ -3279,72 +3051,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Reflect legend visibility / position immediately. The debounced
+        // SchedulePlotCurrentDataset redraws every series and would also
+        // call ApplyLegend, but the user-visible delay is jarring for a
+        // simple combo-box toggle; this short path makes the change feel
+        // live while the heavy redraw catches up.
+        ApplyLegend(_spectrumPlot.Plot, CaptureFormattingConfigFromControls(),
+            autoShow: _currentLegendAutoShow);
+        _spectrumPlot.Refresh();
+
         SchedulePlotCurrentDataset();
-    }
-
-    private void SelectGraphFontComboBoxValue(string? fontName)
-    {
-        if (string.IsNullOrWhiteSpace(fontName))
-        {
-            SelectComboBoxItemByTag(GraphFontComboBox, "Auto");
-            GraphFontComboBox.Text = "Auto";
-            return;
-        }
-
-        if (!SelectComboBoxItemByTag(GraphFontComboBox, fontName))
-        {
-            GraphFontComboBox.SelectedIndex = -1;
-            GraphFontComboBox.Text = fontName;
-        }
-    }
-
-    private string? GetSelectedGraphFontName()
-    {
-        var tag = GetSelectedComboBoxTag(GraphFontComboBox);
-        if (!string.IsNullOrWhiteSpace(tag))
-        {
-            return tag.Equals("Auto", StringComparison.OrdinalIgnoreCase) ? null : tag;
-        }
-
-        var text = GraphFontComboBox.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(text) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return text;
-    }
-
-    private string? GetSelectedLineColorConfigValue()
-    {
-        var tag = GetSelectedComboBoxTag(LineColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        if (tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            return TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex) ? hex : null;
-        }
-
-        return TryNormalizeHexColorCode(tag, out var resolved) ? resolved : null;
-    }
-
-    private string? GetSelectedAspectRatioConfigValue()
-    {
-        var tag = GetSelectedComboBoxTag(AspectRatioComboBox);
-        return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : tag;
-    }
-
-    private string? GetSelectedInvertXAxisModeConfigValue()
-    {
-        var tag = GetSelectedComboBoxTag(InvertXAxisComboBox);
-        return string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : tag;
     }
 
     private void ApplyEnabledPeakAssignments(IList<string>? labels)
@@ -4156,194 +3872,14 @@ public partial class MainWindow : Window
         return lines;
     }
 
-    private string? GetSelectedYAxisDisplayModeConfigValue()
-    {
-        var tag = GetSelectedComboBoxTag(YAxisDisplayComboBox);
-        return string.IsNullOrWhiteSpace(tag) || tag.Equals("Native", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : tag;
-    }
-
     private YAxisDisplayMode GetSelectedYAxisDisplayMode()
     {
-        return GetSelectedComboBoxTag(YAxisDisplayComboBox) switch
+        return GraphFormatPanel.YAxisDisplayModeTag switch
         {
             "Absorbance" => YAxisDisplayMode.Absorbance,
             "Transmittance" => YAxisDisplayMode.Transmittance,
             _ => YAxisDisplayMode.Native,
         };
-    }
-
-    private float GetPlotFontSize()
-    {
-        return TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var value)
-            ? (float)value
-            : (float)GraphFormattingConfig.DefaultFontSize;
-    }
-
-    private float GetPlotFrameWidth()
-    {
-        return TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var value)
-            ? (float)value
-            : (float)GraphFormattingConfig.DefaultPlotFrameWidth;
-    }
-
-    private string GetPlotFrameColorHex()
-    {
-        return TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex)
-            ? hex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-    }
-
-    private void SyncPlotFrameColorInputFromComboBox()
-    {
-        var tag = GetSelectedComboBoxTag(PlotFrameColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdatePlotFrameColorPreview(GetPlotFrameColorHex());
-            return;
-        }
-
-        SetPlotFrameColorInput(tag);
-    }
-
-    private void SetPlotFrameColorInput(string? hex)
-    {
-        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-
-        if (!SelectComboBoxItemByTag(PlotFrameColorComboBox, normalized))
-        {
-            SelectComboBoxItemByTag(PlotFrameColorComboBox, "Custom");
-        }
-
-        PlotFrameColorHexTextBox.Text = normalized;
-        UpdatePlotFrameColorPreview(normalized);
-    }
-
-    private void SetLineColorInput(string? hex)
-    {
-        LineColorHexTextBox.Text = string.IsNullOrWhiteSpace(hex) ? "Auto" : NormalizeHexColorCode(hex);
-        UpdateLineColorPreview(hex);
-    }
-
-    private void UpdatePlotFrameColorPreview(string? hex)
-    {
-        if (PlotFrameColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-        PlotFrameColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private string GetBackgroundColorHex()
-    {
-        return TryNormalizeHexColorCode(BackgroundColorHexTextBox.Text, out var hex)
-            ? hex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-    }
-
-    private void SyncBackgroundColorInputFromComboBox()
-    {
-        var tag = GetSelectedComboBoxTag(BackgroundColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdateBackgroundColorPreview(GetBackgroundColorHex());
-            return;
-        }
-
-        SetBackgroundColorInput(tag);
-    }
-
-    private void SetBackgroundColorInput(string? hex)
-    {
-        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-
-        if (!SelectComboBoxItemByTag(BackgroundColorComboBox, normalized))
-        {
-            SelectComboBoxItemByTag(BackgroundColorComboBox, "Custom");
-        }
-
-        BackgroundColorHexTextBox.Text = normalized;
-        UpdateBackgroundColorPreview(normalized);
-    }
-
-    private void UpdateBackgroundColorPreview(string? hex)
-    {
-        if (BackgroundColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-        BackgroundColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private void UpdateLineColorPreview(string? hex)
-    {
-        if (LineColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GetAutoLineColorPreviewHex();
-        LineColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private string GetAutoLineColorPreviewHex()
-    {
-        if (_activeIndex >= 0)
-        {
-            return AutoLineColors[_activeIndex % AutoLineColors.Length];
-        }
-
-        return _formattingDefaults.DefaultLineColorHex ?? AutoLineColors[0];
-    }
-
-    private static bool IsAutoColorText(string? text)
-    {
-        return string.IsNullOrWhiteSpace(text)
-            || text.Trim().Equals("Auto", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeHexColorCode(string text)
-    {
-        return TryNormalizeHexColorCode(text, out var hex) ? hex : "#000000";
-    }
-
-    private static bool TryNormalizeHexColorCode(string? text, out string hex)
-    {
-        hex = string.Empty;
-
-        var value = text?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        if (value.StartsWith('#'))
-        {
-            value = value[1..];
-        }
-
-        if (value.Length != 6 || !value.All(Uri.IsHexDigit))
-        {
-            return false;
-        }
-
-        hex = $"#{value.ToUpperInvariant()}";
-        return true;
     }
 
     private static bool SelectComboBoxItemByTag(ComboBox comboBox, string? tag)
@@ -4373,9 +3909,7 @@ public partial class MainWindow : Window
 
     private double? GetSelectedAspectRatio()
     {
-        var ratioText = AspectRatioComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
-            ? tag
-            : AspectRatioComboBox.Text.Trim();
+        var ratioText = GraphFormatPanel.AspectRatioTag;
 
         if (string.IsNullOrWhiteSpace(ratioText)
             || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase))
@@ -4606,18 +4140,6 @@ public partial class MainWindow : Window
         var resultTailOffset = offset + replacement.Length;
         Buffer.BlockCopy(source, sourceTailOffset, result, resultTailOffset, source.Length - sourceTailOffset);
         return result;
-    }
-
-    private static Color HexToMediaColor(string hex)
-    {
-        try
-        {
-            return (Color)ColorConverter.ConvertFromString(hex);
-        }
-        catch
-        {
-            return Colors.Gray;
-        }
     }
 
     // ===== Beer-Lambert calibration curve =====

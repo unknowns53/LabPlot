@@ -87,6 +87,121 @@
                                       IsEnabled="False" />
                         </StackPanel>
                     </Border>
+
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="書式" />
+
+                            <Expander Header="軸範囲" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="粒径軸 (nm)" />
+                                    <ComboBox x:Name="XAxisModeComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectionChanged="FormatComboBox_SelectionChanged"
+                                              Margin="0,0,0,6">
+                                        <ComboBoxItem Content="自動" Tag="Auto" IsSelected="True" />
+                                        <ComboBoxItem Content="手動" Tag="Manual" />
+                                    </ComboBox>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最小" />
+                                            <TextBox x:Name="XAxisMinTextBox"
+                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                     Text="0.1"
+                                                     TextChanged="FormatTextBox_TextChanged" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最大" />
+                                            <TextBox x:Name="XAxisMaxTextBox"
+                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                     Text="10000"
+                                                     TextChanged="FormatTextBox_TextChanged" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Y 軸 (%)" />
+                                    <ComboBox x:Name="YAxisModeComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectionChanged="FormatComboBox_SelectionChanged"
+                                              Margin="0,0,0,6">
+                                        <ComboBoxItem Content="自動" Tag="Auto" IsSelected="True" />
+                                        <ComboBoxItem Content="手動" Tag="Manual" />
+                                    </ComboBox>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最小" />
+                                            <TextBox x:Name="YAxisMinTextBox"
+                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                     Text="0"
+                                                     TextChanged="FormatTextBox_TextChanged" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最大" />
+                                            <TextBox x:Name="YAxisMaxTextBox"
+                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                     Text="30"
+                                                     TextChanged="FormatTextBox_TextChanged" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Expander>
+
+                            <Expander Header="凡例" IsExpanded="False" Margin="0,4,0,0">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="表示" />
+                                    <ComboBox x:Name="LegendVisibilityComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectionChanged="FormatComboBox_SelectionChanged"
+                                              Margin="0,0,0,8">
+                                        <ComboBoxItem Content="自動 (2件以上で表示)" Tag="Auto" IsSelected="True" />
+                                        <ComboBoxItem Content="常に表示" Tag="Always" />
+                                        <ComboBoxItem Content="非表示" Tag="Never" />
+                                    </ComboBox>
+
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="位置" />
+                                    <ComboBox x:Name="LegendPositionComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectionChanged="FormatComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
+                                        <ComboBoxItem Content="左上" Tag="UpperLeft" />
+                                        <ComboBoxItem Content="右下" Tag="LowerRight" />
+                                        <ComboBoxItem Content="左下" Tag="LowerLeft" />
+                                        <ComboBoxItem Content="右中央" Tag="MiddleRight" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Expander>
+
+                            <Expander Header="起動時の既定値" IsExpanded="False" Margin="0,4,0,0">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定の分布" />
+                                    <ComboBox x:Name="DefaultDistributionComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectionChanged="FormatComboBox_SelectionChanged"
+                                              Margin="0,0,0,8">
+                                        <ComboBoxItem Content="Number (%)" Tag="Number" IsSelected="True" />
+                                        <ComboBoxItem Content="Intensity (%)" Tag="Intensity" />
+                                        <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                                    </ComboBox>
+
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定の Run (0 始まり)" />
+                                    <TextBox x:Name="DefaultRunIndexTextBox"
+                                             Style="{StaticResource InputTextBoxStyle}"
+                                             Text="0"
+                                             TextChanged="FormatTextBox_TextChanged" />
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
         </Border>

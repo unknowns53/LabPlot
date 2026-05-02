@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -308,6 +309,247 @@ public partial class MainWindow : Window
         var hasData = _selectedDatasets.Count > 0;
         ExportButton.IsEnabled = hasData;
         SavePngButton.IsEnabled = hasData;
+        // Session save: at least one workbook must be loaded; selection
+        // is allowed to be empty (user might want to save an empty
+        // overlay state on purpose).
+        SaveSessionButton.IsEnabled = _datasetItems.Count > 0
+            && !string.IsNullOrEmpty(_currentWorkbookPath);
+    }
+
+    private void SaveSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_datasetItems.Count == 0 || string.IsNullOrEmpty(_currentWorkbookPath))
+        {
+            ShowError("保存する状態がありません。");
+            return;
+        }
+
+        var defaultName = $"{Path.GetFileNameWithoutExtension(_currentWorkbookPath)}_session.dlsjson";
+        var dialog = new SaveFileDialog
+        {
+            Title = "解析条件を保存",
+            Filter = "DLS 解析条件 (*.dlsjson)|*.dlsjson|JSON (*.json)|*.json",
+            FileName = defaultName,
+            DefaultExt = ".dlsjson",
+            AddExtension = true,
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            var session = BuildSession();
+            new AnalysisSessionStore<DlsAnalysisSession>().Save(session, dialog.FileName);
+            HideError();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowError($"保存に失敗しました: {ex.Message}");
+        }
+    }
+
+    private void LoadSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "解析条件を読み込み",
+            Filter = "DLS 解析条件 (*.dlsjson;*.json)|*.dlsjson;*.json|すべてのファイル (*.*)|*.*",
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        DlsAnalysisSession session;
+        try
+        {
+            session = new AnalysisSessionStore<DlsAnalysisSession>().Load(dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or FileNotFoundException)
+        {
+            ShowError($"読み込みに失敗しました: {ex.Message}");
+            return;
+        }
+
+        var warnings = new List<string>();
+        ApplySession(session, warnings);
+
+        if (warnings.Count > 0)
+            ShowError($"一部復元できない項目あり: {string.Join(" / ", warnings)}");
+        else
+            HideError();
+    }
+
+    private DlsAnalysisSession BuildSession()
+    {
+        var sessionDatasets = new List<DlsAnalysisSessionDataset>();
+        for (int i = 0; i < _datasetItems.Count; i++)
+        {
+            var item = _datasetItems[i];
+            var ds = item.Dataset;
+            sessionDatasets.Add(new DlsAnalysisSessionDataset
+            {
+                SheetName = ds.SheetName,
+                SourceFilePath = _currentWorkbookPath ?? string.Empty,
+                Selected = _selectedDatasets.Contains(ds),
+                Style = new AnalysisSessionStyle
+                {
+                    ColorHex = item.Style.ColorHex,
+                    LegendName = item.Style.LegendName,
+                    LineWidth = item.Style.LineWidth,
+                    MarkerSize = item.Style.MarkerSize,
+                },
+                Metadata = new DlsAnalysisSessionMetadata
+                {
+                    TemperatureCelsius = item.Metadata.TemperatureCelsius,
+                    Solvent = item.Metadata.Solvent,
+                    ConcentrationMgPerMl = item.Metadata.ConcentrationMgPerMl,
+                    RefractiveIndex = item.Metadata.RefractiveIndex,
+                    ViscosityMpas = item.Metadata.ViscosityMpas,
+                    WavelengthNm = item.Metadata.WavelengthNm,
+                    ScatteringAngleDegrees = item.Metadata.ScatteringAngleDegrees,
+                },
+                CumulantSettings = new DlsAnalysisSessionCumulantSettings
+                {
+                    FitRangeMinMicroseconds = item.Cumulant.FitRangeMinMicroseconds,
+                    FitRangeMaxMicroseconds = item.Cumulant.FitRangeMaxMicroseconds,
+                },
+            });
+        }
+
+        return new DlsAnalysisSession
+        {
+            WorkbookPath = _currentWorkbookPath ?? string.Empty,
+            Datasets = sessionDatasets,
+            Axes = new AnalysisSessionAxes
+            {
+                XMin = AxisRangePanel.XMinValue,
+                XMax = AxisRangePanel.XMaxValue,
+                YMin = AxisRangePanel.YMinValue,
+                YMax = AxisRangePanel.YMaxValue,
+            },
+            Formatting = _formattingConfig,
+            Labels = new AnalysisSessionLabels
+            {
+                Title = TitleTextBox.Text,
+                XLabel = XLabelTextBox.Text,
+                YLabel = YLabelTextBox.Text,
+            },
+            SelectedDistributionMode = _selectedMode.ToString(),
+            SelectedRunIndex = _selectedRunIndex,
+            ActiveDatasetIndex = _activeItemIndex,
+            Overlay = _selectedDatasets.Count > 1,
+        };
+    }
+
+    private void ApplySession(DlsAnalysisSession session, List<string> warnings)
+    {
+        if (string.IsNullOrWhiteSpace(session.WorkbookPath))
+        {
+            warnings.Add("xlsx ファイルパスが空です");
+            return;
+        }
+        if (!File.Exists(session.WorkbookPath))
+        {
+            warnings.Add($"xlsx ファイルが見つかりません ({session.WorkbookPath})");
+            return;
+        }
+
+        try
+        {
+            var loaded = _reader.Read(session.WorkbookPath);
+            _datasets.Clear();
+            foreach (var ds in loaded) _datasets.Add(ds);
+            _datasetItems.Clear();
+            foreach (var ds in _datasets) _datasetItems.Add(new DlsDatasetItem(ds));
+
+            _currentWorkbookPath = session.WorkbookPath;
+            DatasetListBox.ItemsSource = null;
+            DatasetListBox.ItemsSource = _datasetItems;
+            DatasetCountText.Text =
+                $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(session.WorkbookPath)}）";
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"xlsx 再読み込み失敗: {ex.Message}");
+            return;
+        }
+
+        // Restore per-sheet state by SheetName match. Sheets that were
+        // saved but no longer exist in the workbook surface as warnings.
+        foreach (var sessionDs in session.Datasets)
+        {
+            var item = _datasetItems.FirstOrDefault(it =>
+                string.Equals(it.SheetName, sessionDs.SheetName, StringComparison.Ordinal));
+            if (item is null)
+            {
+                warnings.Add($"シート '{sessionDs.SheetName}' が見つかりません");
+                continue;
+            }
+
+            item.Style.ColorHex = sessionDs.Style.ColorHex;
+            item.Style.LegendName = sessionDs.Style.LegendName;
+            item.Style.LineWidth = sessionDs.Style.LineWidth;
+            item.Style.MarkerSize = sessionDs.Style.MarkerSize;
+
+            item.Metadata.TemperatureCelsius = sessionDs.Metadata.TemperatureCelsius;
+            item.Metadata.Solvent = sessionDs.Metadata.Solvent;
+            item.Metadata.ConcentrationMgPerMl = sessionDs.Metadata.ConcentrationMgPerMl;
+            item.Metadata.RefractiveIndex = sessionDs.Metadata.RefractiveIndex;
+            item.Metadata.ViscosityMpas = sessionDs.Metadata.ViscosityMpas;
+            item.Metadata.WavelengthNm = sessionDs.Metadata.WavelengthNm;
+            item.Metadata.ScatteringAngleDegrees = sessionDs.Metadata.ScatteringAngleDegrees;
+
+            item.Cumulant.FitRangeMinMicroseconds = sessionDs.CumulantSettings.FitRangeMinMicroseconds;
+            item.Cumulant.FitRangeMaxMicroseconds = sessionDs.CumulantSettings.FitRangeMaxMicroseconds;
+        }
+
+        // Restore mode + run before plot refresh so labels / axes match
+        // what the user saved.
+        _selectedMode = DistributionModeFromTag(session.SelectedDistributionMode);
+        SelectComboBoxByTag(DistributionTypeComboBox, session.SelectedDistributionMode);
+        _selectedRunIndex = Math.Max(0, session.SelectedRunIndex);
+
+        if (session.Formatting is not null)
+        {
+            _formattingConfig = session.Formatting;
+            _formattingConfig.Normalize();
+            ApplyFormattingConfigToControls(_formattingConfig);
+        }
+
+        _suppressFormattingEvents = true;
+        try
+        {
+            TitleTextBox.Text = session.Labels.Title ?? string.Empty;
+            XLabelTextBox.Text = session.Labels.XLabel ?? string.Empty;
+            YLabelTextBox.Text = session.Labels.YLabel ?? string.Empty;
+            AxisRangePanel.SetXValues(session.Axes.XMin, session.Axes.XMax);
+            AxisRangePanel.SetYValues(session.Axes.YMin, session.Axes.YMax);
+        }
+        finally
+        {
+            _suppressFormattingEvents = false;
+        }
+
+        // Restore selection. Setting SelectedItems triggers the
+        // SelectionChanged handler which rebuilds _selectedDatasets,
+        // syncs the side panels, and refreshes the plot.
+        DatasetListBox.SelectedItems.Clear();
+        foreach (var sessionDs in session.Datasets.Where(d => d.Selected))
+        {
+            var item = _datasetItems.FirstOrDefault(it =>
+                string.Equals(it.SheetName, sessionDs.SheetName, StringComparison.Ordinal));
+            if (item is not null) DatasetListBox.SelectedItems.Add(item);
+        }
+
+        // If no sheet was selected on save (Selected = false everywhere),
+        // SelectionChanged did not fire; sync the empty state by hand.
+        if (_selectedDatasets.Count == 0)
+        {
+            _activeItemIndex = -1;
+            SyncStyleControlsFromActiveItem();
+            SyncMetadataControlsFromActiveItem();
+            SyncCumulantControlsFromActiveItem();
+            UpdateExportButtonState();
+            InitializeEmptyPlot();
+        }
     }
 
     // Best-effort filename hint for the SaveFileDialog default. Empty

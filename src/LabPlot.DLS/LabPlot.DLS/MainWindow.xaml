@@ -44,6 +44,17 @@
                                     Content="PNG として保存..."
                                     Click="SavePngButton_Click"
                                     IsEnabled="False"
+                                    Margin="0,0,0,8" />
+                            <Button x:Name="SaveSessionButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="解析条件を保存..."
+                                    Click="SaveSessionButton_Click"
+                                    IsEnabled="False"
+                                    Margin="0,0,0,4" />
+                            <Button x:Name="LoadSessionButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="解析条件を読み込み..."
+                                    Click="LoadSessionButton_Click"
                                     Margin="0,0,0,4" />
                         </StackPanel>
                     </Border>

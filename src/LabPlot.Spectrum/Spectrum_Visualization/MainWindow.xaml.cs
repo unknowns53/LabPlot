@@ -150,6 +150,18 @@ public partial class MainWindow : Window
             () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
             () => SaveSessionButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(System.Windows.Input.Key.L, System.Windows.Input.ModifierKeys.Control,
+            () => ToggleCheckBox(OverlayCheckBox));
+    }
+
+    private static void ToggleCheckBox(CheckBox checkBox)
+    {
+        if (checkBox is null || !checkBox.IsEnabled)
+        {
+            return;
+        }
+
+        checkBox.IsChecked = checkBox.IsChecked != true;
     }
 
     private void AddShortcut(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers, Action handler)

@@ -396,13 +396,26 @@
                                         <controls:ColorPickerPanel x:Name="BackgroundColorPicker"
                                                                     AllowAuto="False"
                                                                     DefaultHex="#FFFFFF"
-                                                                    ColorChanged="ColorPicker_ColorChanged">
+                                                                    ColorChanged="ColorPicker_ColorChanged"
+                                                                    Margin="0,0,0,8">
                                             <ComboBoxItem Content="White" Tag="#FFFFFF" IsSelected="True" />
                                             <ComboBoxItem Content="Off-white" Tag="#F8FAFC" />
                                             <ComboBoxItem Content="Light gray" Tag="#E2E8F0" />
                                             <ComboBoxItem Content="Black" Tag="#0F172A" />
                                             <ComboBoxItem Content="Custom" Tag="Custom" />
                                         </controls:ColorPickerPanel>
+
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="アスペクト比" />
+                                        <ComboBox x:Name="AspectRatioComboBox"
+                                                  Style="{StaticResource InputComboBoxStyle}"
+                                                  SelectedIndex="0"
+                                                  SelectionChanged="FormatComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="Auto" Tag="Auto" />
+                                            <ComboBoxItem Content="16:9" Tag="16:9" />
+                                            <ComboBoxItem Content="4:3" Tag="4:3" />
+                                            <ComboBoxItem Content="3:2" Tag="3:2" />
+                                            <ComboBoxItem Content="1:1" Tag="1:1" />
+                                        </ComboBox>
                                     </StackPanel>
                                 </Expander>
 
@@ -437,18 +450,6 @@
                                                  TextChanged="FormatTextBox_TextChanged" />
                                     </StackPanel>
                                 </Expander>
-
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="アスペクト比" />
-                                <ComboBox x:Name="AspectRatioComboBox"
-                                          Style="{StaticResource InputComboBoxStyle}"
-                                          SelectedIndex="0"
-                                          SelectionChanged="FormatComboBox_SelectionChanged">
-                                    <ComboBoxItem Content="Auto" Tag="Auto" />
-                                    <ComboBoxItem Content="16:9" Tag="16:9" />
-                                    <ComboBoxItem Content="4:3" Tag="4:3" />
-                                    <ComboBoxItem Content="3:2" Tag="3:2" />
-                                    <ComboBoxItem Content="1:1" Tag="1:1" />
-                                </ComboBox>
                             </StackPanel>
                         </Expander>
                     </Border>

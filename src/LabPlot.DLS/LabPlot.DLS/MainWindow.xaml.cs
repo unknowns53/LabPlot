@@ -127,6 +127,195 @@ public partial class MainWindow : Window
         _plot.Refresh();
     }
 
+    private void ExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedDatasets.Count == 0)
+        {
+            ShowError("出力可能なデータがありません。");
+            return;
+        }
+
+        var defaultName = $"{Path.GetFileNameWithoutExtension(GetCurrentWorkbookHint())}_dls.xlsx";
+        var dialog = new SaveFileDialog
+        {
+            Title = "解析結果を保存",
+            Filter = "Excel ファイル (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv",
+            FileName = string.IsNullOrWhiteSpace(defaultName) ? "dls_export.xlsx" : defaultName,
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            var data = BuildAnalysisExport();
+            if (data.Entries.Count == 0)
+            {
+                ShowError("出力可能なデータがありません。");
+                return;
+            }
+
+            var format = GetExportFormat(dialog.FileName, dialog.FilterIndex);
+            var fileName = EnsureExportExtension(dialog.FileName, format);
+            IAnalysisExporter exporter = format == ExportFormat.Csv
+                ? new DlsCsvAnalysisExporter()
+                : new DlsXlsxAnalysisExporter();
+            exporter.Export(data, fileName);
+            HideError();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            ShowError($"保存に失敗しました: {ex.Message}");
+        }
+    }
+
+    private void SavePngButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_plot is null || _selectedDatasets.Count == 0)
+        {
+            ShowError("出力可能なデータがありません。");
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "PNG として保存",
+            Filter = "PNG (*.png)|*.png",
+            FileName = $"{Path.GetFileNameWithoutExtension(GetCurrentWorkbookHint())}_dls.png",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            // Render at twice the host's logical size for hi-DPI clarity.
+            // 800×600 minimum keeps very small windows from producing
+            // unusable thumbnails.
+            int width = Math.Max((int)(PlotHost.ActualWidth * 2), 800);
+            int height = Math.Max((int)(PlotHost.ActualHeight * 2), 600);
+            _plot.Plot.SavePng(dialog.FileName, width, height);
+            HideError();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowError($"PNG 保存に失敗しました: {ex.Message}");
+        }
+    }
+
+    private AnalysisExport BuildAnalysisExport()
+    {
+        var entries = new List<DlsAnalysisExportEntry>();
+        var modeName = _selectedMode.ToString();
+        var xLabel = DefaultXLabel(_selectedMode);
+        var yLabel = ModeLabel(_selectedMode);
+
+        foreach (var dataset in _selectedDatasets)
+        {
+            var datasetIdx = _datasets.IndexOf(dataset);
+            var item = (datasetIdx >= 0 && datasetIdx < _datasetItems.Count)
+                ? _datasetItems[datasetIdx]
+                : null;
+
+            var series = GetSeries(dataset, _selectedMode);
+            var (xs, ys) = ResolveSeriesPoints(series);
+
+            // Cumulant + Stokes-Einstein read from the correlation
+            // function regardless of which mode is currently displayed,
+            // so the exported summary is complete even when the user
+            // was looking at a particle-size mode.
+            CumulantResult? cumulant = null;
+            double? hydrodynamicDiameterNm = null;
+            if (item is not null)
+            {
+                var outcome = CumulantAnalyzer.Analyze(
+                    dataset.Correlation,
+                    item.Cumulant.FitRangeMinMicroseconds,
+                    item.Cumulant.FitRangeMaxMicroseconds);
+                if (outcome.Success && outcome.Result is not null)
+                {
+                    cumulant = outcome.Result;
+                    var size = StokesEinstein.Compute(
+                        cumulant.FirstCumulantPerMicrosecond,
+                        item.Metadata.TemperatureCelsius,
+                        item.Metadata.ViscosityMpas,
+                        item.Metadata.RefractiveIndex,
+                        item.Metadata.WavelengthNm,
+                        item.Metadata.ScatteringAngleDegrees);
+                    if (size.Success) hydrodynamicDiameterNm = size.HydrodynamicDiameterNm;
+                }
+            }
+
+            entries.Add(new DlsAnalysisExportEntry
+            {
+                DisplayName = dataset.SheetName,
+                DistributionMode = modeName,
+                XLabel = xLabel,
+                YLabel = yLabel,
+                Xs = xs,
+                Ys = ys,
+                Cumulant = cumulant,
+                HydrodynamicDiameterNm = hydrodynamicDiameterNm,
+                TemperatureCelsius = item?.Metadata.TemperatureCelsius,
+                Solvent = item?.Metadata.Solvent,
+                ConcentrationMgPerMl = item?.Metadata.ConcentrationMgPerMl,
+                RefractiveIndex = item?.Metadata.RefractiveIndex,
+                ViscosityMpas = item?.Metadata.ViscosityMpas,
+                WavelengthNm = item?.Metadata.WavelengthNm,
+                ScatteringAngleDegrees = item?.Metadata.ScatteringAngleDegrees,
+            });
+        }
+
+        return new AnalysisExport
+        {
+            Entries = entries,
+            GeneratorName = "LabPlot DLS",
+        };
+    }
+
+    private static (IReadOnlyList<double> Xs, IReadOnlyList<double> Ys) ResolveSeriesPoints(DataSeries? series)
+    {
+        if (series is null || series.RunCount == 0)
+            return (Array.Empty<double>(), Array.Empty<double>());
+        var run = series.Runs[Math.Clamp(series.ActiveRunIndex, 0, series.RunCount - 1)];
+        var n = Math.Min(run.Count, series.Xs.Count);
+        var xs = new double[n];
+        var ys = new double[n];
+        for (int i = 0; i < n; i++)
+        {
+            xs[i] = series.Xs[i];
+            ys[i] = run[i];
+        }
+        return (xs, ys);
+    }
+
+    private enum ExportFormat { Xlsx, Csv }
+
+    private static ExportFormat GetExportFormat(string filePath, int filterIndex)
+    {
+        var ext = Path.GetExtension(filePath);
+        if (string.Equals(ext, ".csv", StringComparison.OrdinalIgnoreCase)) return ExportFormat.Csv;
+        if (string.Equals(ext, ".xlsx", StringComparison.OrdinalIgnoreCase)) return ExportFormat.Xlsx;
+        return filterIndex == 2 ? ExportFormat.Csv : ExportFormat.Xlsx;
+    }
+
+    private static string EnsureExportExtension(string filePath, ExportFormat format)
+    {
+        var expected = format == ExportFormat.Csv ? ".csv" : ".xlsx";
+        if (string.Equals(Path.GetExtension(filePath), expected, StringComparison.OrdinalIgnoreCase))
+            return filePath;
+        return Path.ChangeExtension(filePath, expected);
+    }
+
+    private void UpdateExportButtonState()
+    {
+        var hasData = _selectedDatasets.Count > 0;
+        ExportButton.IsEnabled = hasData;
+        SavePngButton.IsEnabled = hasData;
+    }
+
+    // Best-effort filename hint for the SaveFileDialog default. Empty
+    // when no file has been opened (defaults fall back to "dls_export").
+    private string? _currentWorkbookPath;
+
+    private string GetCurrentWorkbookHint() => _currentWorkbookPath ?? "dls";
+
     private void OpenButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
@@ -149,6 +338,7 @@ public partial class MainWindow : Window
             _datasetItems.Clear();
             foreach (var ds in _datasets) _datasetItems.Add(new DlsDatasetItem(ds));
 
+            _currentWorkbookPath = dialog.FileName;
             DatasetListBox.ItemsSource = null;
             DatasetListBox.ItemsSource = _datasetItems;
             DatasetCountText.Text = _datasets.Count == 0
@@ -200,6 +390,7 @@ public partial class MainWindow : Window
 
         UpdateRunCombo();
         UpdateDistributionTypeAvailability();
+        UpdateExportButtonState();
         RefreshPlot();
     }
 
@@ -757,6 +948,7 @@ public partial class MainWindow : Window
         SyncStyleControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
         SyncCumulantControlsFromActiveItem();
+        UpdateExportButtonState();
         InitializeEmptyPlot();
     }
 

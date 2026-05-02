@@ -32,6 +32,18 @@
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     Content="DLS xlsx を開く..."
                                     Click="OpenButton_Click"
+                                    Margin="0,0,0,8" />
+                            <Button x:Name="ExportButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="解析結果を保存..."
+                                    Click="ExportButton_Click"
+                                    IsEnabled="False"
+                                    Margin="0,0,0,4" />
+                            <Button x:Name="SavePngButton"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="PNG として保存..."
+                                    Click="SavePngButton_Click"
+                                    IsEnabled="False"
                                     Margin="0,0,0,4" />
                         </StackPanel>
                     </Border>

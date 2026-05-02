@@ -138,7 +138,7 @@ public partial class MainWindow : Window
         AddShortcut(System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control,
             () => ExportDataButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.R, System.Windows.Input.ModifierKeys.Control,
-            () => AutoAxisRangeButton_Click(this, new RoutedEventArgs()));
+            () => AxisRangePanel.ResetToAuto());
         AddShortcut(System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
             () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
@@ -755,18 +755,8 @@ public partial class MainWindow : Window
             // those stale values would otherwise override AutoScale on the new
             // data, so clear them here. Overlay mode keeps the existing view
             // because the user is usually comparing peaks at a chosen zoom.
-            _suppressGraphAppearanceEvents = true;
-            try
-            {
-                XMinTextBox.Clear();
-                XMaxTextBox.Clear();
-                YMinTextBox.Clear();
-                YMaxTextBox.Clear();
-            }
-            finally
-            {
-                _suppressGraphAppearanceEvents = false;
-            }
+            AxisRangePanel.SetXValues(null, null);
+            AxisRangePanel.SetYValues(null, null);
         }
 
         _loadedDatasets.Add(dataset);
@@ -796,10 +786,8 @@ public partial class MainWindow : Window
         TitleTextBox.Clear();
         XLabelTextBox.Clear();
         YLabelTextBox.Clear();
-        XMinTextBox.Clear();
-        XMaxTextBox.Clear();
-        YMinTextBox.Clear();
-        YMaxTextBox.Clear();
+        AxisRangePanel.SetXValues(null, null);
+        AxisRangePanel.SetYValues(null, null);
         ApplyFormattingConfigToControls(_formattingDefaults);
 
         foreach (var style in _datasetStyles)
@@ -1022,10 +1010,10 @@ public partial class MainWindow : Window
             },
             Axes = new AnalysisSessionAxes
             {
-                XMin = TryParseOptionalDouble(XMinTextBox.Text),
-                XMax = TryParseOptionalDouble(XMaxTextBox.Text),
-                YMin = TryParseOptionalDouble(YMinTextBox.Text),
-                YMax = TryParseOptionalDouble(YMaxTextBox.Text),
+                XMin = AxisRangePanel.XMinValue,
+                XMax = AxisRangePanel.XMaxValue,
+                YMin = AxisRangePanel.YMinValue,
+                YMax = AxisRangePanel.YMaxValue,
             },
         };
 
@@ -1109,10 +1097,8 @@ public partial class MainWindow : Window
         YLabelTextBox.Text = labels.YLabel ?? string.Empty;
 
         var axes = session.Axes;
-        XMinTextBox.Text = FormatOptional(axes.XMin);
-        XMaxTextBox.Text = FormatOptional(axes.XMax);
-        YMinTextBox.Text = FormatOptional(axes.YMin);
-        YMaxTextBox.Text = FormatOptional(axes.YMax);
+        AxisRangePanel.SetXValues(axes.XMin, axes.XMax);
+        AxisRangePanel.SetYValues(axes.YMin, axes.YMax);
 
         FilePathTextBlock.Text = _loadedDatasets.Count > 1
             ? $"{_loadedDatasets.Count} files (latest: {_currentDataset.SourceFilePath})"
@@ -1122,29 +1108,6 @@ public partial class MainWindow : Window
         SyncStyleControlsFromActiveDataset();
         UpdatePlotHostAspectRatio();
         PlotCurrentDataset();
-    }
-
-    private static double? TryParseOptionalDouble(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
-
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var parsed)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
-        {
-            return parsed;
-        }
-
-        return null;
-    }
-
-    private static string FormatOptional(double? value)
-    {
-        return value.HasValue
-            ? value.Value.ToString("G", CultureInfo.InvariantCulture)
-            : string.Empty;
     }
 
     private void SaveGraphButton_Click(object sender, RoutedEventArgs e)
@@ -1520,13 +1483,10 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (!TryReadOptionalDouble(XMinTextBox, "X Min", out var xMin)
-            || !TryReadOptionalDouble(XMaxTextBox, "X Max", out var xMax)
-            || !TryReadOptionalDouble(YMinTextBox, "Y Min", out var yMin)
-            || !TryReadOptionalDouble(YMaxTextBox, "Y Max", out var yMax))
-        {
-            return false;
-        }
+        var xMin = AxisRangePanel.XMinValue;
+        var xMax = AxisRangePanel.XMaxValue;
+        var yMin = AxisRangePanel.YMinValue;
+        var yMax = AxisRangePanel.YMaxValue;
 
         if (xMin.HasValue || xMax.HasValue)
         {
@@ -1597,26 +1557,6 @@ public partial class MainWindow : Window
         }
 
         return true;
-    }
-
-    private bool TryReadOptionalDouble(TextBox textBox, string label, out double? value)
-    {
-        value = null;
-        var text = textBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return true;
-        }
-
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var parsed)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
-        {
-            value = parsed;
-            return true;
-        }
-
-        SetStatus($"{label} must be a number.", true);
-        return false;
     }
 
     private string GetGraphTitle(string defaultTitle)
@@ -2252,33 +2192,30 @@ public partial class MainWindow : Window
         ApplyGraphAppearanceAndRefresh();
     }
 
-    private void AxisRangeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void AxisRangePanel_Committed(object? sender, EventArgs e)
     {
-        if (e.Key == System.Windows.Input.Key.Enter)
-        {
-            CommitAxisRangeFromInputs();
-            e.Handled = true;
-        }
-    }
-
-    private void AxisRangeTextBox_LostFocus(object sender, RoutedEventArgs e)
-    {
-        CommitAxisRangeFromInputs();
-    }
-
-    private void AutoAxisRangeButton_Click(object sender, RoutedEventArgs e)
-    {
-        XMinTextBox.Clear();
-        XMaxTextBox.Clear();
-        YMinTextBox.Clear();
-        YMaxTextBox.Clear();
-
-        if (_currentDataset is null || _spectrumPlot is null)
+        if (_suppressGraphAppearanceEvents)
         {
             return;
         }
 
-        _spectrumPlot.Plot.Axes.AutoScale();
+        if (_spectrumPlot is null || _currentDataset is null)
+        {
+            return;
+        }
+
+        // After "Reset to auto" the panel returns null for all four values.
+        // The spectrum plot keeps the previous limits otherwise, so call
+        // AutoScale() explicitly to match the old AutoAxisRangeButton flow.
+        var allAuto = AxisRangePanel.XMinValue is null
+            && AxisRangePanel.XMaxValue is null
+            && AxisRangePanel.YMinValue is null
+            && AxisRangePanel.YMaxValue is null;
+        if (allAuto)
+        {
+            _spectrumPlot.Plot.Axes.AutoScale();
+        }
+
         PlotCurrentDataset();
     }
 
@@ -2295,35 +2232,12 @@ public partial class MainWindow : Window
         }
 
         var limits = _spectrumPlot.Plot.Axes.GetLimits();
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            XMinTextBox.Text = FormatAxisValue(limits.Left);
-            XMaxTextBox.Text = FormatAxisValue(limits.Right);
-            YMinTextBox.Text = FormatAxisValue(limits.Bottom);
-            YMaxTextBox.Text = FormatAxisValue(limits.Top);
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
-        }
-    }
-
-    private static string FormatAxisValue(double value)
-    {
-        return double.IsFinite(value)
-            ? value.ToString("G6", CultureInfo.InvariantCulture)
-            : string.Empty;
-    }
-
-    private void CommitAxisRangeFromInputs()
-    {
-        if (_spectrumPlot is null || _currentDataset is null)
-        {
-            return;
-        }
-
-        PlotCurrentDataset();
+        AxisRangePanel.SetXValues(
+            double.IsFinite(limits.Left) ? limits.Left : null,
+            double.IsFinite(limits.Right) ? limits.Right : null);
+        AxisRangePanel.SetYValues(
+            double.IsFinite(limits.Bottom) ? limits.Bottom : null,
+            double.IsFinite(limits.Top) ? limits.Top : null);
     }
 
     private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

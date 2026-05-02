@@ -919,7 +919,7 @@ public partial class MainWindow : Window
         try
         {
             var session = BuildAnalysisSession();
-            new AnalysisSessionStore().Save(session, dialog.FileName);
+            new AnalysisSessionStore<GpcAnalysisSession>().Save(session, dialog.FileName);
             SetStatus($"解析条件を保存しました: {dialog.FileName}", false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -942,10 +942,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        AnalysisSession session;
+        GpcAnalysisSession session;
         try
         {
-            session = new AnalysisSessionStore().Load(dialog.FileName);
+            session = new AnalysisSessionStore<GpcAnalysisSession>().Load(dialog.FileName);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
         {
@@ -966,16 +966,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private AnalysisSession BuildAnalysisSession()
+    private GpcAnalysisSession BuildAnalysisSession()
     {
-        var datasets = new List<AnalysisSessionDataset>();
+        var datasets = new List<GpcAnalysisSessionDataset>();
         for (var i = 0; i < _loadedDatasets.Count; i++)
         {
             var dataset = _loadedDatasets[i];
             var style = i < _datasetStyles.Count ? _datasetStyles[i] : CreateDefaultDatasetStyle();
             var selectedPeakId = i < _datasetSelectedPeakIds.Count ? _datasetSelectedPeakIds[i] : null;
 
-            datasets.Add(new AnalysisSessionDataset
+            datasets.Add(new GpcAnalysisSessionDataset
             {
                 SourceFilePath = dataset.SourceFilePath ?? string.Empty,
                 Detector = dataset.Detector,
@@ -1009,7 +1009,7 @@ public partial class MainWindow : Window
             MaxMolecularWeight = MolecularWeightConverter.DefaultMaxMolecularWeight,
         };
 
-        var axes = new AnalysisSessionAxes
+        var axes = new GpcAnalysisSessionAxes
         {
             Mode = MolecularWeightCheckBox.IsChecked == true
                 ? nameof(AnalysisSessionAxisMode.MolecularWeight)
@@ -1032,7 +1032,7 @@ public partial class MainWindow : Window
         sessionFormatting.DefaultCalibrationFilePath = null;
         sessionFormatting.DefaultOutputDirectory = null;
 
-        return new AnalysisSession
+        return new GpcAnalysisSession
         {
             Overlay = OverlayCheckBox.IsChecked == true,
             ActiveDatasetIndex = _activeIndex,
@@ -1045,7 +1045,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private void ApplyAnalysisSession(AnalysisSession session, List<string> warnings)
+    private void ApplyAnalysisSession(GpcAnalysisSession session, List<string> warnings)
     {
         _loadedDatasets.Clear();
         _datasetStyles.Clear();

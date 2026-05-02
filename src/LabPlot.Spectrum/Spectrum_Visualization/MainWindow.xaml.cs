@@ -66,7 +66,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<IntegrationRegionVm> _integrationRegionVms = new();
     private readonly ObservableCollection<IntegrationResultRowVm> _integrationResultRowVms = new();
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
-    private readonly AnalysisSessionStore _sessionStore = new();
+    private readonly AnalysisSessionStore<SpectrumAnalysisSession> _sessionStore = new();
 
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private int _activeIndex = -1;
@@ -1012,9 +1012,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private AnalysisSession BuildAnalysisSession()
+    private SpectrumAnalysisSession BuildAnalysisSession()
     {
-        var session = new AnalysisSession
+        var session = new SpectrumAnalysisSession
         {
             Overlay = OverlayCheckBox.IsChecked == true,
             ActiveDatasetIndex = _activeIndex,
@@ -1054,7 +1054,7 @@ public partial class MainWindow : Window
         return session;
     }
 
-    private void ApplyAnalysisSession(AnalysisSession session, List<string> warnings)
+    private void ApplyAnalysisSession(SpectrumAnalysisSession session, List<string> warnings)
     {
         var loaded = new List<SpectrumDataset>();
         var styles = new List<DatasetStyle>();

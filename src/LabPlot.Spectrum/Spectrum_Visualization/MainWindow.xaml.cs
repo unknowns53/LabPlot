@@ -534,8 +534,8 @@ public partial class MainWindow : Window
             ShowMinorTicks = MinorTicksCheckBox.IsChecked == true,
             ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
             PlotFrameWidth = GetPlotFrameWidth(),
-            PlotFrameColorHex = GetPlotFrameColorHex(),
-            BackgroundColorHex = GetBackgroundColorHex(),
+            PlotFrameColorHex = PlotFrameColorPicker.HexValue ?? GraphFormattingConfig.DefaultPlotFrameColorHex,
+            BackgroundColorHex = BackgroundColorPicker.HexValue ?? GraphFormattingConfig.DefaultBackgroundColorHex,
             ShowTitle = TitleVisibleCheckBox.IsChecked == true,
             TitleBold = TitleBoldCheckBox.IsChecked == true,
             AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
@@ -551,7 +551,7 @@ public partial class MainWindow : Window
                 .Where(region => region is not null)
                 .Cast<IntegrationRegion>()
                 .ToList(),
-            DefaultLineColorHex = GetSelectedLineColorConfigValue(),
+            DefaultLineColorHex = LineColorPicker.HexValue,
             LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
                 ? lineWidth
                 : GraphFormattingConfig.DefaultLineWidth,
@@ -600,8 +600,8 @@ public partial class MainWindow : Window
             MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
             PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
             PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
-            SetPlotFrameColorInput(config.PlotFrameColorHex);
-            SetBackgroundColorInput(config.BackgroundColorHex);
+            PlotFrameColorPicker.SetHexValue(config.PlotFrameColorHex);
+            BackgroundColorPicker.SetHexValue(config.BackgroundColorHex);
             TitleVisibleCheckBox.IsChecked = config.ShowTitle;
             TitleBoldCheckBox.IsChecked = config.TitleBold;
             AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
@@ -647,12 +647,7 @@ public partial class MainWindow : Window
         _suppressStyleControlEvents = true;
         try
         {
-            if (!SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex ?? "Auto"))
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, config.DefaultLineColorHex is null ? "Auto" : "Custom");
-            }
-
-            SetLineColorInput(config.DefaultLineColorHex);
+            LineColorPicker.SetHexValue(config.DefaultLineColorHex);
             LegendNameTextBox.Clear();
             LineWidthTextBox.Text = config.FormatLineWidth();
             MarkerSizeTextBox.Text = config.FormatMarkerSize();
@@ -1616,16 +1611,11 @@ public partial class MainWindow : Window
         _suppressStyleControlEvents = true;
         try
         {
-            if (style.ColorHex is null)
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, "Auto");
-            }
-            else if (!SelectComboBoxItemByTag(LineColorComboBox, style.ColorHex))
-            {
-                SelectComboBoxItemByTag(LineColorComboBox, "Custom");
-            }
-
-            SetLineColorInput(style.ColorHex);
+            // Match GPC's per-dataset auto-palette behaviour: the picker's
+            // "Auto" preview falls back to DefaultHex, so wire it to the
+            // colour the plot will actually draw for this dataset slot.
+            LineColorPicker.DefaultHex = AutoLineColors[_activeIndex % AutoLineColors.Length];
+            LineColorPicker.SetHexValue(style.ColorHex);
             LegendNameTextBox.Text = style.LegendName ?? string.Empty;
             LineWidthTextBox.Text = style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
@@ -1972,59 +1962,17 @@ public partial class MainWindow : Window
         UpdateCalibrationUi();
     }
 
-    private void LineColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
     {
-        if (_suppressStyleControlEvents)
-        {
-            return;
-        }
+        if (_suppressStyleControlEvents) return;
 
-        var tag = GetSelectedComboBoxTag(LineColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            ApplyDatasetStyle(style => style.ColorHex = null);
-            SetLineColorInput(null);
-            RefreshDatasetEntries();
-            PlotCurrentDataset();
-            return;
-        }
-
-        if (tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdateLineColorPreview(LineColorHexTextBox.Text);
-            return;
-        }
-
-        ApplyDatasetStyle(style => style.ColorHex = tag);
-        SetLineColorInput(tag);
+        // Per-dataset line colour: null = "use auto palette",
+        // "#RRGGBB" = explicit override. ColorPickerPanel already
+        // owns the preset / hex / preview triplet, so we just mirror
+        // its output into the active dataset's style record.
+        ApplyDatasetStyle(style => style.ColorHex = LineColorPicker.HexValue);
         RefreshDatasetEntries();
         PlotCurrentDataset();
-    }
-
-    private void LineColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressStyleControlEvents)
-        {
-            return;
-        }
-
-        var text = LineColorHexTextBox.Text;
-        if (IsAutoColorText(text))
-        {
-            ApplyDatasetStyle(style => style.ColorHex = null);
-            UpdateLineColorPreview(null);
-            RefreshDatasetEntries();
-            PlotCurrentDataset();
-            return;
-        }
-
-        if (TryNormalizeHexColorCode(text, out var hex))
-        {
-            ApplyDatasetStyle(style => style.ColorHex = hex);
-            UpdateLineColorPreview(hex);
-            RefreshDatasetEntries();
-            PlotCurrentDataset();
-        }
     }
 
     private void LegendNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -2085,33 +2033,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (sender is ComboBox comboBox)
-        {
-            if (ReferenceEquals(comboBox, PlotFrameColorComboBox))
-            {
-                SyncPlotFrameColorInputFromComboBox();
-            }
-            else if (ReferenceEquals(comboBox, BackgroundColorComboBox))
-            {
-                SyncBackgroundColorInputFromComboBox();
-            }
-        }
-
         ApplyGraphAppearanceAndRefresh();
     }
 
-    private void BackgroundColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void GraphFormatColor_ColorChanged(object? sender, EventArgs e)
     {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (TryNormalizeHexColorCode(BackgroundColorHexTextBox.Text, out var hex))
-        {
-            UpdateBackgroundColorPreview(hex);
-            ApplyGraphAppearanceAndRefresh();
-        }
+        if (_suppressGraphAppearanceEvents) return;
+        ApplyGraphAppearanceAndRefresh();
     }
 
     private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
@@ -2131,20 +2059,6 @@ public partial class MainWindow : Window
         }
 
         ApplyGraphAppearanceAndRefresh();
-    }
-
-    private void PlotFrameColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex))
-        {
-            UpdatePlotFrameColorPreview(hex);
-            ApplyGraphAppearanceAndRefresh();
-        }
     }
 
     private void GraphAppearanceCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -3214,22 +3128,6 @@ public partial class MainWindow : Window
         return text;
     }
 
-    private string? GetSelectedLineColorConfigValue()
-    {
-        var tag = GetSelectedComboBoxTag(LineColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        if (tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            return TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex) ? hex : null;
-        }
-
-        return TryNormalizeHexColorCode(tag, out var resolved) ? resolved : null;
-    }
-
     private string? GetSelectedAspectRatioConfigValue()
     {
         var tag = GetSelectedComboBoxTag(AspectRatioComboBox);
@@ -4085,129 +3983,6 @@ public partial class MainWindow : Window
         return TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var value)
             ? (float)value
             : (float)GraphFormattingConfig.DefaultPlotFrameWidth;
-    }
-
-    private string GetPlotFrameColorHex()
-    {
-        return TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex)
-            ? hex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-    }
-
-    private void SyncPlotFrameColorInputFromComboBox()
-    {
-        var tag = GetSelectedComboBoxTag(PlotFrameColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdatePlotFrameColorPreview(GetPlotFrameColorHex());
-            return;
-        }
-
-        SetPlotFrameColorInput(tag);
-    }
-
-    private void SetPlotFrameColorInput(string? hex)
-    {
-        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-
-        if (!SelectComboBoxItemByTag(PlotFrameColorComboBox, normalized))
-        {
-            SelectComboBoxItemByTag(PlotFrameColorComboBox, "Custom");
-        }
-
-        PlotFrameColorHexTextBox.Text = normalized;
-        UpdatePlotFrameColorPreview(normalized);
-    }
-
-    private void SetLineColorInput(string? hex)
-    {
-        LineColorHexTextBox.Text = string.IsNullOrWhiteSpace(hex) ? "Auto" : NormalizeHexColorCode(hex);
-        UpdateLineColorPreview(hex);
-    }
-
-    private void UpdatePlotFrameColorPreview(string? hex)
-    {
-        if (PlotFrameColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultPlotFrameColorHex;
-        PlotFrameColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private string GetBackgroundColorHex()
-    {
-        return TryNormalizeHexColorCode(BackgroundColorHexTextBox.Text, out var hex)
-            ? hex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-    }
-
-    private void SyncBackgroundColorInputFromComboBox()
-    {
-        var tag = GetSelectedComboBoxTag(BackgroundColorComboBox);
-        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdateBackgroundColorPreview(GetBackgroundColorHex());
-            return;
-        }
-
-        SetBackgroundColorInput(tag);
-    }
-
-    private void SetBackgroundColorInput(string? hex)
-    {
-        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-
-        if (!SelectComboBoxItemByTag(BackgroundColorComboBox, normalized))
-        {
-            SelectComboBoxItemByTag(BackgroundColorComboBox, "Custom");
-        }
-
-        BackgroundColorHexTextBox.Text = normalized;
-        UpdateBackgroundColorPreview(normalized);
-    }
-
-    private void UpdateBackgroundColorPreview(string? hex)
-    {
-        if (BackgroundColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GraphFormattingConfig.DefaultBackgroundColorHex;
-        BackgroundColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private void UpdateLineColorPreview(string? hex)
-    {
-        if (LineColorPreviewBorder is null)
-        {
-            return;
-        }
-
-        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
-            ? colorHex
-            : GetAutoLineColorPreviewHex();
-        LineColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
-    }
-
-    private string GetAutoLineColorPreviewHex()
-    {
-        if (_activeIndex >= 0)
-        {
-            return AutoLineColors[_activeIndex % AutoLineColors.Length];
-        }
-
-        return _formattingDefaults.DefaultLineColorHex ?? AutoLineColors[0];
     }
 
     private static bool SelectComboBoxItemByTag(ComboBox comboBox, string? tag)

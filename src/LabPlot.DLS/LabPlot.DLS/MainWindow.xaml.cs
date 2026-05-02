@@ -110,11 +110,17 @@ public partial class MainWindow : Window
     {
         if (_plot is null) return;
         _plot.Plot.Clear();
-        _plot.Plot.Title(GetGraphTitle("Particle Size Distribution"));
-        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, "Size (d.nm)"));
+        _plot.Plot.Title(GetGraphTitle(PlotTypeLabel(_selectedMode)));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultXLabel(_selectedMode)));
         _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
-        ApplyLogXTicks();
-        _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
+        ApplyLogXTicksForMode(_selectedMode);
+        // Pick a sensible default viewport per mode. Correlation g₂-1
+        // sits in [0, 1.05] over 0.5–10000 μs typically; particle size
+        // 0.3–10000 nm with 0–30% spans the common Zetasizer output.
+        if (_selectedMode == DistributionMode.Correlation)
+            _plot.Plot.Axes.SetLimits(Math.Log10(0.5), Math.Log10(10000), 0, 1.05);
+        else
+            _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
         ApplyPlotAppearance();
         ApplyLegend(0);
         _plot.Refresh();
@@ -530,14 +536,16 @@ public partial class MainWindow : Window
 
     private void UpdateDistributionTypeAvailability()
     {
-        // Enable a distribution kind if at least one selected dataset has it;
-        // datasets lacking the kind are silently skipped during overlay draw.
+        // Enable a mode if at least one selected dataset has data for it;
+        // datasets lacking that mode are silently skipped during overlay
+        // draw. Correlation participates in the same availability check
+        // because GetSeries returns null when dataset.Correlation is null.
         for (int i = 0; i < DistributionTypeComboBox.Items.Count; i++)
         {
             if (DistributionTypeComboBox.Items[i] is not ComboBoxItem item) continue;
             var mode = DistributionModeFromTag(item.Tag as string);
             item.IsEnabled = _selectedDatasets.Count == 0
-                || _selectedDatasets.Any(ds => GetDistribution(ds, mode) is not null);
+                || _selectedDatasets.Any(ds => GetSeries(ds, mode) is not null);
         }
     }
 
@@ -557,19 +565,19 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var distribution = GetDistribution(_selectedDatasets[0], _selectedMode);
-            if (distribution is null || distribution.RunCount == 0)
+            var series = GetSeries(_selectedDatasets[0], _selectedMode);
+            if (series is null || series.RunCount == 0)
             {
                 RunComboBox.IsEnabled = false;
                 _selectedRunIndex = 0;
                 return;
             }
 
-            for (int i = 0; i < distribution.RunCount; i++)
+            for (int i = 0; i < series.RunCount; i++)
                 RunComboBox.Items.Add(new ComboBoxItem { Content = $"Run {i + 1}" });
 
-            RunComboBox.IsEnabled = distribution.RunCount > 1;
-            _selectedRunIndex = Math.Clamp(_selectedRunIndex, 0, distribution.RunCount - 1);
+            RunComboBox.IsEnabled = series.RunCount > 1;
+            _selectedRunIndex = Math.Clamp(_selectedRunIndex, 0, series.RunCount - 1);
             RunComboBox.SelectedIndex = _selectedRunIndex;
         }
         finally
@@ -593,22 +601,26 @@ public partial class MainWindow : Window
         var seriesCount = 0;
         foreach (var dataset in _selectedDatasets)
         {
-            var distribution = GetDistribution(dataset, _selectedMode);
-            if (distribution is null || distribution.RunCount == 0) continue;
+            var series = GetSeries(dataset, _selectedMode);
+            if (series is null || series.RunCount == 0) continue;
 
             var runIndex = _selectedDatasets.Count == 1
-                ? Math.Clamp(_selectedRunIndex, 0, distribution.RunCount - 1)
-                : Math.Clamp(distribution.ActiveRunIndex, 0, distribution.RunCount - 1);
-            var run = distribution.Runs[runIndex];
-            var sizes = distribution.SizeBinsNm;
-            var n = Math.Min(run.Count, sizes.Count);
+                ? Math.Clamp(_selectedRunIndex, 0, series.RunCount - 1)
+                : Math.Clamp(series.ActiveRunIndex, 0, series.RunCount - 1);
+            var run = series.Runs[runIndex];
+            var rawXs = series.Xs;
+            var n = Math.Min(run.Count, rawXs.Count);
             if (n == 0) continue;
 
+            // Both modes share log10 X spacing: particle size in nm and
+            // correlation delay in μs. Negative / zero raw values can
+            // appear in noisy correlation tails, so clamp to a small
+            // positive epsilon before taking the log.
             var xs = new double[n];
             var ys = new double[n];
             for (int p = 0; p < n; p++)
             {
-                xs[p] = Math.Log10(Math.Max(sizes[p], 1e-6));
+                xs[p] = Math.Log10(Math.Max(rawXs[p], 1e-6));
                 ys[p] = run[p];
             }
 
@@ -642,13 +654,16 @@ public partial class MainWindow : Window
 
         if (seriesCount == 0)
         {
-            // All selected datasets lack the chosen distribution. Render an
-            // empty labelled plot so the user notices the mode mismatch.
+            // All selected datasets lack the chosen mode. Render an empty
+            // labelled plot so the user notices the mode mismatch.
             _plot.Plot.Title(GetGraphTitle($"{ModeLabel(_selectedMode)} データなし"));
-            _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, "Size (d.nm)"));
+            _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultXLabel(_selectedMode)));
             _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
-            ApplyLogXTicks();
-            _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
+            ApplyLogXTicksForMode(_selectedMode);
+            if (_selectedMode == DistributionMode.Correlation)
+                _plot.Plot.Axes.SetLimits(Math.Log10(0.5), Math.Log10(10000), 0, 1.05);
+            else
+                _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
             ApplyPlotAppearance();
             ApplyLegend(0);
             _plot.Refresh();
@@ -656,9 +671,9 @@ public partial class MainWindow : Window
         }
 
         _plot.Plot.Title(GetGraphTitle(BuildTitle()));
-        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, "Size (d.nm)"));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultXLabel(_selectedMode)));
         _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
-        ApplyLogXTicks();
+        ApplyLogXTicksForMode(_selectedMode);
         _plot.Plot.Axes.AutoScale();
         ApplyPlotAppearance();
         ApplyLegend(seriesCount);
@@ -670,14 +685,14 @@ public partial class MainWindow : Window
         if (_selectedDatasets.Count == 1)
         {
             var dataset = _selectedDatasets[0];
-            var distribution = GetDistribution(dataset, _selectedMode);
-            var runLabel = distribution is { RunCount: > 1 }
-                ? $", Run {Math.Clamp(_selectedRunIndex, 0, distribution.RunCount - 1) + 1}"
+            var series = GetSeries(dataset, _selectedMode);
+            var runLabel = series is { RunCount: > 1 }
+                ? $", Run {Math.Clamp(_selectedRunIndex, 0, series.RunCount - 1) + 1}"
                 : string.Empty;
             return $"{dataset.SheetName} ({ModeLabel(_selectedMode)}{runLabel})";
         }
 
-        return $"Particle Size Distribution ({ModeLabel(_selectedMode)}, {_selectedDatasets.Count} datasets)";
+        return $"{PlotTypeLabel(_selectedMode)} ({ModeLabel(_selectedMode)}, {_selectedDatasets.Count} datasets)";
     }
 
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
@@ -731,15 +746,26 @@ public partial class MainWindow : Window
         return new SolidColorBrush(HexToMediaColor(hex));
     }
 
-    private void ApplyLogXTicks()
+    // Decade range covered by the log10-spaced bottom-axis tick generator.
+    // Particle-size distributions span 0.1 nm – 10000 nm (Zetasizer's
+    // 70-bin built-in grid). Correlation Time (μs) can run from ≪1 μs
+    // out to ~10^7 μs (10 s) for very slow decays, so its tick range is
+    // wider; ScottPlot only renders the ticks that fall inside the
+    // visible axis window so leaving extras defined is harmless.
+    private const int SizeAxisMinExponent = -1;
+    private const int SizeAxisMaxExponent = 4;
+    private const int CorrelationAxisMinExponent = -1;
+    private const int CorrelationAxisMaxExponent = 7;
+
+    private void ApplyLogXTicks(int minExponent, int maxExponent)
     {
         if (_plot is null) return;
 
-        // Render the X axis as log10(d.nm) with major ticks at 0.1, 1, 10,
-        // 100, 1000, 10000 nm and minor ticks at the 2x..9x positions per
-        // decade (matches the GPC molecular-weight axis approach).
+        // Render the X axis in log10 space with major ticks at 10^k and
+        // minor ticks at 2..9 × 10^k per decade (matches the GPC
+        // molecular-weight axis approach).
         var generator = new ScottPlot.TickGenerators.NumericManual();
-        for (int exponent = -1; exponent <= 4; exponent++)
+        for (int exponent = minExponent; exponent <= maxExponent; exponent++)
         {
             var label = exponent switch
             {
@@ -747,13 +773,23 @@ public partial class MainWindow : Window
                 _ => Math.Pow(10, exponent).ToString("0", CultureInfo.InvariantCulture),
             };
             generator.AddMajor(exponent, label);
-            if (exponent < 4)
+            if (exponent < maxExponent)
             {
                 for (int multiplier = 2; multiplier <= 9; multiplier++)
                     generator.AddMinor(exponent + Math.Log10(multiplier));
             }
         }
         _plot.Plot.Axes.Bottom.TickGenerator = generator;
+    }
+
+    // Mode-aware shortcut so RefreshPlot / InitializeEmptyPlot do not
+    // need to remember the per-mode exponent constants.
+    private void ApplyLogXTicksForMode(DistributionMode mode)
+    {
+        if (mode == DistributionMode.Correlation)
+            ApplyLogXTicks(CorrelationAxisMinExponent, CorrelationAxisMaxExponent);
+        else
+            ApplyLogXTicks(SizeAxisMinExponent, SizeAxisMaxExponent);
     }
 
     private void ApplyPlotAppearance(float scale = 1f)
@@ -763,9 +799,16 @@ public partial class MainWindow : Window
 
         ApplyAll(plot, _formattingConfig, scale);
 
-        // Axis range overrides. Manual mode replaces whatever AutoScale or
-        // SetLimits set up before. X is in log10(d.nm) space so we translate
-        // the configured nm endpoints through Log10 once.
+        // Manual axis range overrides only apply to the particle-size
+        // modes: the panel labels its fields in nm / % which do not match
+        // Correlation Time (μs) / g₂-1. Falling back to AutoScale for
+        // Correlation keeps the user from hitting confused units. The
+        // panel itself stays editable so a value the user typed for
+        // particle-size mode is preserved when they switch back.
+        if (_selectedMode == DistributionMode.Correlation) return;
+
+        // X is in log10(d.nm) space so we translate the configured nm
+        // endpoints through Log10 once before applying.
         if (_formattingConfig.XAxisMode == "Manual")
         {
             var xMinLog = Math.Log10(Math.Max(_formattingConfig.XAxisMinNm, 1e-6));
@@ -890,22 +933,58 @@ public partial class MainWindow : Window
     {
         "Intensity" => DistributionMode.Intensity,
         "Volume" => DistributionMode.Volume,
+        "Correlation" => DistributionMode.Correlation,
         _ => DistributionMode.Number,
     };
 
-    private static ParticleSizeDistribution? GetDistribution(DlsDataset? dataset, DistributionMode mode) => mode switch
+    // Unified data accessor: returns null if the dataset has no data for
+    // the requested mode (e.g. Correlation requested but the sheet only
+    // carried Number distribution).
+    private static DataSeries? GetSeries(DlsDataset? dataset, DistributionMode mode)
     {
-        DistributionMode.Number => dataset?.NumberDistribution,
-        DistributionMode.Intensity => dataset?.IntensityDistribution,
-        DistributionMode.Volume => dataset?.VolumeDistribution,
-        _ => null,
-    };
+        if (dataset is null) return null;
+        if (mode == DistributionMode.Correlation)
+        {
+            var corr = dataset.Correlation;
+            return corr is null
+                ? null
+                : new DataSeries(corr.TimesMicroseconds, corr.Runs, corr.ActiveRunIndex);
+        }
+        var dist = mode switch
+        {
+            DistributionMode.Intensity => dataset.IntensityDistribution,
+            DistributionMode.Volume => dataset.VolumeDistribution,
+            _ => dataset.NumberDistribution,
+        };
+        return dist is null
+            ? null
+            : new DataSeries(dist.SizeBinsNm, dist.Runs, dist.ActiveRunIndex);
+    }
 
     private static string ModeLabel(DistributionMode mode) => mode switch
     {
         DistributionMode.Intensity => "Intensity (%)",
         DistributionMode.Volume => "Volume (%)",
+        DistributionMode.Correlation => "g₂-1",
         _ => "Number (%)",
+    };
+
+    // Title prefix when more than one dataset is overlaid (or no dataset
+    // is selected at all). Mirrors the ScottPlot label convention used
+    // by GPC / Spectrum.
+    private static string PlotTypeLabel(DistributionMode mode) => mode switch
+    {
+        DistributionMode.Correlation => "Correlation Function",
+        _ => "Particle Size Distribution",
+    };
+
+    // Default X-axis label when the user has not typed an override into
+    // XLabelTextBox. The size axis stays in nm (logarithmic), the
+    // correlation axis is delay time in microseconds (also logarithmic).
+    private static string DefaultXLabel(DistributionMode mode) => mode switch
+    {
+        DistributionMode.Correlation => "Time (μs)",
+        _ => "Size (d.nm)",
     };
 
     // Per-sheet style overrides. ColorHex / LegendName are nullable so the
@@ -1008,5 +1087,24 @@ public partial class MainWindow : Window
         Number,
         Intensity,
         Volume,
+        // Intensity autocorrelation function g₂-1 vs delay time (μs).
+        // Reads from DlsDataset.Correlation rather than the three particle-
+        // size distributions; treated as a fourth mode of the same
+        // DistributionTypeComboBox so overlay / run-switch / per-sheet
+        // styling all work uniformly.
+        Correlation,
+    }
+
+    // Unified view over the per-mode data access. ParticleSize* modes pull
+    // from one of the three ParticleSizeDistribution slots; Correlation
+    // pulls from CorrelationFunction. Wrapping both in DataSeries means
+    // every consumer (UpdateRunCombo / RefreshPlot / availability check)
+    // can share a single null check + run/x access path.
+    private sealed record DataSeries(
+        IReadOnlyList<double> Xs,
+        IReadOnlyList<IReadOnlyList<double>> Runs,
+        int ActiveRunIndex)
+    {
+        public int RunCount => Runs.Count;
     }
 }

@@ -92,7 +92,267 @@
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="書式" />
 
-                            <Expander Header="軸範囲" IsExpanded="False">
+                            <Expander Header="グラフ書式" IsExpanded="False">
+                                <StackPanel Margin="0,8,0,0">
+                                    <Expander Header="フォント" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="フォント名" />
+                                            <ComboBox x:Name="GraphFontComboBox"
+                                                      Style="{StaticResource InputComboBoxStyle}"
+                                                      IsEditable="True"
+                                                      SelectedIndex="0"
+                                                      Margin="0,0,0,10"
+                                                      SelectionChanged="FormatComboBox_SelectionChanged"
+                                                      Loaded="GraphFontComboBox_Loaded">
+                                                <ComboBoxItem Content="Auto" Tag="Auto" />
+                                                <ComboBoxItem Content="Yu Gothic" Tag="Yu Gothic" />
+                                                <ComboBoxItem Content="Meiryo" Tag="Meiryo" />
+                                                <ComboBoxItem Content="Arial" Tag="Arial" />
+                                                <ComboBoxItem Content="Times New Roman" Tag="Times New Roman" />
+                                                <ComboBoxItem Content="MS Gothic" Tag="MS Gothic" />
+                                            </ComboBox>
+
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="フォントサイズ" />
+                                            <TextBox x:Name="GraphFontSizeTextBox"
+                                                     Style="{StaticResource InputTextBoxStyle}"
+                                                     Text="12"
+                                                     TextChanged="FormatTextBox_TextChanged" />
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <Expander Header="ラベル" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <CheckBox x:Name="TitleVisibleCheckBox"
+                                                      Content="タイトルを表示する"
+                                                      IsChecked="True"
+                                                      Margin="0,0,0,6"
+                                                      Checked="FormatCheckBox_Changed"
+                                                      Unchecked="FormatCheckBox_Changed" />
+                                            <CheckBox x:Name="TitleBoldCheckBox"
+                                                      Content="タイトルを太字にする"
+                                                      IsChecked="True"
+                                                      Margin="0,0,0,6"
+                                                      Checked="FormatCheckBox_Changed"
+                                                      Unchecked="FormatCheckBox_Changed" />
+                                            <CheckBox x:Name="AxisLabelBoldCheckBox"
+                                                      Content="軸ラベルを太字にする"
+                                                      Margin="0,0,0,0"
+                                                      Checked="FormatCheckBox_Changed"
+                                                      Unchecked="FormatCheckBox_Changed" />
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <Expander Header="目盛" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <CheckBox x:Name="YAxisTickLabelsCheckBox"
+                                                      Content="Y 軸の数字を表示する"
+                                                      IsChecked="True"
+                                                      Margin="0,0,0,6"
+                                                      Checked="FormatCheckBox_Changed"
+                                                      Unchecked="FormatCheckBox_Changed" />
+                                            <CheckBox x:Name="MajorTicksCheckBox"
+                                                      Content="主目盛を表示する"
+                                                      IsChecked="True"
+                                                      Margin="0,0,0,6"
+                                                      Checked="FormatCheckBox_Changed"
+                                                      Unchecked="FormatCheckBox_Changed" />
+                                            <CheckBox x:Name="MinorTicksCheckBox"
+                                                      Content="補助目盛を表示する"
+                                                      IsChecked="True"
+                                                      Margin="0,0,0,0"
+                                                      Checked="FormatCheckBox_Changed"
+                                                      Unchecked="FormatCheckBox_Changed" />
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <Expander Header="枠とグリッド" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox x:Name="PlotGridCheckBox"
+                                                          Grid.Column="0"
+                                                          Content="グリッドを表示"
+                                                          IsChecked="True"
+                                                          VerticalAlignment="Center"
+                                                          Checked="FormatCheckBox_Changed"
+                                                          Unchecked="FormatCheckBox_Changed" />
+                                                <CheckBox x:Name="PlotFrameCheckBox"
+                                                          Grid.Column="2"
+                                                          Content="プロット枠を表示"
+                                                          IsChecked="True"
+                                                          VerticalAlignment="Center"
+                                                          Checked="FormatCheckBox_Changed"
+                                                          Unchecked="FormatCheckBox_Changed" />
+                                            </Grid>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="枠線幅" />
+                                                    <TextBox x:Name="PlotFrameWidthTextBox"
+                                                             Style="{StaticResource InputTextBoxStyle}"
+                                                             Text="1"
+                                                             TextChanged="FormatTextBox_TextChanged" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="枠色" />
+                                                    <ComboBox x:Name="PlotFrameColorComboBox"
+                                                              Style="{StaticResource InputComboBoxStyle}"
+                                                              SelectedIndex="0"
+                                                              Margin="0,0,0,6"
+                                                              SelectionChanged="PlotFrameColorComboBox_SelectionChanged">
+                                                        <ComboBoxItem Content="Gray" Tag="#475569" />
+                                                        <ComboBoxItem Content="Black" Tag="#0F172A" />
+                                                        <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                                                        <ComboBoxItem Content="Red" Tag="#DC2626" />
+                                                        <ComboBoxItem Content="Green" Tag="#16A34A" />
+                                                        <ComboBoxItem Content="Custom" Tag="Custom" />
+                                                    </ComboBox>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="8" />
+                                                            <ColumnDefinition Width="28" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBox x:Name="PlotFrameColorHexTextBox"
+                                                                 Grid.Column="0"
+                                                                 Style="{StaticResource InputTextBoxStyle}"
+                                                                 Text="#475569"
+                                                                 ToolTip="カラーコード (#RRGGBB)"
+                                                                 TextChanged="PlotFrameColorHexTextBox_TextChanged" />
+                                                        <Border x:Name="PlotFrameColorPreviewBorder"
+                                                                Grid.Column="2"
+                                                                Height="28"
+                                                                Background="#475569"
+                                                                BorderBrush="#CBD5E1"
+                                                                BorderThickness="1"
+                                                                CornerRadius="4" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <Expander Header="背景" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="背景色" />
+                                            <ComboBox x:Name="BackgroundColorComboBox"
+                                                      Style="{StaticResource InputComboBoxStyle}"
+                                                      SelectedIndex="0"
+                                                      Margin="0,0,0,6"
+                                                      SelectionChanged="BackgroundColorComboBox_SelectionChanged">
+                                                <ComboBoxItem Content="White" Tag="#FFFFFF" />
+                                                <ComboBoxItem Content="Off-white" Tag="#F8FAFC" />
+                                                <ComboBoxItem Content="Light gray" Tag="#E2E8F0" />
+                                                <ComboBoxItem Content="Black" Tag="#0F172A" />
+                                                <ComboBoxItem Content="Custom" Tag="Custom" />
+                                            </ComboBox>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="28" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="BackgroundColorHexTextBox"
+                                                         Grid.Column="0"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         Text="#FFFFFF"
+                                                         ToolTip="カラーコード (#RRGGBB)"
+                                                         TextChanged="BackgroundColorHexTextBox_TextChanged" />
+                                                <Border x:Name="BackgroundColorPreviewBorder"
+                                                        Grid.Column="2"
+                                                        Height="28"
+                                                        Background="#FFFFFF"
+                                                        BorderBrush="#CBD5E1"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <Expander Header="線スタイル" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="既定の線色" />
+                                            <ComboBox x:Name="LineColorComboBox"
+                                                      Style="{StaticResource InputComboBoxStyle}"
+                                                      SelectedIndex="0"
+                                                      Margin="0,0,0,6"
+                                                      SelectionChanged="LineColorComboBox_SelectionChanged">
+                                                <ComboBoxItem Content="Auto (パレット)" Tag="Auto" />
+                                                <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                                                <ComboBoxItem Content="Red" Tag="#DC2626" />
+                                                <ComboBoxItem Content="Green" Tag="#16A34A" />
+                                                <ComboBoxItem Content="Black" Tag="#0F172A" />
+                                                <ComboBoxItem Content="Custom" Tag="Custom" />
+                                            </ComboBox>
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="28" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="LineColorHexTextBox"
+                                                         Grid.Column="0"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         Text="Auto"
+                                                         ToolTip="Auto またはカラーコード (#RRGGBB)"
+                                                         TextChanged="LineColorHexTextBox_TextChanged" />
+                                                <Border x:Name="LineColorPreviewBorder"
+                                                        Grid.Column="2"
+                                                        Height="28"
+                                                        Background="#2563EB"
+                                                        BorderBrush="#CBD5E1"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4" />
+                                            </Grid>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="線幅" />
+                                                    <TextBox x:Name="LineWidthTextBox"
+                                                             Style="{StaticResource InputTextBoxStyle}"
+                                                             Text="1.5"
+                                                             TextChanged="FormatTextBox_TextChanged" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="マーカー" />
+                                                    <TextBox x:Name="MarkerSizeTextBox"
+                                                             Style="{StaticResource InputTextBoxStyle}"
+                                                             Text="0"
+                                                             TextChanged="FormatTextBox_TextChanged" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="アスペクト比" />
+                                    <ComboBox x:Name="AspectRatioComboBox"
+                                              Style="{StaticResource InputComboBoxStyle}"
+                                              SelectedIndex="0"
+                                              SelectionChanged="FormatComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="Auto" Tag="Auto" />
+                                        <ComboBoxItem Content="16:9" Tag="16:9" />
+                                        <ComboBoxItem Content="4:3" Tag="4:3" />
+                                        <ComboBoxItem Content="3:2" Tag="3:2" />
+                                        <ComboBoxItem Content="1:1" Tag="1:1" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </Expander>
+
+                            <Expander Header="軸範囲" IsExpanded="False" Margin="0,4,0,0">
                                 <StackPanel Margin="0,8,0,0">
                                     <TextBlock Style="{StaticResource FieldLabelStyle}" Text="粒径軸 (nm)" />
                                     <ComboBox x:Name="XAxisModeComboBox"

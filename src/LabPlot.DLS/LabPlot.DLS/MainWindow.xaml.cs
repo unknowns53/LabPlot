@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using DlsAnalyzer.Core;
 using LabPlot.Core;
 using Microsoft.Win32;
@@ -169,6 +170,155 @@ public partial class MainWindow : Window
         RefreshPlot();
     }
 
+    private void FormatCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        // IsEditable=True の ComboBox は SelectionChanged だけだとリストにないフォント名を
+        // 打ち込んだとき反映されない。テンプレート内の編集用 TextBox を取り出して
+        // TextChanged を購読し、自由入力でも再描画が走るようにする（GPC と同じ手法）。
+        if (GraphFontComboBox.Template?.FindName("PART_EditableTextBox", GraphFontComboBox) is TextBox editableTextBox)
+        {
+            editableTextBox.TextChanged -= GraphFontComboBox_EditableTextChanged;
+            editableTextBox.TextChanged += GraphFontComboBox_EditableTextChanged;
+        }
+    }
+
+    private void GraphFontComboBox_EditableTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void PlotFrameColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        SyncPlotFrameColorInputFromComboBox();
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void PlotFrameColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        if (PlotFrameColorPreviewBorder is null) return;
+
+        var hex = GetPlotFrameColorHex();
+        _suppressFormattingEvents = true;
+        try
+        {
+            SelectColorComboBoxValue(PlotFrameColorComboBox, hex, false);
+        }
+        finally
+        {
+            _suppressFormattingEvents = false;
+        }
+
+        UpdatePlotFrameColorPreview(hex);
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void BackgroundColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        SyncBackgroundColorInputFromComboBox();
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void BackgroundColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        if (BackgroundColorPreviewBorder is null) return;
+
+        var hex = GetBackgroundColorHex();
+        _suppressFormattingEvents = true;
+        try
+        {
+            SelectColorComboBoxValue(BackgroundColorComboBox, hex, false);
+        }
+        finally
+        {
+            _suppressFormattingEvents = false;
+        }
+
+        UpdateBackgroundColorPreview(hex);
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void LineColorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        if (LineColorComboBox.SelectedItem is not ComboBoxItem item) return;
+        if (item.Tag is not string tag) return;
+
+        // Tag-driven ComboBox commits its choice straight into the hex TextBox
+        // (Auto -> "Auto" sentinel, named hex -> normalized hex, Custom keeps
+        // the existing free-form text so the user can finish typing).
+        _suppressFormattingEvents = true;
+        try
+        {
+            if (tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                SetLineColorInput(null);
+            }
+            else if (!tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+            {
+                SetLineColorInput(tag);
+            }
+        }
+        finally
+        {
+            _suppressFormattingEvents = false;
+        }
+
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void LineColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        if (LineColorPreviewBorder is null) return;
+
+        string? inputHex = null;
+        if (!IsAutoColorText(LineColorHexTextBox.Text)
+            && TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex))
+        {
+            inputHex = hex;
+        }
+
+        _suppressFormattingEvents = true;
+        try
+        {
+            SelectColorComboBoxValue(LineColorComboBox, inputHex, true);
+        }
+        finally
+        {
+            _suppressFormattingEvents = false;
+        }
+
+        UpdateLineColorPreview(inputHex);
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
     private void ClearActiveDatasets()
     {
         _selectedDatasets.Clear();
@@ -309,8 +459,15 @@ public partial class MainWindow : Window
 
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
     {
-        // Colour is keyed off the dataset's position in _datasets so it stays
-        // stable as the user toggles selection on/off in the sidebar.
+        // Default line colour overrides the per-dataset palette when the user
+        // has picked an explicit hex (or a non-Auto preset). Auto keeps the
+        // stable per-dataset palette indexed off _datasets.
+        if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
+        {
+            scatter.Color = ScottPlot.Color.FromHex(new[] { _formattingConfig.DefaultLineColorHex }).First();
+            return;
+        }
+
         var index = _datasets.IndexOf(dataset);
         if (index < 0) index = 0;
         var hex = AutoLineColors[index % AutoLineColors.Length];
@@ -393,28 +550,29 @@ public partial class MainWindow : Window
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
     {
-        // Inherit any common-property values from the existing config so the
-        // 3b-2 shared-format UI can plug in without 3b-1 erasing them. Until
-        // 3b-2 ships, these fields stay at their factory defaults.
         var config = new GraphFormattingConfig
         {
-            FontName = _formattingConfig.FontName,
-            FontSize = _formattingConfig.FontSize,
-            ShowGrid = _formattingConfig.ShowGrid,
-            ShowYAxisTickLabels = _formattingConfig.ShowYAxisTickLabels,
-            ShowMajorTicks = _formattingConfig.ShowMajorTicks,
-            ShowMinorTicks = _formattingConfig.ShowMinorTicks,
-            ShowPlotFrame = _formattingConfig.ShowPlotFrame,
-            PlotFrameWidth = _formattingConfig.PlotFrameWidth,
-            PlotFrameColorHex = _formattingConfig.PlotFrameColorHex,
-            BackgroundColorHex = _formattingConfig.BackgroundColorHex,
-            ShowTitle = _formattingConfig.ShowTitle,
-            TitleBold = _formattingConfig.TitleBold,
-            AxisLabelBold = _formattingConfig.AxisLabelBold,
-            AspectRatio = _formattingConfig.AspectRatio,
-            DefaultLineColorHex = _formattingConfig.DefaultLineColorHex,
-            LineWidth = _formattingConfig.LineWidth,
-            MarkerSize = _formattingConfig.MarkerSize,
+            FontName = GetSelectedGraphFontName(),
+            FontSize = GetPlotFontSize(),
+            ShowGrid = PlotGridCheckBox.IsChecked == true,
+            ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true,
+            ShowMajorTicks = MajorTicksCheckBox.IsChecked == true,
+            ShowMinorTicks = MinorTicksCheckBox.IsChecked == true,
+            ShowPlotFrame = PlotFrameCheckBox.IsChecked == true,
+            PlotFrameWidth = GetPlotFrameWidth(),
+            PlotFrameColorHex = GetPlotFrameColorHex(),
+            BackgroundColorHex = GetBackgroundColorHex(),
+            ShowTitle = TitleVisibleCheckBox.IsChecked == true,
+            TitleBold = TitleBoldCheckBox.IsChecked == true,
+            AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
+            AspectRatio = GetSelectedAspectRatioConfigValue(),
+            DefaultLineColorHex = GetSelectedLineColorConfigValue(),
+            LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
+                ? lineWidth
+                : GraphFormattingConfig.DefaultLineWidth,
+            MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
+                ? markerSize
+                : GraphFormattingConfig.DefaultMarkerSize,
             DefaultOutputDirectory = _formattingConfig.DefaultOutputDirectory,
             XAxisMode = GetComboBoxTag(XAxisModeComboBox),
             XAxisMinNm = TryParseDouble(XAxisMinTextBox.Text, out var xmin)
@@ -448,6 +606,24 @@ public partial class MainWindow : Window
         _suppressFormattingEvents = true;
         try
         {
+            SelectComboBoxByTag(GraphFontComboBox, config.FontName ?? "Auto");
+            GraphFontSizeTextBox.Text = config.FormatFontSize();
+            PlotGridCheckBox.IsChecked = config.ShowGrid;
+            YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
+            MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
+            MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
+            PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
+            PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
+            SetPlotFrameColorInput(config.PlotFrameColorHex);
+            SetBackgroundColorInput(config.BackgroundColorHex);
+            TitleVisibleCheckBox.IsChecked = config.ShowTitle;
+            TitleBoldCheckBox.IsChecked = config.TitleBold;
+            AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
+            SelectComboBoxByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto");
+            SetLineColorInput(config.DefaultLineColorHex);
+            LineWidthTextBox.Text = config.FormatLineWidth();
+            MarkerSizeTextBox.Text = config.FormatMarkerSize();
+
             SelectComboBoxByTag(XAxisModeComboBox, config.XAxisMode ?? "Auto");
             XAxisMinTextBox.Text = FormatDouble(config.XAxisMinNm);
             XAxisMaxTextBox.Text = FormatDouble(config.XAxisMaxNm);
@@ -465,6 +641,165 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---------- Capture helpers ----------
+
+    private string? GetSelectedGraphFontName()
+    {
+        if (GraphFontComboBox.SelectedItem is ComboBoxItem item
+            && item.Tag is string selectedTag
+            && !selectedTag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return selectedTag;
+        }
+
+        var text = GraphFontComboBox.Text.Trim();
+        return string.IsNullOrWhiteSpace(text) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : text;
+    }
+
+    private double GetPlotFontSize()
+        => TryParsePositiveDouble(GraphFontSizeTextBox.Text, out var fontSize)
+            ? fontSize
+            : GraphFormattingConfig.DefaultFontSize;
+
+    private double GetPlotFrameWidth()
+        => TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var width)
+            ? width
+            : GraphFormattingConfig.DefaultPlotFrameWidth;
+
+    private string GetPlotFrameColorHex()
+        => TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex)
+            ? hex
+            : GraphFormattingConfig.DefaultPlotFrameColorHex;
+
+    private string GetBackgroundColorHex()
+        => TryNormalizeHexColorCode(BackgroundColorHexTextBox.Text, out var hex)
+            ? hex
+            : GraphFormattingConfig.DefaultBackgroundColorHex;
+
+    private string? GetSelectedLineColorConfigValue()
+    {
+        if (IsAutoColorText(LineColorHexTextBox.Text)) return null;
+        return TryNormalizeHexColorCode(LineColorHexTextBox.Text, out var hex) ? hex : null;
+    }
+
+    private string? GetSelectedAspectRatioConfigValue()
+    {
+        var ratioText = GetComboBoxTag(AspectRatioComboBox) ?? AspectRatioComboBox.Text.Trim();
+        return string.IsNullOrWhiteSpace(ratioText)
+            || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : ratioText;
+    }
+
+    // ---------- Apply helpers (config -> controls) ----------
+
+    private void SetPlotFrameColorInput(string? hex)
+    {
+        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultPlotFrameColorHex;
+
+        if (!SelectComboBoxByTag(PlotFrameColorComboBox, normalized))
+        {
+            SelectComboBoxByTag(PlotFrameColorComboBox, "Custom");
+        }
+
+        PlotFrameColorHexTextBox.Text = normalized;
+        UpdatePlotFrameColorPreview(normalized);
+    }
+
+    private void SetBackgroundColorInput(string? hex)
+    {
+        var normalized = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultBackgroundColorHex;
+
+        if (!SelectComboBoxByTag(BackgroundColorComboBox, normalized))
+        {
+            SelectComboBoxByTag(BackgroundColorComboBox, "Custom");
+        }
+
+        BackgroundColorHexTextBox.Text = normalized;
+        UpdateBackgroundColorPreview(normalized);
+    }
+
+    private void SetLineColorInput(string? hex)
+    {
+        LineColorHexTextBox.Text = string.IsNullOrWhiteSpace(hex) ? "Auto" : NormalizeHexColorCode(hex);
+        UpdateLineColorPreview(hex);
+    }
+
+    private void SyncPlotFrameColorInputFromComboBox()
+    {
+        var tag = GetComboBoxTag(PlotFrameColorComboBox);
+        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdatePlotFrameColorPreview(GetPlotFrameColorHex());
+            return;
+        }
+        SetPlotFrameColorInput(tag);
+    }
+
+    private void SyncBackgroundColorInputFromComboBox()
+    {
+        var tag = GetComboBoxTag(BackgroundColorComboBox);
+        if (string.IsNullOrWhiteSpace(tag) || tag.Equals("Custom", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateBackgroundColorPreview(GetBackgroundColorHex());
+            return;
+        }
+        SetBackgroundColorInput(tag);
+    }
+
+    private void UpdatePlotFrameColorPreview(string? hex)
+    {
+        if (PlotFrameColorPreviewBorder is null) return;
+        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultPlotFrameColorHex;
+        PlotFrameColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
+    }
+
+    private void UpdateBackgroundColorPreview(string? hex)
+    {
+        if (BackgroundColorPreviewBorder is null) return;
+        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : GraphFormattingConfig.DefaultBackgroundColorHex;
+        BackgroundColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
+    }
+
+    private void UpdateLineColorPreview(string? hex)
+    {
+        if (LineColorPreviewBorder is null) return;
+        var previewHex = TryNormalizeHexColorCode(hex, out var colorHex)
+            ? colorHex
+            : AutoLineColors[0];
+        LineColorPreviewBorder.Background = new SolidColorBrush(HexToMediaColor(previewHex));
+    }
+
+    private static void SelectColorComboBoxValue(ComboBox comboBox, string? hex, bool allowAuto)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            if (allowAuto && SelectComboBoxByTag(comboBox, "Auto"))
+            {
+                return;
+            }
+            SelectComboBoxByTag(comboBox, "Custom");
+            return;
+        }
+
+        if (!SelectComboBoxByTag(comboBox, hex))
+        {
+            SelectComboBoxByTag(comboBox, "Custom");
+        }
+    }
+
+    // ---------- Generic helpers ----------
+
     private static ScottPlot.Alignment MapAlignment(string position) => position switch
     {
         "UpperRight" => ScottPlot.Alignment.UpperRight,
@@ -481,18 +816,20 @@ public partial class MainWindow : Window
         return item.Tag as string;
     }
 
-    private static void SelectComboBoxByTag(ComboBox combo, string tag)
+    private static bool SelectComboBoxByTag(ComboBox combo, string tag)
     {
-        foreach (var raw in combo.Items)
+        var desired = string.IsNullOrWhiteSpace(tag) ? "Auto" : tag.Trim();
+        for (var i = 0; i < combo.Items.Count; i++)
         {
-            if (raw is ComboBoxItem item
+            if (combo.Items[i] is ComboBoxItem item
                 && item.Tag is string s
-                && string.Equals(s, tag, StringComparison.OrdinalIgnoreCase))
+                && string.Equals(s, desired, StringComparison.OrdinalIgnoreCase))
             {
-                combo.SelectedItem = item;
-                return;
+                combo.SelectedIndex = i;
+                return true;
             }
         }
+        return false;
     }
 
     private static bool TryParseDouble(string? text, out double value)
@@ -501,8 +838,44 @@ public partial class MainWindow : Window
     private static bool TryParseInt(string? text, out int value)
         => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
 
+    private static bool TryParsePositiveDouble(string? text, out double value)
+        => TryParseDouble(text, out value) && value > 0 && double.IsFinite(value);
+
+    private static bool TryParseNonNegativeDouble(string? text, out double value)
+        => TryParseDouble(text, out value) && value >= 0 && double.IsFinite(value);
+
     private static string FormatDouble(double value)
         => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static bool IsAutoColorText(string? text)
+        => string.IsNullOrWhiteSpace(text)
+            || text.Trim().Equals("Auto", StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeHexColorCode(string text)
+        => TryNormalizeHexColorCode(text, out var hex) ? hex : "#000000";
+
+    private static bool TryNormalizeHexColorCode(string? text, out string hex)
+    {
+        hex = string.Empty;
+        var value = text?.Trim();
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        if (value.StartsWith('#')) value = value[1..];
+        if (value.Length != 6 || !value.All(Uri.IsHexDigit)) return false;
+        hex = $"#{value.ToUpperInvariant()}";
+        return true;
+    }
+
+    private static Color HexToMediaColor(string hex)
+    {
+        try
+        {
+            return (Color)ColorConverter.ConvertFromString(hex);
+        }
+        catch
+        {
+            return Colors.Gray;
+        }
+    }
 
     private static DistributionMode DistributionModeFromTag(string? tag) => tag switch
     {

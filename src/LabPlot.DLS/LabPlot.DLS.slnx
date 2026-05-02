@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../LabPlot.Core/LabPlot.Core.csproj" />
+  <Project Path="../LabPlot.Core.Wpf/LabPlot.Core.Wpf.csproj" />
+  <Project Path="DlsAnalyzer.Core/DlsAnalyzer.Core.csproj" />
+  <Project Path="DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj" />
+  <Project Path="LabPlot.DLS/LabPlot.DLS.csproj" />
+</Solution>

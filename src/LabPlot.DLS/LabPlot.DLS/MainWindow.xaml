@@ -1,0 +1,19 @@
+<Window x:Class="LabPlot.DLS.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:LabPlot.DLS"
+        Title="LabPlot DLS"
+        Width="1280"
+        Height="800"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True">
+    <Grid>
+        <TextBlock Text="LabPlot.DLS (Batch 0 skeleton)"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Foreground="#475569"
+                   FontSize="16" />
+    </Grid>
+</Window>

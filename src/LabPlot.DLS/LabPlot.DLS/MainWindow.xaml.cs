@@ -9,6 +9,7 @@ using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 using static LabPlot.Core.PlotAppearance;
+using static LabPlot.Core.Wpf.FormatHelpers;
 
 namespace LabPlot.DLS;
 
@@ -815,73 +816,6 @@ public partial class MainWindow : Window
         "MiddleRight" => ScottPlot.Alignment.MiddleRight,
         _ => ScottPlot.Alignment.UpperRight,
     };
-
-    private static string? GetComboBoxTag(ComboBox combo)
-    {
-        if (combo.SelectedItem is not ComboBoxItem item) return null;
-        return item.Tag as string;
-    }
-
-    private static bool SelectComboBoxByTag(ComboBox combo, string tag)
-    {
-        var desired = string.IsNullOrWhiteSpace(tag) ? "Auto" : tag.Trim();
-        for (var i = 0; i < combo.Items.Count; i++)
-        {
-            if (combo.Items[i] is ComboBoxItem item
-                && item.Tag is string s
-                && string.Equals(s, desired, StringComparison.OrdinalIgnoreCase))
-            {
-                combo.SelectedIndex = i;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static bool TryParseDouble(string? text, out double value)
-        => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-
-    private static bool TryParseInt(string? text, out int value)
-        => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
-    private static bool TryParsePositiveDouble(string? text, out double value)
-        => TryParseDouble(text, out value) && value > 0 && double.IsFinite(value);
-
-    private static bool TryParseNonNegativeDouble(string? text, out double value)
-        => TryParseDouble(text, out value) && value >= 0 && double.IsFinite(value);
-
-    private static string FormatDouble(double value)
-        => value.ToString("0.###", CultureInfo.InvariantCulture);
-
-    private static bool IsAutoColorText(string? text)
-        => string.IsNullOrWhiteSpace(text)
-            || text.Trim().Equals("Auto", StringComparison.OrdinalIgnoreCase);
-
-    private static string NormalizeHexColorCode(string text)
-        => TryNormalizeHexColorCode(text, out var hex) ? hex : "#000000";
-
-    private static bool TryNormalizeHexColorCode(string? text, out string hex)
-    {
-        hex = string.Empty;
-        var value = text?.Trim();
-        if (string.IsNullOrWhiteSpace(value)) return false;
-        if (value.StartsWith('#')) value = value[1..];
-        if (value.Length != 6 || !value.All(Uri.IsHexDigit)) return false;
-        hex = $"#{value.ToUpperInvariant()}";
-        return true;
-    }
-
-    private static Color HexToMediaColor(string hex)
-    {
-        try
-        {
-            return (Color)ColorConverter.ConvertFromString(hex);
-        }
-        catch
-        {
-            return Colors.Gray;
-        }
-    }
 
     private static DistributionMode DistributionModeFromTag(string? tag) => tag switch
     {

@@ -15,6 +15,7 @@ using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 using static LabPlot.Core.PlotAppearance;
+using static LabPlot.Core.Wpf.FormatHelpers;
 
 namespace GPC_Visualization;
 
@@ -1852,22 +1853,6 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(name) ? $"dataset {index + 1}" : name;
     }
 
-    private static bool TryParsePositiveDouble(string text, out double value)
-    {
-        return TryParseDouble(text, out value) && value > 0;
-    }
-
-    private static bool TryParseNonNegativeDouble(string text, out double value)
-    {
-        return TryParseDouble(text, out value) && value >= 0;
-    }
-
-    private static bool TryParseDouble(string text, out double value)
-    {
-        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out value)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
-    }
-
     private bool ShouldShowLegend(IEnumerable<int> datasetIndices)
     {
         var indices = datasetIndices.ToArray();
@@ -3431,41 +3416,6 @@ public partial class MainWindow : Window
         return _formattingDefaults.DefaultLineColorHex ?? AutoLineColors[0];
     }
 
-    private static bool IsAutoColorText(string? text)
-    {
-        return string.IsNullOrWhiteSpace(text)
-            || text.Trim().Equals("Auto", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeHexColorCode(string text)
-    {
-        return TryNormalizeHexColorCode(text, out var hex) ? hex : "#000000";
-    }
-
-    private static bool TryNormalizeHexColorCode(string? text, out string hex)
-    {
-        hex = string.Empty;
-
-        var value = text?.Trim();
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        if (value.StartsWith('#'))
-        {
-            value = value[1..];
-        }
-
-        if (value.Length != 6 || !value.All(Uri.IsHexDigit))
-        {
-            return false;
-        }
-
-        hex = $"#{value.ToUpperInvariant()}";
-        return true;
-    }
-
     private double? GetSelectedAspectRatio()
     {
         var ratioText = AspectRatioComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag
@@ -3703,15 +3653,4 @@ public partial class MainWindow : Window
         return result;
     }
 
-    private static Color HexToMediaColor(string hex)
-    {
-        try
-        {
-            return (Color)ColorConverter.ConvertFromString(hex);
-        }
-        catch
-        {
-            return Colors.Gray;
-        }
-    }
 }

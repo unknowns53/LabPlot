@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using System.Windows.Media;
 using GpcAnalyzer.Core;
+using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 
@@ -811,7 +812,7 @@ public partial class MainWindow : Window
 
     private AnalysisExport BuildAnalysisExport()
     {
-        var entries = new List<AnalysisExportEntry>();
+        var entries = new List<GpcAnalysisExportEntry>();
         var plotEntries = GetDatasetsToPlotWithIndices();
         var molecularWeightEnabled =
             MolecularWeightCheckBox.IsChecked == true && _selectedCalibrationCurve is not null;
@@ -838,7 +839,7 @@ public partial class MainWindow : Window
 
             stats = ApplyStoredSelectedPeak(stats, index);
 
-            entries.Add(new AnalysisExportEntry
+            entries.Add(new GpcAnalysisExportEntry
             {
                 DisplayName = Path.GetFileName(dataset.SourceFilePath) ?? $"dataset_{index + 1}",
                 SourceFilePath = dataset.SourceFilePath,
@@ -854,6 +855,7 @@ public partial class MainWindow : Window
         return new AnalysisExport
         {
             Entries = entries,
+            GeneratorName = "GPC Visualization",
         };
     }
 

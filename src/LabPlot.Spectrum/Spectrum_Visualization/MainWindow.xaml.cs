@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using System.Windows.Media;
 using SpectrumAnalyzer.Core;
+using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 
@@ -887,7 +888,7 @@ public partial class MainWindow : Window
 
     private AnalysisExport BuildAnalysisExport()
     {
-        var entries = new List<AnalysisExportEntry>();
+        var entries = new List<SpectrumAnalysisExportEntry>();
         var plotEntries = GetDatasetsToPlotWithIndices();
         var yDisplayMode = GetSelectedYAxisDisplayMode();
 
@@ -897,7 +898,7 @@ public partial class MainWindow : Window
                 ?? Path.GetFileNameWithoutExtension(dataset.SourceFilePath)
                 ?? $"dataset {index + 1}";
 
-            entries.Add(new AnalysisExportEntry
+            entries.Add(new SpectrumAnalysisExportEntry
             {
                 DisplayName = displayName,
                 SourceFilePath = dataset.SourceFilePath,
@@ -910,6 +911,7 @@ public partial class MainWindow : Window
         return new AnalysisExport
         {
             Entries = entries,
+            GeneratorName = "Spectrum Visualization",
         };
     }
 

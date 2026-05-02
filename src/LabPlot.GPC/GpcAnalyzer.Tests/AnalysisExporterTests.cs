@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using GpcAnalyzer.Core;
+using LabPlot.Core;
 
 namespace GpcAnalyzer.Tests;
 
@@ -140,7 +141,7 @@ public sealed class AnalysisExporterTests
             };
         }
 
-        var entry = new AnalysisExportEntry
+        var entry = new GpcAnalysisExportEntry
         {
             DisplayName = "Sample.txt",
             SourceFilePath = "Sample.txt",
@@ -160,6 +161,7 @@ public sealed class AnalysisExporterTests
         return new AnalysisExport
         {
             Entries = new[] { entry },
+            GeneratorName = "GPC Visualization",
             CreatedAt = new DateTimeOffset(2026, 4, 30, 12, 34, 56, TimeSpan.Zero),
         };
     }

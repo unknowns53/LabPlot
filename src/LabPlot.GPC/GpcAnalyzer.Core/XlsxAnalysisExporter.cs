@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using LabPlot.Core;
 
 namespace GpcAnalyzer.Core;
 
@@ -11,11 +12,12 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
             throw new ArgumentException("Output file path is required.", nameof(filePath));
         }
 
+        var entries = data.Entries.Cast<GpcAnalysisExportEntry>().ToArray();
         using var workbook = new XLWorkbook();
-        AddStatisticsSheet(workbook, data);
-        AddPeakListSheet(workbook, data);
-        AddChromatogramSheet(workbook, data);
-        AddMolecularWeightSheet(workbook, data);
+        AddStatisticsSheet(workbook, data, entries);
+        AddPeakListSheet(workbook, entries);
+        AddChromatogramSheet(workbook, entries);
+        AddMolecularWeightSheet(workbook, entries);
 
         if (workbook.Worksheets.Count == 0)
         {
@@ -25,7 +27,10 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         workbook.SaveAs(filePath);
     }
 
-    private static void AddStatisticsSheet(XLWorkbook workbook, AnalysisExport data)
+    private static void AddStatisticsSheet(
+        XLWorkbook workbook,
+        AnalysisExport data,
+        IReadOnlyList<GpcAnalysisExportEntry> entries)
     {
         var sheet = workbook.AddWorksheet("Statistics");
         sheet.Cell(1, 1).Value = "Generated";
@@ -43,7 +48,7 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         sheet.Cell(headerRow, 7).Value = "Selected Peak";
 
         var row = headerRow + 1;
-        foreach (var entry in data.Entries)
+        foreach (var entry in entries)
         {
             sheet.Cell(row, 1).Value = entry.DisplayName;
             sheet.Cell(row, 2).Value = entry.Detector ?? string.Empty;
@@ -59,9 +64,9 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         sheet.Columns().AdjustToContents();
     }
 
-    private static void AddPeakListSheet(XLWorkbook workbook, AnalysisExport data)
+    private static void AddPeakListSheet(XLWorkbook workbook, IReadOnlyList<GpcAnalysisExportEntry> entries)
     {
-        var hasPeaks = data.Entries.Any(entry => entry.Statistics?.Peaks.Count > 0);
+        var hasPeaks = entries.Any(entry => entry.Statistics?.Peaks.Count > 0);
         if (!hasPeaks)
         {
             return;
@@ -77,7 +82,7 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         sheet.Cell(1, 7).Value = "Percent";
 
         var row = 2;
-        foreach (var entry in data.Entries)
+        foreach (var entry in entries)
         {
             var stats = entry.Statistics;
             if (stats is null || stats.Peaks.Count == 0)
@@ -102,9 +107,9 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         sheet.Columns().AdjustToContents();
     }
 
-    private static void AddChromatogramSheet(XLWorkbook workbook, AnalysisExport data)
+    private static void AddChromatogramSheet(XLWorkbook workbook, IReadOnlyList<GpcAnalysisExportEntry> entries)
     {
-        var hasChromatogram = data.Entries.Any(entry => entry.ChromatogramPoints.Count > 0);
+        var hasChromatogram = entries.Any(entry => entry.ChromatogramPoints.Count > 0);
         if (!hasChromatogram)
         {
             return;
@@ -112,7 +117,7 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
 
         var sheet = workbook.AddWorksheet("Chromatogram");
         var col = 1;
-        foreach (var entry in data.Entries)
+        foreach (var entry in entries)
         {
             if (entry.ChromatogramPoints.Count == 0)
             {
@@ -137,9 +142,9 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         sheet.Columns(1, col - 1).Width = 16;
     }
 
-    private static void AddMolecularWeightSheet(XLWorkbook workbook, AnalysisExport data)
+    private static void AddMolecularWeightSheet(XLWorkbook workbook, IReadOnlyList<GpcAnalysisExportEntry> entries)
     {
-        var entriesWithMw = data.Entries
+        var entriesWithMw = entries
             .Where(entry => entry.MolecularWeightDataset is not null && entry.MolecularWeightDataset.Points.Count > 0)
             .ToArray();
         if (entriesWithMw.Length == 0)
@@ -179,7 +184,7 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         sheet.Columns(1, col - 1).Width = 16;
     }
 
-    private static string BuildSeriesLabel(AnalysisExportEntry entry)
+    private static string BuildSeriesLabel(GpcAnalysisExportEntry entry)
     {
         if (string.IsNullOrWhiteSpace(entry.Detector))
         {

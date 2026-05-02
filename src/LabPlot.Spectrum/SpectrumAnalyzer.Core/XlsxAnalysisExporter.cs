@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using LabPlot.Core;
 
 namespace SpectrumAnalyzer.Core;
 
@@ -11,8 +12,9 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
             throw new ArgumentException("Output file path is required.", nameof(filePath));
         }
 
+        var entries = data.Entries.Cast<SpectrumAnalysisExportEntry>().ToArray();
         using var workbook = new XLWorkbook();
-        AddSpectrumSheet(workbook, data);
+        AddSpectrumSheet(workbook, data, entries);
 
         if (workbook.Worksheets.Count == 0)
         {
@@ -22,9 +24,12 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
         workbook.SaveAs(filePath);
     }
 
-    private static void AddSpectrumSheet(XLWorkbook workbook, AnalysisExport data)
+    private static void AddSpectrumSheet(
+        XLWorkbook workbook,
+        AnalysisExport data,
+        IReadOnlyList<SpectrumAnalysisExportEntry> entries)
     {
-        var hasData = data.Entries.Any(entry => entry.Points.Count > 0);
+        var hasData = entries.Any(entry => entry.Points.Count > 0);
         if (!hasData)
         {
             return;
@@ -38,7 +43,7 @@ public sealed class XlsxAnalysisExporter : IAnalysisExporter
 
         var headerRow = 4;
         var col = 1;
-        foreach (var entry in data.Entries)
+        foreach (var entry in entries)
         {
             if (entry.Points.Count == 0)
             {

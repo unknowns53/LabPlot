@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using LabPlot.Core;
 
 namespace GpcAnalyzer.Core;
 
@@ -28,15 +29,16 @@ public sealed class CsvAnalysisExporter : IAnalysisExporter
 
     private static void WriteText(TextWriter writer, AnalysisExport data)
     {
+        var entries = data.Entries.Cast<GpcAnalysisExportEntry>().ToArray();
         WriteHeader(writer, data);
-        WriteStatisticsSection(writer, data.Entries);
-        WritePeakListSection(writer, data.Entries);
-        foreach (var entry in data.Entries)
+        WriteStatisticsSection(writer, entries);
+        WritePeakListSection(writer, entries);
+        foreach (var entry in entries)
         {
             WriteChromatogramSection(writer, entry);
         }
 
-        foreach (var entry in data.Entries)
+        foreach (var entry in entries)
         {
             if (entry.MolecularWeightDataset is null)
             {
@@ -56,7 +58,7 @@ public sealed class CsvAnalysisExporter : IAnalysisExporter
 
     private static void WriteStatisticsSection(
         TextWriter writer,
-        IReadOnlyList<AnalysisExportEntry> entries)
+        IReadOnlyList<GpcAnalysisExportEntry> entries)
     {
         writer.WriteLine("# Statistics");
         writer.WriteLine("File,Detector,Mn,Mw,Dispersity (Ð),Source,SelectedPeak");
@@ -79,7 +81,7 @@ public sealed class CsvAnalysisExporter : IAnalysisExporter
 
     private static void WritePeakListSection(
         TextWriter writer,
-        IReadOnlyList<AnalysisExportEntry> entries)
+        IReadOnlyList<GpcAnalysisExportEntry> entries)
     {
         writer.WriteLine("# Peak List");
         writer.WriteLine("File,Detector,Peak#,Mn,Mw,Dispersity (Ð),Percent");
@@ -108,7 +110,7 @@ public sealed class CsvAnalysisExporter : IAnalysisExporter
         writer.WriteLine();
     }
 
-    private static void WriteChromatogramSection(TextWriter writer, AnalysisExportEntry entry)
+    private static void WriteChromatogramSection(TextWriter writer, GpcAnalysisExportEntry entry)
     {
         var label = string.IsNullOrWhiteSpace(entry.Detector)
             ? entry.DisplayName
@@ -126,7 +128,7 @@ public sealed class CsvAnalysisExporter : IAnalysisExporter
         writer.WriteLine();
     }
 
-    private static void WriteMolecularWeightSection(TextWriter writer, AnalysisExportEntry entry)
+    private static void WriteMolecularWeightSection(TextWriter writer, GpcAnalysisExportEntry entry)
     {
         var dataset = entry.MolecularWeightDataset!;
         var label = string.IsNullOrWhiteSpace(entry.Detector)

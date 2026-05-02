@@ -101,7 +101,7 @@ public partial class MainWindow : Window
         AddShortcut(System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control,
             () => ExportDataButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.R, System.Windows.Input.ModifierKeys.Control,
-            () => AutoAxisRangeButton_Click(this, new RoutedEventArgs()));
+            () => AxisRangePanel.ResetToAuto());
         AddShortcut(System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
             () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift,
@@ -721,10 +721,8 @@ public partial class MainWindow : Window
         TitleTextBox.Clear();
         XLabelTextBox.Clear();
         YLabelTextBox.Clear();
-        XMinTextBox.Clear();
-        XMaxTextBox.Clear();
-        YMinTextBox.Clear();
-        YMaxTextBox.Clear();
+        AxisRangePanel.SetXValues(null, null);
+        AxisRangePanel.SetYValues(null, null);
         ApplyFormattingConfigToControls(_formattingDefaults);
 
         foreach (var style in _datasetStyles)
@@ -1010,10 +1008,10 @@ public partial class MainWindow : Window
             Mode = MolecularWeightCheckBox.IsChecked == true
                 ? nameof(AnalysisSessionAxisMode.MolecularWeight)
                 : nameof(AnalysisSessionAxisMode.RetentionTime),
-            XMin = TryParseAxisInput(XMinTextBox.Text),
-            XMax = TryParseAxisInput(XMaxTextBox.Text),
-            YMin = TryParseAxisInput(YMinTextBox.Text),
-            YMax = TryParseAxisInput(YMaxTextBox.Text),
+            XMin = AxisRangePanel.XMinValue,
+            XMax = AxisRangePanel.XMaxValue,
+            YMin = AxisRangePanel.YMinValue,
+            YMax = AxisRangePanel.YMaxValue,
         };
 
         var labels = new AnalysisSessionLabels
@@ -1217,10 +1215,8 @@ public partial class MainWindow : Window
         XLabelTextBox.Text = session.Labels.XLabel ?? string.Empty;
         YLabelTextBox.Text = session.Labels.YLabel ?? string.Empty;
 
-        XMinTextBox.Text = FormatAxisOrEmpty(session.Axes.XMin);
-        XMaxTextBox.Text = FormatAxisOrEmpty(session.Axes.XMax);
-        YMinTextBox.Text = FormatAxisOrEmpty(session.Axes.YMin);
-        YMaxTextBox.Text = FormatAxisOrEmpty(session.Axes.YMax);
+        AxisRangePanel.SetXValues(session.Axes.XMin, session.Axes.XMax);
+        AxisRangePanel.SetYValues(session.Axes.YMin, session.Axes.YMax);
 
         SetGraphActionsEnabled(true);
         // PlotCurrentDataset() で _datasetSelectedPeakIds が反映されるので、
@@ -1245,29 +1241,6 @@ public partial class MainWindow : Window
                 return;
             }
         }
-    }
-
-    private static double? TryParseAxisInput(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return null;
-        }
-
-        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-            && double.IsFinite(value)
-            ? value
-            : null;
-    }
-
-    private static string FormatAxisOrEmpty(double? value)
-    {
-        if (!value.HasValue || !double.IsFinite(value.Value))
-        {
-            return string.Empty;
-        }
-
-        return value.Value.ToString("G", CultureInfo.InvariantCulture);
     }
 
     private static string? NullIfWhiteSpace(string? value)
@@ -1950,13 +1923,10 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (!TryReadOptionalDouble(XMinTextBox, "X Min", out var xMin)
-            || !TryReadOptionalDouble(XMaxTextBox, "X Max", out var xMax)
-            || !TryReadOptionalDouble(YMinTextBox, "Y Min", out var yMin)
-            || !TryReadOptionalDouble(YMaxTextBox, "Y Max", out var yMax))
-        {
-            return false;
-        }
+        var xMin = AxisRangePanel.XMinValue;
+        var xMax = AxisRangePanel.XMaxValue;
+        var yMin = AxisRangePanel.YMinValue;
+        var yMax = AxisRangePanel.YMaxValue;
 
         if (xIsMolecularWeight
             && (!TryConvertMolecularWeightLimit(ref xMin, "X Min")
@@ -2029,26 +1999,6 @@ public partial class MainWindow : Window
         }
 
         return true;
-    }
-
-    private bool TryReadOptionalDouble(TextBox textBox, string label, out double? value)
-    {
-        value = null;
-        var text = textBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return true;
-        }
-
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out var parsed)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
-        {
-            value = parsed;
-            return true;
-        }
-
-        SetStatus($"{label} must be a number.", true);
-        return false;
     }
 
     private string GetGraphTitle(string defaultTitle)
@@ -3178,35 +3128,11 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
-    private void AxisRangeTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void AxisRangePanel_Committed(object? sender, EventArgs e)
     {
-        if (e.Key != System.Windows.Input.Key.Enter && e.Key != System.Windows.Input.Key.Return)
+        if (_suppressGraphAppearanceEvents)
         {
             return;
-        }
-
-        e.Handled = true;
-        CommitAxisRangeFromInputs();
-    }
-
-    private void AxisRangeTextBox_LostFocus(object sender, RoutedEventArgs e)
-    {
-        CommitAxisRangeFromInputs();
-    }
-
-    private void AutoAxisRangeButton_Click(object sender, RoutedEventArgs e)
-    {
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            XMinTextBox.Clear();
-            XMaxTextBox.Clear();
-            YMinTextBox.Clear();
-            YMaxTextBox.Clear();
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
         }
 
         PlotCurrentDataset();
@@ -3234,58 +3160,13 @@ public partial class MainWindow : Window
         var xMin = xIsMolecularWeight ? Math.Pow(10, limits.Left) : limits.Left;
         var xMax = xIsMolecularWeight ? Math.Pow(10, limits.Right) : limits.Right;
 
-        _suppressGraphAppearanceEvents = true;
-        try
-        {
-            XMinTextBox.Text = FormatAxisLimit(xMin);
-            XMaxTextBox.Text = FormatAxisLimit(xMax);
-            YMinTextBox.Text = FormatAxisLimit(limits.Bottom);
-            YMaxTextBox.Text = FormatAxisLimit(limits.Top);
-        }
-        finally
-        {
-            _suppressGraphAppearanceEvents = false;
-        }
+        AxisRangePanel.SetXValues(xMin, xMax);
+        AxisRangePanel.SetYValues(limits.Bottom, limits.Top);
     }
 
     private static bool IsFiniteRange(double min, double max)
     {
         return double.IsFinite(min) && double.IsFinite(max) && min < max;
-    }
-
-    private static string FormatAxisLimit(double value)
-    {
-        return value.ToString("G6", CultureInfo.InvariantCulture);
-    }
-
-    private void CommitAxisRangeFromInputs()
-    {
-        if (_suppressGraphAppearanceEvents)
-        {
-            return;
-        }
-
-        if (!IsAxisRangeInputValidOrEmpty(XMinTextBox)
-            || !IsAxisRangeInputValidOrEmpty(XMaxTextBox)
-            || !IsAxisRangeInputValidOrEmpty(YMinTextBox)
-            || !IsAxisRangeInputValidOrEmpty(YMaxTextBox))
-        {
-            return;
-        }
-
-        PlotCurrentDataset();
-    }
-
-    private static bool IsAxisRangeInputValidOrEmpty(TextBox textBox)
-    {
-        var text = textBox.Text.Trim();
-        if (string.IsNullOrEmpty(text))
-        {
-            return true;
-        }
-
-        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out _)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out _);
     }
 
     private void AspectRatioComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

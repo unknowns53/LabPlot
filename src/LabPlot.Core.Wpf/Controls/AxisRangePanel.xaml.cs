@@ -23,6 +23,10 @@ public partial class AxisRangePanel : UserControl
         DependencyProperty.Register(nameof(YAxisLabel), typeof(string), typeof(AxisRangePanel),
             new PropertyMetadata("Y"));
 
+    public static readonly DependencyProperty NumberFormatProperty =
+        DependencyProperty.Register(nameof(NumberFormat), typeof(string), typeof(AxisRangePanel),
+            new PropertyMetadata("G"));
+
     private bool _suppressCommit;
 
     public AxisRangePanel()
@@ -43,6 +47,19 @@ public partial class AxisRangePanel : UserControl
     }
 
     /// <summary>
+    /// .NET numeric format string used when <see cref="SetXValues"/> /
+    /// <see cref="SetYValues"/> write back into the textboxes (e.g. after a
+    /// pan/zoom sync). Defaults to "G"; apps that want shorter display can
+    /// pass "G6" etc. Parsing always uses invariant culture, so the round
+    /// trip is lossy but stable.
+    /// </summary>
+    public string NumberFormat
+    {
+        get => (string)GetValue(NumberFormatProperty);
+        set => SetValue(NumberFormatProperty, value);
+    }
+
+    /// <summary>
     /// Fired when the user commits a new axis range (Enter, focus loss, or
     /// the auto reset button). Suppressed while <see cref="SetXValues"/> /
     /// <see cref="SetYValues"/> apply external state.
@@ -59,8 +76,8 @@ public partial class AxisRangePanel : UserControl
         _suppressCommit = true;
         try
         {
-            XMinTextBox.Text = Format(min);
-            XMaxTextBox.Text = Format(max);
+            XMinTextBox.Text = Format(min, NumberFormat);
+            XMaxTextBox.Text = Format(max, NumberFormat);
         }
         finally
         {
@@ -73,8 +90,8 @@ public partial class AxisRangePanel : UserControl
         _suppressCommit = true;
         try
         {
-            YMinTextBox.Text = Format(min);
-            YMaxTextBox.Text = Format(max);
+            YMinTextBox.Text = Format(min, NumberFormat);
+            YMaxTextBox.Text = Format(max, NumberFormat);
         }
         finally
         {
@@ -139,6 +156,8 @@ public partial class AxisRangePanel : UserControl
         return null;
     }
 
-    private static string Format(double? value)
-        => value.HasValue ? value.Value.ToString("G", CultureInfo.InvariantCulture) : string.Empty;
+    private static string Format(double? value, string format)
+        => value.HasValue
+            ? value.Value.ToString(string.IsNullOrEmpty(format) ? "G" : format, CultureInfo.InvariantCulture)
+            : string.Empty;
 }

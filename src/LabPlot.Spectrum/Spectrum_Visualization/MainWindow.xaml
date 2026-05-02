@@ -424,6 +424,7 @@
                                                   Content="グリッドを表示"
                                                   IsChecked="True"
                                                   VerticalAlignment="Center"
+                                                  ToolTip="グリッド線の表示を切替 (Ctrl+G)"
                                                   Checked="GraphAppearanceCheckBox_Changed"
                                                   Unchecked="GraphAppearanceCheckBox_Changed" />
                                         <CheckBox x:Name="PlotFrameCheckBox"

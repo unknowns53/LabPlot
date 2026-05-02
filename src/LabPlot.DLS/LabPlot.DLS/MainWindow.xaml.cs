@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using DlsAnalyzer.Core;
 using LabPlot.Core;
@@ -55,7 +56,34 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        RegisterShortcuts();
         Loaded += OnLoaded;
+    }
+
+    private void RegisterShortcuts()
+    {
+        AddShortcut(Key.G, ModifierKeys.Control, () => ToggleCheckBox(PlotGridCheckBox));
+    }
+
+    private void AddShortcut(Key key, ModifierKeys modifiers, Action handler)
+    {
+        var command = new RoutedUICommand();
+        InputBindings.Add(new KeyBinding(command, key, modifiers));
+        CommandBindings.Add(new CommandBinding(command, (_, e) =>
+        {
+            handler();
+            e.Handled = true;
+        }));
+    }
+
+    private static void ToggleCheckBox(CheckBox checkBox)
+    {
+        if (checkBox is null || !checkBox.IsEnabled)
+        {
+            return;
+        }
+
+        checkBox.IsChecked = checkBox.IsChecked != true;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

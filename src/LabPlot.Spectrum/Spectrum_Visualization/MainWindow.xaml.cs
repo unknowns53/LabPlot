@@ -152,6 +152,8 @@ public partial class MainWindow : Window
             () => SaveSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(System.Windows.Input.Key.L, System.Windows.Input.ModifierKeys.Control,
             () => ToggleCheckBox(OverlayCheckBox));
+        AddShortcut(System.Windows.Input.Key.G, System.Windows.Input.ModifierKeys.Control,
+            () => ToggleCheckBox(PlotGridCheckBox));
     }
 
     private static void ToggleCheckBox(CheckBox checkBox)

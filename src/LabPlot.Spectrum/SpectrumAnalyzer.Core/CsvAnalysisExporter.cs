@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using LabPlot.Core;
 
 namespace SpectrumAnalyzer.Core;
 
@@ -29,7 +30,7 @@ public sealed class CsvAnalysisExporter : IAnalysisExporter
     private static void WriteText(TextWriter writer, AnalysisExport data)
     {
         WriteHeader(writer, data);
-        foreach (var entry in data.Entries)
+        foreach (var entry in data.Entries.Cast<SpectrumAnalysisExportEntry>())
         {
             WriteSpectrumSection(writer, entry);
         }
@@ -42,7 +43,7 @@ public sealed class CsvAnalysisExporter : IAnalysisExporter
         writer.WriteLine();
     }
 
-    private static void WriteSpectrumSection(TextWriter writer, AnalysisExportEntry entry)
+    private static void WriteSpectrumSection(TextWriter writer, SpectrumAnalysisExportEntry entry)
     {
         writer.WriteLine($"# Spectrum ({entry.DisplayName})");
         writer.WriteLine(string.Join(",", Quote(entry.XLabel), Quote(entry.YLabel)));

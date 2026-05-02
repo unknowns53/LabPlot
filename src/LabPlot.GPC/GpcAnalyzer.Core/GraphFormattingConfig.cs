@@ -1,132 +1,29 @@
-using System.Globalization;
+using LabPlot.Core;
 
 namespace GpcAnalyzer.Core;
 
-public sealed class GraphFormattingConfig
+/// <summary>
+/// GPC-specific formatting config. Inherits the LabPlot-wide font / frame /
+/// background / line defaults from <see cref="GraphFormattingConfigBase"/>
+/// and adds the GPC-only persistence field for the calibration file path.
+/// </summary>
+public sealed class GraphFormattingConfig : GraphFormattingConfigBase
 {
-    public const double DefaultFontSize = 12;
-    public const double DefaultLineWidth = 1.5;
-    public const double DefaultMarkerSize = 0;
-    public const double DefaultPlotFrameWidth = 1;
-    public const string DefaultPlotFrameColorHex = "#475569";
-    public const string DefaultBackgroundColorHex = "#FFFFFF";
-
-    public string? FontName { get; set; }
-    public double FontSize { get; set; } = DefaultFontSize;
-    public bool ShowGrid { get; set; } = true;
-    public bool ShowYAxisTickLabels { get; set; } = true;
-    public bool ShowMajorTicks { get; set; } = true;
-    public bool ShowMinorTicks { get; set; } = true;
-    public bool ShowPlotFrame { get; set; } = true;
-    public double PlotFrameWidth { get; set; } = DefaultPlotFrameWidth;
-    public string PlotFrameColorHex { get; set; } = DefaultPlotFrameColorHex;
-    public string BackgroundColorHex { get; set; } = DefaultBackgroundColorHex;
-    public bool ShowTitle { get; set; } = true;
-    public bool TitleBold { get; set; } = true;
-    public bool AxisLabelBold { get; set; }
-    public string? AspectRatio { get; set; }
-    public string? DefaultLineColorHex { get; set; }
-    public double LineWidth { get; set; } = DefaultLineWidth;
-    public double MarkerSize { get; set; } = DefaultMarkerSize;
-
-    // User preferences (persisted alongside the formatting defaults).
+    /// <summary>
+    /// Path to the calibration file the user last loaded. Persisted alongside
+    /// the formatting defaults so the next session opens against the same
+    /// curve unless the user picks a new one.
+    /// </summary>
     public string? DefaultCalibrationFilePath { get; set; }
-    public string? DefaultOutputDirectory { get; set; }
 
     public static GraphFormattingConfig CreateFactoryDefault()
     {
         return new GraphFormattingConfig();
     }
 
-    public void Normalize()
+    public override void Normalize()
     {
-        FontName = NormalizeOptionalText(FontName);
-        AspectRatio = NormalizeOptionalText(AspectRatio);
-        DefaultLineColorHex = NormalizeOptionalHex(DefaultLineColorHex);
-        DefaultCalibrationFilePath = NormalizeOptionalText(DefaultCalibrationFilePath);
-        DefaultOutputDirectory = NormalizeOptionalText(DefaultOutputDirectory);
-
-        if (!IsPositive(FontSize))
-        {
-            FontSize = DefaultFontSize;
-        }
-
-        if (!IsPositive(PlotFrameWidth))
-        {
-            PlotFrameWidth = DefaultPlotFrameWidth;
-        }
-
-        if (!IsHexColor(PlotFrameColorHex))
-        {
-            PlotFrameColorHex = DefaultPlotFrameColorHex;
-        }
-
-        if (!IsHexColor(BackgroundColorHex))
-        {
-            BackgroundColorHex = DefaultBackgroundColorHex;
-        }
-
-        if (!IsPositive(LineWidth))
-        {
-            LineWidth = DefaultLineWidth;
-        }
-
-        if (!IsNonNegative(MarkerSize))
-        {
-            MarkerSize = DefaultMarkerSize;
-        }
-    }
-
-    public string FormatFontSize()
-    {
-        return FormatNumber(FontSize);
-    }
-
-    public string FormatFrameWidth()
-    {
-        return FormatNumber(PlotFrameWidth);
-    }
-
-    public string FormatLineWidth()
-    {
-        return FormatNumber(LineWidth);
-    }
-
-    public string FormatMarkerSize()
-    {
-        return FormatNumber(MarkerSize);
-    }
-
-    private static string? NormalizeOptionalText(string? text)
-    {
-        return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
-    }
-
-    private static string? NormalizeOptionalHex(string? text)
-    {
-        var normalized = NormalizeOptionalText(text);
-        return normalized is not null && IsHexColor(normalized) ? normalized : null;
-    }
-
-    private static bool IsPositive(double value)
-    {
-        return double.IsFinite(value) && value > 0;
-    }
-
-    private static bool IsNonNegative(double value)
-    {
-        return double.IsFinite(value) && value >= 0;
-    }
-
-    private static bool IsHexColor(string? value)
-    {
-        return value is { Length: 7 }
-            && value[0] == '#'
-            && value[1..].All(Uri.IsHexDigit);
-    }
-
-    private static string FormatNumber(double value)
-    {
-        return value.ToString("0.##", CultureInfo.InvariantCulture);
+        base.Normalize();
+        DefaultCalibrationFilePath = ConfigNormalizer.NormalizeOptionalText(DefaultCalibrationFilePath);
     }
 }

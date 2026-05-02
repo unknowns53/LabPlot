@@ -1,34 +1,17 @@
-using System.Globalization;
+using LabPlot.Core;
 
 namespace SpectrumAnalyzer.Core;
 
-public sealed class GraphFormattingConfig
+/// <summary>
+/// Spectrum-specific formatting config. Inherits the LabPlot-wide font /
+/// frame / background / line defaults from
+/// <see cref="GraphFormattingConfigBase"/> and adds the Spectrum-only
+/// persistence fields (X-axis direction override, Y-axis A/T mode, IR peak
+/// assignments, integration regions, Beer-Lambert calibration, λmax markers,
+/// cloud-point detection).
+/// </summary>
+public sealed class GraphFormattingConfig : GraphFormattingConfigBase
 {
-    public const double DefaultFontSize = 12;
-    public const double DefaultLineWidth = 1.5;
-    public const double DefaultMarkerSize = 0;
-    public const double DefaultPlotFrameWidth = 1;
-    public const string DefaultPlotFrameColorHex = "#475569";
-    public const string DefaultBackgroundColorHex = "#FFFFFF";
-
-    public string? FontName { get; set; }
-    public double FontSize { get; set; } = DefaultFontSize;
-    public bool ShowGrid { get; set; } = true;
-    public bool ShowYAxisTickLabels { get; set; } = true;
-    public bool ShowMajorTicks { get; set; } = true;
-    public bool ShowMinorTicks { get; set; } = true;
-    public bool ShowPlotFrame { get; set; } = true;
-    public double PlotFrameWidth { get; set; } = DefaultPlotFrameWidth;
-    public string PlotFrameColorHex { get; set; } = DefaultPlotFrameColorHex;
-    public string BackgroundColorHex { get; set; } = DefaultBackgroundColorHex;
-    public bool ShowTitle { get; set; } = true;
-    public bool TitleBold { get; set; } = true;
-    public bool AxisLabelBold { get; set; }
-    public string? AspectRatio { get; set; }
-    public string? DefaultLineColorHex { get; set; }
-    public double LineWidth { get; set; } = DefaultLineWidth;
-    public double MarkerSize { get; set; } = DefaultMarkerSize;
-
     /// <summary>
     /// User-controlled override for the X-axis direction.
     /// </summary>
@@ -133,20 +116,15 @@ public sealed class GraphFormattingConfig
     /// </summary>
     public bool ShowTemperatureScanMetadata { get; set; }
 
-    // User preferences (persisted alongside the formatting defaults).
-    public string? DefaultOutputDirectory { get; set; }
-
     public static GraphFormattingConfig CreateFactoryDefault()
     {
         return new GraphFormattingConfig();
     }
 
-    public void Normalize()
+    public override void Normalize()
     {
-        FontName = NormalizeOptionalText(FontName);
-        AspectRatio = NormalizeOptionalText(AspectRatio);
-        DefaultLineColorHex = NormalizeOptionalHex(DefaultLineColorHex);
-        DefaultOutputDirectory = NormalizeOptionalText(DefaultOutputDirectory);
+        base.Normalize();
+
         InvertXAxisMode = NormalizeInvertXAxisMode(InvertXAxisMode);
         YAxisDisplayMode = NormalizeYAxisDisplayMode(YAxisDisplayMode);
         EnabledIrPeakAssignmentLabels = NormalizeEnabledLabels(EnabledIrPeakAssignmentLabels);
@@ -155,7 +133,7 @@ public sealed class GraphFormattingConfig
         CloudPointMethod = NormalizeCloudPointMethod(CloudPointMethod);
         ManualLambdaMaxEntries = NormalizeManualLambdaMaxEntries(ManualLambdaMaxEntries);
 
-        if (!IsFiniteRange(LambdaMaxMinAbsorbance, 0.0, 100.0))
+        if (!ConfigNormalizer.IsFiniteRange(LambdaMaxMinAbsorbance, 0.0, 100.0))
         {
             LambdaMaxMinAbsorbance = 0.05;
         }
@@ -165,76 +143,15 @@ public sealed class GraphFormattingConfig
             LambdaMaxCount = 3;
         }
 
-        if (!IsFiniteRange(CloudPointThresholdPercent, 0.001, 100.0))
+        if (!ConfigNormalizer.IsFiniteRange(CloudPointThresholdPercent, 0.001, 100.0))
         {
             CloudPointThresholdPercent = 50.0;
         }
-
-        if (!IsPositive(FontSize))
-        {
-            FontSize = DefaultFontSize;
-        }
-
-        if (!IsPositive(PlotFrameWidth))
-        {
-            PlotFrameWidth = DefaultPlotFrameWidth;
-        }
-
-        if (!IsHexColor(PlotFrameColorHex))
-        {
-            PlotFrameColorHex = DefaultPlotFrameColorHex;
-        }
-
-        if (!IsHexColor(BackgroundColorHex))
-        {
-            BackgroundColorHex = DefaultBackgroundColorHex;
-        }
-
-        if (!IsPositive(LineWidth))
-        {
-            LineWidth = DefaultLineWidth;
-        }
-
-        if (!IsNonNegative(MarkerSize))
-        {
-            MarkerSize = DefaultMarkerSize;
-        }
-    }
-
-    public string FormatFontSize()
-    {
-        return FormatNumber(FontSize);
-    }
-
-    public string FormatFrameWidth()
-    {
-        return FormatNumber(PlotFrameWidth);
-    }
-
-    public string FormatLineWidth()
-    {
-        return FormatNumber(LineWidth);
-    }
-
-    public string FormatMarkerSize()
-    {
-        return FormatNumber(MarkerSize);
-    }
-
-    private static string? NormalizeOptionalText(string? text)
-    {
-        return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
-    }
-
-    private static string? NormalizeOptionalHex(string? text)
-    {
-        var normalized = NormalizeOptionalText(text);
-        return normalized is not null && IsHexColor(normalized) ? normalized : null;
     }
 
     private static string? NormalizeInvertXAxisMode(string? text)
     {
-        var normalized = NormalizeOptionalText(text);
+        var normalized = ConfigNormalizer.NormalizeOptionalText(text);
         if (normalized is null)
         {
             return null;
@@ -305,22 +222,22 @@ public sealed class GraphFormattingConfig
         // that pre-date the properties (deserialize to 0). The wavelength
         // window is generous so we cover UV (≥190 nm) through far-IR
         // expressed in nm; out-of-range values fall back to the default.
-        if (!IsFiniteRange(source.WavelengthNm, 1.0, 1_000_000.0))
+        if (!ConfigNormalizer.IsFiniteRange(source.WavelengthNm, 1.0, 1_000_000.0))
         {
             source.WavelengthNm = 280.0;
         }
 
-        if (!IsPositive(source.PathLengthCm))
+        if (!ConfigNormalizer.IsPositive(source.PathLengthCm))
         {
             source.PathLengthCm = 1.0;
         }
 
-        if (source.MolarMass is { } mw && !IsPositive(mw))
+        if (source.MolarMass is { } mw && !ConfigNormalizer.IsPositive(mw))
         {
             source.MolarMass = null;
         }
 
-        source.IntegrationRegionLabel = NormalizeOptionalText(source.IntegrationRegionLabel);
+        source.IntegrationRegionLabel = ConfigNormalizer.NormalizeOptionalText(source.IntegrationRegionLabel);
         source.Samples = NormalizeCalibrationSamples(source.Samples);
         return source;
     }
@@ -414,7 +331,7 @@ public sealed class GraphFormattingConfig
 
     private static string? NormalizeCloudPointMethod(string? text)
     {
-        var normalized = NormalizeOptionalText(text);
+        var normalized = ConfigNormalizer.NormalizeOptionalText(text);
         if (normalized is null) return null;
 
         if (normalized.Equals("Midpoint", StringComparison.OrdinalIgnoreCase))
@@ -444,14 +361,9 @@ public sealed class GraphFormattingConfig
         return null;
     }
 
-    private static bool IsFiniteRange(double value, double min, double max)
-    {
-        return double.IsFinite(value) && value >= min && value <= max;
-    }
-
     private static string? NormalizeYAxisDisplayMode(string? text)
     {
-        var normalized = NormalizeOptionalText(text);
+        var normalized = ConfigNormalizer.NormalizeOptionalText(text);
         if (normalized is null)
         {
             return null;
@@ -473,27 +385,5 @@ public sealed class GraphFormattingConfig
         }
 
         return null;
-    }
-
-    private static bool IsPositive(double value)
-    {
-        return double.IsFinite(value) && value > 0;
-    }
-
-    private static bool IsNonNegative(double value)
-    {
-        return double.IsFinite(value) && value >= 0;
-    }
-
-    private static bool IsHexColor(string? value)
-    {
-        return value is { Length: 7 }
-            && value[0] == '#'
-            && value[1..].All(Uri.IsHexDigit);
-    }
-
-    private static string FormatNumber(double value)
-    {
-        return value.ToString("0.##", CultureInfo.InvariantCulture);
     }
 }

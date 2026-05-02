@@ -3,9 +3,23 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace SpectrumAnalyzer.Core;
+namespace LabPlot.Core;
 
-public sealed class AnalysisSessionStore
+/// <summary>
+/// Generic JSON store for any LabPlot app's <see cref="AnalysisSession"/>
+/// subclass. <see cref="Save"/> writes pretty-printed UTF-8 JSON (with
+/// BOM); <see cref="Load"/> deserialises directly into
+/// <typeparamref name="TSession"/> so subclass-specific fields round-trip
+/// without polymorphic JSON contracts.
+/// </summary>
+/// <remarks>
+/// After deserialisation <see cref="Load"/> calls
+/// <see cref="AnalysisSession.EnsureDefaults"/> so the subclass can
+/// re-create any concrete <c>Datasets</c> / <c>Axes</c> / <c>Formatting</c>
+/// containers that came back null from a partial JSON payload, and
+/// normalise its formatting config in one place.
+/// </remarks>
+public class AnalysisSessionStore<TSession> where TSession : AnalysisSession, new()
 {
     private static readonly Encoding Utf8WithBom = new UTF8Encoding(true);
 
@@ -17,7 +31,7 @@ public sealed class AnalysisSessionStore
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public void Save(AnalysisSession session, string filePath)
+    public void Save(TSession session, string filePath)
     {
         if (session is null)
         {
@@ -35,7 +49,7 @@ public sealed class AnalysisSessionStore
         File.WriteAllText(filePath, json, Utf8WithBom);
     }
 
-    public AnalysisSession Load(string filePath)
+    public TSession Load(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
         {
@@ -48,7 +62,7 @@ public sealed class AnalysisSessionStore
         }
 
         var json = File.ReadAllText(filePath);
-        var session = JsonSerializer.Deserialize<AnalysisSession>(json, JsonOptions)
+        var session = JsonSerializer.Deserialize<TSession>(json, JsonOptions)
             ?? throw new InvalidDataException("Session file is empty or invalid.");
 
         if (session.Version > AnalysisSession.CurrentVersion)
@@ -57,10 +71,7 @@ public sealed class AnalysisSessionStore
                 $"Session file uses version {session.Version}, which is newer than this application supports (version {AnalysisSession.CurrentVersion}).");
         }
 
-        session.Datasets ??= new List<AnalysisSessionDataset>();
-        session.Axes ??= new AnalysisSessionAxes();
-        session.Labels ??= new AnalysisSessionLabels();
-        session.Formatting?.Normalize();
+        session.EnsureDefaults();
         return session;
     }
 }

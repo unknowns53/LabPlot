@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using LabPlot.Core;
 using SpectrumAnalyzer.Core;
 
 namespace SpectrumAnalyzer.Tests;
@@ -48,7 +49,11 @@ public sealed class AnalysisExporterTests
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.xlsx");
         try
         {
-            var data = new AnalysisExport { Entries = Array.Empty<AnalysisExportEntry>() };
+            var data = new AnalysisExport
+            {
+                Entries = Array.Empty<AnalysisExportEntry>(),
+                GeneratorName = "Spectrum Visualization",
+            };
             new XlsxAnalysisExporter().Export(data, path);
 
             using var workbook = new XLWorkbook(path);
@@ -62,7 +67,7 @@ public sealed class AnalysisExporterTests
 
     private static AnalysisExport CreateSampleExport()
     {
-        var entry = new AnalysisExportEntry
+        var entry = new SpectrumAnalysisExportEntry
         {
             DisplayName = "Sample.txt",
             SourceFilePath = "Sample.txt",
@@ -79,6 +84,7 @@ public sealed class AnalysisExporterTests
         return new AnalysisExport
         {
             Entries = new[] { entry },
+            GeneratorName = "Spectrum Visualization",
             CreatedAt = new DateTimeOffset(2026, 4, 30, 12, 34, 56, TimeSpan.Zero),
         };
     }

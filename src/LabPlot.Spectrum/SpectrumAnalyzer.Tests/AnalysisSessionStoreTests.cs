@@ -1,3 +1,4 @@
+using LabPlot.Core;
 using SpectrumAnalyzer.Core;
 
 namespace SpectrumAnalyzer.Tests;
@@ -10,7 +11,7 @@ public sealed class AnalysisSessionStoreTests
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.spjson");
         try
         {
-            var store = new AnalysisSessionStore();
+            var store = new AnalysisSessionStore<SpectrumAnalysisSession>();
             var original = CreateSampleSession();
             store.Save(original, path);
 
@@ -55,7 +56,7 @@ public sealed class AnalysisSessionStoreTests
                 path,
                 """{ "Version": 999, "Datasets": [], "Axes": {}, "Labels": {} }""");
 
-            Assert.Throws<InvalidDataException>(() => new AnalysisSessionStore().Load(path));
+            Assert.Throws<InvalidDataException>(() => new AnalysisSessionStore<SpectrumAnalysisSession>().Load(path));
         }
         finally
         {
@@ -71,7 +72,7 @@ public sealed class AnalysisSessionStoreTests
         {
             File.WriteAllText(path, """{ "Version": 1 }""");
 
-            var loaded = new AnalysisSessionStore().Load(path);
+            var loaded = new AnalysisSessionStore<SpectrumAnalysisSession>().Load(path);
 
             Assert.Empty(loaded.Datasets);
             Assert.NotNull(loaded.Axes);
@@ -84,9 +85,9 @@ public sealed class AnalysisSessionStoreTests
         }
     }
 
-    private static AnalysisSession CreateSampleSession()
+    private static SpectrumAnalysisSession CreateSampleSession()
     {
-        return new AnalysisSession
+        return new SpectrumAnalysisSession
         {
             Overlay = true,
             ActiveDatasetIndex = 1,

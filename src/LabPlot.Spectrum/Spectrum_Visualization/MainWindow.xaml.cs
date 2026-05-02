@@ -13,8 +13,10 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using System.Windows.Media;
 using SpectrumAnalyzer.Core;
+using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
+using static LabPlot.Core.PlotAppearance;
 
 namespace Spectrum_Visualization;
 
@@ -39,12 +41,6 @@ public partial class MainWindow : Window
     private const int DefaultExportHeight = 2160;
     private const int SquareExportWidth = 3000;
 
-    // ScottPlot 5.x's TickMarkStyle defaults; multiply by display scale for export.
-    private const float MajorTickLengthBase = 4f;
-    private const float MajorTickWidthBase = 1f;
-    private const float MinorTickLengthBase = 2f;
-    private const float MinorTickWidthBase = 1f;
-
     private static readonly TimeSpan PlotRefreshDebounceInterval = TimeSpan.FromMilliseconds(200);
 
     private static readonly JsonSerializerOptions FormattingConfigJsonOptions = new()
@@ -65,7 +61,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<IntegrationRegionVm> _integrationRegionVms = new();
     private readonly ObservableCollection<IntegrationResultRowVm> _integrationResultRowVms = new();
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
-    private readonly AnalysisSessionStore _sessionStore = new();
+    private readonly AnalysisSessionStore<SpectrumAnalysisSession> _sessionStore = new();
 
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private int _activeIndex = -1;
@@ -887,7 +883,7 @@ public partial class MainWindow : Window
 
     private AnalysisExport BuildAnalysisExport()
     {
-        var entries = new List<AnalysisExportEntry>();
+        var entries = new List<SpectrumAnalysisExportEntry>();
         var plotEntries = GetDatasetsToPlotWithIndices();
         var yDisplayMode = GetSelectedYAxisDisplayMode();
 
@@ -897,7 +893,7 @@ public partial class MainWindow : Window
                 ?? Path.GetFileNameWithoutExtension(dataset.SourceFilePath)
                 ?? $"dataset {index + 1}";
 
-            entries.Add(new AnalysisExportEntry
+            entries.Add(new SpectrumAnalysisExportEntry
             {
                 DisplayName = displayName,
                 SourceFilePath = dataset.SourceFilePath,
@@ -910,6 +906,7 @@ public partial class MainWindow : Window
         return new AnalysisExport
         {
             Entries = entries,
+            GeneratorName = "Spectrum Visualization",
         };
     }
 
@@ -1010,9 +1007,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private AnalysisSession BuildAnalysisSession()
+    private SpectrumAnalysisSession BuildAnalysisSession()
     {
-        var session = new AnalysisSession
+        var session = new SpectrumAnalysisSession
         {
             Overlay = OverlayCheckBox.IsChecked == true,
             ActiveDatasetIndex = _activeIndex,
@@ -1052,7 +1049,7 @@ public partial class MainWindow : Window
         return session;
     }
 
-    private void ApplyAnalysisSession(AnalysisSession session, List<string> warnings)
+    private void ApplyAnalysisSession(SpectrumAnalysisSession session, List<string> warnings)
     {
         var loaded = new List<SpectrumDataset>();
         var styles = new List<DatasetStyle>();
@@ -1430,13 +1427,6 @@ public partial class MainWindow : Window
         ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor && yAxisVisible);
     }
 
-    private static void ConfigureTickMarkStyle(ScottPlot.TickMarkStyle style, float lengthBase, float widthBase, float scale, bool visible)
-    {
-        style.Length = visible ? lengthBase * scale : 0f;
-        style.Width = widthBase * scale;
-        style.Hairline = false;
-    }
-
     private void ApplyPlotTitleStyle(ScottPlot.Plot plot)
     {
         plot.Axes.Title.Label.IsVisible = TitleVisibleCheckBox.IsChecked == true;
@@ -1452,7 +1442,7 @@ public partial class MainWindow : Window
 
     private void ApplyPlotBackground(ScottPlot.Plot plot)
     {
-        var color = GetScottPlotColor(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
+        var color = ColorFromHex(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
         plot.FigureBackground.Color = color;
         plot.DataBackground.Color = color;
     }
@@ -1477,15 +1467,6 @@ public partial class MainWindow : Window
         }
 
         ResetLabelFontTypeface(plot);
-    }
-
-    private static void ResetLabelFontTypeface(ScottPlot.Plot plot)
-    {
-        plot.Axes.Title.Label.Font = null;
-        plot.Axes.Bottom.Label.Font = null;
-        plot.Axes.Left.Label.Font = null;
-        plot.Axes.Bottom.TickLabelStyle.Font = null;
-        plot.Axes.Left.TickLabelStyle.Font = null;
     }
 
     private void ApplyPlotFontSize(ScottPlot.Plot plot, float scale = 1f)
@@ -1527,7 +1508,7 @@ public partial class MainWindow : Window
         plot.Axes.Right.FrameLineStyle.IsVisible = frameVisible;
 
         plot.Axes.FrameWidth(GetPlotFrameWidth() * scale);
-        plot.Axes.FrameColor(GetScottPlotColor(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
+        plot.Axes.FrameColor(ColorFromHex(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
     }
 
     private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex, float scale = 1f)
@@ -4608,18 +4589,6 @@ public partial class MainWindow : Window
     {
         var extension = saveFormat == GraphSaveFormat.Svg ? ".svg" : ".png";
         return Path.ChangeExtension(filePath, extension);
-    }
-
-    private static ScottPlot.Color GetScottPlotColor(string hex, string fallback)
-    {
-        try
-        {
-            return ScottPlot.Color.FromHex(new[] { hex }).First();
-        }
-        catch
-        {
-            return ScottPlot.Color.FromHex(new[] { fallback }).First();
-        }
     }
 
     private static void ApplyPngDpiMetadata(string filePath, int dpi)

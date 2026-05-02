@@ -11,8 +11,10 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using System.Windows.Media;
 using GpcAnalyzer.Core;
+using LabPlot.Core;
 using Microsoft.Win32;
 using ScottPlot.WPF;
+using static LabPlot.Core.PlotAppearance;
 
 namespace GPC_Visualization;
 
@@ -36,11 +38,6 @@ public partial class MainWindow : Window
     private const int DefaultExportWidth = 3600;
     private const int DefaultExportHeight = 2160;
     private const int SquareExportWidth = 3000;
-    // ScottPlot 5.x の TickMarkStyle 既定値。表示倍率を掛けて適用するベース値として保持する。
-    private const float MajorTickLengthBase = 4f;
-    private const float MajorTickWidthBase = 1f;
-    private const float MinorTickLengthBase = 2f;
-    private const float MinorTickWidthBase = 1f;
     private const int OverlayDownsampleMinSeriesCount = 3;
     private const int OverlayDownsampleMinTotalPoints = 120_000;
     private const int OverlayDisplayPointBudget = 120_000;
@@ -811,7 +808,7 @@ public partial class MainWindow : Window
 
     private AnalysisExport BuildAnalysisExport()
     {
-        var entries = new List<AnalysisExportEntry>();
+        var entries = new List<GpcAnalysisExportEntry>();
         var plotEntries = GetDatasetsToPlotWithIndices();
         var molecularWeightEnabled =
             MolecularWeightCheckBox.IsChecked == true && _selectedCalibrationCurve is not null;
@@ -838,7 +835,7 @@ public partial class MainWindow : Window
 
             stats = ApplyStoredSelectedPeak(stats, index);
 
-            entries.Add(new AnalysisExportEntry
+            entries.Add(new GpcAnalysisExportEntry
             {
                 DisplayName = Path.GetFileName(dataset.SourceFilePath) ?? $"dataset_{index + 1}",
                 SourceFilePath = dataset.SourceFilePath,
@@ -854,6 +851,7 @@ public partial class MainWindow : Window
         return new AnalysisExport
         {
             Entries = entries,
+            GeneratorName = "GPC Visualization",
         };
     }
 
@@ -917,7 +915,7 @@ public partial class MainWindow : Window
         try
         {
             var session = BuildAnalysisSession();
-            new AnalysisSessionStore().Save(session, dialog.FileName);
+            new AnalysisSessionStore<GpcAnalysisSession>().Save(session, dialog.FileName);
             SetStatus($"解析条件を保存しました: {dialog.FileName}", false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -940,10 +938,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        AnalysisSession session;
+        GpcAnalysisSession session;
         try
         {
-            session = new AnalysisSessionStore().Load(dialog.FileName);
+            session = new AnalysisSessionStore<GpcAnalysisSession>().Load(dialog.FileName);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
         {
@@ -964,16 +962,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private AnalysisSession BuildAnalysisSession()
+    private GpcAnalysisSession BuildAnalysisSession()
     {
-        var datasets = new List<AnalysisSessionDataset>();
+        var datasets = new List<GpcAnalysisSessionDataset>();
         for (var i = 0; i < _loadedDatasets.Count; i++)
         {
             var dataset = _loadedDatasets[i];
             var style = i < _datasetStyles.Count ? _datasetStyles[i] : CreateDefaultDatasetStyle();
             var selectedPeakId = i < _datasetSelectedPeakIds.Count ? _datasetSelectedPeakIds[i] : null;
 
-            datasets.Add(new AnalysisSessionDataset
+            datasets.Add(new GpcAnalysisSessionDataset
             {
                 SourceFilePath = dataset.SourceFilePath ?? string.Empty,
                 Detector = dataset.Detector,
@@ -1007,7 +1005,7 @@ public partial class MainWindow : Window
             MaxMolecularWeight = MolecularWeightConverter.DefaultMaxMolecularWeight,
         };
 
-        var axes = new AnalysisSessionAxes
+        var axes = new GpcAnalysisSessionAxes
         {
             Mode = MolecularWeightCheckBox.IsChecked == true
                 ? nameof(AnalysisSessionAxisMode.MolecularWeight)
@@ -1030,7 +1028,7 @@ public partial class MainWindow : Window
         sessionFormatting.DefaultCalibrationFilePath = null;
         sessionFormatting.DefaultOutputDirectory = null;
 
-        return new AnalysisSession
+        return new GpcAnalysisSession
         {
             Overlay = OverlayCheckBox.IsChecked == true,
             ActiveDatasetIndex = _activeIndex,
@@ -1043,7 +1041,7 @@ public partial class MainWindow : Window
         };
     }
 
-    private void ApplyAnalysisSession(AnalysisSession session, List<string> warnings)
+    private void ApplyAnalysisSession(GpcAnalysisSession session, List<string> warnings)
     {
         _loadedDatasets.Clear();
         _datasetStyles.Clear();
@@ -1843,15 +1841,6 @@ public partial class MainWindow : Window
         ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor && yAxisVisible);
     }
 
-    private static void ConfigureTickMarkStyle(ScottPlot.TickMarkStyle style, float lengthBase, float widthBase, float scale, bool visible)
-    {
-        // 非表示時は Length=0 で線を消す。Width は描画されないが念のためベース値を維持。
-        style.Length = visible ? lengthBase * scale : 0f;
-        style.Width = widthBase * scale;
-        // Hairline=true だと Width が 1px に固定されてしまうので、明示的に解除しておく。
-        style.Hairline = false;
-    }
-
     private void ApplyPlotTitleStyle(ScottPlot.Plot plot)
     {
         plot.Axes.Title.Label.IsVisible = TitleVisibleCheckBox.IsChecked == true;
@@ -1867,7 +1856,7 @@ public partial class MainWindow : Window
 
     private void ApplyPlotBackground(ScottPlot.Plot plot)
     {
-        var color = GetScottPlotColor(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
+        var color = ColorFromHex(GetBackgroundColorHex(), GraphFormattingConfig.DefaultBackgroundColorHex);
         plot.FigureBackground.Color = color;
         plot.DataBackground.Color = color;
     }
@@ -1895,15 +1884,6 @@ public partial class MainWindow : Window
         // 後段の Bold/Italic 設定が無視される。Font を null に戻して FontName + Bold/Italic から
         // 都度解決させる。
         ResetLabelFontTypeface(plot);
-    }
-
-    private static void ResetLabelFontTypeface(ScottPlot.Plot plot)
-    {
-        plot.Axes.Title.Label.Font = null;
-        plot.Axes.Bottom.Label.Font = null;
-        plot.Axes.Left.Label.Font = null;
-        plot.Axes.Bottom.TickLabelStyle.Font = null;
-        plot.Axes.Left.TickLabelStyle.Font = null;
     }
 
     private void ApplyPlotFontSize(ScottPlot.Plot plot, float scale = 1f)
@@ -1949,7 +1929,7 @@ public partial class MainWindow : Window
 
         // 線幅・色は全エッジに共通設定（IsVisible=false のエッジは描画されない）
         plot.Axes.FrameWidth(GetPlotFrameWidth() * scale);
-        plot.Axes.FrameColor(GetScottPlotColor(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
+        plot.Axes.FrameColor(ColorFromHex(GetPlotFrameColorHex(), GraphFormattingConfig.DefaultPlotFrameColorHex));
     }
 
     private void ApplySeriesStyle(ScottPlot.Plottables.Scatter signal, int datasetIndex, float scale = 1f)
@@ -3565,18 +3545,6 @@ public partial class MainWindow : Window
         return TryNormalizeHexColorCode(PlotFrameColorHexTextBox.Text, out var hex)
             ? hex
             : GraphFormattingConfig.DefaultPlotFrameColorHex;
-    }
-
-    private static ScottPlot.Color GetScottPlotColor(string hex, string fallbackHex)
-    {
-        try
-        {
-            return ScottPlot.Color.FromHex(new[] { hex }).First();
-        }
-        catch
-        {
-            return ScottPlot.Color.FromHex(new[] { fallbackHex }).First();
-        }
     }
 
     private void SyncPlotFrameColorInputFromComboBox()

@@ -1,4 +1,5 @@
 using GpcAnalyzer.Core;
+using LabPlot.Core;
 
 namespace GpcAnalyzer.Tests;
 
@@ -10,7 +11,7 @@ public sealed class AnalysisSessionStoreTests
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.gpcjson");
         try
         {
-            var store = new AnalysisSessionStore();
+            var store = new AnalysisSessionStore<GpcAnalysisSession>();
             var original = CreateSampleSession();
             store.Save(original, path);
 
@@ -64,8 +65,8 @@ public sealed class AnalysisSessionStoreTests
         var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.gpcjson");
         try
         {
-            var session = new AnalysisSession { Version = AnalysisSession.CurrentVersion + 5 };
-            new AnalysisSessionStore().Save(session, path);
+            var session = new GpcAnalysisSession { Version = AnalysisSession.CurrentVersion + 5 };
+            new AnalysisSessionStore<GpcAnalysisSession>().Save(session, path);
 
             // Save() resets Version to CurrentVersion, so we have to write a manual file
             // that contains the future version directly.
@@ -73,7 +74,7 @@ public sealed class AnalysisSessionStoreTests
                 path,
                 """{ "Version": 999, "Datasets": [], "MolecularWeight": {}, "Axes": {}, "Labels": {} }""");
 
-            Assert.Throws<InvalidDataException>(() => new AnalysisSessionStore().Load(path));
+            Assert.Throws<InvalidDataException>(() => new AnalysisSessionStore<GpcAnalysisSession>().Load(path));
         }
         finally
         {
@@ -89,7 +90,7 @@ public sealed class AnalysisSessionStoreTests
         {
             File.WriteAllText(path, """{ "Version": 1 }""");
 
-            var loaded = new AnalysisSessionStore().Load(path);
+            var loaded = new AnalysisSessionStore<GpcAnalysisSession>().Load(path);
 
             Assert.Empty(loaded.Datasets);
             Assert.NotNull(loaded.MolecularWeight);
@@ -104,15 +105,15 @@ public sealed class AnalysisSessionStoreTests
         }
     }
 
-    private static AnalysisSession CreateSampleSession()
+    private static GpcAnalysisSession CreateSampleSession()
     {
-        return new AnalysisSession
+        return new GpcAnalysisSession
         {
             Overlay = true,
             ActiveDatasetIndex = 1,
             Datasets =
             {
-                new AnalysisSessionDataset
+                new GpcAnalysisSessionDataset
                 {
                     SourceFilePath = @"C:\data\sample1.txt",
                     Detector = "A",
@@ -125,7 +126,7 @@ public sealed class AnalysisSessionStoreTests
                         MarkerSize = 0,
                     },
                 },
-                new AnalysisSessionDataset
+                new GpcAnalysisSessionDataset
                 {
                     SourceFilePath = @"C:\data\sample2.txt",
                     Detector = "B",
@@ -152,7 +153,7 @@ public sealed class AnalysisSessionStoreTests
                 MinMolecularWeight = 100,
                 MaxMolecularWeight = 10_000_000,
             },
-            Axes = new AnalysisSessionAxes
+            Axes = new GpcAnalysisSessionAxes
             {
                 Mode = nameof(AnalysisSessionAxisMode.MolecularWeight),
                 XMin = 1000,

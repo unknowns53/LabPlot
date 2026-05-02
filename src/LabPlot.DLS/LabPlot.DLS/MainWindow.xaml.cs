@@ -94,6 +94,7 @@ public partial class MainWindow : Window
             // selects a sheet (no file loaded yet → _activeItemIndex = -1).
             SyncStyleControlsFromActiveItem();
             SyncMetadataControlsFromActiveItem();
+            SyncCumulantControlsFromActiveItem();
             _selectedMode = DistributionModeFromTag(_formattingConfig.DefaultDistributionMode);
             SelectComboBoxByTag(DistributionTypeComboBox, _formattingConfig.DefaultDistributionMode);
             _selectedRunIndex = Math.Max(0, _formattingConfig.DefaultRunIndex);
@@ -195,6 +196,7 @@ public partial class MainWindow : Window
         _activeItemIndex = activeItem is null ? -1 : _datasetItems.IndexOf(activeItem);
         SyncStyleControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
+        SyncCumulantControlsFromActiveItem();
 
         UpdateRunCombo();
         UpdateDistributionTypeAvailability();
@@ -313,6 +315,8 @@ public partial class MainWindow : Window
                 MetadataSolventTextBox.Text = string.Empty;
                 MetadataRefractiveIndexTextBox.Text = string.Empty;
                 MetadataViscosityTextBox.Text = string.Empty;
+                MetadataWavelengthTextBox.Text = string.Empty;
+                MetadataScatteringAngleTextBox.Text = string.Empty;
             }
             finally
             {
@@ -320,6 +324,9 @@ public partial class MainWindow : Window
             }
             return;
         }
+
+        MetadataWavelengthTextBox.IsEnabled = true;
+        MetadataScatteringAngleTextBox.IsEnabled = true;
 
         var metadata = _datasetItems[_activeItemIndex].Metadata;
         ActiveMetadataLabel.Text = $"({_datasetItems[_activeItemIndex].SheetName})";
@@ -332,11 +339,161 @@ public partial class MainWindow : Window
             MetadataSolventTextBox.Text = metadata.Solvent ?? string.Empty;
             MetadataRefractiveIndexTextBox.Text = FormatNullableDouble(metadata.RefractiveIndex);
             MetadataViscosityTextBox.Text = FormatNullableDouble(metadata.ViscosityMpas);
+            MetadataWavelengthTextBox.Text = FormatNullableDouble(metadata.WavelengthNm);
+            MetadataScatteringAngleTextBox.Text = FormatNullableDouble(metadata.ScatteringAngleDegrees);
         }
         finally
         {
             _suppressMetadataControlEvents = false;
         }
+    }
+
+    // Pushes the active sheet's cumulant fit settings into the panel
+    // textboxes and recomputes the analysis display. Suppresses change
+    // events while writing so the LostFocus commit path is not
+    // retriggered.
+    private void SyncCumulantControlsFromActiveItem()
+    {
+        bool hasActive = _activeItemIndex >= 0 && _activeItemIndex < _datasetItems.Count;
+        CumulantFitMinTextBox.IsEnabled = hasActive;
+        CumulantFitMaxTextBox.IsEnabled = hasActive;
+
+        if (!hasActive)
+        {
+            ActiveCumulantLabel.Text = "(選択中シート)";
+            _suppressMetadataControlEvents = true;
+            try
+            {
+                CumulantFitMinTextBox.Text = string.Empty;
+                CumulantFitMaxTextBox.Text = string.Empty;
+            }
+            finally
+            {
+                _suppressMetadataControlEvents = false;
+            }
+            UpdateCumulantDisplay();
+            return;
+        }
+
+        var item = _datasetItems[_activeItemIndex];
+        ActiveCumulantLabel.Text = $"({item.SheetName})";
+
+        _suppressMetadataControlEvents = true;
+        try
+        {
+            CumulantFitMinTextBox.Text = FormatNullableDouble(item.Cumulant.FitRangeMinMicroseconds);
+            CumulantFitMaxTextBox.Text = FormatNullableDouble(item.Cumulant.FitRangeMaxMicroseconds);
+        }
+        finally
+        {
+            _suppressMetadataControlEvents = false;
+        }
+
+        UpdateCumulantDisplay();
+    }
+
+    // Tier-2 display logic. Runs the cumulant fit on the active sheet
+    // and pushes the four numeric fields + Stokes-Einstein diameter
+    // into the panel TextBlocks. Status text shows:
+    //   • no active sheet → all dashes
+    //   • no Correlation data → "自己相関データがありません"
+    //   • fit failure → reason from CumulantOutcome.FailureReason
+    //   • fit OK / metadata incomplete → numeric fields filled, Z-average
+    //     shows "—" with reason "X が未入力で計算不可"
+    //   • fit OK / metadata complete → all fields filled
+    private void UpdateCumulantDisplay()
+    {
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count)
+        {
+            ResetCumulantDisplay();
+            return;
+        }
+
+        var item = _datasetItems[_activeItemIndex];
+        var correlation = item.Dataset.Correlation;
+
+        if (correlation is null)
+        {
+            ResetCumulantDisplay();
+            ShowCumulantStatus("自己相関データがありません");
+            return;
+        }
+
+        var outcome = CumulantAnalyzer.Analyze(
+            correlation,
+            item.Cumulant.FitRangeMinMicroseconds,
+            item.Cumulant.FitRangeMaxMicroseconds);
+
+        if (!outcome.Success || outcome.Result is null)
+        {
+            ResetCumulantDisplay();
+            ShowCumulantStatus(outcome.FailureReason ?? "fit に失敗しました");
+            return;
+        }
+
+        var result = outcome.Result;
+        CumulantGammaText.Text = $"{FormatScientific(result.FirstCumulantPerMicrosecond)} μs⁻¹";
+        CumulantPdiText.Text = result.PolydispersityIndex.ToString("0.000",
+            System.Globalization.CultureInfo.InvariantCulture);
+        CumulantRSquaredText.Text = result.RSquared.ToString("0.0000",
+            System.Globalization.CultureInfo.InvariantCulture);
+        CumulantRangeText.Text =
+            $"{FormatDouble(result.AppliedRangeMinMicroseconds)} 〜 "
+            + $"{FormatDouble(result.AppliedRangeMaxMicroseconds)} μs"
+            + $" ({result.PointCount} 点)";
+
+        var sizeOutcome = StokesEinstein.Compute(
+            result.FirstCumulantPerMicrosecond,
+            item.Metadata.TemperatureCelsius,
+            item.Metadata.ViscosityMpas,
+            item.Metadata.RefractiveIndex,
+            item.Metadata.WavelengthNm,
+            item.Metadata.ScatteringAngleDegrees);
+
+        if (sizeOutcome.Success && sizeOutcome.HydrodynamicDiameterNm.HasValue)
+        {
+            CumulantZAverageText.Text =
+                $"{sizeOutcome.HydrodynamicDiameterNm.Value.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} nm";
+            HideCumulantStatus();
+        }
+        else
+        {
+            CumulantZAverageText.Text = "—";
+            var missing = string.Join("・", sizeOutcome.MissingFields);
+            ShowCumulantStatus(string.IsNullOrEmpty(missing)
+                ? "粒径計算に必要なメタデータが不足しています"
+                : $"{missing} が未入力で粒径計算できません");
+        }
+    }
+
+    private void ResetCumulantDisplay()
+    {
+        CumulantZAverageText.Text = "—";
+        CumulantPdiText.Text = "—";
+        CumulantGammaText.Text = "—";
+        CumulantRangeText.Text = "—";
+        CumulantRSquaredText.Text = "—";
+        HideCumulantStatus();
+    }
+
+    private void ShowCumulantStatus(string message)
+    {
+        CumulantStatusText.Text = message;
+        CumulantStatusText.Visibility = Visibility.Visible;
+    }
+
+    private void HideCumulantStatus()
+    {
+        CumulantStatusText.Text = string.Empty;
+        CumulantStatusText.Visibility = Visibility.Collapsed;
+    }
+
+    // Compact scientific format used for Γ which spans a wide range.
+    // 0.005 → "5.00e-3", 0.002345 → "2.35e-3".
+    private static string FormatScientific(double value)
+    {
+        if (!double.IsFinite(value)) return "—";
+        return value.ToString("0.###e+0", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     // Shared Enter-to-commit for all metadata textboxes. The textboxes
@@ -379,6 +536,65 @@ public partial class MainWindow : Window
             (item, value) => item.Metadata.ViscosityMpas = value);
     }
 
+    private void MetadataWavelengthTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // Laser wavelength > 0; Zetasizer red 633 nm by default.
+        CommitNumericMetadata(MetadataWavelengthTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.WavelengthNm = value);
+    }
+
+    private void MetadataScatteringAngleTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // Detector angle in (0, 360); Zetasizer backscatter 173° by default.
+        CommitNumericMetadata(MetadataScatteringAngleTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.ScatteringAngleDegrees = value);
+    }
+
+    private void CumulantFitRangeTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressMetadataControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var item = _datasetItems[_activeItemIndex];
+
+        // Empty → auto on that side. Non-positive / non-finite input is
+        // rejected by reverting the textbox to the last committed value
+        // (SyncCumulantControlsFromActiveItem rewrites both textboxes
+        // from item.Cumulant). We commit only the valid sides.
+        bool reverted = false;
+        if (!TryCommitCumulantBound(CumulantFitMinTextBox,
+                value => item.Cumulant.FitRangeMinMicroseconds = value))
+            reverted = true;
+        if (!TryCommitCumulantBound(CumulantFitMaxTextBox,
+                value => item.Cumulant.FitRangeMaxMicroseconds = value))
+            reverted = true;
+
+        if (reverted) SyncCumulantControlsFromActiveItem();
+        else UpdateCumulantDisplay();
+    }
+
+    // True means the textbox commits cleanly (empty → null, or a valid
+    // positive number → that number). False means rejection — caller
+    // re-syncs from the model so the textbox snaps back.
+    private bool TryCommitCumulantBound(TextBox textBox, Action<double?> apply)
+    {
+        var raw = textBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            apply(null);
+            return true;
+        }
+        if (!TryParsePositiveDouble(raw, out var value))
+            return false;
+
+        apply(value);
+        _suppressMetadataControlEvents = true;
+        try { textBox.Text = FormatDouble(value); }
+        finally { _suppressMetadataControlEvents = false; }
+        return true;
+    }
+
     private void MetadataSolventTextBox_LostFocus(object sender, RoutedEventArgs e)
     {
         if (!IsInitialized) return;
@@ -388,6 +604,11 @@ public partial class MainWindow : Window
         var solvent = MetadataSolventTextBox.Text.Trim();
         _datasetItems[_activeItemIndex].Metadata.Solvent =
             string.IsNullOrWhiteSpace(solvent) ? null : solvent;
+        // Solvent itself does not feed Stokes-Einstein (η / n do that
+        // job), but keeping the recompute call here avoids a stale
+        // status banner if the user types into Solvent after fixing
+        // numeric fields.
+        UpdateCumulantDisplay();
     }
 
     // Constraint check passed to CommitNumericMetadata. `null` means any
@@ -450,6 +671,10 @@ public partial class MainWindow : Window
         _suppressMetadataControlEvents = true;
         try { textBox.Text = FormatDouble(value); }
         finally { _suppressMetadataControlEvents = false; }
+
+        // Any numeric metadata change can move the Stokes-Einstein
+        // result, so refresh the cumulant panel after every commit.
+        UpdateCumulantDisplay();
     }
 
     private static string FormatNullableDouble(double? value)
@@ -531,6 +756,7 @@ public partial class MainWindow : Window
         _activeItemIndex = -1;
         SyncStyleControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
+        SyncCumulantControlsFromActiveItem();
         InitializeEmptyPlot();
     }
 
@@ -1006,13 +1232,31 @@ public partial class MainWindow : Window
     // the dataset. Stokes-Einstein calculations (Batch 5) and session
     // save (Batch 6) read from here, not from Dataset.Metadata, because
     // the user enters these values after the file is loaded.
+    //
+    // WavelengthNm and ScatteringAngleDegrees default to the Zetasizer
+    // standard optics (633 nm red laser, 173° backscatter) but stay
+    // editable so the same UI handles other instruments.
     private sealed class DlsDatasetMetadataState
     {
+        public const double DefaultWavelengthNm = 633.0;
+        public const double DefaultScatteringAngleDegrees = 173.0;
+
         public double? TemperatureCelsius { get; set; }
         public string? Solvent { get; set; }
         public double? ConcentrationMgPerMl { get; set; }
         public double? RefractiveIndex { get; set; }
         public double? ViscosityMpas { get; set; }
+        public double? WavelengthNm { get; set; } = DefaultWavelengthNm;
+        public double? ScatteringAngleDegrees { get; set; } = DefaultScatteringAngleDegrees;
+    }
+
+    // Per-sheet cumulant fit settings. Both null = auto-detect range
+    // (drop noise tail at g₂-1 < threshold). Either / both filled →
+    // honour as the τ window for the next analysis.
+    private sealed class DlsDatasetCumulantSettings
+    {
+        public double? FitRangeMinMicroseconds { get; set; }
+        public double? FitRangeMaxMicroseconds { get; set; }
     }
 
     // ListBox row VM. Holds the underlying DlsDataset, the per-sheet
@@ -1024,6 +1268,7 @@ public partial class MainWindow : Window
         public DlsDataset Dataset { get; }
         public DlsDatasetStyle Style { get; } = new();
         public DlsDatasetMetadataState Metadata { get; } = new();
+        public DlsDatasetCumulantSettings Cumulant { get; } = new();
         public string SheetName => Dataset.SheetName;
 
         private SolidColorBrush _colorBrush = new(Colors.Gray);

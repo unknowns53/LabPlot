@@ -1,0 +1,65 @@
+<UserControl x:Class="LabPlot.Core.Wpf.Controls.AxisRangePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             x:Name="AxisRangePanelRoot">
+    <StackPanel>
+        <TextBlock Style="{DynamicResource FieldLabelStyle}"
+                   Text="{Binding XAxisLabel, ElementName=AxisRangePanelRoot}" />
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Style="{DynamicResource FieldLabelStyle}" Text="最小" />
+                <TextBox x:Name="XMinTextBox"
+                         Style="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Style="{DynamicResource FieldLabelStyle}" Text="最大" />
+                <TextBox x:Name="XMaxTextBox"
+                         Style="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Style="{DynamicResource FieldLabelStyle}"
+                   Text="{Binding YAxisLabel, ElementName=AxisRangePanelRoot}" />
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Style="{DynamicResource FieldLabelStyle}" Text="最小" />
+                <TextBox x:Name="YMinTextBox"
+                         Style="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Style="{DynamicResource FieldLabelStyle}" Text="最大" />
+                <TextBox x:Name="YMaxTextBox"
+                         Style="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+        </Grid>
+
+        <Button x:Name="AutoRangeButton"
+                Content="自動範囲に戻す"
+                Style="{DynamicResource SecondaryButtonStyle}"
+                HorizontalAlignment="Stretch"
+                Margin="0,10,0,0"
+                Click="AutoRangeButton_Click"
+                ToolTip="X / Y の最小・最大値を空欄に戻して自動範囲で表示します (Ctrl+R)" />
+    </StackPanel>
+</UserControl>

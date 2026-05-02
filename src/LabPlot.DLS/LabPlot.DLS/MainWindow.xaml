@@ -8,12 +8,111 @@
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI"
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="ClearType"
-        UseLayoutRounding="True">
+        UseLayoutRounding="True"
+        Background="#F8FAFC">
     <Grid>
-        <TextBlock Text="LabPlot.DLS (Batch 0 skeleton)"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Foreground="#475569"
-                   FontSize="16" />
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Sidebar -->
+        <Border Grid.Column="0"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,1,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          Padding="16,12">
+                <StackPanel>
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="ファイル" />
+                            <Button x:Name="OpenButton"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Content="DLS xlsx を開く..."
+                                    Click="OpenButton_Click"
+                                    Margin="0,0,0,4" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="読み込み済みデータセット" />
+                            <ListBox x:Name="DatasetListBox"
+                                     SelectionChanged="DatasetListBox_SelectionChanged"
+                                     MinHeight="120"
+                                     MaxHeight="280"
+                                     BorderBrush="#CBD5E1"
+                                     BorderThickness="1"
+                                     Background="#FFFFFF"
+                                     Padding="0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding SheetName}" Padding="6,4" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="DatasetCountText"
+                                       Margin="0,6,0,0"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       Text="ファイル未読み込み" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SectionStyle}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="表示" />
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="分布の種類" />
+                            <ComboBox x:Name="DistributionTypeComboBox"
+                                      Style="{StaticResource InputComboBoxStyle}"
+                                      SelectionChanged="DistributionTypeComboBox_SelectionChanged"
+                                      Margin="0,0,0,8">
+                                <ComboBoxItem Content="Number (%)" Tag="Number" IsSelected="True" />
+                                <ComboBoxItem Content="Intensity (%)" Tag="Intensity" />
+                                <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                            </ComboBox>
+
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Run" />
+                            <ComboBox x:Name="RunComboBox"
+                                      Style="{StaticResource InputComboBoxStyle}"
+                                      SelectionChanged="RunComboBox_SelectionChanged"
+                                      IsEnabled="False" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Plot area -->
+        <Border Grid.Column="1"
+                Margin="12"
+                BorderBrush="#CBD5E1"
+                BorderThickness="1"
+                CornerRadius="6"
+                Background="White">
+            <Grid>
+                <Grid x:Name="PlotHost">
+                    <TextBlock x:Name="PlotPlaceholderTextBlock"
+                               Text="グラフを初期化しています..."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="#64748B" />
+                </Grid>
+                <Border Background="#FEE2E2"
+                        BorderBrush="#FCA5A5"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="10,6"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        Margin="0,12,0,0"
+                        x:Name="ErrorBanner"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="ErrorBannerText" Foreground="#7F1D1D" />
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

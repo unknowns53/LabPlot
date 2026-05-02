@@ -178,6 +178,14 @@ public partial class MainWindow : Window
         RefreshPlot();
     }
 
+    private void AxisRangePanel_Committed(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
     private void GraphFontComboBox_Loaded(object sender, RoutedEventArgs e)
     {
         // IsEditable=True の ComboBox は SelectionChanged だけだとリストにないフォント名を
@@ -574,20 +582,16 @@ public partial class MainWindow : Window
                 ? markerSize
                 : GraphFormattingConfig.DefaultMarkerSize,
             DefaultOutputDirectory = _formattingConfig.DefaultOutputDirectory,
-            XAxisMode = GetComboBoxTag(XAxisModeComboBox),
-            XAxisMinNm = TryParseDouble(XAxisMinTextBox.Text, out var xmin)
-                ? xmin
-                : GraphFormattingConfig.DefaultXAxisMinNm,
-            XAxisMaxNm = TryParseDouble(XAxisMaxTextBox.Text, out var xmax)
-                ? xmax
-                : GraphFormattingConfig.DefaultXAxisMaxNm,
-            YAxisMode = GetComboBoxTag(YAxisModeComboBox),
-            YAxisMinPercent = TryParseDouble(YAxisMinTextBox.Text, out var ymin)
-                ? ymin
-                : GraphFormattingConfig.DefaultYAxisMinPercent,
-            YAxisMaxPercent = TryParseDouble(YAxisMaxTextBox.Text, out var ymax)
-                ? ymax
-                : GraphFormattingConfig.DefaultYAxisMaxPercent,
+            // Axis range: empty textboxes mean "Auto" (let ScottPlot auto-scale).
+            // Both endpoints must be filled for the axis to flip into "Manual".
+            XAxisMode = (AxisRangePanel.XMinValue.HasValue && AxisRangePanel.XMaxValue.HasValue)
+                ? "Manual" : "Auto",
+            XAxisMinNm = AxisRangePanel.XMinValue ?? GraphFormattingConfig.DefaultXAxisMinNm,
+            XAxisMaxNm = AxisRangePanel.XMaxValue ?? GraphFormattingConfig.DefaultXAxisMaxNm,
+            YAxisMode = (AxisRangePanel.YMinValue.HasValue && AxisRangePanel.YMaxValue.HasValue)
+                ? "Manual" : "Auto",
+            YAxisMinPercent = AxisRangePanel.YMinValue ?? GraphFormattingConfig.DefaultYAxisMinPercent,
+            YAxisMaxPercent = AxisRangePanel.YMaxValue ?? GraphFormattingConfig.DefaultYAxisMaxPercent,
             LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox),
             LegendPosition = GetComboBoxTag(LegendPositionComboBox)
                 ?? GraphFormattingConfig.DefaultLegendPositionValue,
@@ -624,12 +628,14 @@ public partial class MainWindow : Window
             LineWidthTextBox.Text = config.FormatLineWidth();
             MarkerSizeTextBox.Text = config.FormatMarkerSize();
 
-            SelectComboBoxByTag(XAxisModeComboBox, config.XAxisMode ?? "Auto");
-            XAxisMinTextBox.Text = FormatDouble(config.XAxisMinNm);
-            XAxisMaxTextBox.Text = FormatDouble(config.XAxisMaxNm);
-            SelectComboBoxByTag(YAxisModeComboBox, config.YAxisMode ?? "Auto");
-            YAxisMinTextBox.Text = FormatDouble(config.YAxisMinPercent);
-            YAxisMaxTextBox.Text = FormatDouble(config.YAxisMaxPercent);
+            // "Manual" mode: write the saved values back into the panel.
+            // "Auto" mode: leave the textboxes empty so the plot auto-scales.
+            AxisRangePanel.SetXValues(
+                config.XAxisMode == "Manual" ? config.XAxisMinNm : null,
+                config.XAxisMode == "Manual" ? config.XAxisMaxNm : null);
+            AxisRangePanel.SetYValues(
+                config.YAxisMode == "Manual" ? config.YAxisMinPercent : null,
+                config.YAxisMode == "Manual" ? config.YAxisMaxPercent : null);
             SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
             SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
             SelectComboBoxByTag(DefaultDistributionComboBox, config.DefaultDistributionMode);

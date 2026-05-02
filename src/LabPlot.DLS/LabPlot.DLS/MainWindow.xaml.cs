@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -32,12 +34,23 @@ public partial class MainWindow : Window
     private readonly ZetasizerXlsxReader _reader = new();
     private readonly List<DlsDataset> _datasets = new();
     private readonly List<DlsDataset> _selectedDatasets = new();
+    // Parallel to _datasets: VM that bridges the ListBox (color preview +
+    // sheet name) and per-sheet style overrides (color / legend name /
+    // line width / marker size). Constructed fresh on every file load so
+    // a new file resets all per-sheet state, while sheet selection within
+    // a loaded file preserves it (per Batch U3 design).
+    private readonly List<DlsDatasetItem> _datasetItems = new();
     private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
     private WpfPlot? _plot;
     private DistributionMode _selectedMode = DistributionMode.Number;
     private int _selectedRunIndex;
+    // Index into _datasetItems / _datasets that the per-dataset style
+    // panel currently edits (last-clicked sheet in a multi-select). -1
+    // when nothing is selected, in which case the panel is disabled.
+    private int _activeItemIndex = -1;
     private bool _suppressRunComboEvents;
     private bool _suppressFormattingEvents;
+    private bool _suppressStyleControlEvents;
 
     public MainWindow()
     {
@@ -58,6 +71,9 @@ public partial class MainWindow : Window
             // persistence ships in Batch 6 a saved config will replace the
             // factory default before this runs.
             ApplyFormattingConfigToControls(_formattingConfig);
+            // Per-dataset style controls start disabled until the user
+            // selects a sheet (no file loaded yet → _activeItemIndex = -1).
+            SyncStyleControlsFromActiveItem();
             _selectedMode = DistributionModeFromTag(_formattingConfig.DefaultDistributionMode);
             SelectComboBoxByTag(DistributionTypeComboBox, _formattingConfig.DefaultDistributionMode);
             _selectedRunIndex = Math.Max(0, _formattingConfig.DefaultRunIndex);
@@ -74,9 +90,9 @@ public partial class MainWindow : Window
     {
         if (_plot is null) return;
         _plot.Plot.Clear();
-        _plot.Plot.Title("Particle Size Distribution");
-        _plot.Plot.XLabel("Size (d.nm)");
-        _plot.Plot.YLabel(ModeLabel(_selectedMode));
+        _plot.Plot.Title(GetGraphTitle("Particle Size Distribution"));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, "Size (d.nm)"));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
         ApplyLogXTicks();
         _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
         ApplyPlotAppearance();
@@ -100,8 +116,14 @@ public partial class MainWindow : Window
             _datasets.Clear();
             foreach (var ds in loaded) _datasets.Add(ds);
 
+            // Rebuild VM list so a fresh file resets every per-sheet style
+            // override. Sheet-to-sheet selection within the same file
+            // preserves state because we never recreate the VMs there.
+            _datasetItems.Clear();
+            foreach (var ds in _datasets) _datasetItems.Add(new DlsDatasetItem(ds));
+
             DatasetListBox.ItemsSource = null;
-            DatasetListBox.ItemsSource = _datasets;
+            DatasetListBox.ItemsSource = _datasetItems;
             DatasetCountText.Text = _datasets.Count == 0
                 ? "粒径分布シートが見つかりませんでした"
                 : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(dialog.FileName)}）";
@@ -125,14 +147,118 @@ public partial class MainWindow : Window
         // Snapshot the selection in dataset order (not click order) so the
         // overlay palette stays predictable as the user toggles items.
         _selectedDatasets.Clear();
-        foreach (var ds in _datasets)
+        foreach (var item in _datasetItems)
         {
-            if (DatasetListBox.SelectedItems.Contains(ds))
-                _selectedDatasets.Add(ds);
+            if (DatasetListBox.SelectedItems.Contains(item))
+                _selectedDatasets.Add(item.Dataset);
         }
+
+        // Active item drives the per-dataset style panel: prefer the most
+        // recently added selection (last click in a multi-select), fall
+        // back to the last item still selected when the user only removed
+        // items, and -1 when nothing is selected.
+        DlsDatasetItem? activeItem = null;
+        foreach (var added in e.AddedItems)
+        {
+            if (added is DlsDatasetItem item) activeItem = item;
+        }
+        if (activeItem is null && DatasetListBox.SelectedItems.Count > 0)
+        {
+            activeItem = DatasetListBox.SelectedItems[DatasetListBox.SelectedItems.Count - 1] as DlsDatasetItem;
+        }
+        _activeItemIndex = activeItem is null ? -1 : _datasetItems.IndexOf(activeItem);
+        SyncStyleControlsFromActiveItem();
+
         UpdateRunCombo();
         UpdateDistributionTypeAvailability();
         RefreshPlot();
+    }
+
+    // Pushes the active sheet's per-dataset style values into the panel
+    // controls. Suppresses change events so writing the values back does
+    // not retrigger RefreshPlot — that path is owned by the per-control
+    // *_Changed handlers instead.
+    private void SyncStyleControlsFromActiveItem()
+    {
+        bool hasActive = _activeItemIndex >= 0 && _activeItemIndex < _datasetItems.Count;
+        LineColorPicker.IsEnabled = hasActive;
+        LegendNameTextBox.IsEnabled = hasActive;
+        LineWidthTextBox.IsEnabled = hasActive;
+        MarkerSizeTextBox.IsEnabled = hasActive;
+
+        if (!hasActive)
+        {
+            ActiveDatasetLabel.Text = "(選択中シート)";
+            return;
+        }
+
+        var item = _datasetItems[_activeItemIndex];
+        ActiveDatasetLabel.Text = $"({item.SheetName})";
+
+        _suppressStyleControlEvents = true;
+        try
+        {
+            // Match the GPC pattern: DefaultHex tracks the active palette
+            // index so the "Auto" preset preview reflects the actual color
+            // ScottPlot will render for this sheet.
+            LineColorPicker.DefaultHex = AutoLineColors[_activeItemIndex % AutoLineColors.Length];
+            LineColorPicker.SetHexValue(item.Style.ColorHex);
+            LegendNameTextBox.Text = item.Style.LegendName ?? string.Empty;
+            LineWidthTextBox.Text = FormatDouble(item.Style.LineWidth);
+            MarkerSizeTextBox.Text = FormatDouble(item.Style.MarkerSize);
+        }
+        finally
+        {
+            _suppressStyleControlEvents = false;
+        }
+    }
+
+    private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        _datasetItems[_activeItemIndex].Style.ColorHex = LineColorPicker.HexValue;
+        RefreshPlot();
+    }
+
+    private void LegendNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var legendName = LegendNameTextBox.Text.Trim();
+        _datasetItems[_activeItemIndex].Style.LegendName =
+            string.IsNullOrWhiteSpace(legendName) ? null : legendName;
+        RefreshPlot();
+    }
+
+    private void LineWidthTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        if (TryParsePositiveDouble(LineWidthTextBox.Text, out var width))
+        {
+            _datasetItems[_activeItemIndex].Style.LineWidth = width;
+            RefreshPlot();
+        }
+    }
+
+    private void MarkerSizeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        if (TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var size))
+        {
+            _datasetItems[_activeItemIndex].Style.MarkerSize = size;
+            RefreshPlot();
+        }
     }
 
     private void DistributionTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -179,6 +305,16 @@ public partial class MainWindow : Window
         RefreshPlot();
     }
 
+    // Title / X / Y label TextBoxes do not feed into _formattingConfig: the
+    // values are read directly by GetGraphTitle / GetGraphLabel at plot
+    // time (matching the GPC / Spectrum convention).
+    private void GraphLabelTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        RefreshPlot();
+    }
+
     private void AxisRangePanel_Committed(object? sender, EventArgs e)
     {
         if (!IsInitialized) return;
@@ -218,6 +354,8 @@ public partial class MainWindow : Window
     private void ClearActiveDatasets()
     {
         _selectedDatasets.Clear();
+        _activeItemIndex = -1;
+        SyncStyleControlsFromActiveItem();
         InitializeEmptyPlot();
     }
 
@@ -305,21 +443,41 @@ public partial class MainWindow : Window
                 ys[p] = run[p];
             }
 
+            // Per-sheet style takes precedence over the global default.
+            // Independence from _formattingConfig.LineWidth / MarkerSize
+            // matches the GPC convention (the "line style" panel edits
+            // per-sheet values; the global default only seeds new sheets).
+            var datasetIdx = _datasets.IndexOf(dataset);
+            var style = (datasetIdx >= 0 && datasetIdx < _datasetItems.Count)
+                ? _datasetItems[datasetIdx].Style
+                : null;
+
             var scatter = _plot.Plot.Add.Scatter(xs, ys);
-            scatter.LineWidth = (float)_formattingConfig.LineWidth;
-            scatter.MarkerSize = (float)_formattingConfig.MarkerSize;
+            scatter.LineWidth = (float)(style?.LineWidth ?? _formattingConfig.LineWidth);
+            scatter.MarkerSize = (float)(style?.MarkerSize ?? _formattingConfig.MarkerSize);
             ApplyDatasetColor(scatter, dataset);
-            scatter.LegendText = dataset.SheetName;
+            var customLegendName = style?.LegendName;
+            scatter.LegendText = string.IsNullOrWhiteSpace(customLegendName)
+                ? dataset.SheetName
+                : customLegendName!;
             seriesCount++;
+        }
+
+        // Sync the ListBox color swatches with whatever the plot just
+        // rendered. Done unconditionally so unselected rows still reflect
+        // their assigned palette colour.
+        for (int i = 0; i < _datasetItems.Count; i++)
+        {
+            _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
         }
 
         if (seriesCount == 0)
         {
             // All selected datasets lack the chosen distribution. Render an
             // empty labelled plot so the user notices the mode mismatch.
-            _plot.Plot.Title($"{ModeLabel(_selectedMode)} データなし");
-            _plot.Plot.XLabel("Size (d.nm)");
-            _plot.Plot.YLabel(ModeLabel(_selectedMode));
+            _plot.Plot.Title(GetGraphTitle($"{ModeLabel(_selectedMode)} データなし"));
+            _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, "Size (d.nm)"));
+            _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
             ApplyLogXTicks();
             _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
             ApplyPlotAppearance();
@@ -328,9 +486,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        _plot.Plot.Title(BuildTitle());
-        _plot.Plot.XLabel("Size (d.nm)");
-        _plot.Plot.YLabel(ModeLabel(_selectedMode));
+        _plot.Plot.Title(GetGraphTitle(BuildTitle()));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, "Size (d.nm)"));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
         ApplyLogXTicks();
         _plot.Plot.Axes.AutoScale();
         ApplyPlotAppearance();
@@ -355,19 +513,53 @@ public partial class MainWindow : Window
 
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
     {
-        // Default line colour overrides the per-dataset palette when the user
-        // has picked an explicit hex (or a non-Auto preset). Auto keeps the
-        // stable per-dataset palette indexed off _datasets.
+        // Three-tier fallback (per-sheet override → global default → palette).
+        // The per-sheet override comes from the per-dataset style panel and
+        // takes precedence so the user can paint individual sheets without
+        // changing the global default. Auto keeps the stable palette indexed
+        // off _datasets so each sheet's swatch is consistent across renders.
+        var index = _datasets.IndexOf(dataset);
+        if (index < 0) index = 0;
+
+        if (index < _datasetItems.Count
+            && !string.IsNullOrWhiteSpace(_datasetItems[index].Style.ColorHex))
+        {
+            scatter.Color = ScottPlot.Color.FromHex(new[] { _datasetItems[index].Style.ColorHex! }).First();
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
         {
             scatter.Color = ScottPlot.Color.FromHex(new[] { _formattingConfig.DefaultLineColorHex }).First();
             return;
         }
 
-        var index = _datasets.IndexOf(dataset);
-        if (index < 0) index = 0;
         var hex = AutoLineColors[index % AutoLineColors.Length];
         scatter.Color = ScottPlot.Color.FromHex(new[] { hex }).First();
+    }
+
+    // Mirrors ApplyDatasetColor's resolution but returns the hex / Media
+    // brush directly so DatasetListBox row swatches stay in sync with the
+    // plot. Called from RefreshPlot for every loaded sheet (selected or
+    // not) so unselected rows still show their assigned palette colour.
+    private SolidColorBrush ResolveDatasetBrush(int datasetIndex)
+    {
+        string hex;
+        if (datasetIndex >= 0 && datasetIndex < _datasetItems.Count
+            && !string.IsNullOrWhiteSpace(_datasetItems[datasetIndex].Style.ColorHex))
+        {
+            hex = _datasetItems[datasetIndex].Style.ColorHex!;
+        }
+        else if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
+        {
+            hex = _formattingConfig.DefaultLineColorHex!;
+        }
+        else
+        {
+            var i = Math.Max(0, datasetIndex);
+            hex = AutoLineColors[i % AutoLineColors.Length];
+        }
+        return new SolidColorBrush(HexToMediaColor(hex));
     }
 
     private void ApplyLogXTicks()
@@ -421,11 +613,28 @@ public partial class MainWindow : Window
     {
         if (_plot is null) return;
 
-        // "Auto" preserves the Batch 3a behaviour: legend appears only when
-        // 2+ datasets are overlaid, since a single-series plot has nothing
-        // to disambiguate. seriesCount == 0 forces autoShow false so an
-        // empty plot never shows an empty legend frame in Auto mode.
-        PlotAppearance.ApplyLegend(_plot.Plot, _formattingConfig, autoShow: seriesCount >= 2);
+        // Auto-show: 2+ overlaid datasets OR any selected sheet has a
+        // custom legend name (so a single rename still surfaces). Matches
+        // the GPC / Spectrum ShouldShowLegend rule. seriesCount == 0
+        // forces autoShow false so an empty plot never shows an empty
+        // legend frame in Auto mode.
+        bool hasCustomLegendName = false;
+        if (seriesCount > 0)
+        {
+            foreach (var ds in _selectedDatasets)
+            {
+                var idx = _datasets.IndexOf(ds);
+                if (idx >= 0 && idx < _datasetItems.Count
+                    && !string.IsNullOrWhiteSpace(_datasetItems[idx].Style.LegendName))
+                {
+                    hasCustomLegendName = true;
+                    break;
+                }
+            }
+        }
+
+        var autoShow = seriesCount >= 2 || (seriesCount > 0 && hasCustomLegendName);
+        PlotAppearance.ApplyLegend(_plot.Plot, _formattingConfig, autoShow);
     }
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
@@ -446,13 +655,14 @@ public partial class MainWindow : Window
             TitleBold = TitleBoldCheckBox.IsChecked == true,
             AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true,
             AspectRatio = GetSelectedAspectRatioConfigValue(),
-            DefaultLineColorHex = LineColorPicker.HexValue,
-            LineWidth = TryParsePositiveDouble(LineWidthTextBox.Text, out var lineWidth)
-                ? lineWidth
-                : GraphFormattingConfig.DefaultLineWidth,
-            MarkerSize = TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var markerSize)
-                ? markerSize
-                : GraphFormattingConfig.DefaultMarkerSize,
+            // Per-sheet line style controls live in their own panel and
+            // mutate _datasetItems[i].Style directly, so capture preserves
+            // whatever default seeded the file load (factory defaults at
+            // first; future Phase 4 Batch 6 session loads will replace
+            // these via _formattingConfig assignment).
+            DefaultLineColorHex = _formattingConfig.DefaultLineColorHex,
+            LineWidth = _formattingConfig.LineWidth,
+            MarkerSize = _formattingConfig.MarkerSize,
             DefaultOutputDirectory = _formattingConfig.DefaultOutputDirectory,
             // Axis range: empty textboxes mean "Auto" (let ScottPlot auto-scale).
             // Both endpoints must be filled for the axis to flip into "Manual".
@@ -496,9 +706,10 @@ public partial class MainWindow : Window
             TitleBoldCheckBox.IsChecked = config.TitleBold;
             AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
             SelectComboBoxByTag(AspectRatioComboBox, config.AspectRatio ?? "Auto");
-            LineColorPicker.SetHexValue(config.DefaultLineColorHex);
-            LineWidthTextBox.Text = config.FormatLineWidth();
-            MarkerSizeTextBox.Text = config.FormatMarkerSize();
+            // Per-sheet line style controls are driven by
+            // SyncStyleControlsFromActiveItem (selection change), not by
+            // the global formatting config — that decoupling is what lets
+            // each sheet keep its own state.
 
             // "Manual" mode: write the saved values back into the panel.
             // "Auto" mode: leave the textboxes empty so the plot auto-scales.
@@ -578,6 +789,65 @@ public partial class MainWindow : Window
         DistributionMode.Volume => "Volume (%)",
         _ => "Number (%)",
     };
+
+    // Per-sheet style overrides. ColorHex / LegendName are nullable so the
+    // empty case falls back to the auto palette / SheetName. LineWidth /
+    // MarkerSize default to the shared GraphFormattingConfigBase values so
+    // a freshly loaded file paints with the global defaults until the
+    // user touches the per-sheet panel.
+    private sealed class DlsDatasetStyle
+    {
+        public string? ColorHex { get; set; }
+        public string? LegendName { get; set; }
+        public double LineWidth { get; set; } = GraphFormattingConfigBase.DefaultLineWidth;
+        public double MarkerSize { get; set; } = GraphFormattingConfigBase.DefaultMarkerSize;
+    }
+
+    // ListBox row VM. Holds the underlying DlsDataset, the per-sheet
+    // style, and a notifying ColorBrush so the color swatch updates as
+    // soon as RefreshPlot() recomputes the palette / overrides.
+    private sealed class DlsDatasetItem : INotifyPropertyChanged
+    {
+        public DlsDataset Dataset { get; }
+        public DlsDatasetStyle Style { get; } = new();
+        public string SheetName => Dataset.SheetName;
+
+        private SolidColorBrush _colorBrush = new(Colors.Gray);
+        public SolidColorBrush ColorBrush
+        {
+            get => _colorBrush;
+            set
+            {
+                if (_colorBrush.Color == value.Color) return;
+                _colorBrush = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public DlsDatasetItem(DlsDataset dataset)
+        {
+            Dataset = dataset;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    // GPC / Spectrum convention: empty TextBox falls back to the dataset-
+    // derived default. Matches GetGraphTitle / GetGraphLabel in the other
+    // two apps so the GPC-basis label panel works identically here.
+    private string GetGraphTitle(string defaultTitle)
+    {
+        var title = TitleTextBox.Text.Trim();
+        return string.IsNullOrWhiteSpace(title) ? defaultTitle : title;
+    }
+
+    private static string GetGraphLabel(TextBox textBox, string defaultLabel)
+    {
+        var label = textBox.Text.Trim();
+        return string.IsNullOrWhiteSpace(label) ? defaultLabel : label;
+    }
 
     private void ShowError(string message)
     {

@@ -1063,10 +1063,21 @@ public partial class MainWindow : Window
 
         if (_loadedDatasets.Count == 0)
         {
+            // セッション内のすべてのデータが再読み込みに失敗した場合、UI 上で
+            // 「今表示されているグラフが操作対象なのか」が曖昧にならないよう、
+            // 削除ボタン側 (RemoveDatasetButton_Click) と同じ手順で空状態に
+            // 戻す: 表示パスをクリア + 既存プロットを破棄して空プロットへ。
             _activeIndex = -1;
             _currentDataset = null;
+            FilePathTextBlock.Text = string.Empty;
             RefreshDatasetEntries();
             SetGraphActionsEnabled(false);
+            if (_spectrumPlot is not null)
+            {
+                _spectrumPlot.Plot.Clear();
+                InitializeEmptyPlot();
+            }
+            UpdateCalibrationUi();
             return;
         }
 

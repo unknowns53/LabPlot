@@ -80,6 +80,38 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
     /// </summary>
     public IList<ManualLambdaMaxEntry> ManualLambdaMaxEntries { get; set; } = new List<ManualLambdaMaxEntry>();
 
+    // ----------- IR scan: peak detection markers -----------
+    public bool ShowIrPeakMarkers { get; set; }
+
+    /// <summary>
+    /// Minimum absorbance for a local maximum to be flagged as an IR peak.
+    /// Defaults to 0.05 to filter out baseline noise. Always evaluated in
+    /// Absorbance space — Transmittance datasets are converted on the fly.
+    /// </summary>
+    public double IrPeakMinAbsorbance { get; set; } = 0.05;
+
+    /// <summary>
+    /// Minimum prominence (in absorbance units) for the IR peak detector.
+    /// Rejects bumps that ride on a sloped baseline / outlier shoulder. A
+    /// value of 0 disables the filter and falls back to the older "any
+    /// local max" behaviour. Defaults to 0.02.
+    /// </summary>
+    public double IrPeakMinProminence { get; set; } = 0.02;
+
+    /// <summary>
+    /// Maximum number of IR peak markers to render per dataset. 0 means
+    /// unlimited.
+    /// </summary>
+    public int IrPeakCount { get; set; } = 5;
+
+    /// <summary>
+    /// User-added IR peak markers placed via click on the spectrum. They are
+    /// rendered alongside the auto-detected peaks (with a distinct shape /
+    /// label) when <see cref="ShowIrPeakMarkers"/> is on. Each entry binds
+    /// to a dataset by stable key (Title → SourceFilePath → synthetic).
+    /// </summary>
+    public IList<ManualIrPeakEntry> ManualIrPeakEntries { get; set; } = new List<ManualIrPeakEntry>();
+
     // ----------- Temperature scan: cloud-point detection -----------
     public bool ShowCloudPointMarkers { get; set; }
 
@@ -132,6 +164,7 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
         Calibration = NormalizeCalibration(Calibration);
         CloudPointMethod = NormalizeCloudPointMethod(CloudPointMethod);
         ManualLambdaMaxEntries = NormalizeManualLambdaMaxEntries(ManualLambdaMaxEntries);
+        ManualIrPeakEntries = NormalizeManualIrPeakEntries(ManualIrPeakEntries);
 
         if (!ConfigNormalizer.IsFiniteRange(LambdaMaxMinAbsorbance, 0.0, 100.0))
         {
@@ -141,6 +174,21 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
         if (LambdaMaxCount < 0 || LambdaMaxCount > 50)
         {
             LambdaMaxCount = 3;
+        }
+
+        if (!ConfigNormalizer.IsFiniteRange(IrPeakMinAbsorbance, 0.0, 100.0))
+        {
+            IrPeakMinAbsorbance = 0.05;
+        }
+
+        if (!ConfigNormalizer.IsFiniteRange(IrPeakMinProminence, 0.0, 100.0))
+        {
+            IrPeakMinProminence = 0.02;
+        }
+
+        if (IrPeakCount < 0 || IrPeakCount > 50)
+        {
+            IrPeakCount = 5;
         }
 
         if (!ConfigNormalizer.IsFiniteRange(CloudPointThresholdPercent, 0.001, 100.0))
@@ -269,6 +317,33 @@ public sealed class GraphFormattingConfig : GraphFormattingConfigBase
             {
                 continue;
             }
+
+            result.Add(raw);
+        }
+
+        return result;
+    }
+
+    private static IList<ManualIrPeakEntry> NormalizeManualIrPeakEntries(IList<ManualIrPeakEntry>? source)
+    {
+        if (source is null || source.Count == 0)
+        {
+            return new List<ManualIrPeakEntry>();
+        }
+
+        var result = new List<ManualIrPeakEntry>(source.Count);
+        // Defensive (key, wavenumber) deduplication: a damaged session
+        // shouldn't end up with two identical manual markers stacked on
+        // top of each other. Wavenumbers within 1e-4 cm⁻¹ collapse.
+        var seen = new HashSet<(string Key, long Bucket)>();
+        foreach (var raw in source)
+        {
+            if (raw is null) continue;
+            if (string.IsNullOrWhiteSpace(raw.DatasetKey)) continue;
+            if (!double.IsFinite(raw.WavenumberCm1)) continue;
+
+            var bucket = (long)Math.Round(raw.WavenumberCm1 * 10_000.0);
+            if (!seen.Add((raw.DatasetKey, bucket))) continue;
 
             result.Add(raw);
         }

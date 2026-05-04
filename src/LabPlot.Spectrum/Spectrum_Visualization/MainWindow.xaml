@@ -429,6 +429,126 @@
                                     </StackPanel>
                                 </Expander>
 
+                                <Expander Header="IR スペクトル解析（ピーク検出）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock x:Name="IrPeakHintTextBlock"
+                                                   Text="IR スペクトル（cm⁻¹）を開くとピーク検出が利用できます"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   Margin="0,0,0,6"
+                                                   Visibility="Collapsed" />
+                                        <CheckBox x:Name="ShowIrPeakCheckBox"
+                                                  Content="ピークにマーカーを表示"
+                                                  Margin="0,0,0,8"
+                                                  ToolTip="極大点を自動検出して垂直線とラベル（例: 1730 cm⁻¹）を描画。Absorbance ベースで検出（Transmittance データは A に変換）"
+                                                  Checked="IrPeakOption_Changed"
+                                                  Unchecked="IrPeakOption_Changed" />
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="検出閾値（A）"
+                                                           Style="{StaticResource FieldLabelStyle}" />
+                                                <TextBox x:Name="IrPeakMinAbsorbanceTextBox"
+                                                         Text="0.05"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         ToolTip="この絶対値以上の極大のみマーカーを表示"
+                                                         TextChanged="IrPeakNumericTextBox_TextChanged" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="突出度（A）"
+                                                           Style="{StaticResource FieldLabelStyle}" />
+                                                <TextBox x:Name="IrPeakMinProminenceTextBox"
+                                                         Text="0.02"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         ToolTip="ピークが左右の谷からどれだけ立ち上がっているか（A）。傾斜ベースラインや外れ値の肩で量産される偽ピークを抑制（0 で無効）"
+                                                         TextChanged="IrPeakNumericTextBox_TextChanged" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="最大マーカー数"
+                                                           Style="{StaticResource FieldLabelStyle}" />
+                                                <TextBox x:Name="IrPeakCountTextBox"
+                                                         Text="5"
+                                                         Style="{StaticResource InputTextBoxStyle}"
+                                                         ToolTip="絶対値の高い順に上位 N 個まで描画（0 で無制限）"
+                                                         TextChanged="IrPeakNumericTextBox_TextChanged" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Separator Margin="0,8,0,6" Background="#E2E8F0" />
+
+                                        <TextBlock Text="手動ピーク補正"
+                                                   Style="{StaticResource GroupLabelStyle}"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock Text="自動検出が外す場合に、グラフをクリックしてマーカーを追加できます。クリック位置の近傍 ±20 cm⁻¹ の極大に snap します"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   Margin="0,0,0,6"
+                                                   TextWrapping="Wrap" />
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="AddManualIrPeakButton"
+                                                    Grid.Column="0"
+                                                    Content="+ クリックで追加"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="AddManualIrPeakButton_Click"
+                                                    ToolTip="ボタンを押した後、グラフ上をクリックするとピークマーカーを追加（Esc / 右クリック / 同ボタン再押下でキャンセル）" />
+                                            <Button x:Name="ClearManualIrPeakButton"
+                                                    Grid.Column="2"
+                                                    Content="× 全削除"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Click="ClearManualIrPeakButton_Click"
+                                                    ToolTip="読み込まれた全データセットの手動ピークマーカーを削除" />
+                                        </Grid>
+                                        <TextBlock x:Name="ManualIrPeakEmptyTextBlock"
+                                                   Text="手動マーカーはまだありません"
+                                                   FontSize="11"
+                                                   Foreground="#94A3B8"
+                                                   FontStyle="Italic"
+                                                   Margin="0,2,0,0" />
+                                        <ItemsControl x:Name="ManualIrPeakItemsControl">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="4" />
+                                                            <ColumnDefinition Width="24" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding DisplayText}"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip="{Binding DisplayText}" />
+                                                        <Button Grid.Column="2"
+                                                                Content="×"
+                                                                Padding="0"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Click="RemoveManualIrPeakButton_Click"
+                                                                Tag="{Binding}"
+                                                                ToolTip="このマーカーを削除" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Expander>
+
                                 <Expander Header="波長スキャン解析（λmax）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                     <StackPanel Margin="0,8,0,0">
                                         <TextBlock x:Name="LambdaMaxHintTextBlock"

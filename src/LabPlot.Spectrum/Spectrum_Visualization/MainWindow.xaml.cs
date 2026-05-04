@@ -112,6 +112,13 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ManualLambdaMaxEntryVm> _manualLambdaMaxEntryVms = new();
     private bool _isManualLambdaMaxAddMode;
 
+    // Click-to-add gesture for manually-corrected IR peak markers. Mirrors
+    // the λmax flow but operates in wavenumber (cm⁻¹) space against
+    // dataset.IsWavenumberAxis instead of IsWavelengthScan. Persisted in
+    // GraphFormattingConfig.ManualIrPeakEntries.
+    private readonly ObservableCollection<ManualIrPeakEntryVm> _manualIrPeakEntryVms = new();
+    private bool _isManualIrPeakAddMode;
+
     public MainWindow()
     {
         // Suppress event handlers that fire during XAML parse (ComboBox.SelectionChanged
@@ -137,6 +144,8 @@ public partial class MainWindow : Window
         IntegrationResultItemsControl.ItemsSource = _integrationResultRowVms;
         ManualLambdaMaxItemsControl.ItemsSource = _manualLambdaMaxEntryVms;
         UpdateManualLambdaMaxEmptyVisibility();
+        ManualIrPeakItemsControl.ItemsSource = _manualIrPeakEntryVms;
+        UpdateManualIrPeakEmptyVisibility();
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
         RegisterShortcuts();
         Loaded += MainWindow_Loaded;
@@ -580,6 +589,20 @@ public partial class MainWindow : Window
             ? lambdaCount
             : 3;
         config.ManualLambdaMaxEntries = _manualLambdaMaxEntryVms.Select(vm => vm.ToModel()).ToList();
+
+        config.ShowIrPeakMarkers = ShowIrPeakCheckBox.IsChecked == true;
+        config.IrPeakMinAbsorbance = TryParseNonNegativeDouble(IrPeakMinAbsorbanceTextBox.Text, out var irPeakMin)
+            ? irPeakMin
+            : 0.05;
+        config.IrPeakMinProminence = TryParseNonNegativeDouble(IrPeakMinProminenceTextBox.Text, out var irPeakProm)
+            ? irPeakProm
+            : 0.02;
+        config.IrPeakCount = int.TryParse(IrPeakCountTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var irPeakCount)
+            && irPeakCount >= 0
+            ? irPeakCount
+            : 5;
+        config.ManualIrPeakEntries = _manualIrPeakEntryVms.Select(vm => vm.ToModel()).ToList();
+
         config.ShowCloudPointMarkers = ShowCloudPointCheckBox.IsChecked == true;
         config.CloudPointMethod = GetSelectedCloudPointMethodConfigValue();
         config.CloudPointThresholdPercent = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var cpThreshold)
@@ -620,6 +643,13 @@ public partial class MainWindow : Window
             LambdaMaxMinAbsorbanceTextBox.Text = config.LambdaMaxMinAbsorbance.ToString("0.###", CultureInfo.InvariantCulture);
             LambdaMaxCountTextBox.Text = config.LambdaMaxCount.ToString(CultureInfo.InvariantCulture);
             ApplyManualLambdaMaxEntries(config.ManualLambdaMaxEntries);
+
+            ShowIrPeakCheckBox.IsChecked = config.ShowIrPeakMarkers;
+            IrPeakMinAbsorbanceTextBox.Text = config.IrPeakMinAbsorbance.ToString("0.###", CultureInfo.InvariantCulture);
+            IrPeakMinProminenceTextBox.Text = config.IrPeakMinProminence.ToString("0.###", CultureInfo.InvariantCulture);
+            IrPeakCountTextBox.Text = config.IrPeakCount.ToString(CultureInfo.InvariantCulture);
+            ApplyManualIrPeakEntries(config.ManualIrPeakEntries);
+
             ShowCloudPointCheckBox.IsChecked = config.ShowCloudPointMarkers;
             if (!SelectComboBoxItemByTag(CloudPointMethodComboBox, config.CloudPointMethod ?? "Midpoint"))
             {
@@ -1338,6 +1368,7 @@ public partial class MainWindow : Window
         DrawIntegrationRegions(yRange);
         DrawIntegrationBaselines(plotEntries, yDisplayMode);
         DrawLambdaMaxMarkers(plotEntries, yRange);
+        DrawIrPeakMarkers(plotEntries, yRange);
         DrawCloudPointMarkers(plotEntries, yRange);
         DrawMetadataAnnotation(plotEntries);
 
@@ -2168,6 +2199,18 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
+    private void IrPeakOption_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        SchedulePlotCurrentDataset();
+    }
+
+    private void IrPeakNumericTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        SchedulePlotCurrentDataset();
+    }
+
     private void CloudPointOption_Changed(object sender, RoutedEventArgs e)
     {
         if (_suppressGraphAppearanceEvents) return;
@@ -2488,6 +2531,7 @@ public partial class MainWindow : Window
         if (_spectrumPlot is null) return;
         if (_isIntegrationDragMode) return;  // add-region mode handles its own move
         if (_isManualLambdaMaxAddMode) return; // manual λmax add owns the cursor / clicks
+        if (_isManualIrPeakAddMode) return;    // manual IR peak add owns the cursor / clicks
 
         var pos = e.GetPosition(_spectrumPlot);
 
@@ -2522,6 +2566,7 @@ public partial class MainWindow : Window
         if (_isIntegrationDragMode) return;
         if (_isIntegrationResizing) return;
         if (_isManualLambdaMaxAddMode) return;
+        if (_isManualIrPeakAddMode) return;
 
         var pos = e.GetPosition(_spectrumPlot);
         var (vm, isLeft) = FindIntegrationEdgeAt(pos);
@@ -2859,6 +2904,218 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
+    // -------------- Manual IR peak markers (click-to-add) --------------
+
+    /// <summary>
+    /// View-model wrapper for a manually-added IR peak marker. Mirrors the
+    /// λmax variant but stores a wavenumber (cm⁻¹) instead of a wavelength.
+    /// </summary>
+    private sealed class ManualIrPeakEntryVm
+    {
+        public required string DatasetKey { get; init; }
+        public required double WavenumberCm1 { get; init; }
+        public required string DisplayName { get; init; }
+
+        public string DisplayText => string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DisplayName}: {WavenumberCm1:0} cm⁻¹");
+
+        public ManualIrPeakEntry ToModel() => new()
+        {
+            DatasetKey = DatasetKey,
+            WavenumberCm1 = WavenumberCm1,
+        };
+    }
+
+    /// <summary>
+    /// Stable per-dataset key for IR peak entries. Reuses the λmax key
+    /// builder so a dataset addressed by both features round-trips through
+    /// session files identically.
+    /// </summary>
+    private static string BuildIrPeakDatasetKey(SpectrumDataset dataset, int index)
+        => BuildLambdaMaxDatasetKey(dataset, index);
+
+    private void ApplyManualIrPeakEntries(IList<ManualIrPeakEntry>? entries)
+    {
+        _manualIrPeakEntryVms.Clear();
+        if (entries is null)
+        {
+            UpdateManualIrPeakEmptyVisibility();
+            return;
+        }
+
+        foreach (var entry in entries)
+        {
+            if (entry is null) continue;
+            if (string.IsNullOrWhiteSpace(entry.DatasetKey)) continue;
+            if (!double.IsFinite(entry.WavenumberCm1)) continue;
+
+            _manualIrPeakEntryVms.Add(new ManualIrPeakEntryVm
+            {
+                DatasetKey = entry.DatasetKey,
+                WavenumberCm1 = entry.WavenumberCm1,
+                DisplayName = ResolveDisplayNameForDatasetKey(entry.DatasetKey),
+            });
+        }
+
+        UpdateManualIrPeakEmptyVisibility();
+    }
+
+    private void UpdateManualIrPeakEmptyVisibility()
+    {
+        ManualIrPeakEmptyTextBlock.Visibility = _manualIrPeakEntryVms.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ClearManualIrPeakButton.IsEnabled = _manualIrPeakEntryVms.Count > 0;
+    }
+
+    private void AddManualIrPeakButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isManualIrPeakAddMode)
+        {
+            ExitManualIrPeakAddMode(canceled: true);
+            return;
+        }
+
+        EnterManualIrPeakAddMode();
+    }
+
+    private void EnterManualIrPeakAddMode()
+    {
+        if (_spectrumPlot is null) return;
+        if (_currentDataset is null || !_currentDataset.IsWavenumberAxis)
+        {
+            SetStatus("IR スペクトルを選択してから手動ピークを追加してください", true);
+            return;
+        }
+        if (_isIntegrationDragMode || _isIntegrationResizing) return;
+        // Don't fight the λmax add gesture for the same plot click.
+        if (_isManualLambdaMaxAddMode)
+        {
+            ExitManualLambdaMaxAddMode(canceled: true);
+        }
+
+        _isManualIrPeakAddMode = true;
+        _spectrumPlot.Cursor = Cursors.Cross;
+        _spectrumPlot.PreviewMouseLeftButtonDown += ManualIrPeakAdd_PreviewMouseLeftButtonDown;
+        _spectrumPlot.PreviewMouseRightButtonDown += ManualIrPeakAdd_PreviewMouseRightButtonDown;
+        PreviewKeyDown += ManualIrPeakAdd_PreviewKeyDown;
+
+        AddManualIrPeakButton.Content = "✕ クリック取消";
+        SetStatus("グラフ上のピーク位置をクリック（Esc / 右クリック / 同ボタン再押下でキャンセル）", false);
+    }
+
+    private void ExitManualIrPeakAddMode(bool canceled)
+    {
+        if (!_isManualIrPeakAddMode || _spectrumPlot is null) return;
+
+        _isManualIrPeakAddMode = false;
+        _spectrumPlot.Cursor = null;
+        _spectrumPlot.PreviewMouseLeftButtonDown -= ManualIrPeakAdd_PreviewMouseLeftButtonDown;
+        _spectrumPlot.PreviewMouseRightButtonDown -= ManualIrPeakAdd_PreviewMouseRightButtonDown;
+        PreviewKeyDown -= ManualIrPeakAdd_PreviewKeyDown;
+
+        AddManualIrPeakButton.Content = "+ クリックで追加";
+        if (canceled)
+        {
+            SetStatus("手動ピーク追加をキャンセルしました", false);
+        }
+    }
+
+    private void ManualIrPeakAdd_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_spectrumPlot is null || _currentDataset is null)
+        {
+            ExitManualIrPeakAddMode(canceled: true);
+            return;
+        }
+
+        var pos = e.GetPosition(_spectrumPlot);
+        var coord = _spectrumPlot.Plot.GetCoordinates(
+            new ScottPlot.Pixel((float)pos.X, (float)pos.Y));
+        if (!double.IsFinite(coord.X))
+        {
+            ExitManualIrPeakAddMode(canceled: true);
+            e.Handled = true;
+            return;
+        }
+
+        var refined = IrPeakFinder.RefineManualPeak(_currentDataset, coord.X);
+        if (refined is null)
+        {
+            SetStatus("クリック位置の近傍に有効なデータ点がありませんでした", true);
+            ExitManualIrPeakAddMode(canceled: true);
+            e.Handled = true;
+            return;
+        }
+
+        var datasetIndex = _loadedDatasets.IndexOf(_currentDataset);
+        if (datasetIndex < 0) datasetIndex = _activeIndex;
+
+        var key = BuildIrPeakDatasetKey(_currentDataset, datasetIndex);
+        var displayName = (datasetIndex >= 0 ? GetCustomLegendName(datasetIndex) : null)
+            ?? Path.GetFileNameWithoutExtension(_currentDataset.SourceFilePath)
+            ?? $"dataset {Math.Max(0, datasetIndex) + 1}";
+
+        // De-duplicate against existing entries within ±1 cm⁻¹ so repeated
+        // clicks on the same band don't stack.
+        var existing = _manualIrPeakEntryVms.FirstOrDefault(vm =>
+            string.Equals(vm.DatasetKey, key, StringComparison.Ordinal)
+            && Math.Abs(vm.WavenumberCm1 - refined.WavenumberCm1) < 1.0);
+        if (existing is null)
+        {
+            _manualIrPeakEntryVms.Add(new ManualIrPeakEntryVm
+            {
+                DatasetKey = key,
+                WavenumberCm1 = refined.WavenumberCm1,
+                DisplayName = displayName,
+            });
+            UpdateManualIrPeakEmptyVisibility();
+            SetStatus(
+                string.Create(CultureInfo.InvariantCulture,
+                    $"手動ピークを {refined.WavenumberCm1:0} cm⁻¹ に追加しました"),
+                false);
+            SchedulePlotCurrentDataset();
+        }
+        else
+        {
+            SetStatus("近接位置に既に手動マーカーがあるため追加をスキップしました", false);
+        }
+
+        ExitManualIrPeakAddMode(canceled: false);
+        e.Handled = true;
+    }
+
+    private void ManualIrPeakAdd_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        ExitManualIrPeakAddMode(canceled: true);
+        e.Handled = true;
+    }
+
+    private void ManualIrPeakAdd_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        ExitManualIrPeakAddMode(canceled: true);
+        e.Handled = true;
+    }
+
+    private void RemoveManualIrPeakButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ManualIrPeakEntryVm vm }) return;
+        _manualIrPeakEntryVms.Remove(vm);
+        UpdateManualIrPeakEmptyVisibility();
+        SchedulePlotCurrentDataset();
+    }
+
+    private void ClearManualIrPeakButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_manualIrPeakEntryVms.Count == 0) return;
+        _manualIrPeakEntryVms.Clear();
+        UpdateManualIrPeakEmptyVisibility();
+        SetStatus("手動ピークマーカーをすべて削除しました", false);
+        SchedulePlotCurrentDataset();
+    }
+
     private (IntegrationRegionVm? Vm, bool IsLeft) FindIntegrationEdgeAt(Point pos)
     {
         if (_spectrumPlot is null || _integrationRegionVms.Count == 0)
@@ -3138,8 +3395,34 @@ public partial class MainWindow : Window
             : Visibility.Visible;
 
         UpdateLambdaMaxUi(dataset);
+        UpdateIrPeakUi(dataset);
         UpdateCloudPointUi(dataset);
         UpdateMetadataUi(dataset);
+    }
+
+    private void UpdateIrPeakUi(SpectrumDataset? dataset)
+    {
+        var hasIrScan = AnyDatasetMatches(static d => d.IsWavenumberAxis)
+                        || dataset?.IsWavenumberAxis == true;
+        ShowIrPeakCheckBox.IsEnabled = hasIrScan;
+        IrPeakMinAbsorbanceTextBox.IsEnabled = hasIrScan;
+        IrPeakMinProminenceTextBox.IsEnabled = hasIrScan;
+        IrPeakCountTextBox.IsEnabled = hasIrScan;
+        IrPeakHintTextBlock.Visibility = hasIrScan
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        var canAddManual = hasIrScan && _currentDataset?.IsWavenumberAxis == true;
+        AddManualIrPeakButton.IsEnabled = canAddManual || _isManualIrPeakAddMode;
+        ClearManualIrPeakButton.IsEnabled = _manualIrPeakEntryVms.Count > 0;
+        ManualIrPeakItemsControl.IsEnabled = hasIrScan;
+
+        // If the user switched to a non-IR dataset while the click-to-add
+        // mode was armed, bail out to avoid stale state.
+        if (_isManualIrPeakAddMode && !canAddManual)
+        {
+            ExitManualIrPeakAddMode(canceled: true);
+        }
     }
 
     private void UpdateLambdaMaxUi(SpectrumDataset? dataset)
@@ -3468,6 +3751,25 @@ public partial class MainWindow : Window
         };
     }
 
+    private IrPeakFinderConfig BuildIrPeakConfig()
+    {
+        var minAbs = TryParseNonNegativeDouble(IrPeakMinAbsorbanceTextBox.Text, out var parsed)
+            ? parsed
+            : 0.05;
+        var minProm = TryParseNonNegativeDouble(IrPeakMinProminenceTextBox.Text, out var parsedProm)
+            ? parsedProm
+            : 0.02;
+        var maxCount = int.TryParse(IrPeakCountTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var c) && c >= 0
+            ? c
+            : 5;
+        return new IrPeakFinderConfig
+        {
+            MinimumAbsorbance = minAbs,
+            MinimumProminence = minProm,
+            MaxPeaks = maxCount,
+        };
+    }
+
     private CloudPointDetectionConfig BuildCloudPointConfig()
     {
         var threshold = TryParseNonNegativeDouble(CloudPointThresholdTextBox.Text, out var parsed)
@@ -3497,6 +3799,119 @@ public partial class MainWindow : Window
     {
         var tag = GetSelectedComboBoxTag(CloudPointMethodComboBox);
         return string.IsNullOrWhiteSpace(tag) ? null : tag;
+    }
+
+    private void DrawIrPeakMarkers(
+        (SpectrumDataset Dataset, int Index)[] plotEntries,
+        AxisDataRange yRange)
+    {
+        if (_spectrumPlot is null
+            || ShowIrPeakCheckBox.IsChecked != true
+            || plotEntries.Length == 0
+            || !yRange.HasValue)
+        {
+            return;
+        }
+
+        var config = BuildIrPeakConfig();
+        var axisLimits = _spectrumPlot.Plot.Axes.GetLimits();
+        var ySpan = axisLimits.Top - axisLimits.Bottom;
+        var labelOffset = ySpan > 0 ? ySpan * 0.04 : 0.05;
+        var yDisplayMode = GetSelectedYAxisDisplayMode();
+
+        foreach (var (dataset, datasetIndex) in plotEntries)
+        {
+            if (!dataset.IsWavenumberAxis) continue;
+
+            var color = ResolveDatasetColor(datasetIndex);
+            var displayYs = SpectrumYAxisConverter.GetDisplayYValues(dataset, yDisplayMode);
+            var xs = dataset.XValues;
+
+            // -- Auto-detected peaks --
+            var peaks = IrPeakFinder.Find(dataset, config);
+            foreach (var peak in peaks)
+            {
+                if (!peak.HasResult) continue;
+
+                // Marker the data-point Y in the *displayed* unit so the
+                // dot sits visually on the curve even when the user picked
+                // Transmittance display.
+                var displayY = peak.SampleIndex >= 0 && peak.SampleIndex < displayYs.Length
+                    ? displayYs[peak.SampleIndex]
+                    : double.NaN;
+                if (!double.IsFinite(displayY)) continue;
+
+                DrawIrPeakMarker(
+                    peak.WavenumberCm1, displayY, color,
+                    isManual: false, axisLimits, labelOffset);
+            }
+
+            // -- Manual markers --
+            var datasetKey = BuildIrPeakDatasetKey(dataset, datasetIndex);
+            foreach (var vm in _manualIrPeakEntryVms)
+            {
+                if (!string.Equals(vm.DatasetKey, datasetKey, StringComparison.Ordinal)) continue;
+                if (xs.Length == 0) continue;
+
+                var nearest = -1;
+                var bestDist = double.PositiveInfinity;
+                for (var i = 0; i < xs.Length; i++)
+                {
+                    var d = Math.Abs(xs[i] - vm.WavenumberCm1);
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        nearest = i;
+                    }
+                }
+                if (nearest < 0) continue;
+                var manualY = displayYs[nearest];
+                if (!double.IsFinite(manualY)) continue;
+
+                DrawIrPeakMarker(
+                    vm.WavenumberCm1, manualY, color,
+                    isManual: true, axisLimits, labelOffset);
+            }
+        }
+    }
+
+    private void DrawIrPeakMarker(
+        double wavenumberCm1,
+        double displayY,
+        ScottPlot.Color color,
+        bool isManual,
+        ScottPlot.AxisLimits axisLimits,
+        double labelOffset)
+    {
+        if (_spectrumPlot is null) return;
+
+        var line = _spectrumPlot.Plot.Add.VerticalLine(wavenumberCm1);
+        line.LineStyle.Color = color.WithAlpha((byte)170);
+        line.LineStyle.Pattern = isManual ? ScottPlot.LinePattern.Dashed : ScottPlot.LinePattern.Dotted;
+        line.LineStyle.Width = 1;
+        line.LegendText = string.Empty;
+
+        var marker = _spectrumPlot.Plot.Add.Marker(wavenumberCm1, displayY);
+        marker.MarkerStyle.Shape = isManual
+            ? ScottPlot.MarkerShape.FilledTriangleDown
+            : ScottPlot.MarkerShape.OpenTriangleDown;
+        marker.MarkerStyle.Size = 8;
+        marker.MarkerStyle.LineColor = color;
+        marker.MarkerStyle.LineWidth = 1.5f;
+        marker.MarkerStyle.FillColor = isManual ? color : ScottPlot.Colors.White;
+        marker.LegendText = string.Empty;
+
+        var labelText = isManual
+            ? string.Create(CultureInfo.InvariantCulture, $"{wavenumberCm1:0} cm⁻¹ (手動)")
+            : string.Create(CultureInfo.InvariantCulture, $"{wavenumberCm1:0} cm⁻¹");
+        var labelY = displayY + labelOffset;
+        if (labelY > axisLimits.Top) labelY = displayY - labelOffset;
+
+        var text = _spectrumPlot.Plot.Add.Text(labelText, wavenumberCm1, labelY);
+        text.LabelFontColor = color;
+        text.LabelFontSize = 10;
+        text.LabelAlignment = ScottPlot.Alignment.LowerCenter;
+        text.LabelBold = false;
     }
 
     private void DrawLambdaMaxMarkers(

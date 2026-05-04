@@ -160,6 +160,19 @@ public partial class MainWindow : Window
             () => ToggleCheckBox(OverlayCheckBox));
         AddShortcut(System.Windows.Input.Key.G, System.Windows.Input.ModifierKeys.Control,
             () => GraphFormatPanel.TogglePlotGrid());
+        AddShortcut(System.Windows.Input.Key.F2, System.Windows.Input.ModifierKeys.None,
+            FocusLegendNameTextBox);
+    }
+
+    private void FocusLegendNameTextBox()
+    {
+        if (LegendNameTextBox is null || !LegendNameTextBox.IsEnabled)
+        {
+            return;
+        }
+
+        LegendNameTextBox.Focus();
+        LegendNameTextBox.SelectAll();
     }
 
     private static void ToggleCheckBox(CheckBox checkBox)

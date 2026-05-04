@@ -88,11 +88,25 @@ public partial class MainWindow : Window
             () => SaveGraphButton_Click(this, new RoutedEventArgs()));
         AddShortcut(Key.E, ModifierKeys.Control,
             () => ExportButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(Key.R, ModifierKeys.Control,
+            () => AxisRangePanel.ResetToAuto());
         AddShortcut(Key.S, ModifierKeys.Control | ModifierKeys.Shift,
             () => SaveSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(Key.O, ModifierKeys.Control | ModifierKeys.Shift,
             () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(Key.G, ModifierKeys.Control, () => GraphFormatPanel.TogglePlotGrid());
+        AddShortcut(Key.F2, ModifierKeys.None, FocusLegendNameTextBox);
+    }
+
+    private void FocusLegendNameTextBox()
+    {
+        if (LegendNameTextBox is null || !LegendNameTextBox.IsEnabled)
+        {
+            return;
+        }
+
+        LegendNameTextBox.Focus();
+        LegendNameTextBox.SelectAll();
     }
 
     private void AddShortcut(Key key, ModifierKeys modifiers, Action handler)

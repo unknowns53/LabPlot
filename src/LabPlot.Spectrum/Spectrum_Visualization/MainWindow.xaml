@@ -238,6 +238,7 @@
                                 <TextBox x:Name="LegendNameTextBox"
                                          Style="{StaticResource InputTextBoxStyle}"
                                          Margin="0,0,0,10"
+                                         ToolTip="凡例名を編集（F2 でフォーカス）"
                                          TextChanged="LegendNameTextBox_TextChanged" />
 
                                 <Grid>

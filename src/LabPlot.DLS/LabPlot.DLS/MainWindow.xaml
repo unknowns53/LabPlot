@@ -204,6 +204,7 @@
                                     <TextBox x:Name="LegendNameTextBox"
                                              Style="{StaticResource InputTextBoxStyle}"
                                              Margin="0,0,0,10"
+                                             ToolTip="凡例名を編集（F2 でフォーカス）"
                                              TextChanged="LegendNameTextBox_TextChanged" />
 
                                     <Grid>
@@ -571,13 +572,13 @@
                                             HorizontalAlignment="Stretch"
                                             IsEnabled="False"
                                             Margin="0,0,0,8"
-                                            ToolTip="解析条件を .dlsjson に保存"
+                                            ToolTip="解析条件を .dlsjson に保存 (Ctrl+Shift+S)"
                                             Click="SaveSessionButton_Click" />
                                     <Button x:Name="LoadSessionButton"
                                             Content="解析条件を読込"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             HorizontalAlignment="Stretch"
-                                            ToolTip="解析条件 (.dlsjson) を読み込み"
+                                            ToolTip="解析条件 (.dlsjson) を読み込み (Ctrl+Shift+O)"
                                             Click="LoadSessionButton_Click" />
                                     <TextBlock Text="今開いている解析の状態（データ・線スタイル・測定条件・キュムラント解析・軸範囲・グラフ書式）を任意の場所に .dlsjson として保存します。後でこのファイルを読み込めば、同じ解析をそのまま復元できます。"
                                                Foreground="#64748B"
@@ -720,6 +721,45 @@
                                    VerticalAlignment="Center"
                                    Foreground="#64748B" />
                     </Grid>
+                    <Border x:Name="PlotControlsHintBadge"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="0,8,8,0"
+                            Width="22" Height="22"
+                            CornerRadius="11"
+                            Background="#F1F5F9"
+                            BorderBrush="#CBD5E1"
+                            BorderThickness="1"
+                            Cursor="Help"
+                            ToolTipService.InitialShowDelay="200"
+                            ToolTipService.ShowDuration="20000"
+                            ToolTipService.Placement="Bottom">
+                        <Border.ToolTip>
+                            <ToolTip Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="プロット操作"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               Foreground="#0F172A"
+                                               Margin="0,0,0,6" />
+                                    <TextBlock Text="左ドラッグ : パン" Foreground="#475569" />
+                                    <TextBlock Text="右ドラッグ : 範囲ズーム" Foreground="#475569" />
+                                    <TextBlock Text="ホイール : 拡大／縮小" Foreground="#475569" />
+                                    <TextBlock Text="Ctrl + ホイール : 横方向のみ" Foreground="#475569" />
+                                    <TextBlock Text="Shift + ホイール : 縦方向のみ" Foreground="#475569" />
+                                    <TextBlock Text="ダブルクリック : ベンチマーク表示" Foreground="#475569" />
+                                </StackPanel>
+                            </ToolTip>
+                        </Border.ToolTip>
+                        <TextBlock Text="i"
+                                   FontFamily="Segoe UI, Yu Gothic UI, sans-serif"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   FontStyle="Italic"
+                                   Foreground="#475569"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
                     <Border Background="#FEE2E2"
                             BorderBrush="#FCA5A5"
                             BorderThickness="1"

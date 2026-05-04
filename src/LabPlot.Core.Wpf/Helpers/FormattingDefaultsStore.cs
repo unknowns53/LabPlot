@@ -91,6 +91,24 @@ public static class FormattingDefaultsStore
     }
 
     /// <summary>
+    /// Deep-clones a formatting config via JSON round-trip. Used by apps
+    /// that maintain a "saved defaults" copy alongside a separate "live"
+    /// copy: cloning lets the live state mutate (e.g. a session load
+    /// replacing it wholesale) without corrupting the persisted defaults
+    /// the user can fall back to via the Reset button.
+    /// </summary>
+    public static T Clone<T>(T source, JsonSerializerOptions? options = null)
+        where T : GraphFormattingConfigBase, new()
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        var resolved = options ?? DefaultJsonOptions;
+        var json = JsonSerializer.Serialize(source, source.GetType(), resolved);
+        var clone = JsonSerializer.Deserialize<T>(json, resolved) ?? new T();
+        clone.Normalize();
+        return clone;
+    }
+
+    /// <summary>
     /// Returns the saved default output directory if it is non-empty and still
     /// exists on disk. The existence check guards against stale paths after
     /// a folder is renamed or removed outside the app.

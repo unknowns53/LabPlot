@@ -58,7 +58,18 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
     private readonly AnalysisSessionStore<SpectrumAnalysisSession> _sessionStore = new();
 
+    // Saved defaults read from / written to %AppData%\Spectrum_Visualization\formatting_config.json.
+    // The Reset ボタン restores controls to this snapshot, so it must NOT be
+    // overwritten by transient operations like loading a session — sessions
+    // mutate _formattingConfig instead. Calibration confirmation and
+    // "Save as defaults" are the only flows that write here.
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
+
+    // Live working state. Tracks whatever the user is currently looking at
+    // (post-session-load, post-calibration-edit, etc.). Calibration access
+    // and dataset-style seeding read from here so they reflect the visible
+    // state instead of the persisted defaults.
+    private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
     private int _activeIndex = -1;
     private SpectrumDataset? _currentDataset;
     private WpfPlot? _spectrumPlot;
@@ -118,7 +129,8 @@ public partial class MainWindow : Window
 
         InitializePeakAssignmentVms();
         LoadFormattingDefaults();
-        ApplyFormattingConfigToControls(_formattingDefaults);
+        _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
+        ApplyFormattingConfigToControls(_formattingConfig);
         DatasetListBox.ItemsSource = _datasetEntries;
         PeakAssignmentItemsControl.ItemsSource = _peakAssignmentVms;
         IntegrationRegionItemsControl.ItemsSource = _integrationRegionVms;
@@ -260,10 +272,13 @@ public partial class MainWindow : Window
 
     private void ApplyDefaultDatasetStyle(DatasetStyle style)
     {
-        style.ColorHex = _formattingDefaults.DefaultLineColorHex;
+        // Seed from the live config so a freshly-loaded session's default
+        // colour / width applies to subsequently-added datasets, not the
+        // user's persisted defaults from formatting_config.json.
+        style.ColorHex = _formattingConfig.DefaultLineColorHex;
         style.LegendName = null;
-        style.LineWidth = _formattingDefaults.LineWidth;
-        style.MarkerSize = _formattingDefaults.MarkerSize;
+        style.LineWidth = _formattingConfig.LineWidth;
+        style.MarkerSize = _formattingConfig.MarkerSize;
     }
 
     public sealed class DatasetEntryVm
@@ -563,7 +578,7 @@ public partial class MainWindow : Window
         config.DefaultOutputDirectory = DefaultOutputDirectoryTextBox.Text;
         // Calibration has its own editor window — preserve whatever was
         // last saved there instead of clobbering it with a default.
-        config.Calibration = _formattingDefaults.Calibration;
+        config.Calibration = _formattingConfig.Calibration;
 
         config.Normalize();
         return config;
@@ -748,7 +763,11 @@ public partial class MainWindow : Window
         YLabelTextBox.Clear();
         AxisRangePanel.SetXValues(null, null);
         AxisRangePanel.SetYValues(null, null);
+        // Reset is the explicit "discard live edits, restore saved
+        // defaults" flow, so push _formattingDefaults into the controls
+        // and re-clone it as the new live config.
         ApplyFormattingConfigToControls(_formattingDefaults);
+        _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
 
         foreach (var style in _datasetStyles)
         {
@@ -765,7 +784,11 @@ public partial class MainWindow : Window
     {
         try
         {
+            // "Save as defaults" promotes the current control state into
+            // both the persisted snapshot AND the live config, so a
+            // subsequent Reset bounces back to exactly the same view.
             _formattingDefaults = CaptureFormattingConfigFromControls();
+            _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
             SaveFormattingDefaults();
             SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}", false);
         }
@@ -1055,11 +1078,15 @@ public partial class MainWindow : Window
         if (session.Formatting is not null)
         {
             session.Formatting.Normalize();
-            // 環境設定はセッションファイルではなくユーザーごとの formatting_config に
-            // 属するので、ローカルの defaults を上書きしない。
+            // 環境設定（出力フォルダ）はユーザーごとの formatting_config.json
+            // に属するので、ローカルの defaults から復元してから live 側
+            // (_formattingConfig) に流し込む。_formattingDefaults はユーザー
+            // が「既定値として保存」or 検量線確定を押した時にだけ更新される
+            // snapshot なので、ここでは触らない — そうしないと Reset ボタン
+            // がセッションの書式に巻き戻る。
             session.Formatting.DefaultOutputDirectory = _formattingDefaults.DefaultOutputDirectory;
-            _formattingDefaults = session.Formatting;
-            ApplyFormattingConfigToControls(session.Formatting);
+            _formattingConfig = session.Formatting;
+            ApplyFormattingConfigToControls(_formattingConfig);
         }
 
         var labels = session.Labels;
@@ -3898,7 +3925,7 @@ public partial class MainWindow : Window
             .ToList();
 
         var window = new CalibrationCurveWindow(
-            _formattingDefaults.Calibration,
+            _formattingConfig.Calibration,
             datasets,
             regions,
             GetDefaultOutputDirectoryIfExists())
@@ -3908,6 +3935,11 @@ public partial class MainWindow : Window
 
         if (window.ShowDialog() == true)
         {
+            // Calibration confirmation is treated as an explicit "save as
+            // default" by the existing UX (one click both updates the
+            // current calibration AND persists it), so write through to
+            // both the live config and the saved defaults snapshot.
+            _formattingConfig.Calibration = window.ResultConfig;
             _formattingDefaults.Calibration = window.ResultConfig;
             try
             {
@@ -3925,7 +3957,7 @@ public partial class MainWindow : Window
 
     private void ExportCalibrationResultsButton_Click(object sender, RoutedEventArgs e)
     {
-        var calibration = _formattingDefaults.Calibration;
+        var calibration = _formattingConfig.Calibration;
         if (calibration is null)
         {
             SetStatus("検量線が未設定です", true);
@@ -3997,7 +4029,7 @@ public partial class MainWindow : Window
         OpenCalibrationEditorButton.IsEnabled = hasMinimumDatasets;
         CalibrationHintTextBlock.Visibility = hasMinimumDatasets ? Visibility.Collapsed : Visibility.Visible;
 
-        var calibration = _formattingDefaults.Calibration;
+        var calibration = _formattingConfig.Calibration;
         if (calibration is null || _loadedDatasets.Count == 0)
         {
             CalibrationSummaryBorder.Visibility = Visibility.Collapsed;

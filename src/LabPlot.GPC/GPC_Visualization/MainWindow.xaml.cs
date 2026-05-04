@@ -57,7 +57,18 @@ public partial class MainWindow : Window
     private readonly Dictionary<MolecularWeightCacheKey, MolecularWeightDataset> _molecularWeightCache = new();
     private readonly Dictionary<PlotSeriesCacheKey, PlotSeriesData> _plotSeriesCache = new();
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
+    // Saved defaults read from / written to %AppData%\GPC_Visualization\formatting_config.json.
+    // The Reset ボタン restores controls to this snapshot, so it must NOT be
+    // overwritten by transient operations like loading a session — sessions
+    // mutate _formattingConfig instead. "Save as defaults" is the only flow
+    // that pushes the current control state back into _formattingDefaults.
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
+
+    // Live working state. Tracks whatever the user is currently looking at
+    // (post-session-load, post-calibration-edit, etc.) so dataset-style
+    // seeding (ApplyDefaultDatasetStyle / SyncStyleControlsFromActiveDataset)
+    // reflects the visible defaults rather than the persisted ones.
+    private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
     private int _activeIndex = -1;
     private GpcDataset? _currentDataset;
     private CalibrationCurveSet? _calibrationCurveSet;
@@ -87,7 +98,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         LoadFormattingDefaults();
-        ApplyFormattingConfigToControls(_formattingDefaults);
+        _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
+        ApplyFormattingConfigToControls(_formattingConfig);
         DatasetListBox.ItemsSource = _datasetEntries;
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
         RegisterShortcuts();
@@ -317,10 +329,13 @@ public partial class MainWindow : Window
 
     private void ApplyDefaultDatasetStyle(DatasetStyle style)
     {
-        style.ColorHex = _formattingDefaults.DefaultLineColorHex;
+        // Seed from the live config so a freshly-loaded session's default
+        // colour / width applies to subsequently-added datasets, not the
+        // user's persisted defaults from formatting_config.json.
+        style.ColorHex = _formattingConfig.DefaultLineColorHex;
         style.LegendName = null;
-        style.LineWidth = _formattingDefaults.LineWidth;
-        style.MarkerSize = _formattingDefaults.MarkerSize;
+        style.LineWidth = _formattingConfig.LineWidth;
+        style.MarkerSize = _formattingConfig.MarkerSize;
     }
 
     public sealed class DatasetEntryVm
@@ -666,7 +681,11 @@ public partial class MainWindow : Window
         YLabelTextBox.Clear();
         AxisRangePanel.SetXValues(null, null);
         AxisRangePanel.SetYValues(null, null);
+        // Reset is the explicit "discard live edits, restore saved
+        // defaults" flow, so push _formattingDefaults into the controls
+        // and re-clone it as the new live config.
         ApplyFormattingConfigToControls(_formattingDefaults);
+        _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
 
         foreach (var style in _datasetStyles)
         {
@@ -683,7 +702,11 @@ public partial class MainWindow : Window
     {
         try
         {
+            // "Save as defaults" promotes the current control state into
+            // both the persisted snapshot AND the live config, so a
+            // subsequent Reset bounces back to exactly the same view.
             _formattingDefaults = CaptureFormattingConfigFromControls();
+            _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
             SaveFormattingDefaults();
             SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}", false);
         }
@@ -998,11 +1021,16 @@ public partial class MainWindow : Window
         if (session.Formatting is not null)
         {
             session.Formatting.Normalize();
-            // 環境設定はセッションファイルではなくユーザーごとの formatting_config に属するので保持する。
+            // 環境設定（出力フォルダ・既定較正曲線パス）はユーザーごとの
+            // formatting_config.json に属するので、ローカルの defaults から
+            // 復元してから live 側 (_formattingConfig) に流し込む。
+            // _formattingDefaults はユーザーが「既定値として保存」を押した
+            // 時にだけ更新される snapshot なので、ここでは触らない —
+            // そうしないと Reset ボタンがセッションの書式に巻き戻る。
             session.Formatting.DefaultCalibrationFilePath = _formattingDefaults.DefaultCalibrationFilePath;
             session.Formatting.DefaultOutputDirectory = _formattingDefaults.DefaultOutputDirectory;
-            _formattingDefaults = session.Formatting;
-            ApplyFormattingConfigToControls(session.Formatting);
+            _formattingConfig = session.Formatting;
+            ApplyFormattingConfigToControls(_formattingConfig);
         }
 
         if (session.Calibration is { FilePath: var calibrationPath } && !string.IsNullOrWhiteSpace(calibrationPath))
@@ -2364,11 +2392,14 @@ public partial class MainWindow : Window
         {
             if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count)
             {
-                LineColorPicker.DefaultHex = _formattingDefaults.DefaultLineColorHex ?? AutoLineColors[0];
-                LineColorPicker.SetHexValue(_formattingDefaults.DefaultLineColorHex);
+                // No dataset active: surface the current live defaults
+                // (post-session-load aware) so the picker preview matches
+                // what a freshly-added dataset would actually use.
+                LineColorPicker.DefaultHex = _formattingConfig.DefaultLineColorHex ?? AutoLineColors[0];
+                LineColorPicker.SetHexValue(_formattingConfig.DefaultLineColorHex);
                 LegendNameTextBox.Clear();
-                LineWidthTextBox.Text = _formattingDefaults.FormatLineWidth();
-                MarkerSizeTextBox.Text = _formattingDefaults.FormatMarkerSize();
+                LineWidthTextBox.Text = _formattingConfig.FormatLineWidth();
+                MarkerSizeTextBox.Text = _formattingConfig.FormatMarkerSize();
                 ActiveDatasetLabel.Text = "(データ未選択)";
                 return;
             }

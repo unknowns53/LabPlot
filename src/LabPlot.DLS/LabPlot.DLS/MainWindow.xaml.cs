@@ -488,7 +488,7 @@ public partial class MainWindow : Window
                 YMin = AxisRangePanel.YMinValue,
                 YMax = AxisRangePanel.YMaxValue,
             },
-            Formatting = _formattingConfig,
+            Formatting = BuildSessionFormatting(),
             Labels = new AnalysisSessionLabels
             {
                 Title = TitleTextBox.Text,
@@ -572,8 +572,11 @@ public partial class MainWindow : Window
 
         if (session.Formatting is not null)
         {
+            session.Formatting.Normalize();
+            // 環境設定はセッションファイルではなくユーザーごとの formatting_config に
+            // 属するので、ローカルの defaults を上書きしない。
+            session.Formatting.DefaultOutputDirectory = _formattingDefaults.DefaultOutputDirectory;
             _formattingConfig = session.Formatting;
-            _formattingConfig.Normalize();
             ApplyFormattingConfigToControls(_formattingConfig);
             UpdatePlotHostAspectRatio();
         }
@@ -1785,6 +1788,17 @@ public partial class MainWindow : Window
             ?? GraphFormattingConfig.CreateFactoryDefault();
         clone.Normalize();
         return clone;
+    }
+
+    /// <summary>
+    /// セッション保存用の formatting を構築する。環境設定（出力フォルダ）はユーザー
+    /// ごとの formatting_config.json 側で管理するため、ここでは null クリアする。
+    /// </summary>
+    private GraphFormattingConfig BuildSessionFormatting()
+    {
+        var formatting = CloneFormattingConfig(_formattingConfig);
+        formatting.DefaultOutputDirectory = null;
+        return formatting;
     }
 
     private string? GetDefaultOutputDirectoryIfExists()

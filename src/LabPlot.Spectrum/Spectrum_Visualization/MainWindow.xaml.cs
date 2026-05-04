@@ -989,11 +989,17 @@ public partial class MainWindow : Window
 
     private SpectrumAnalysisSession BuildAnalysisSession()
     {
+        // 環境設定（出力フォルダ）はセッションには含めず、ユーザーごとの
+        // formatting_config.json にだけ保存する。これでセッションを別 PC や
+        // 別ユーザーに渡しても、相手側の環境設定を上書きしない。
+        var sessionFormatting = CaptureFormattingConfigFromControls();
+        sessionFormatting.DefaultOutputDirectory = null;
+
         var session = new SpectrumAnalysisSession
         {
             Overlay = OverlayCheckBox.IsChecked == true,
             ActiveDatasetIndex = _activeIndex,
-            Formatting = CaptureFormattingConfigFromControls(),
+            Formatting = sessionFormatting,
             Labels = new AnalysisSessionLabels
             {
                 Title = TitleTextBox.Text,
@@ -1080,6 +1086,11 @@ public partial class MainWindow : Window
 
         if (session.Formatting is not null)
         {
+            session.Formatting.Normalize();
+            // 環境設定はセッションファイルではなくユーザーごとの formatting_config に
+            // 属するので、ローカルの defaults を上書きしない。
+            session.Formatting.DefaultOutputDirectory = _formattingDefaults.DefaultOutputDirectory;
+            _formattingDefaults = session.Formatting;
             ApplyFormattingConfigToControls(session.Formatting);
         }
 

@@ -110,7 +110,7 @@
                                                FontSize="11"
                                                Foreground="#94A3B8"
                                                TextWrapping="Wrap"
-                                               Text="Ctrl/Shift クリックで複数選択して重ね描きできるよ" />
+                                               Text="Ctrl/Shift クリックで複数選択して重ね描きできます" />
                                     <TextBlock x:Name="DatasetCountText"
                                                Margin="0,6,0,0"
                                                FontSize="12"
@@ -575,7 +575,7 @@
                                             ToolTip="解析条件を .dlsjson に保存 (Ctrl+Shift+S)"
                                             Click="SaveSessionButton_Click" />
                                     <Button x:Name="LoadSessionButton"
-                                            Content="解析条件を読込"
+                                            Content="解析条件を読み込み"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             HorizontalAlignment="Stretch"
                                             ToolTip="解析条件 (.dlsjson) を読み込み (Ctrl+Shift+O)"

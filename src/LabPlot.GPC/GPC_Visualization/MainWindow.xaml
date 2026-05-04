@@ -415,7 +415,7 @@
                                             ToolTip="解析条件を .gpcjson に保存 (Ctrl+Shift+S)"
                                             Click="SaveSessionButton_Click" />
                                     <Button x:Name="LoadSessionButton"
-                                            Content="解析条件を読込"
+                                            Content="解析条件を読み込み"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             HorizontalAlignment="Stretch"
                                             ToolTip="解析条件 (.gpcjson) を読み込み (Ctrl+Shift+O)"

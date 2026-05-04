@@ -681,7 +681,7 @@ public partial class MainWindow : Window
             Title = allowMultiple
                 ? "JASCO スペクトルを開く（複数選択可）"
                 : "JASCO スペクトルを開く",
-            Filter = "JASCO スペクトル (*.txt;*.csv)|*.txt;*.csv|JASCO TXT (*.txt)|*.txt|JASCO CSV (*.csv)|*.csv|All files (*.*)|*.*",
+            Filter = "JASCO スペクトル (*.txt;*.csv)|*.txt;*.csv|JASCO TXT (*.txt)|*.txt|JASCO CSV (*.csv)|*.csv|すべてのファイル (*.*)|*.*",
             CheckFileExists = true,
             Multiselect = allowMultiple,
         };
@@ -958,8 +958,8 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "解析条件を読込",
-            Filter = "Spectrum セッション (*.specjson;*.json)|*.specjson;*.json|All files (*.*)|*.*",
+            Title = "解析条件を読み込み",
+            Filter = "Spectrum セッション (*.specjson;*.json)|*.specjson;*.json|すべてのファイル (*.*)|*.*",
             CheckFileExists = true,
             Multiselect = false,
         };

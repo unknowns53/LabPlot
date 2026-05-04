@@ -1,17 +1,17 @@
 # LabPlot
 
-研究室向けの測定データ可視化・解析アプリ群をまとめたモノレポです。Shimadzu LabSolutions（GPC）/ JASCO V-750（紫外可視）/ Malvern Zetasizer（DLS、計画中）など、ラボの測定装置から出力されたデータを WPF アプリで読み込んで、ScottPlot による可視化・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行います。
+研究室向けの測定データ可視化・解析アプリ群をまとめたモノレポです。Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）など、ラボの測定装置から出力されたデータを WPF アプリで読み込んで、ScottPlot による可視化・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行います。共通の解析・UI 基盤は `LabPlot.Core` / `LabPlot.Core.Wpf` に集約しています。
 
 ## 含まれるアプリ
 
 - [`src/LabPlot.GPC`](src/LabPlot.GPC/README.md) — GPC（ゲル浸透クロマトグラフィー）データ可視化・分子量分布解析。Shimadzu LabSolutions の TXT エクスポートおよび `Time, Signal` 形式の CSV / TSV に対応
-- [`src/LabPlot.Spectrum`](src/LabPlot.Spectrum/) — UV-Vis 波長スキャン / 温度スキャン解析。JASCO V-750 対応、ベースライン補正・ピーク積分・Beer-Lambert 検量線・λmax / Tc 自動抽出を搭載
-- `src/LabPlot.DLS` — DLS 粒径分布・自己相関関数解析。Malvern Zetasizer 対応（**計画中**）
+- [`src/LabPlot.Spectrum`](src/LabPlot.Spectrum/README.md) — UV-Vis 波長スキャン / 温度スキャン / FTIR 解析。JASCO V-750 対応、ベースライン補正・ピーク積分・Beer-Lambert 検量線・λmax / Tc 自動抽出・IR ピーク検出を搭載
+- [`src/LabPlot.DLS`](src/LabPlot.DLS/README.md) — DLS 粒径分布・自己相関関数解析。Malvern Zetasizer の xlsx エクスポート対応、キュムラント解析と Stokes–Einstein 計算を搭載
 
 ## 共有ライブラリ
 
-- `src/LabPlot.Core` — 各アプリ共通の解析ロジック（書式設定、エクスポート、セッション保存、ScottPlot セットアップ補助など）。WPF 非依存（**計画中**）
-- `src/LabPlot.Core.Wpf` — 各アプリ共通の WPF コンポーネント（`Themes/CommonStyles.xaml`、ScottPlot ホスト、ドラッグ操作支援など）（**計画中**）
+- [`src/LabPlot.Core`](src/LabPlot.Core/README.md) — 各アプリ共通の解析ロジック（書式設定、エクスポート、セッション保存、ScottPlot セットアップ補助など）。WPF 非依存
+- [`src/LabPlot.Core.Wpf`](src/LabPlot.Core.Wpf/README.md) — 各アプリ共通の WPF コンポーネント（`Themes/CommonStyles.xaml`、AxisRange / GraphFormat / ColorPicker パネル、ScottPlot ホストヘルパ、書式設定の永続化）
 
 ## ロードマップ
 

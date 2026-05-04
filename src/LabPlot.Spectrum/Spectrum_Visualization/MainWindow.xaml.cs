@@ -177,18 +177,10 @@ public partial class MainWindow : Window
     }
 
     private string? GetDefaultOutputDirectoryIfExists()
-    {
-        var dir = _formattingDefaults.DefaultOutputDirectory;
-        return !string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir) ? dir : null;
-    }
+        => FormattingDefaultsStore.GetExistingDefaultOutputDirectory(_formattingDefaults);
 
     private void ApplyDefaultOutputDirectoryToDialog(FileDialog dialog)
-    {
-        if (GetDefaultOutputDirectoryIfExists() is { } initialDirectory)
-        {
-            dialog.InitialDirectory = initialDirectory;
-        }
-    }
+        => FormattingDefaultsStore.ApplyDefaultOutputDirectoryToDialog(dialog, _formattingDefaults);
 
     private sealed class DatasetStyle
     {
@@ -491,43 +483,18 @@ public partial class MainWindow : Window
 
     private void LoadFormattingDefaults()
     {
-        _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
-
-        try
-        {
-            if (!File.Exists(FormattingConfigPath))
-            {
-                return;
-            }
-
-            var json = File.ReadAllText(FormattingConfigPath);
-            var config = JsonSerializer.Deserialize<GraphFormattingConfig>(json, FormattingConfigJsonOptions);
-            if (config is null)
-            {
-                return;
-            }
-
-            config.Normalize();
-            _formattingDefaults = config;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        {
-            SetStatus($"書式設定configを読み込めませんでした: {ex.Message}", true);
-        }
+        _formattingDefaults = FormattingDefaultsStore.Load<GraphFormattingConfig>(
+            FormattingConfigPath,
+            FormattingConfigJsonOptions,
+            msg => SetStatus(msg, true));
     }
 
     private void SaveFormattingDefaults()
     {
-        _formattingDefaults.Normalize();
-
-        var directory = Path.GetDirectoryName(FormattingConfigPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var json = JsonSerializer.Serialize(_formattingDefaults, FormattingConfigJsonOptions);
-        File.WriteAllText(FormattingConfigPath, json);
+        FormattingDefaultsStore.Save(
+            _formattingDefaults,
+            FormattingConfigPath,
+            FormattingConfigJsonOptions);
     }
 
     private GraphFormattingConfig CaptureFormattingConfigFromControls()
@@ -3908,47 +3875,7 @@ public partial class MainWindow : Window
     private double? GetSelectedAspectRatio() => GraphFormatPanel.AspectRatioValue;
 
     private void UpdatePlotHostAspectRatio()
-    {
-        if (PlotHost is null || PlotContainerBorder is null)
-        {
-            return;
-        }
-
-        var ratio = GetSelectedAspectRatio();
-        if (!ratio.HasValue)
-        {
-            PlotHost.Width = double.NaN;
-            PlotHost.Height = double.NaN;
-            PlotHost.HorizontalAlignment = HorizontalAlignment.Stretch;
-            PlotHost.VerticalAlignment = VerticalAlignment.Stretch;
-            return;
-        }
-
-        var availableWidth = PlotContainerBorder.ActualWidth
-            - PlotContainerBorder.BorderThickness.Left
-            - PlotContainerBorder.BorderThickness.Right;
-        var availableHeight = PlotContainerBorder.ActualHeight
-            - PlotContainerBorder.BorderThickness.Top
-            - PlotContainerBorder.BorderThickness.Bottom;
-
-        if (availableWidth <= 0 || availableHeight <= 0)
-        {
-            return;
-        }
-
-        var targetWidth = availableWidth;
-        var targetHeight = targetWidth / ratio.Value;
-        if (targetHeight > availableHeight)
-        {
-            targetHeight = availableHeight;
-            targetWidth = targetHeight * ratio.Value;
-        }
-
-        PlotHost.HorizontalAlignment = HorizontalAlignment.Center;
-        PlotHost.VerticalAlignment = VerticalAlignment.Center;
-        PlotHost.Width = Math.Max(0, targetWidth);
-        PlotHost.Height = Math.Max(0, targetHeight);
-    }
+        => PlotHostAspectRatio.Apply(PlotHost, PlotContainerBorder, GetSelectedAspectRatio());
 
     private (int Width, int Height) GetExportImageSize()
         => GraphSaveHelpers.GetExportImageSize(GetSelectedAspectRatio());

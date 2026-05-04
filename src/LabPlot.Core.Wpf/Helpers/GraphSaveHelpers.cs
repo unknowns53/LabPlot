@@ -33,10 +33,12 @@ public static class GraphSaveHelpers
 
     /// <summary>
     /// Resolve the output format from a save-file-dialog return. Honors
-    /// the user-typed extension first; falls back to the dialog's
-    /// 1-based <paramref name="filterIndex"/> (1 = PNG, 2 = SVG) which
-    /// matches the standard "PNG画像 (*.png)|*.png|SVGベクター画像 (*.svg)|*.svg"
-    /// filter shipped by all three apps.
+    /// the user-typed extension first (both <c>.png</c> and <c>.svg</c>
+    /// pin the format regardless of the active filter), then falls back
+    /// to the dialog's 1-based <paramref name="filterIndex"/>
+    /// (1 = PNG, 2 = SVG) which matches the standard
+    /// "PNG画像 (*.png)|*.png|SVGベクター画像 (*.svg)|*.svg" filter
+    /// shipped by all three apps.
     /// </summary>
     public static GraphSaveFormat GetGraphSaveFormat(string filePath, int filterIndex)
     {
@@ -44,6 +46,10 @@ public static class GraphSaveHelpers
         if (extension.Equals(".svg", StringComparison.OrdinalIgnoreCase))
         {
             return GraphSaveFormat.Svg;
+        }
+        if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            return GraphSaveFormat.Png;
         }
 
         return filterIndex == 2

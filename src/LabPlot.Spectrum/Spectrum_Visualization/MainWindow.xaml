@@ -6,6 +6,7 @@
         xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         xmlns:core="clr-namespace:SpectrumAnalyzer.Core;assembly=SpectrumAnalyzer.Core"
         xmlns:controls="clr-namespace:LabPlot.Core.Wpf.Controls;assembly=LabPlot.Core.Wpf"
+        xmlns:spectrumControls="clr-namespace:Spectrum_Visualization.Controls"
         mc:Ignorable="d"
         Title="Spectrum Analyzer" Height="860" MinHeight="660" Width="1240" MinWidth="960"
         Background="#F7F8FA"
@@ -338,11 +339,16 @@
                             <Expander Header="グラフ書式" IsExpanded="False">
                                 <StackPanel Margin="0,8,0,0">
                                 <controls:GraphFormatPanel x:Name="GraphFormatPanel"
-                                                           ShowAxisOrientation="True"
                                                            GraphFormatChanged="GraphFormatPanel_GraphFormatChanged"
-                                                           AspectRatioChanged="GraphFormatPanel_AspectRatioChanged"
-                                                           AxisOrientationChanged="GraphFormatPanel_AxisOrientationChanged"
-                                                           YAxisDisplayChanged="GraphFormatPanel_YAxisDisplayChanged" />
+                                                           AspectRatioChanged="GraphFormatPanel_AspectRatioChanged" />
+
+                                <Expander Header="軸の表示" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <StackPanel Margin="0,8,0,0">
+                                        <spectrumControls:SpectrumAxisDisplayPanel x:Name="AxisDisplayPanel"
+                                                                                   AxisOrientationChanged="AxisDisplayPanel_AxisOrientationChanged"
+                                                                                   YAxisDisplayChanged="AxisDisplayPanel_YAxisDisplayChanged" />
+                                    </StackPanel>
+                                </Expander>
 
                                 <Expander Header="メタデータ" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                     <StackPanel Margin="0,8,0,0">

@@ -511,14 +511,15 @@ public partial class MainWindow : Window
         config.TitleBold = TitleBoldCheckBox.IsChecked == true;
         config.AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true;
 
-        // Spectrum-only InvertX / YAxisDisplay live inside the panel under
-        // ShowAxisOrientation=True; surface them through the panel accessors.
-        var invertTag = GraphFormatPanel.InvertXAxisModeTag;
+        // X-axis orientation / Y-axis display live in the Spectrum-only
+        // SpectrumAxisDisplayPanel (sibling of GraphFormatPanel); surface
+        // them through that panel's accessors.
+        var invertTag = AxisDisplayPanel.InvertXAxisModeTag;
         config.InvertXAxisMode = string.IsNullOrWhiteSpace(invertTag)
             || invertTag.Equals("Auto", StringComparison.OrdinalIgnoreCase)
             ? null
             : invertTag;
-        var yDisplayTag = GraphFormatPanel.YAxisDisplayModeTag;
+        var yDisplayTag = AxisDisplayPanel.YAxisDisplayModeTag;
         config.YAxisDisplayMode = string.IsNullOrWhiteSpace(yDisplayTag)
             ? null
             : yDisplayTag;
@@ -574,8 +575,8 @@ public partial class MainWindow : Window
 
         // GraphFormatPanel suppresses its own change events while writing.
         GraphFormatPanel.Apply(config);
-        GraphFormatPanel.SetInvertXAxisModeTag(config.InvertXAxisMode);
-        GraphFormatPanel.SetYAxisDisplayModeTag(config.YAxisDisplayMode);
+        AxisDisplayPanel.SetInvertXAxisModeTag(config.InvertXAxisMode);
+        AxisDisplayPanel.SetYAxisDisplayModeTag(config.YAxisDisplayMode);
 
         _suppressGraphAppearanceEvents = true;
         try
@@ -1260,7 +1261,7 @@ public partial class MainWindow : Window
 
         // IR convention: high wavenumbers on the left (4000 → 400 cm⁻¹).
         // The user can override this through the format panel (Auto / Inverted / Normal).
-        var invertX = GraphFormatPanel.InvertXAxisModeTag switch
+        var invertX = AxisDisplayPanel.InvertXAxisModeTag switch
         {
             "Inverted" => true,
             "Normal" => false,
@@ -2009,7 +2010,7 @@ public partial class MainWindow : Window
         UpdatePlotHostAspectRatio();
     }
 
-    private void GraphFormatPanel_AxisOrientationChanged(object? sender, EventArgs e)
+    private void AxisDisplayPanel_AxisOrientationChanged(object? sender, EventArgs e)
     {
         if (_suppressGraphAppearanceEvents) return;
         // X-axis flip needs a heavy redraw (limits flipped, IR override
@@ -2018,7 +2019,7 @@ public partial class MainWindow : Window
         SchedulePlotCurrentDataset();
     }
 
-    private void GraphFormatPanel_YAxisDisplayChanged(object? sender, EventArgs e)
+    private void AxisDisplayPanel_YAxisDisplayChanged(object? sender, EventArgs e)
     {
         if (_suppressGraphAppearanceEvents) return;
         // Native ↔ Absorbance ↔ Transmittance changes the underlying Y values
@@ -2239,7 +2240,7 @@ public partial class MainWindow : Window
         switch (dialog.Choice)
         {
             case AbsorbanceConfirmDialog.DialogChoice.SwitchAndAdd:
-                GraphFormatPanel.SetYAxisDisplayModeTag("Absorbance");
+                AxisDisplayPanel.SetYAxisDisplayModeTag("Absorbance");
                 return true;
             case AbsorbanceConfirmDialog.DialogChoice.AddWithoutSwitch:
                 return true;
@@ -3839,7 +3840,7 @@ public partial class MainWindow : Window
 
     private YAxisDisplayMode GetSelectedYAxisDisplayMode()
     {
-        return GraphFormatPanel.YAxisDisplayModeTag switch
+        return AxisDisplayPanel.YAxisDisplayModeTag switch
         {
             "Absorbance" => YAxisDisplayMode.Absorbance,
             "Transmittance" => YAxisDisplayMode.Transmittance,

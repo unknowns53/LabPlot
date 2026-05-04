@@ -8,23 +8,18 @@ namespace LabPlot.Core.Wpf.Controls;
 
 /// <summary>
 /// Common "graph format" sub-panel reused by every LabPlot app. Hosts the
-/// font / ticks / frame & grid / background / legend Expanders and exposes a
-/// Capture/Apply pair driven by <see cref="GraphFormattingConfigBase"/>, so
+/// font / ticks / frame &amp; grid / background / legend Expanders and exposes
+/// a Capture/Apply pair driven by <see cref="GraphFormattingConfigBase"/>, so
 /// the per-app MainWindow only has to forward shared properties.
 /// </summary>
 /// <remarks>
-/// <para>
 /// The outer "グラフ書式" Expander stays in MainWindow.xaml so apps that need
-/// extra panels in the same scope (Spectrum's metadata sub-Expander) can
-/// keep them sibling to this control.
-/// </para>
-/// <para>
-/// Spectrum-only "X 軸の向き" / "Y 軸の表示" ComboBoxes are gated by
-/// <see cref="ShowAxisOrientation"/>. They are not part of the shared config
-/// so their values are surfaced via dedicated tag accessors and a pair of
-/// dedicated events instead of the bulk <see cref="GraphFormatChanged"/>
-/// channel; MainWindow wires them to its own per-app handlers.
-/// </para>
+/// extra panels in the same scope (Spectrum's "軸の表示" /
+/// "メタデータ" sub-Expanders) can keep them sibling to this control.
+/// App-specific knobs are intentionally NOT hosted here; for example,
+/// Spectrum's X-axis orientation / Y-axis display ComboBoxes live in its own
+/// <c>SpectrumAxisDisplayPanel</c> rather than being toggled in via a
+/// <c>ShowAxisOrientation</c> flag on this control.
 /// </remarks>
 public partial class GraphFormatPanel : UserControl
 {
@@ -45,29 +40,6 @@ public partial class GraphFormatPanel : UserControl
     /// font / tick change).
     /// </summary>
     public event EventHandler? AspectRatioChanged;
-
-    /// <summary>Spectrum-only: X-axis orientation override changed.</summary>
-    public event EventHandler? AxisOrientationChanged;
-
-    /// <summary>Spectrum-only: Y-axis display mode (Native / A / T) changed.</summary>
-    public event EventHandler? YAxisDisplayChanged;
-
-    public static readonly DependencyProperty ShowAxisOrientationProperty =
-        DependencyProperty.Register(
-            nameof(ShowAxisOrientation),
-            typeof(bool),
-            typeof(GraphFormatPanel),
-            new PropertyMetadata(false, OnShowAxisOrientationChanged));
-
-    /// <summary>
-    /// When true, exposes Spectrum's "X 軸の向き" / "Y 軸の表示" ComboBoxes
-    /// inside the 目盛 sub-Expander.
-    /// </summary>
-    public bool ShowAxisOrientation
-    {
-        get => (bool)GetValue(ShowAxisOrientationProperty);
-        set => SetValue(ShowAxisOrientationProperty, value);
-    }
 
     public static readonly DependencyProperty ShowLineStyleProperty =
         DependencyProperty.Register(
@@ -141,12 +113,6 @@ public partial class GraphFormatPanel : UserControl
             return width / height;
         }
     }
-
-    /// <summary>Spectrum-only: selected X-axis orientation tag ("Auto"/"Inverted"/"Normal").</summary>
-    public string? InvertXAxisModeTag => GetComboBoxTag(InvertXAxisComboBox);
-
-    /// <summary>Spectrum-only: selected Y-axis display tag ("Native"/"Absorbance"/"Transmittance").</summary>
-    public string? YAxisDisplayModeTag => GetComboBoxTag(YAxisDisplayComboBox);
 
     /// <summary>
     /// Toggles the "グリッドを表示" CheckBox. Wired up by per-app Ctrl+G
@@ -228,61 +194,6 @@ public partial class GraphFormatPanel : UserControl
         finally
         {
             _suppress = false;
-        }
-    }
-
-    /// <summary>
-    /// Restores the Spectrum-only X-axis orientation ComboBox without firing
-    /// <see cref="AxisOrientationChanged"/>.
-    /// </summary>
-    public void SetInvertXAxisModeTag(string? tag)
-    {
-        _suppress = true;
-        try
-        {
-            if (!SelectComboBoxByTag(InvertXAxisComboBox, string.IsNullOrWhiteSpace(tag) ? "Auto" : tag))
-            {
-                InvertXAxisComboBox.SelectedIndex = 0;
-            }
-        }
-        finally
-        {
-            _suppress = false;
-        }
-    }
-
-    /// <summary>
-    /// Restores the Spectrum-only Y-axis display ComboBox without firing
-    /// <see cref="YAxisDisplayChanged"/>.
-    /// </summary>
-    public void SetYAxisDisplayModeTag(string? tag)
-    {
-        _suppress = true;
-        try
-        {
-            if (!SelectComboBoxByTag(YAxisDisplayComboBox, string.IsNullOrWhiteSpace(tag) ? "Native" : tag))
-            {
-                YAxisDisplayComboBox.SelectedIndex = 0;
-            }
-        }
-        finally
-        {
-            _suppress = false;
-        }
-    }
-
-    private static void OnShowAxisOrientationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-    {
-        if (d is GraphFormatPanel panel)
-        {
-            panel.AxisOrientationPanel.Visibility = (bool)e.NewValue
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            // Tighten bottom margin on MinorTicksCheckBox when the orientation
-            // sub-panel is hidden so the 目盛 Expander stays compact.
-            panel.MinorTicksCheckBox.Margin = (bool)e.NewValue
-                ? new Thickness(0, 0, 0, 0)
-                : new Thickness(0, 0, 0, 0);
         }
     }
 
@@ -368,17 +279,5 @@ public partial class GraphFormatPanel : UserControl
         if (_suppress) return;
         AspectRatioChanged?.Invoke(this, EventArgs.Empty);
         GraphFormatChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void InvertXAxisComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppress) return;
-        AxisOrientationChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void YAxisDisplayComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppress) return;
-        YAxisDisplayChanged?.Invoke(this, EventArgs.Empty);
     }
 }

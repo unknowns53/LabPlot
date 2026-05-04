@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using DlsAnalyzer.Core;
 using LabPlot.Core;
+using LabPlot.Core.Wpf.Helpers;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 using static LabPlot.Core.PlotAppearance;
@@ -33,6 +34,17 @@ public partial class MainWindow : Window
         "#4B5563",
     ];
 
+    private static readonly JsonSerializerOptions FormattingConfigJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+    };
+
+    private static readonly string FormattingConfigPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "LabPlot.DLS",
+        "formatting_config.json");
+
     private readonly ZetasizerXlsxReader _reader = new();
     private readonly List<DlsDataset> _datasets = new();
     private readonly List<DlsDataset> _selectedDatasets = new();
@@ -43,6 +55,7 @@ public partial class MainWindow : Window
     // a loaded file preserves it (per Batch U3 design).
     private readonly List<DlsDatasetItem> _datasetItems = new();
     private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
+    private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private WpfPlot? _plot;
     private DistributionMode _selectedMode = DistributionMode.Number;
     private int _selectedRunIndex;
@@ -58,12 +71,27 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        LoadFormattingDefaults();
+        // Seed the active config with the persisted defaults so the very
+        // first plot picks up font / frame / background / line / output
+        // path settings the user previously saved.
+        _formattingConfig = CloneFormattingConfig(_formattingDefaults);
         RegisterShortcuts();
         Loaded += OnLoaded;
     }
 
     private void RegisterShortcuts()
     {
+        AddShortcut(Key.O, ModifierKeys.Control,
+            () => OpenButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(Key.S, ModifierKeys.Control,
+            () => SaveGraphButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(Key.E, ModifierKeys.Control,
+            () => ExportButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(Key.S, ModifierKeys.Control | ModifierKeys.Shift,
+            () => SaveSessionButton_Click(this, new RoutedEventArgs()));
+        AddShortcut(Key.O, ModifierKeys.Control | ModifierKeys.Shift,
+            () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(Key.G, ModifierKeys.Control, () => GraphFormatPanel.TogglePlotGrid());
     }
 
@@ -101,6 +129,10 @@ public partial class MainWindow : Window
             _selectedRunIndex = Math.Max(0, _formattingConfig.DefaultRunIndex);
 
             InitializeEmptyPlot();
+            // Apply the persisted aspect-ratio default *after* the plot is
+            // hosted, so the very first layout pass renders the preview at
+            // the right shape instead of waiting for a SizeChanged.
+            UpdatePlotHostAspectRatio();
         }
         catch (Exception ex)
         {
@@ -143,6 +175,7 @@ public partial class MainWindow : Window
             Filter = "Excel ファイル (*.xlsx)|*.xlsx|CSV (*.csv)|*.csv",
             FileName = string.IsNullOrWhiteSpace(defaultName) ? "dls_export.xlsx" : defaultName,
         };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
         if (dialog.ShowDialog(this) != true) return;
 
         try
@@ -161,6 +194,7 @@ public partial class MainWindow : Window
                 : new DlsXlsxAnalysisExporter();
             exporter.Export(data, fileName);
             HideError();
+            SetStatus($"解析結果を保存しました: {fileName}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -168,7 +202,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SavePngButton_Click(object sender, RoutedEventArgs e)
+    private void SaveGraphButton_Click(object sender, RoutedEventArgs e)
     {
         if (_plot is null || _selectedDatasets.Count == 0)
         {
@@ -176,27 +210,53 @@ public partial class MainWindow : Window
             return;
         }
 
+        var defaultName = $"{Path.GetFileNameWithoutExtension(GetCurrentWorkbookHint())}_dls";
         var dialog = new SaveFileDialog
         {
-            Title = "PNG として保存",
-            Filter = "PNG (*.png)|*.png",
-            FileName = $"{Path.GetFileNameWithoutExtension(GetCurrentWorkbookHint())}_dls.png",
+            Title = "グラフを保存",
+            Filter = "PNG画像 (*.png)|*.png|SVGベクター画像 (*.svg)|*.svg",
+            FileName = $"{defaultName}.png",
+            DefaultExt = ".png",
+            AddExtension = true,
         };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
         if (dialog.ShowDialog(this) != true) return;
 
         try
         {
-            // Render at twice the host's logical size for hi-DPI clarity.
-            // 800×600 minimum keeps very small windows from producing
-            // unusable thumbnails.
-            int width = Math.Max((int)(PlotHost.ActualWidth * 2), 800);
-            int height = Math.Max((int)(PlotHost.ActualHeight * 2), 600);
-            _plot.Plot.SavePng(dialog.FileName, width, height);
-            HideError();
+            var saveFormat = GraphSaveHelpers.GetGraphSaveFormat(dialog.FileName, dialog.FilterIndex);
+            var fileName = GraphSaveHelpers.EnsureGraphSaveFileExtension(dialog.FileName, saveFormat);
+            // Resolution / aspect-ratio is decided by GraphFormatPanel — when
+            // the user picked Auto we get the 3600x2160 landscape default
+            // (matches GPC / Spectrum), otherwise the panel-selected ratio
+            // drives width / height.
+            var (width, height) = GraphSaveHelpers.GetExportImageSize(GraphFormatPanel.AspectRatioValue);
+            var exportStyleScale = GraphSaveHelpers.ExportDpi / GraphSaveHelpers.DisplayDpi;
+
+            ApplyExportStyleScale(exportStyleScale);
+            try
+            {
+                if (saveFormat == GraphSaveFormat.Svg)
+                {
+                    GraphSaveHelpers.SaveGraphSvg(_plot.Plot, fileName, width, height);
+                    SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})");
+                }
+                else
+                {
+                    GraphSaveHelpers.SaveGraphPng(_plot.Plot, fileName, width, height, GraphSaveHelpers.ExportDpi);
+                    SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {GraphSaveHelpers.ExportDpi} dpi)");
+                }
+                HideError();
+            }
+            finally
+            {
+                ApplyExportStyleScale(1f);
+                _plot.Refresh();
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ShowError($"PNG 保存に失敗しました: {ex.Message}");
+            ShowError($"グラフの保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -308,7 +368,7 @@ public partial class MainWindow : Window
     {
         var hasData = _selectedDatasets.Count > 0;
         ExportButton.IsEnabled = hasData;
-        SavePngButton.IsEnabled = hasData;
+        SaveGraphButton.IsEnabled = hasData;
         // Session save: at least one workbook must be loaded; selection
         // is allowed to be empty (user might want to save an empty
         // overlay state on purpose).
@@ -333,6 +393,7 @@ public partial class MainWindow : Window
             DefaultExt = ".dlsjson",
             AddExtension = true,
         };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
         if (dialog.ShowDialog(this) != true) return;
 
         try
@@ -340,6 +401,7 @@ public partial class MainWindow : Window
             var session = BuildSession();
             new AnalysisSessionStore<DlsAnalysisSession>().Save(session, dialog.FileName);
             HideError();
+            SetStatus($"解析条件を保存しました: {dialog.FileName}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -355,6 +417,7 @@ public partial class MainWindow : Window
             Filter = "DLS 解析条件 (*.dlsjson;*.json)|*.dlsjson;*.json|すべてのファイル (*.*)|*.*",
             CheckFileExists = true,
         };
+        ApplyDefaultOutputDirectoryToDialog(dialog);
         if (dialog.ShowDialog(this) != true) return;
 
         DlsAnalysisSession session;
@@ -512,6 +575,7 @@ public partial class MainWindow : Window
             _formattingConfig = session.Formatting;
             _formattingConfig.Normalize();
             ApplyFormattingConfigToControls(_formattingConfig);
+            UpdatePlotHostAspectRatio();
         }
 
         _suppressFormattingEvents = true;
@@ -588,6 +652,9 @@ public partial class MainWindow : Window
                 : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(dialog.FileName)}）";
 
             HideError();
+            SetStatus(_datasets.Count == 0
+                ? $"粒径分布シートが見つかりませんでした: {dialog.FileName}"
+                : $"{_datasets.Count} シートを読み込みました: {dialog.FileName}");
 
             if (_datasets.Count > 0)
                 DatasetListBox.SelectedIndex = 0;
@@ -1183,6 +1250,74 @@ public partial class MainWindow : Window
         RefreshPlot();
     }
 
+    private void GraphFormatPanel_AspectRatioChanged(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        // Aspect ratio is part of the shared formatting config (Capture
+        // reads AspectRatio from the panel), so refresh it before
+        // resizing the host so saved sessions / defaults round-trip.
+        if (!_suppressFormattingEvents)
+        {
+            _formattingConfig = CaptureFormattingConfigFromControls();
+        }
+        UpdatePlotHostAspectRatio();
+    }
+
+    private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdatePlotHostAspectRatio();
+    }
+
+    /// <summary>
+    /// Resize PlotHost to the GraphFormatPanel-selected aspect ratio so
+    /// the on-screen preview matches the exported image. Auto leaves the
+    /// host stretched to fill PlotContainerBorder; an explicit ratio
+    /// shrinks the host to a centered fixed-aspect rectangle, mirroring
+    /// the GPC / Spectrum behaviour.
+    /// </summary>
+    private void UpdatePlotHostAspectRatio()
+    {
+        if (PlotHost is null || PlotContainerBorder is null)
+        {
+            return;
+        }
+
+        var ratio = GraphFormatPanel.AspectRatioValue;
+        if (!ratio.HasValue)
+        {
+            PlotHost.Width = double.NaN;
+            PlotHost.Height = double.NaN;
+            PlotHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+            PlotHost.VerticalAlignment = VerticalAlignment.Stretch;
+            return;
+        }
+
+        var availableWidth = PlotContainerBorder.ActualWidth
+            - PlotContainerBorder.BorderThickness.Left
+            - PlotContainerBorder.BorderThickness.Right;
+        var availableHeight = PlotContainerBorder.ActualHeight
+            - PlotContainerBorder.BorderThickness.Top
+            - PlotContainerBorder.BorderThickness.Bottom;
+
+        if (availableWidth <= 0 || availableHeight <= 0)
+        {
+            return;
+        }
+
+        var targetWidth = availableWidth;
+        var targetHeight = targetWidth / ratio.Value;
+        if (targetHeight > availableHeight)
+        {
+            targetHeight = availableHeight;
+            targetWidth = targetHeight * ratio.Value;
+        }
+
+        PlotHost.HorizontalAlignment = HorizontalAlignment.Center;
+        PlotHost.VerticalAlignment = VerticalAlignment.Center;
+        PlotHost.Width = Math.Max(0, targetWidth);
+        PlotHost.Height = Math.Max(0, targetHeight);
+    }
+
     private void ClearActiveDatasets()
     {
         _selectedDatasets.Clear();
@@ -1452,6 +1587,51 @@ public partial class MainWindow : Window
             ApplyLogXTicks(SizeAxisMinExponent, SizeAxisMaxExponent);
     }
 
+    /// <summary>
+    /// Scale up font / line / marker / frame metrics ahead of a high-DPI
+    /// PNG / SVG export so 3600x2160 / 300 dpi output keeps a usable
+    /// font:plot ratio (matches GPC / Spectrum behaviour). Pair with a
+    /// follow-up call passing scale=1f and a Refresh() to restore the
+    /// on-screen preview.
+    /// </summary>
+    private void ApplyExportStyleScale(float scale)
+    {
+        if (_plot is null) return;
+        ApplyPlotAppearance(scale);
+        ApplyExistingSeriesStyles(scale);
+    }
+
+    private void ApplyExistingSeriesStyles(float scale)
+    {
+        if (_plot is null) return;
+
+        // Match scatters back to datasets by mirroring the iteration in
+        // RefreshPlot: empty / null series are skipped there, so they
+        // don't consume a scatter slot here either.
+        var scatters = _plot.Plot
+            .GetPlottables()
+            .OfType<ScottPlot.Plottables.Scatter>()
+            .ToArray();
+
+        var scatterIdx = 0;
+        foreach (var dataset in _selectedDatasets)
+        {
+            if (scatterIdx >= scatters.Length) break;
+            var series = GetSeries(dataset, _selectedMode);
+            if (series is null || series.RunCount == 0) continue;
+
+            var datasetIdx = _datasets.IndexOf(dataset);
+            var style = (datasetIdx >= 0 && datasetIdx < _datasetItems.Count)
+                ? _datasetItems[datasetIdx].Style
+                : null;
+            var baseLineWidth = (float)(style?.LineWidth ?? _formattingConfig.LineWidth);
+            var baseMarkerSize = (float)(style?.MarkerSize ?? _formattingConfig.MarkerSize);
+            scatters[scatterIdx].LineWidth = baseLineWidth * scale;
+            scatters[scatterIdx].MarkerSize = baseMarkerSize * scale;
+            scatterIdx++;
+        }
+    }
+
     private void ApplyPlotAppearance(float scale = 1f)
     {
         if (_plot is null) return;
@@ -1531,7 +1711,12 @@ public partial class MainWindow : Window
         config.DefaultLineColorHex = _formattingConfig.DefaultLineColorHex;
         config.LineWidth = _formattingConfig.LineWidth;
         config.MarkerSize = _formattingConfig.MarkerSize;
-        config.DefaultOutputDirectory = _formattingConfig.DefaultOutputDirectory;
+
+        // The default output directory now lives in the 環境設定 expander
+        // as an editable text box (with a 参照 picker), so reflect what
+        // the user typed instead of the previous in-memory value.
+        var outputDir = DefaultOutputDirectoryTextBox.Text?.Trim();
+        config.DefaultOutputDirectory = string.IsNullOrWhiteSpace(outputDir) ? null : outputDir;
 
         // Axis range: empty textboxes mean "Auto" (let ScottPlot auto-scale).
         // Both endpoints must be filled for the axis to flip into "Manual".
@@ -1550,6 +1735,135 @@ public partial class MainWindow : Window
 
         config.Normalize();
         return config;
+    }
+
+    private void LoadFormattingDefaults()
+    {
+        _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
+
+        try
+        {
+            if (!File.Exists(FormattingConfigPath))
+            {
+                return;
+            }
+
+            var json = File.ReadAllText(FormattingConfigPath);
+            var config = JsonSerializer.Deserialize<GraphFormattingConfig>(json, FormattingConfigJsonOptions);
+            if (config is null)
+            {
+                return;
+            }
+
+            config.Normalize();
+            _formattingDefaults = config;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            ShowError($"書式設定 config を読み込めませんでした: {ex.Message}");
+        }
+    }
+
+    private void SaveFormattingDefaults()
+    {
+        _formattingDefaults.Normalize();
+
+        var directory = Path.GetDirectoryName(FormattingConfigPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var json = JsonSerializer.Serialize(_formattingDefaults, FormattingConfigJsonOptions);
+        File.WriteAllText(FormattingConfigPath, json);
+    }
+
+    private static GraphFormattingConfig CloneFormattingConfig(GraphFormattingConfig source)
+    {
+        var json = JsonSerializer.Serialize(source, FormattingConfigJsonOptions);
+        var clone = JsonSerializer.Deserialize<GraphFormattingConfig>(json, FormattingConfigJsonOptions)
+            ?? GraphFormattingConfig.CreateFactoryDefault();
+        clone.Normalize();
+        return clone;
+    }
+
+    private string? GetDefaultOutputDirectoryIfExists()
+    {
+        var dir = _formattingDefaults.DefaultOutputDirectory;
+        return !string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir) ? dir : null;
+    }
+
+    private void ApplyDefaultOutputDirectoryToDialog(Microsoft.Win32.FileDialog dialog)
+    {
+        if (GetDefaultOutputDirectoryIfExists() is { } initialDirectory)
+        {
+            dialog.InitialDirectory = initialDirectory;
+        }
+    }
+
+    private void BrowseDefaultOutputDirectoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "既定の出力フォルダを選択",
+        };
+
+        var current = DefaultOutputDirectoryTextBox.Text?.Trim();
+        if (!string.IsNullOrWhiteSpace(current) && Directory.Exists(current))
+        {
+            dialog.InitialDirectory = current;
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            DefaultOutputDirectoryTextBox.Text = dialog.FolderName;
+        }
+    }
+
+    private void ResetGraphSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        TitleTextBox.Clear();
+        XLabelTextBox.Clear();
+        YLabelTextBox.Clear();
+        AxisRangePanel.SetXValues(null, null);
+        AxisRangePanel.SetYValues(null, null);
+        ApplyFormattingConfigToControls(_formattingDefaults);
+
+        // Per-sheet styles are seeded from the saved defaults too, so a
+        // user who reset gets the same colors / line width as a fresh
+        // launch instead of hanging on to ad-hoc overrides.
+        foreach (var item in _datasetItems)
+        {
+            ApplyDefaultDatasetStyle(item);
+        }
+
+        SyncStyleControlsFromActiveItem();
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        UpdatePlotHostAspectRatio();
+        RefreshPlot();
+    }
+
+    private void SaveDefaultFormattingButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _formattingDefaults = CaptureFormattingConfigFromControls();
+            SaveFormattingDefaults();
+            HideError();
+            SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            ShowError($"書式の既定値を保存できませんでした: {ex.Message}");
+        }
+    }
+
+    private void ApplyDefaultDatasetStyle(DlsDatasetItem item)
+    {
+        item.Style.ColorHex = _formattingDefaults.DefaultLineColorHex;
+        item.Style.LegendName = null;
+        item.Style.LineWidth = _formattingDefaults.LineWidth;
+        item.Style.MarkerSize = _formattingDefaults.MarkerSize;
     }
 
     private void ApplyFormattingConfigToControls(GraphFormattingConfig config)
@@ -1580,6 +1894,7 @@ public partial class MainWindow : Window
                 config.YAxisMode == "Manual" ? config.YAxisMaxPercent : null);
             SelectComboBoxByTag(DefaultDistributionComboBox, config.DefaultDistributionMode);
             DefaultRunIndexTextBox.Text = config.DefaultRunIndex.ToString(CultureInfo.InvariantCulture);
+            DefaultOutputDirectoryTextBox.Text = config.DefaultOutputDirectory ?? string.Empty;
         }
         finally
         {
@@ -1754,11 +2069,27 @@ public partial class MainWindow : Window
     {
         ErrorBannerText.Text = message;
         ErrorBanner.Visibility = Visibility.Visible;
+        SetStatus(message, isError: true);
     }
 
     private void HideError()
     {
         ErrorBanner.Visibility = Visibility.Collapsed;
+    }
+
+    // Bottom status bar matches the GPC / Spectrum convention. Errors get
+    // a red foreground; informational messages stay in slate to keep the
+    // banner-style ErrorBanner as the dominant signal for hard failures.
+    private void SetStatus(string message, bool isError = false)
+    {
+        if (StatusTextBlock is null)
+        {
+            return;
+        }
+        StatusTextBlock.Text = message;
+        StatusTextBlock.Foreground = isError
+            ? new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C))
+            : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
     }
 
     private enum DistributionMode

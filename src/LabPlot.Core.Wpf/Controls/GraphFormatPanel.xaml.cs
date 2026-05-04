@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using LabPlot.Core;
@@ -104,6 +105,42 @@ public partial class GraphFormatPanel : UserControl
 
     /// <summary>Selected aspect-ratio ComboBox tag (e.g. "Auto" / "16:9").</summary>
     public string? AspectRatioTag => GetComboBoxTag(AspectRatioComboBox);
+
+    /// <summary>
+    /// Selected aspect ratio as width / height (e.g. <c>16/9</c>). Returns
+    /// <c>null</c> when the user picked Auto or the tag is malformed; that
+    /// is the signal callers use to fall back to the platform default
+    /// (e.g. <see cref="Helpers.GraphSaveHelpers.DefaultExportWidth"/>).
+    /// Accepts ":" / "/" / "x" / "X" as the dividing character.
+    /// </summary>
+    public double? AspectRatioValue
+    {
+        get
+        {
+            var tag = AspectRatioTag;
+            if (string.IsNullOrWhiteSpace(tag)
+                || tag.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var parts = tag.Split(':', '/', 'x', 'X');
+            if (parts.Length != 2)
+            {
+                return null;
+            }
+
+            if (!double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var width)
+                || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var height)
+                || width <= 0
+                || height <= 0)
+            {
+                return null;
+            }
+
+            return width / height;
+        }
+    }
 
     /// <summary>Spectrum-only: selected X-axis orientation tag ("Auto"/"Inverted"/"Normal").</summary>
     public string? InvertXAxisModeTag => GetComboBoxTag(InvertXAxisComboBox);

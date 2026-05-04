@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
-using System.Buffers.Binary;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +11,7 @@ using System.Windows.Threading;
 using System.Windows.Media;
 using GpcAnalyzer.Core;
 using LabPlot.Core;
+using LabPlot.Core.Wpf.Helpers;
 using Microsoft.Win32;
 using ScottPlot.WPF;
 using static LabPlot.Core.PlotAppearance;
@@ -34,11 +34,6 @@ public partial class MainWindow : Window
         "#0891B2",
         "#4B5563",
     ];
-    private const int ExportDpi = 300;
-    private const float DisplayDpi = 96f;
-    private const int DefaultExportWidth = 3600;
-    private const int DefaultExportHeight = 2160;
-    private const int SquareExportWidth = 3000;
     private const int OverlayDownsampleMinSeriesCount = 3;
     private const int OverlayDownsampleMinTotalPoints = 120_000;
     private const int OverlayDisplayPointBudget = 120_000;
@@ -319,12 +314,6 @@ public partial class MainWindow : Window
             Min = Math.Min(Min, range.Min);
             Max = Math.Max(Max, range.Max);
         }
-    }
-
-    private enum GraphSaveFormat
-    {
-        Png,
-        Svg,
     }
 
     private DatasetStyle CreateDefaultDatasetStyle()
@@ -1262,8 +1251,8 @@ public partial class MainWindow : Window
         try
         {
             var (width, height) = GetExportImageSize();
-            var saveFormat = GetGraphSaveFormat(dialog.FileName, dialog.FilterIndex);
-            var fileName = EnsureGraphSaveFileExtension(dialog.FileName, saveFormat);
+            var saveFormat = GraphSaveHelpers.GetGraphSaveFormat(dialog.FileName, dialog.FilterIndex);
+            var fileName = GraphSaveHelpers.EnsureGraphSaveFileExtension(dialog.FileName, saveFormat);
             var exportStyleScale = GetExportStyleScale();
             var restoreDownsampledPlot = _currentPlotUsesDownsampledData;
 
@@ -1285,14 +1274,13 @@ public partial class MainWindow : Window
             {
                 if (saveFormat == GraphSaveFormat.Svg)
                 {
-                    SaveGraphSvg(fileName, width, height);
+                    GraphSaveHelpers.SaveGraphSvg(_chromatogramPlot.Plot, fileName, width, height);
                     SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})", false);
                     return;
                 }
 
-                _chromatogramPlot.Plot.SavePng(fileName, width, height);
-                ApplyPngDpiMetadata(fileName, ExportDpi);
-                SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {ExportDpi} dpi)", false);
+                GraphSaveHelpers.SaveGraphPng(_chromatogramPlot.Plot, fileName, width, height, GraphSaveHelpers.ExportDpi);
+                SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {GraphSaveHelpers.ExportDpi} dpi)", false);
             }
             finally
             {
@@ -1820,7 +1808,7 @@ public partial class MainWindow : Window
 
     private static float GetExportStyleScale()
     {
-        return ExportDpi / DisplayDpi;
+        return GraphSaveHelpers.ExportDpi / GraphSaveHelpers.DisplayDpi;
     }
 
     private static string GetStatsLabel(string? sourceFilePath, int index)
@@ -2965,32 +2953,7 @@ public partial class MainWindow : Window
         _chromatogramPlot.Refresh();
     }
 
-    private double? GetSelectedAspectRatio()
-    {
-        var ratioText = GraphFormatPanel.AspectRatioTag;
-
-        if (string.IsNullOrWhiteSpace(ratioText)
-            || ratioText.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var parts = ratioText.Split(':', '/', 'x', 'X');
-        if (parts.Length != 2)
-        {
-            return null;
-        }
-
-        if (!double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var width)
-            || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var height)
-            || width <= 0
-            || height <= 0)
-        {
-            return null;
-        }
-
-        return width / height;
-    }
+    private double? GetSelectedAspectRatio() => GraphFormatPanel.AspectRatioValue;
 
     private void UpdatePlotHostAspectRatio()
     {
@@ -3036,168 +2999,6 @@ public partial class MainWindow : Window
     }
 
     private (int Width, int Height) GetExportImageSize()
-    {
-        var ratio = GetSelectedAspectRatio();
-        if (!ratio.HasValue)
-        {
-            return (DefaultExportWidth, DefaultExportHeight);
-        }
-
-        var width = ratio.Value == 1
-            ? SquareExportWidth
-            : DefaultExportWidth;
-        var height = Math.Max(1, (int)Math.Round(width / ratio.Value));
-        return (width, height);
-    }
-
-    private void SaveGraphSvg(string filePath, int width, int height)
-    {
-        if (_chromatogramPlot is null)
-        {
-            return;
-        }
-
-        var svg = _chromatogramPlot.Plot.GetSvgHtml(width, height);
-        File.WriteAllText(filePath, svg);
-    }
-
-    private static GraphSaveFormat GetGraphSaveFormat(string filePath, int filterIndex)
-    {
-        var extension = Path.GetExtension(filePath);
-        if (extension.Equals(".svg", StringComparison.OrdinalIgnoreCase))
-        {
-            return GraphSaveFormat.Svg;
-        }
-
-        return filterIndex == 2
-            ? GraphSaveFormat.Svg
-            : GraphSaveFormat.Png;
-    }
-
-    private static string EnsureGraphSaveFileExtension(string filePath, GraphSaveFormat saveFormat)
-    {
-        var extension = saveFormat == GraphSaveFormat.Svg ? ".svg" : ".png";
-        return Path.ChangeExtension(filePath, extension);
-    }
-
-    private static void ApplyPngDpiMetadata(string filePath, int dpi)
-    {
-        var bytes = File.ReadAllBytes(filePath);
-        if (!HasPngSignature(bytes))
-        {
-            return;
-        }
-
-        var pixelsPerMeter = checked((uint)Math.Round(dpi / 0.0254));
-        var physicalPixelDimensionsChunk = CreatePngPhysicalPixelDimensionsChunk(pixelsPerMeter);
-        var offset = 8;
-        var insertOffset = -1;
-
-        while (offset + 12 <= bytes.Length)
-        {
-            var length = BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(offset, 4));
-            if (length > int.MaxValue || offset + 12 + (int)length > bytes.Length)
-            {
-                return;
-            }
-
-            var chunkLength = 12 + (int)length;
-            var chunkTypeOffset = offset + 4;
-            if (PngChunkTypeEquals(bytes, chunkTypeOffset, "pHYs"))
-            {
-                File.WriteAllBytes(filePath, ReplaceBytes(bytes, offset, chunkLength, physicalPixelDimensionsChunk));
-                return;
-            }
-
-            if (PngChunkTypeEquals(bytes, chunkTypeOffset, "IHDR"))
-            {
-                insertOffset = offset + chunkLength;
-            }
-
-            offset += chunkLength;
-        }
-
-        if (insertOffset > 0)
-        {
-            File.WriteAllBytes(filePath, InsertBytes(bytes, insertOffset, physicalPixelDimensionsChunk));
-        }
-    }
-
-    private static byte[] CreatePngPhysicalPixelDimensionsChunk(uint pixelsPerMeter)
-    {
-        const int chunkDataLength = 9;
-        var chunk = new byte[4 + 4 + chunkDataLength + 4];
-        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(0, 4), chunkDataLength);
-        chunk[4] = (byte)'p';
-        chunk[5] = (byte)'H';
-        chunk[6] = (byte)'Y';
-        chunk[7] = (byte)'s';
-        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(8, 4), pixelsPerMeter);
-        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(12, 4), pixelsPerMeter);
-        chunk[16] = 1;
-
-        var crc = CalculatePngCrc(chunk.AsSpan(4, 4 + chunkDataLength));
-        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(17, 4), crc);
-        return chunk;
-    }
-
-    private static uint CalculatePngCrc(ReadOnlySpan<byte> bytes)
-    {
-        var crc = 0xFFFFFFFFu;
-        foreach (var value in bytes)
-        {
-            crc ^= value;
-            for (var bit = 0; bit < 8; bit++)
-            {
-                crc = (crc & 1) == 1
-                    ? (crc >> 1) ^ 0xEDB88320u
-                    : crc >> 1;
-            }
-        }
-
-        return crc ^ 0xFFFFFFFFu;
-    }
-
-    private static bool HasPngSignature(byte[] bytes)
-    {
-        return bytes.Length >= 8
-            && bytes[0] == 137
-            && bytes[1] == 80
-            && bytes[2] == 78
-            && bytes[3] == 71
-            && bytes[4] == 13
-            && bytes[5] == 10
-            && bytes[6] == 26
-            && bytes[7] == 10;
-    }
-
-    private static bool PngChunkTypeEquals(byte[] bytes, int offset, string type)
-    {
-        return offset + 4 <= bytes.Length
-            && bytes[offset] == (byte)type[0]
-            && bytes[offset + 1] == (byte)type[1]
-            && bytes[offset + 2] == (byte)type[2]
-            && bytes[offset + 3] == (byte)type[3];
-    }
-
-    private static byte[] InsertBytes(byte[] source, int offset, byte[] insertion)
-    {
-        var result = new byte[source.Length + insertion.Length];
-        Buffer.BlockCopy(source, 0, result, 0, offset);
-        Buffer.BlockCopy(insertion, 0, result, offset, insertion.Length);
-        Buffer.BlockCopy(source, offset, result, offset + insertion.Length, source.Length - offset);
-        return result;
-    }
-
-    private static byte[] ReplaceBytes(byte[] source, int offset, int count, byte[] replacement)
-    {
-        var result = new byte[source.Length - count + replacement.Length];
-        Buffer.BlockCopy(source, 0, result, 0, offset);
-        Buffer.BlockCopy(replacement, 0, result, offset, replacement.Length);
-        var sourceTailOffset = offset + count;
-        var resultTailOffset = offset + replacement.Length;
-        Buffer.BlockCopy(source, sourceTailOffset, result, resultTailOffset, source.Length - sourceTailOffset);
-        return result;
-    }
+        => GraphSaveHelpers.GetExportImageSize(GetSelectedAspectRatio());
 
 }

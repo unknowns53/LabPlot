@@ -142,6 +142,9 @@ public partial class GraphFormatPanel : UserControl
         config.ShowYAxisTickLabels = YAxisTickLabelsCheckBox.IsChecked == true;
         config.ShowMajorTicks = MajorTicksCheckBox.IsChecked == true;
         config.ShowMinorTicks = MinorTicksCheckBox.IsChecked == true;
+        config.TickDensity = TryParsePositiveDouble(TickDensityTextBox.Text, out var tickDensity)
+            ? tickDensity
+            : GraphFormattingConfigBase.DefaultTickDensity;
         config.ShowPlotFrame = PlotFrameCheckBox.IsChecked == true;
         config.PlotFrameWidth = TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var frameWidth)
             ? frameWidth
@@ -177,6 +180,7 @@ public partial class GraphFormatPanel : UserControl
             YAxisTickLabelsCheckBox.IsChecked = config.ShowYAxisTickLabels;
             MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
             MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
+            TickDensityTextBox.Text = config.FormatTickDensity();
             PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
             PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
             PlotFrameColorPicker.SetHexValue(config.PlotFrameColorHex);

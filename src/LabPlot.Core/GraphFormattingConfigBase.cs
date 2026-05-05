@@ -25,12 +25,28 @@ public abstract class GraphFormattingConfigBase
     public const string DefaultBackgroundColorHex = "#FFFFFF";
     public const string DefaultLegendPositionValue = "UpperRight";
 
+    /// <summary>
+    /// Multiplier applied to ScottPlot's <c>NumericAutomatic.TickDensity</c>
+    /// for axes still using the automatic generator. 1.0 = ScottPlot stock
+    /// density (felt too crowded across all three apps with the default
+    /// 14 pt tick labels), 0.5 = halved density (current shipping default),
+    /// values down to <see cref="MinTickDensity"/> let users dial it
+    /// further sparse on screen. <see cref="MaxTickDensity"/> caps the
+    /// upper bound so a fat-finger value cannot push ScottPlot into a
+    /// runaway "fit as many ticks as possible" state.
+    /// </summary>
+    public const double DefaultTickDensity = 0.5;
+
+    public const double MinTickDensity = 0.1;
+    public const double MaxTickDensity = 2.0;
+
     public string? FontName { get; set; }
     public double FontSize { get; set; } = DefaultFontSize;
     public bool ShowGrid { get; set; } = true;
     public bool ShowYAxisTickLabels { get; set; } = true;
     public bool ShowMajorTicks { get; set; } = true;
     public bool ShowMinorTicks { get; set; } = true;
+    public double TickDensity { get; set; } = DefaultTickDensity;
     public bool ShowPlotFrame { get; set; } = true;
     public double PlotFrameWidth { get; set; } = DefaultPlotFrameWidth;
     public string PlotFrameColorHex { get; set; } = DefaultPlotFrameColorHex;
@@ -122,6 +138,11 @@ public abstract class GraphFormattingConfigBase
         {
             MarkerSize = DefaultMarkerSize;
         }
+
+        if (!double.IsFinite(TickDensity) || TickDensity < MinTickDensity || TickDensity > MaxTickDensity)
+        {
+            TickDensity = DefaultTickDensity;
+        }
     }
 
     public string FormatFontSize()
@@ -144,6 +165,11 @@ public abstract class GraphFormattingConfigBase
     public string FormatLineWidth()
     {
         return ConfigNormalizer.FormatNumber(LineWidth);
+    }
+
+    public string FormatTickDensity()
+    {
+        return ConfigNormalizer.FormatNumber(TickDensity);
     }
 
     public string FormatMarkerSize()

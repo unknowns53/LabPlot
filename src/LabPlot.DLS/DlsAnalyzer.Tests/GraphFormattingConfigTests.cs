@@ -95,6 +95,25 @@ public sealed class GraphFormattingConfigTests
     }
 
     [Theory]
+    [InlineData(0.5, 0.5)]
+    [InlineData(0.1, 0.1)]
+    [InlineData(2.0, 2.0)]
+    [InlineData(0.0, GraphFormattingConfigBase.DefaultTickDensity)]
+    [InlineData(-0.3, GraphFormattingConfigBase.DefaultTickDensity)]
+    [InlineData(0.05, GraphFormattingConfigBase.DefaultTickDensity)]
+    [InlineData(2.5, GraphFormattingConfigBase.DefaultTickDensity)]
+    [InlineData(double.NaN, GraphFormattingConfigBase.DefaultTickDensity)]
+    [InlineData(double.PositiveInfinity, GraphFormattingConfigBase.DefaultTickDensity)]
+    public void Normalize_TickDensity_ClampsOrFallsBack(double input, double expected)
+    {
+        var config = new GraphFormattingConfig { TickDensity = input };
+
+        config.Normalize();
+
+        Assert.Equal(expected, config.TickDensity);
+    }
+
+    [Theory]
     [InlineData(null, null)]
     [InlineData(0.0, null)]
     [InlineData(-1.0, null)]

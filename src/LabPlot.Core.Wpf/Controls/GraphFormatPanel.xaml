@@ -47,9 +47,16 @@
                 <CheckBox x:Name="MinorTicksCheckBox"
                           Content="補助目盛を表示する"
                           IsChecked="True"
-                          Margin="0,0,0,0"
+                          Margin="0,0,0,10"
                           Checked="CheckBox_Changed"
                           Unchecked="CheckBox_Changed" />
+
+                <TextBlock Text="目盛の密度" Style="{DynamicResource FieldLabelStyle}" />
+                <TextBox x:Name="TickDensityTextBox"
+                         Text="0.5"
+                         Style="{DynamicResource InputTextBoxStyle}"
+                         ToolTip="0.1〜2.0 の範囲で入力 / 0.5=標準, 小さいほど目盛が粗くなる"
+                         TextChanged="NumericTextBox_TextChanged" />
             </StackPanel>
         </Expander>
 

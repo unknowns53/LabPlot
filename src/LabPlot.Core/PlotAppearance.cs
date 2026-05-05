@@ -29,16 +29,14 @@ public static class PlotAppearance
     public const float MinorTickWidthBase = 1f;
 
     /// <summary>
-    /// Multiplier applied to ScottPlot's <c>NumericAutomatic.TickDensity</c>
-    /// for any axis still using the automatic tick generator. Values below
-    /// 1.0 produce fewer ticks; we picked 0.5 because the stock density
-    /// felt too crowded across all three LabPlot apps (especially with
-    /// the default 14 pt tick labels, where labels nearly touched on
-    /// the X axis). Axes that have been swapped to <c>NumericManual</c>
-    /// (DLS log X, GPC molecular-weight log X) are intentionally left
-    /// alone by <see cref="ApplyTickDensity"/>.
+    /// Default multiplier applied to ScottPlot's
+    /// <c>NumericAutomatic.TickDensity</c> when no config value is supplied.
+    /// The shipping value lives on <see cref="GraphFormattingConfigBase.DefaultTickDensity"/>;
+    /// this constant exists so direct callers of
+    /// <see cref="ApplyTickDensity"/> (without a config in hand) still get
+    /// the same baseline density as <see cref="ApplyAll"/>.
     /// </summary>
-    public const double DefaultTickDensity = 0.5;
+    public const double DefaultTickDensity = GraphFormattingConfigBase.DefaultTickDensity;
 
     /// <summary>
     /// Resets a tick-mark style to <paramref name="lengthBase"/> ×
@@ -113,7 +111,7 @@ public static class PlotAppearance
         ApplyYAxisTickLabels(plot, config);
         ApplyFrame(plot, config, scale);
         ApplyTickMarks(plot, config, scale);
-        ApplyTickDensity(plot);
+        ApplyTickDensity(plot, config.TickDensity);
         ApplyTitleStyle(plot, config);
         ApplyAxisLabelStyle(plot, config);
         ApplyBackground(plot, config);
@@ -128,7 +126,10 @@ public static class PlotAppearance
     /// log axis) keep their hand-built tick set untouched. Safe to call
     /// from <see cref="ApplyAll"/> on every refresh — setting the
     /// existing instance's <c>TickDensity</c> property is idempotent and
-    /// does not allocate.
+    /// does not allocate. Caller is expected to pass a value already
+    /// clamped to <c>[GraphFormattingConfigBase.MinTickDensity,
+    /// GraphFormattingConfigBase.MaxTickDensity]</c> via
+    /// <see cref="GraphFormattingConfigBase.Normalize"/>.
     /// </summary>
     public static void ApplyTickDensity(ScottPlot.Plot plot, double density = DefaultTickDensity)
     {

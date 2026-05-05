@@ -1137,6 +1137,7 @@
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
                     </Border>
+                    <controls:ErrorBanner x:Name="ErrorBanner" />
                 </Grid>
             </Border>
 

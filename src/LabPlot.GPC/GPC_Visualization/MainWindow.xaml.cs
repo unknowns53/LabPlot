@@ -538,7 +538,7 @@ public partial class MainWindow : Window
             RefreshDatasetEntries();
             SetGraphActionsEnabled(false);
             UpdateStatisticsText((MolecularWeightStatistics?)null);
-            SetStatus($"読み込みに失敗しました: {ex.Message}", true);
+            ShowError($"読み込みに失敗しました: {ex.Message}");
         }
         finally
         {
@@ -610,7 +610,7 @@ public partial class MainWindow : Window
             DetectorComboBox.IsEnabled = false;
             UpdateMolecularWeightAvailability();
             PlotCurrentDataset();
-            SetStatus($"較正曲線の読み込みに失敗しました: {ex.Message}", true);
+            ShowError($"較正曲線の読み込みに失敗しました: {ex.Message}");
         }
     }
 
@@ -712,7 +712,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            SetStatus($"書式の既定値を保存できませんでした: {ex.Message}", true);
+            ShowError($"書式の既定値を保存できませんでした: {ex.Message}");
         }
     }
 
@@ -727,7 +727,7 @@ public partial class MainWindow : Window
     {
         if (_loadedDatasets.Count == 0)
         {
-            SetStatus("出力可能なデータがありません。", true);
+            ShowError("出力可能なデータがありません。");
             return;
         }
 
@@ -752,7 +752,7 @@ public partial class MainWindow : Window
             var data = BuildAnalysisExport();
             if (data.Entries.Count == 0)
             {
-                SetStatus("出力可能なデータがありません。", true);
+                ShowError("出力可能なデータがありません。");
                 return;
             }
 
@@ -766,7 +766,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -856,7 +856,7 @@ public partial class MainWindow : Window
     {
         if (_loadedDatasets.Count == 0)
         {
-            SetStatus("保存する状態がありません。", true);
+            ShowError("保存する状態がありません。");
             return;
         }
 
@@ -884,7 +884,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -909,7 +909,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
         {
-            SetStatus($"読み込みに失敗しました: {ex.Message}", true);
+            ShowError($"読み込みに失敗しました: {ex.Message}");
             return;
         }
 
@@ -922,7 +922,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            SetStatus($"解析条件を読み込みました（一部復元できない項目あり: {string.Join(" / ", warnings)})", true);
+            ShowError($"解析条件を読み込みました（一部復元できない項目あり: {string.Join(" / ", warnings)})");
         }
     }
 
@@ -1223,7 +1223,7 @@ public partial class MainWindow : Window
     {
         if (_currentDataset is null || _chromatogramPlot is null)
         {
-            SetStatus("保存するグラフがありません。", true);
+            ShowError("保存するグラフがありません。");
             return;
         }
 
@@ -1292,7 +1292,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -1317,7 +1317,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             PlotPlaceholderTextBlock.Text = "グラフ表示の初期化に失敗しました。";
-            SetStatus($"グラフ表示の初期化に失敗しました: {ex.Message}", true);
+            ShowError($"グラフ表示の初期化に失敗しました: {ex.Message}");
         }
     }
 
@@ -1366,7 +1366,7 @@ public partial class MainWindow : Window
         {
             if (_selectedCalibrationCurve is null)
             {
-                SetStatus("分子量表示には較正曲線、溶媒、検出器の選択が必要です。", true);
+                ShowError("分子量表示には較正曲線、溶媒、検出器の選択が必要です。");
                 SetGraphActionsEnabled(_chromatogramPlot is not null);
                 return;
             }
@@ -1388,7 +1388,7 @@ public partial class MainWindow : Window
             }
             catch (InvalidDataException ex)
             {
-                SetStatus($"分子量表示に失敗しました: {ex.Message}", true);
+                ShowError($"分子量表示に失敗しました: {ex.Message}");
                 return;
             }
         }
@@ -1640,7 +1640,7 @@ public partial class MainWindow : Window
     {
         if (_chromatogramPlot is null)
         {
-            SetStatus("グラフ表示を初期化中です。少し待ってからもう一度お試しください。", true);
+            ShowError("グラフ表示を初期化中です。少し待ってからもう一度お試しください。");
             return;
         }
 
@@ -1693,7 +1693,7 @@ public partial class MainWindow : Window
     {
         if (_chromatogramPlot is null)
         {
-            SetStatus("グラフ表示を初期化中です。少し待ってからもう一度お試しください。", true);
+            ShowError("グラフ表示を初期化中です。少し待ってからもう一度お試しください。");
             return;
         }
 
@@ -2350,6 +2350,29 @@ public partial class MainWindow : Window
         StatusTextBlock.Foreground = isError
             ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
             : new SolidColorBrush(Color.FromRgb(71, 85, 105));
+        // Successful status implicitly clears any leftover hard-failure
+        // banner; explicit ShowError calls are used for failures so the
+        // user-visible signal stays in sync without per-call HideError.
+        if (!isError)
+        {
+            ErrorBanner.Hide();
+        }
+    }
+
+    // Banner-style failure signal mirroring the DLS app: keeps the
+    // status bar in sync (red foreground) while raising the dominant
+    // overlay on top of the plot area for hard failures only — file /
+    // save / plot-init errors. Soft validation messages should keep
+    // calling SetStatus(msg, true) directly.
+    private void ShowError(string message)
+    {
+        ErrorBanner.Show(message);
+        SetStatus(message, isError: true);
+    }
+
+    private void HideError()
+    {
+        ErrorBanner.Hide();
     }
 
     private void RefreshDatasetEntries()

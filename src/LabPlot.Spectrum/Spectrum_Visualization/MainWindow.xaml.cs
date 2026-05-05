@@ -752,7 +752,7 @@ public partial class MainWindow : Window
             _activeIndex = -1;
             RefreshDatasetEntries();
             SetGraphActionsEnabled(false);
-            SetStatus($"読み込みに失敗しました: {ex.Message}", true);
+            ShowError($"読み込みに失敗しました: {ex.Message}");
         }
         finally
         {
@@ -837,7 +837,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            SetStatus($"書式の既定値を保存できませんでした: {ex.Message}", true);
+            ShowError($"書式の既定値を保存できませんでした: {ex.Message}");
         }
     }
 
@@ -852,7 +852,7 @@ public partial class MainWindow : Window
     {
         if (_loadedDatasets.Count == 0)
         {
-            SetStatus("出力可能なデータがありません。", true);
+            ShowError("出力可能なデータがありません。");
             return;
         }
 
@@ -877,7 +877,7 @@ public partial class MainWindow : Window
             var data = BuildAnalysisExport();
             if (data.Entries.Count == 0)
             {
-                SetStatus("出力可能なデータがありません。", true);
+                ShowError("出力可能なデータがありません。");
                 return;
             }
 
@@ -891,7 +891,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -952,7 +952,7 @@ public partial class MainWindow : Window
     {
         if (_loadedDatasets.Count == 0)
         {
-            SetStatus("保存できる解析がありません。", true);
+            ShowError("保存できる解析がありません。");
             return;
         }
 
@@ -980,7 +980,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -1017,7 +1017,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException or FileNotFoundException)
         {
-            SetStatus($"読込に失敗しました: {ex.Message}", true);
+            ShowError($"読込に失敗しました: {ex.Message}");
         }
     }
 
@@ -1166,7 +1166,7 @@ public partial class MainWindow : Window
     {
         if (_currentDataset is null || _spectrumPlot is null)
         {
-            SetStatus("保存するグラフがありません。", true);
+            ShowError("保存するグラフがありません。");
             return;
         }
 
@@ -1214,7 +1214,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -1258,7 +1258,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             PlotPlaceholderTextBlock.Text = "グラフ表示の初期化に失敗しました。";
-            SetStatus($"グラフ表示の初期化に失敗しました: {ex.Message}", true);
+            ShowError($"グラフ表示の初期化に失敗しました: {ex.Message}");
         }
     }
 
@@ -1608,6 +1608,26 @@ public partial class MainWindow : Window
         StatusTextBlock.Foreground = isError
             ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26))
             : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+        // Non-error status implicitly clears the hard-failure banner;
+        // see ShowError below.
+        if (!isError)
+        {
+            ErrorBanner.Hide();
+        }
+    }
+
+    // Banner-style failure signal mirroring the DLS app. ShowError is
+    // for hard failures only (file / save / plot-init errors); soft
+    // validation messages should keep calling SetStatus(msg, true).
+    private void ShowError(string message)
+    {
+        ErrorBanner.Show(message);
+        SetStatus(message, isError: true);
+    }
+
+    private void HideError()
+    {
+        ErrorBanner.Hide();
     }
 
     private void RefreshDatasetEntries()
@@ -3196,14 +3216,14 @@ public partial class MainWindow : Window
 
         if (validRegions.Length == 0)
         {
-            SetStatus("出力できる積分結果がありません（領域を追加してください）", true);
+            ShowError("出力できる積分結果がありません（領域を追加してください）");
             return;
         }
 
         var datasets = GetDatasetsToPlotWithIndices();
         if (datasets.Length == 0)
         {
-            SetStatus("データセットが読み込まれていません", true);
+            ShowError("データセットが読み込まれていません");
             return;
         }
 
@@ -3257,7 +3277,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 
@@ -4386,7 +4406,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             {
-                SetStatus($"検量線設定を保存できませんでした: {ex.Message}", true);
+                ShowError($"検量線設定を保存できませんでした: {ex.Message}");
             }
 
             UpdateCalibrationUi();
@@ -4406,7 +4426,7 @@ public partial class MainWindow : Window
         var datasets = BuildCalibrationDatasetInputs();
         if (datasets.Count == 0)
         {
-            SetStatus("出力できるデータセットがありません", true);
+            ShowError("出力できるデータセットがありません");
             return;
         }
 
@@ -4458,7 +4478,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            SetStatus($"保存に失敗しました: {ex.Message}", true);
+            ShowError($"保存に失敗しました: {ex.Message}");
         }
     }
 

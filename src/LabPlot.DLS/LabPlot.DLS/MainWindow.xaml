@@ -110,7 +110,7 @@
                                                FontSize="11"
                                                Foreground="#94A3B8"
                                                TextWrapping="Wrap"
-                                               Text="Ctrl/Shift クリックで複数選択して重ね描きできます" />
+                                               Text="Ctrl/Shift クリックで複数選択して重ね描きできます (Ctrl+L : 全選択／全解除)" />
                                     <TextBlock x:Name="DatasetCountText"
                                                Margin="0,6,0,0"
                                                FontSize="12"
@@ -760,18 +760,7 @@
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
                     </Border>
-                    <Border Background="#FEE2E2"
-                            BorderBrush="#FCA5A5"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="10,6"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Top"
-                            Margin="0,12,0,0"
-                            x:Name="ErrorBanner"
-                            Visibility="Collapsed">
-                        <TextBlock x:Name="ErrorBannerText" Foreground="#7F1D1D" />
-                    </Border>
+                    <controls:ErrorBanner x:Name="ErrorBanner" />
                 </Grid>
             </Border>
 

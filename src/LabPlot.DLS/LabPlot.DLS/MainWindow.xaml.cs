@@ -95,7 +95,29 @@ public partial class MainWindow : Window
         AddShortcut(Key.O, ModifierKeys.Control | ModifierKeys.Shift,
             () => LoadSessionButton_Click(this, new RoutedEventArgs()));
         AddShortcut(Key.G, ModifierKeys.Control, () => GraphFormatPanel.TogglePlotGrid());
+        // Ctrl+L mirrors the GPC / Spectrum Overlay toggle. DLS uses a
+        // multi-select ListBox instead of an Overlay checkbox, so the
+        // semantically-equivalent action is "select all sheets ⇄ clear
+        // selection" — i.e. overlay every loaded sheet vs. show none.
+        AddShortcut(Key.L, ModifierKeys.Control, ToggleAllDatasets);
         AddShortcut(Key.F2, ModifierKeys.None, FocusLegendNameTextBox);
+    }
+
+    private void ToggleAllDatasets()
+    {
+        if (DatasetListBox is null || DatasetListBox.Items.Count == 0)
+        {
+            return;
+        }
+
+        if (DatasetListBox.SelectedItems.Count == DatasetListBox.Items.Count)
+        {
+            DatasetListBox.UnselectAll();
+        }
+        else
+        {
+            DatasetListBox.SelectAll();
+        }
     }
 
     private void FocusLegendNameTextBox()
@@ -2022,19 +2044,21 @@ public partial class MainWindow : Window
 
     private void ShowError(string message)
     {
-        ErrorBannerText.Text = message;
-        ErrorBanner.Visibility = Visibility.Visible;
+        ErrorBanner.Show(message);
         SetStatus(message, isError: true);
     }
 
     private void HideError()
     {
-        ErrorBanner.Visibility = Visibility.Collapsed;
+        ErrorBanner.Hide();
     }
 
     // Bottom status bar matches the GPC / Spectrum convention. Errors get
     // a red foreground; informational messages stay in slate to keep the
     // banner-style ErrorBanner as the dominant signal for hard failures.
+    // A non-error status also implicitly clears any leftover banner so
+    // success / progress messages cancel out the previous failure
+    // without the caller having to remember HideError().
     private void SetStatus(string message, bool isError = false)
     {
         if (StatusTextBlock is null)
@@ -2045,6 +2069,10 @@ public partial class MainWindow : Window
         StatusTextBlock.Foreground = isError
             ? new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C))
             : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+        if (!isError)
+        {
+            ErrorBanner.Hide();
+        }
     }
 
     private enum DistributionMode

@@ -29,6 +29,18 @@ public static class PlotAppearance
     public const float MinorTickWidthBase = 1f;
 
     /// <summary>
+    /// Multiplier applied to ScottPlot's <c>NumericAutomatic.TickDensity</c>
+    /// for any axis still using the automatic tick generator. Values below
+    /// 1.0 produce fewer ticks; we picked 0.5 because the stock density
+    /// felt too crowded across all three LabPlot apps (especially with
+    /// the default 14 pt tick labels, where labels nearly touched on
+    /// the X axis). Axes that have been swapped to <c>NumericManual</c>
+    /// (DLS log X, GPC molecular-weight log X) are intentionally left
+    /// alone by <see cref="ApplyTickDensity"/>.
+    /// </summary>
+    public const double DefaultTickDensity = 0.5;
+
+    /// <summary>
     /// Resets a tick-mark style to <paramref name="lengthBase"/> ×
     /// <paramref name="scale"/> length and <paramref name="widthBase"/> ×
     /// <paramref name="scale"/> width. When <paramref name="visible"/> is
@@ -101,9 +113,33 @@ public static class PlotAppearance
         ApplyYAxisTickLabels(plot, config);
         ApplyFrame(plot, config, scale);
         ApplyTickMarks(plot, config, scale);
+        ApplyTickDensity(plot);
         ApplyTitleStyle(plot, config);
         ApplyAxisLabelStyle(plot, config);
         ApplyBackground(plot, config);
+    }
+
+    /// <summary>
+    /// Reduces ScottPlot's automatic tick density on the bottom and left
+    /// axes to <paramref name="density"/>× of the default. Only acts on
+    /// axes whose <c>TickGenerator</c> is still a
+    /// <c>NumericAutomatic</c>; axes that have been replaced with
+    /// <c>NumericManual</c> (e.g. DLS log size axis, GPC molecular-weight
+    /// log axis) keep their hand-built tick set untouched. Safe to call
+    /// from <see cref="ApplyAll"/> on every refresh — setting the
+    /// existing instance's <c>TickDensity</c> property is idempotent and
+    /// does not allocate.
+    /// </summary>
+    public static void ApplyTickDensity(ScottPlot.Plot plot, double density = DefaultTickDensity)
+    {
+        if (plot.Axes.Bottom.TickGenerator is ScottPlot.TickGenerators.NumericAutomatic bottomAuto)
+        {
+            bottomAuto.TickDensity = density;
+        }
+        if (plot.Axes.Left.TickGenerator is ScottPlot.TickGenerators.NumericAutomatic leftAuto)
+        {
+            leftAuto.TickDensity = density;
+        }
     }
 
     /// <summary>

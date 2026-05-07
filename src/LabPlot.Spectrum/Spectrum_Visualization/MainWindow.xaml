@@ -35,15 +35,34 @@
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
-                <StackPanel Grid.Row="0" Margin="20,22,20,10">
-                    <TextBlock Text="Spectrum Analyzer"
-                               FontSize="22"
-                               FontWeight="SemiBold"
-                               Foreground="#1E293B"
-                               Margin="0,0,0,4" />
-                    <TextBlock Text="Spectrum visualizer"
-                               FontSize="11"
-                               Foreground="#64748B" />
+                <StackPanel Grid.Row="0"
+                            Orientation="Horizontal"
+                            Margin="20,22,20,10">
+                    <Border Width="36" Height="36"
+                            CornerRadius="8"
+                            Background="#DBEAFE"
+                            VerticalAlignment="Top"
+                            Margin="0,2,12,0">
+                        <Path Stroke="#2563EB"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Stretch="None"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M 2,10 Q 4.25,3 6.5,10 Q 8.75,17 11,10 Q 13.25,3 15.5,10 Q 17,14 18,10" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Spectrum Analyzer"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#1E293B"
+                                   Margin="0,0,0,2" />
+                        <TextBlock Text="Spectrum visualizer"
+                                   FontSize="11"
+                                   Foreground="#64748B" />
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Scrollable sections -->
@@ -52,8 +71,8 @@
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20,10,20,12">
 
-                        <TextBlock Text="データ"
-                                   Style="{StaticResource GroupLabelStyle}" />
+                        <ContentControl Content="データ"
+                                        Style="{StaticResource GroupHeaderStyle}" />
 
                         <!-- Section: File -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -268,8 +287,8 @@
                             </Expander>
                         </Border>
 
-                        <TextBlock Text="書式"
-                                   Style="{StaticResource GroupLabelStyle}" />
+                        <ContentControl Content="書式"
+                                        Style="{StaticResource GroupHeaderStyle}" />
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -1020,6 +1039,13 @@
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,1,0,0"
                         Padding="20,12,20,14">
+                    <Border.Effect>
+                        <DropShadowEffect Direction="90"
+                                          ShadowDepth="3"
+                                          BlurRadius="10"
+                                          Opacity="0.10"
+                                          Color="#0F172A" />
+                    </Border.Effect>
                     <StackPanel>
                         <TextBlock Text="既定値（次回起動時の初期状態）"
                                    FontSize="11"

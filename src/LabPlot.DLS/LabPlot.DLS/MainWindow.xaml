@@ -29,15 +29,34 @@
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
-                <StackPanel Grid.Row="0" Margin="20,22,20,10">
-                    <TextBlock Text="DLS Analyzer"
-                               FontSize="22"
-                               FontWeight="SemiBold"
-                               Foreground="#1E293B"
-                               Margin="0,0,0,4" />
-                    <TextBlock Text="Particle size visualizer"
-                               FontSize="11"
-                               Foreground="#64748B" />
+                <StackPanel Grid.Row="0"
+                            Orientation="Horizontal"
+                            Margin="20,22,20,10">
+                    <Border Width="36" Height="36"
+                            CornerRadius="8"
+                            Background="#DBEAFE"
+                            VerticalAlignment="Top"
+                            Margin="0,2,12,0">
+                        <Path Stroke="#2563EB"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Stretch="None"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Data="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="DLS Analyzer"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#1E293B"
+                                   Margin="0,0,0,2" />
+                        <TextBlock Text="Particle size visualizer"
+                                   FontSize="11"
+                                   Foreground="#64748B" />
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Scrollable sections -->
@@ -46,8 +65,8 @@
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20,10,20,12">
 
-                        <TextBlock Text="データ"
-                                   Style="{StaticResource GroupLabelStyle}" />
+                        <ContentControl Content="データ"
+                                        Style="{StaticResource GroupHeaderStyle}" />
 
                         <!-- Section: File -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -490,8 +509,8 @@
                             </Expander>
                         </Border>
 
-                        <TextBlock Text="書式"
-                                   Style="{StaticResource GroupLabelStyle}" />
+                        <ContentControl Content="書式"
+                                        Style="{StaticResource GroupHeaderStyle}" />
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
@@ -645,6 +664,13 @@
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,1,0,0"
                         Padding="20,12,20,14">
+                    <Border.Effect>
+                        <DropShadowEffect Direction="90"
+                                          ShadowDepth="3"
+                                          BlurRadius="10"
+                                          Opacity="0.10"
+                                          Color="#0F172A" />
+                    </Border.Effect>
                     <StackPanel>
                         <TextBlock Text="既定値（次回起動時の初期状態）"
                                    FontSize="11"

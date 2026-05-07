@@ -33,6 +33,34 @@
         <Setter Property="Margin" Value="4,10,0,8" />
     </Style>
 
+    <!-- GroupHeaderStyle — サイドバーの「データ／書式／…」のような大見出し用。
+         Content にテキストを入れると、SemiBold の小見出しと薄い下線 divider が
+         ひとまとまりで描画される。GroupLabelStyle は単独の TextBlock 用に温存。 -->
+    <Style x:Key="GroupHeaderStyle" TargetType="ContentControl">
+        <Setter Property="Margin" Value="0,12,0,8" />
+        <Setter Property="Foreground" Value="#475569" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <StackPanel>
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   FontWeight="{TemplateBinding FontWeight}"
+                                   Margin="2,0,0,6" />
+                        <Border Height="1"
+                                Background="#E2E8F0"
+                                HorizontalAlignment="Stretch"
+                                SnapsToDevicePixels="True" />
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="#475569" />

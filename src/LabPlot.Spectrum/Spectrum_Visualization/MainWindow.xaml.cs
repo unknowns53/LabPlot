@@ -738,6 +738,10 @@ public partial class MainWindow : Window
         {
             OpenSpectrumButton.IsEnabled = false;
             SetStatus("スペクトルデータを読み込み中です...", false);
+            var busyMessage = fileNames.Length == 1
+                ? "スペクトルを読み込み中…"
+                : $"{fileNames.Length} ファイルを読み込み中…";
+            BusyOverlay.Show(busyMessage);
 
             var datasets = await Task.Run(() => fileNames
                 .Select(fileName => _reader.Read(fileName))
@@ -767,6 +771,7 @@ public partial class MainWindow : Window
         finally
         {
             OpenSpectrumButton.IsEnabled = true;
+            BusyOverlay.Hide();
         }
     }
 

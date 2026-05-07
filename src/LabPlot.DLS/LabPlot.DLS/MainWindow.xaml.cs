@@ -663,7 +663,7 @@ public partial class MainWindow : Window
 
     private string GetCurrentWorkbookHint() => _currentWorkbookPath ?? "dls";
 
-    private void OpenButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
         {
@@ -673,16 +673,20 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) != true) return;
 
-        ImportWorkbook(dialog.FileName);
+        await ImportWorkbookAsync(dialog.FileName);
     }
 
-    private void ImportWorkbook(string filePath)
+    private async Task ImportWorkbookAsync(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath)) return;
 
         try
         {
-            var loaded = _reader.Read(filePath);
+            BusyOverlay.Show("xlsx を読み込み中…");
+            // Excel parsing can take a while on big workbooks; push the
+            // CPU-bound read off the UI thread so the spinner actually
+            // animates while it runs.
+            var loaded = await Task.Run(() => _reader.Read(filePath));
             _datasets.Clear();
             foreach (var ds in loaded) _datasets.Add(ds);
 
@@ -714,6 +718,10 @@ public partial class MainWindow : Window
         {
             ShowError($"読み込みに失敗しました: {ex.Message}");
         }
+        finally
+        {
+            BusyOverlay.Hide();
+        }
     }
 
     private void DatasetListBox_DragOver(object sender, DragEventArgs e)
@@ -742,7 +750,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void DatasetListBox_Drop(object sender, DragEventArgs e)
+    private async void DatasetListBox_Drop(object sender, DragEventArgs e)
     {
         HideFileDropOverlay();
 
@@ -753,7 +761,7 @@ public partial class MainWindow : Window
             e.Handled = true;
             // DLS は xlsx を 1 ファイル単位で扱うので、複数 drop されても
             // 最初の 1 つだけ採用する（ファイルダイアログでも Multiselect=false）。
-            ImportWorkbook(paths[0]);
+            await ImportWorkbookAsync(paths[0]);
         }
     }
 

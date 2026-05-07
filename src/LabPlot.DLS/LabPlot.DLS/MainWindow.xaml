@@ -973,6 +973,7 @@
                         </Path>
                     </Border>
                     <controls:ErrorBanner x:Name="ErrorBanner" />
+                    <controls:BusyOverlay x:Name="BusyOverlay" />
                 </Grid>
             </Border>
 

@@ -513,6 +513,10 @@ public partial class MainWindow : Window
         {
             OpenCsvButton.IsEnabled = false;
             SetStatus("GPCデータを読み込み中です...", false);
+            var busyMessage = fileNames.Length == 1
+                ? "CSV を読み込み中…"
+                : $"{fileNames.Length} ファイルを読み込み中…";
+            BusyOverlay.Show(busyMessage);
 
             var datasets = await Task.Run(() => fileNames
                 .Select(fileName => _reader.Read(fileName))
@@ -554,6 +558,7 @@ public partial class MainWindow : Window
         finally
         {
             OpenCsvButton.IsEnabled = true;
+            BusyOverlay.Hide();
         }
     }
 

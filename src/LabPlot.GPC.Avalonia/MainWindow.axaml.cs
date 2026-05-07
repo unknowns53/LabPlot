@@ -117,6 +117,9 @@ public partial class MainWindow : Window
     private bool _isInternalReordering;
     private IPointer? _reorderCapturedPointer;
     private readonly DragGhostController _dragGhost = new();
+    // ドラッグゴーストの「クリック位置オフセット」を保持。WPF の DoDragDrop と同じく
+    // ドラッグ中に行が掴まれた点を保ったまま追従させるために使う。
+    private Point _dragGhostPointerOffset;
 
     public MainWindow()
     {
@@ -2489,6 +2492,9 @@ public partial class MainWindow : Window
         _datasetDragStartPoint = e.GetPosition(DatasetListBox);
         _datasetDragSourceContainer = item;
         _datasetDragSourceIndex = DatasetListBox.IndexFromContainer(item);
+        // 行内でクリックされた相対位置を覚えておく。ドラッグ中はこのオフセットを
+        // 保ったままゴーストが動くので「掴んだ場所」が安定する。
+        _dragGhostPointerOffset = e.GetPosition(item);
     }
 
     private void OnDatasetListBoxPointerMoved(object? sender, PointerEventArgs e)
@@ -2522,18 +2528,24 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // ドラッグ開始: source 行を半透明にし、Pointer を ListBox に capture して
-            // 以降の PointerMoved / PointerReleased を ListBox の Tunnel で確実に拾う。
+            // ドラッグ開始: Pointer を ListBox に capture して以降の PointerMoved /
+            // PointerReleased を ListBox の Tunnel で確実に拾う。
             _isInternalReordering = true;
-            _datasetDragSourceContainer.Opacity = 0.4;
             e.Pointer.Capture(DatasetListBox);
             _reorderCapturedPointer = e.Pointer;
 
-            // カーソル追従ゴースト: source 行の dataset 名を載せた半透明 Border を
-            // OverlayLayer に乗せて、PointerMoved に追従させる。WPF 版で OS シェルが
-            // 提供していたドラッグ画像の代替。
-            var label = _datasetEntries[sourceIndex].DisplayName;
-            _dragGhost.Show(this, label, e.GetPosition(this));
+            // カーソル追従ゴースト: ItemTemplate を Build(dataContext) で再展開し
+            // ベクター描画のままクローン Visual を作って OverlayLayer に乗せる。
+            // RenderTargetBitmap 方式は Skia の SubpixelAntialias 制約で
+            // テキストがぼやけるため採用しない。
+            _dragGhost.Show(
+                this,
+                DatasetListBox.ItemTemplate,
+                _datasetEntries[sourceIndex],
+                _datasetDragSourceContainer.Bounds.Size,
+                e.GetPosition(this),
+                _dragGhostPointerOffset);
+            _datasetDragSourceContainer.Opacity = 0.4;
         }
 
         // 移動中: insertion line を更新。source 行自身の上に重なったら隠す。
@@ -2627,8 +2639,16 @@ public partial class MainWindow : Window
 
     private (ListBoxItem? Item, bool InsertAbove) ResolveDropTargetFromVisual(Visual? src, PointerEventArgs e)
     {
-        if (src is null) return (null, false);
-        var item = FindAncestor<ListBoxItem>(src);
+        // Pointer Capture を DatasetListBox に持たせている影響で、e.Source は
+        // 常に capture 先 (DatasetListBox) になり、e.Source 経由の祖先探索は
+        // 必ず null を返してしまう (= InsertionLine が出ず、Drop は末尾挿入の
+        // フォールバックばかり走っていた)。Pointer 位置から ListBox の hit-test を
+        // 自前実行することで、capture 中でも実際にカーソル下にある ListBoxItem を
+        // 取れるようにする。Drag ghost は IsHitTestVisible=False + OverlayLayer
+        // 上にいるので、この hit-test は ghost に邪魔されない。
+        var posInListBox = e.GetPosition(DatasetListBox);
+        var hit = DatasetListBox.InputHitTest(posInListBox) as Visual;
+        var item = hit is null ? null : FindAncestor<ListBoxItem>(hit);
         if (item is null) return (null, false);
         var pos = e.GetPosition(item);
         var insertAbove = pos.Y < item.Bounds.Height / 2;
@@ -2690,9 +2710,12 @@ public partial class MainWindow : Window
 
         var listBoxTopInGrid = DatasetListBox.Bounds.Top;
         var itemTopInGrid = listBoxTopInGrid + transformPoint.Value.Y;
+        // InsertionLine Grid Height = 12 (DropShadow blur 余白込み)、視覚中心は中央 6 px。
+        // ライン中央が item 上端 (insertAbove) / 下端 (!insertAbove) に乗るよう 6 px ずらす。
+        const double lineCenterOffset = 6;
         var lineTop = insertAbove
-            ? itemTopInGrid - 3 // ライン中央が item 上端に乗るよう 3 px (Height/2) 上にずらす
-            : itemTopInGrid + item.Bounds.Height - 3;
+            ? itemTopInGrid - lineCenterOffset
+            : itemTopInGrid + item.Bounds.Height - lineCenterOffset;
 
         InsertionLine.Margin = new Thickness(0, Math.Max(0, lineTop), 0, 0);
         InsertionLine.IsVisible = true;

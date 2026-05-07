@@ -188,23 +188,34 @@
                                                                IsVisible="False" />
                                                     <!-- WPF 版 InsertionAdorner の Avalonia 代替。AdornerLayer は無いので
                                                          ListBox と同じ Grid 階層に絶対位置決めの sibling 要素を置き、
-                                                         OnDatasetDragOver で Margin と IsVisible を更新する。-->
+                                                         OnDatasetDragOver で Margin と IsVisible を更新する。
+                                                         線本体 + 両端ドット + 外周グロー (DropShadow) で視認性を確保する。-->
                                                     <Grid Name="InsertionLine"
                                                           HorizontalAlignment="Stretch"
                                                           VerticalAlignment="Top"
-                                                          Height="6"
+                                                          Height="12"
                                                           Margin="0"
                                                           IsVisible="False"
                                                           IsHitTestVisible="False">
+                                                        <Grid.Effect>
+                                                            <DropShadowEffect BlurRadius="8"
+                                                                              Color="#2563EB"
+                                                                              Opacity="0.55"
+                                                                              OffsetX="0"
+                                                                              OffsetY="0" />
+                                                        </Grid.Effect>
                                                         <Rectangle Height="2"
                                                                    VerticalAlignment="Center"
-                                                                   Fill="#2563EB" />
+                                                                   Fill="#2563EB"
+                                                                   Opacity="0.85" />
                                                         <Ellipse Width="6" Height="6"
                                                                  Fill="#2563EB"
+                                                                 Opacity="0.85"
                                                                  HorizontalAlignment="Left"
                                                                  VerticalAlignment="Center" />
                                                         <Ellipse Width="6" Height="6"
                                                                  Fill="#2563EB"
+                                                                 Opacity="0.85"
                                                                  HorizontalAlignment="Right"
                                                                  VerticalAlignment="Center" />
                                                     </Grid>

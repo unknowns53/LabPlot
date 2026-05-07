@@ -1,33 +1,45 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Media;
 
 namespace LabPlot.Core.Avalonia.Helpers;
 
 /// <summary>
-/// PointerCapture 経由の手動ドラッグ並べ替えで、カーソルに追従する半透明ゴーストを
-/// 描画するヘルパー。Avalonia 11.3 の <see cref="DragDrop.DoDragDrop"/> は OS シェル
-/// による自動ゴースト描画があるが、本プロジェクトでは drop イベントの不安定さを回避
-/// するため自前 PointerCapture に切り替えている。その代わりに失われる「行が掴める感」
-/// を取り戻すための軽量な追従 Visual を提供する。
+/// PointerCapture 経由の手動ドラッグ並べ替えで、source 行の見た目をクローンした
+/// 半透明ゴーストをカーソルに追従させるヘルパー。<see cref="IDataTemplate"/> を
+/// <c>Build(dataContext)</c> して新規 Visual を生成し、<see cref="OverlayLayer"/> 上
+/// の <see cref="Border"/> に詰める。
 ///
 /// <para>
-/// <see cref="OverlayLayer"/> を使用するため Window の Content 構造に依存せず、
-/// MainWindow / Dialog / どの構造の Window でも上位 z-order に確実に乗る。
+/// 当初は <c>RenderTargetBitmap</c> でスナップショットして <see cref="Image"/> として
+/// 貼っていたが、Skia の RenderTargetBitmap context では <c>SubpixelAntialias</c> が
+/// 効かず、テキストが必ず Antialias (グレースケール AA) で焼かれてどうしても
+/// ぼやける。DataTemplate クローン方式ならベクター描画のままなので解像度問題が無い。
+/// 代償として ListBoxItem container の hover / selected 装飾は再現されない (DataTemplate
+/// は ItemContainerStyle 側の装飾を含まないため)。
 /// </para>
 /// </summary>
 public sealed class DragGhostController
 {
     private Border? _ghost;
-    private TextBlock? _label;
     private OverlayLayer? _overlay;
+    private Point _pointerOffset;
 
     /// <summary>
-    /// ゴーストを表示開始する。<paramref name="pointerPosInWindow"/> は Window 座標系。
-    /// 既に表示中ならラベルを更新するだけで再生成しない。
+    /// ゴーストを表示開始する。<paramref name="template"/> を <paramref name="dataContext"/>
+    /// で Build して新規 Visual を生成し、<paramref name="sourceSize"/> の枠で表示する。
+    /// <paramref name="pointerOffsetInVisual"/> は Press 時の <c>e.GetPosition(item)</c>
+    /// を渡すと「掴んだ位置を保ったまま追従」する自然な挙動になる。
     /// </summary>
-    public void Show(Window owner, string label, Point pointerPosInWindow)
+    public void Show(
+        Window owner,
+        IDataTemplate? template,
+        object dataContext,
+        Size sourceSize,
+        Point pointerPosInWindow,
+        Point pointerOffsetInVisual)
     {
         _overlay ??= OverlayLayer.GetOverlayLayer(owner);
         if (_overlay is null)
@@ -35,47 +47,53 @@ public sealed class DragGhostController
             return;
         }
 
-        if (_ghost is null)
+        Hide();
+        _pointerOffset = pointerOffsetInVisual;
+
+        Control? content = template?.Build(dataContext) as Control;
+        if (content is null)
         {
-            _label = new TextBlock
+            // template が無い / Build 結果が Control でない時のフォールバック。
+            // データの ToString を表示するだけの簡易版で UX は失わない。
+            content = new TextBlock
             {
-                Text = label,
+                Text = dataContext?.ToString() ?? string.Empty,
                 FontSize = 12,
-                FontWeight = FontWeight.Medium,
+                Margin = new Thickness(10, 4),
                 Foreground = new SolidColorBrush(Color.Parse("#0F172A")),
             };
-
-            _ghost = new Border
-            {
-                Background = new SolidColorBrush(Color.Parse("#FFFFFF")),
-                BorderBrush = new SolidColorBrush(Color.Parse("#94A3B8")),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(10, 4),
-                Opacity = 0.92,
-                IsHitTestVisible = false,
-                BoxShadow = new BoxShadows(new BoxShadow
-                {
-                    OffsetX = 0,
-                    OffsetY = 2,
-                    Blur = 6,
-                    Color = Color.Parse("#33000000"),
-                }),
-                Child = _label,
-            };
-
-            _overlay.Children.Add(_ghost);
         }
-        else if (_label is not null)
+        content.DataContext = dataContext;
+
+        _ghost = new Border
         {
-            _label.Text = label;
-        }
+            Width = sourceSize.Width,
+            Height = sourceSize.Height,
+            Background = new SolidColorBrush(Color.Parse("#FFFFFF")),
+            BorderBrush = new SolidColorBrush(Color.Parse("#94A3B8")),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            ClipToBounds = true,
+            Opacity = 0.92,
+            IsHitTestVisible = false,
+            BoxShadow = new BoxShadows(new BoxShadow
+            {
+                OffsetX = 0,
+                OffsetY = 4,
+                Blur = 12,
+                Color = Color.Parse("#40000000"),
+            }),
+            Child = content,
+            HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Top,
+        };
 
+        _overlay.Children.Add(_ghost);
         Move(pointerPosInWindow);
     }
 
     /// <summary>
-    /// カーソル追従位置を更新する。Show より前に呼ぶと no-op。
+    /// カーソル追従位置を更新する。Show より前の呼び出しは no-op。
     /// </summary>
     public void Move(Point pointerPosInWindow)
     {
@@ -84,16 +102,15 @@ public sealed class DragGhostController
             return;
         }
 
-        // ゴーストはカーソル右下に少しオフセットして配置する。
-        // OverlayLayer は Canvas-like で、Canvas.Left / Canvas.Top でなく
-        // Margin で配置する。 Margin.Left/Top のセットでも z-order は保たれる。
-        _ghost.Margin = new Thickness(pointerPosInWindow.X + 12, pointerPosInWindow.Y + 12, 0, 0);
-        _ghost.HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Left;
-        _ghost.VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Top;
+        // 掴んだ位置を保持したままゴーストを動かす:
+        //   ghostTopLeft = pointer - clickOffset
+        var left = pointerPosInWindow.X - _pointerOffset.X;
+        var top = pointerPosInWindow.Y - _pointerOffset.Y;
+        _ghost.Margin = new Thickness(left, top, 0, 0);
     }
 
     /// <summary>
-    /// ゴーストを破棄する。Release / CaptureLost / ESC キャンセルなど終端で必ず呼ぶ。
+    /// ゴーストを破棄する。Release / CaptureLost / 早期 abort で必ず呼ぶ。冪等。
     /// </summary>
     public void Hide()
     {
@@ -102,7 +119,7 @@ public sealed class DragGhostController
             _overlay.Children.Remove(_ghost);
         }
         _ghost = null;
-        _label = null;
-        // _overlay は保持し続ける (同じ Window で次回再利用)。
+        _pointerOffset = default;
+        // _overlay は同 Window の次回再利用のため保持。
     }
 }

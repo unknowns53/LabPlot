@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:input="using:Avalonia.Input">
 
     <!-- ============================================================
          Phase 7 Batch 1b: 暗黙 (key 無し) Style 群。
@@ -13,6 +14,27 @@
          のみ。Batch 1c でアニメ追加 + ControlTemplate のフルカスタムへ
          必要に応じて格上げ。
          ============================================================ -->
+
+    <!-- ============================================================
+         Phase 7 Batch 6 step 2: D&D 受け取りを ListBoxItem まで通す
+         DragDrop.AllowDrop は Avalonia では非継承の attached property のため、
+         Window や ListBox に True を立てても ListBoxItem 子要素では False のまま。
+         OS ドロップは hit-test の最深要素で受けるので、AllowDrop=False の要素が
+         drop イベントを吸収して bubble させない（Phase 7 Batch 6 残課題 (a)）。
+         ListBoxItem 全件に AllowDrop=True を立てておくと、その上にいる Border /
+         TextBlock / Path 等の子要素も実体としては ListBoxItem 範囲なので、
+         ListBoxItem 自身がドロップ対象として受け取り、bubble で ListBox / Window
+         のハンドラに伝播する。
+
+         RenderOptions.TextRenderingMode は Avalonia 11.3 で struct 化されており
+         個別 attached property としては XAML から Style Setter で書けない。
+         WPF 版の TextRenderingMode=ClearType 相当はコードビハインドで
+         RenderOptions.SetTextRenderingMode(window, SubpixelAntialias) を呼ぶ
+         (PortalWindow / 各 MainWindow ctor) 形に統一する。
+         ============================================================ -->
+    <Style Selector="ListBoxItem">
+        <Setter Property="(input:DragDrop.AllowDrop)" Value="True" />
+    </Style>
 
     <!-- ComboBoxItem — 角丸 4 / hover で薄い grey、選択で薄い blue。 -->
     <Style Selector="ComboBoxItem">

@@ -3,9 +3,12 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using LabPlot.Core.Avalonia.Helpers;
 
 namespace LabPlot.Shell.Avalonia;
 
@@ -35,10 +38,22 @@ public partial class App : Application
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
+            // Phase 7 Batch 6 step 2: 全 Window に対して文字描画を WPF 同等に揃える。
+            // Window.WindowOpenedEvent (ルーテッドイベント) のクラスハンドラを 1 つ仕込めば、
+            // PortalWindow / 各 MainWindow / 子 Dialog すべての Opened タイミングで
+            // RenderOptions.SetTextRenderingMode = SubpixelAntialias と
+            // RenderOptions.SetEdgeMode = Antialias が走る。
+            Window.WindowOpenedEvent.AddClassHandler<Window>(OnAnyWindowOpened);
+
             desktop.MainWindow = new PortalWindow();
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void OnAnyWindowOpened(Window window, RoutedEventArgs e)
+    {
+        WindowAppearance.ApplyDefaults(window);
     }
 
     private static void OnDispatcherUnhandledException(object? sender, DispatcherUnhandledExceptionEventArgs e)

@@ -14,6 +14,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using DlsAnalyzer.Core;
 using LabPlot.Core;
 using LabPlot.Core.Avalonia.Helpers;
@@ -66,6 +67,15 @@ public partial class MainWindow : Window
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private AvaPlot? _plot;
     private LegendDragController? _legendDragController;
+
+    // Phase 7 Batch 6 step 4: 内部 reorder 状態。GPC / Spectrum と同方針で
+    // OS DragDrop layer は使わず PointerCapture + 手動位置計算で実装する。
+    private Point? _datasetDragStartPoint;
+    private int? _datasetDragSourceIndex;
+    private ListBoxItem? _datasetDragSourceContainer;
+    private bool _isInternalReordering;
+    private IPointer? _reorderCapturedPointer;
+
     private DistributionMode _selectedMode = DistributionMode.Number;
     private int _selectedRunIndex;
     private int _activeItemIndex = -1;
@@ -95,6 +105,10 @@ public partial class MainWindow : Window
         DatasetListBox.AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
         DatasetListBox.AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
         DatasetListBox.AddHandler(DragDrop.DropEvent, OnDatasetDrop);
+        DatasetListBox.AddHandler(PointerPressedEvent, OnDatasetListBoxPointerPressed, RoutingStrategies.Tunnel);
+        DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, RoutingStrategies.Tunnel);
+        DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, RoutingStrategies.Tunnel);
+        DatasetListBox.AddHandler(PointerCaptureLostEvent, OnDatasetListBoxPointerCaptureLost);
     }
 
     // WPF の Loaded イベント相当。Window.Opened は最初に画面に表示されるとき
@@ -313,6 +327,234 @@ public partial class MainWindow : Window
         _ = ImportWorkbookAsync(path);
     }
 #pragma warning restore CS0618
+
+    // ---------- Drag-reorder (Phase 7 Batch 6 step 4 で新規追加) ----------
+    // GPC / Spectrum と同じ手動 PointerCapture 方式。WPF DLS 自体には reorder
+    // 機能が無かったが、Avalonia 版では LegendDragController と同じく Avalonia
+    // 専用の追加機能として実装する。
+
+    private void OnDatasetListBoxPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is Visual srcVisual && FindAncestor<Button>(srcVisual) is not null)
+        {
+            ResetReorderState();
+            return;
+        }
+
+        var item = e.Source is Visual v ? FindAncestor<ListBoxItem>(v) : null;
+        if (item is null)
+        {
+            ResetReorderState();
+            return;
+        }
+
+        if (!e.GetCurrentPoint(DatasetListBox).Properties.IsLeftButtonPressed) return;
+
+        _datasetDragStartPoint = e.GetPosition(DatasetListBox);
+        _datasetDragSourceContainer = item;
+        _datasetDragSourceIndex = DatasetListBox.IndexFromContainer(item);
+    }
+
+    private void OnDatasetListBoxPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_datasetDragStartPoint is null
+            || _datasetDragSourceContainer is null
+            || _datasetDragSourceIndex is null)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(DatasetListBox).Properties.IsLeftButtonPressed) return;
+
+        var current = e.GetPosition(DatasetListBox);
+
+        if (!_isInternalReordering)
+        {
+            var dx = current.X - _datasetDragStartPoint.Value.X;
+            var dy = current.Y - _datasetDragStartPoint.Value.Y;
+            if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return;
+
+            var sourceIndex = _datasetDragSourceIndex.Value;
+            if (sourceIndex < 0 || sourceIndex >= _datasetItems.Count)
+            {
+                ResetReorderState();
+                return;
+            }
+
+            _isInternalReordering = true;
+            _datasetDragSourceContainer.Opacity = 0.4;
+            e.Pointer.Capture(DatasetListBox);
+            _reorderCapturedPointer = e.Pointer;
+        }
+
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e.Source as Visual, e);
+        if (targetItem is null || ReferenceEquals(targetItem, _datasetDragSourceContainer))
+        {
+            HideInsertionLine();
+        }
+        else
+        {
+            UpdateInsertionLine(targetItem, insertAbove);
+        }
+        e.Handled = true;
+    }
+
+    private void OnDatasetListBoxPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isInternalReordering)
+        {
+            ResetReorderState();
+            return;
+        }
+
+        var sourceIndex = _datasetDragSourceIndex ?? -1;
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e.Source as Visual, e);
+
+        int newIndex;
+        if (targetItem is null)
+        {
+            newIndex = _datasetItems.Count - 1;
+        }
+        else
+        {
+            var targetIndex = DatasetListBox.IndexFromContainer(targetItem);
+            if (targetIndex < 0)
+            {
+                HideInsertionLine();
+                ResetReorderState();
+                e.Handled = true;
+                return;
+            }
+            newIndex = insertAbove ? targetIndex : targetIndex + 1;
+            if (newIndex > sourceIndex) newIndex--;
+        }
+
+        if (newIndex < 0) newIndex = 0;
+        else if (newIndex >= _datasetItems.Count) newIndex = _datasetItems.Count - 1;
+
+        HideInsertionLine();
+
+        if (sourceIndex >= 0 && newIndex != sourceIndex)
+        {
+            MoveDataset(sourceIndex, newIndex);
+        }
+
+        ResetReorderState();
+        e.Handled = true;
+    }
+
+    private void OnDatasetListBoxPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        HideInsertionLine();
+        ResetReorderState();
+    }
+
+    private void ResetReorderState()
+    {
+        if (_datasetDragSourceContainer is not null)
+        {
+            _datasetDragSourceContainer.Opacity = 1.0;
+        }
+        if (_reorderCapturedPointer is { } pointer)
+        {
+            pointer.Capture(null);
+            _reorderCapturedPointer = null;
+        }
+        _isInternalReordering = false;
+        _datasetDragStartPoint = null;
+        _datasetDragSourceContainer = null;
+        _datasetDragSourceIndex = null;
+    }
+
+    private (ListBoxItem? Item, bool InsertAbove) ResolveDropTargetFromVisual(Visual? src, PointerEventArgs e)
+    {
+        if (src is null) return (null, false);
+        var item = FindAncestor<ListBoxItem>(src);
+        if (item is null) return (null, false);
+        var pos = e.GetPosition(item);
+        var insertAbove = pos.Y < item.Bounds.Height / 2;
+        return (item, insertAbove);
+    }
+
+    private static T? FindAncestor<T>(Visual? element) where T : class
+    {
+        while (element is not null)
+        {
+            if (element is T match) return match;
+            element = element.GetVisualParent();
+        }
+        return null;
+    }
+
+    private void UpdateInsertionLine(ListBoxItem item, bool insertAbove)
+    {
+        var transformPoint = item.TranslatePoint(new Point(0, 0), DatasetListBox);
+        if (transformPoint is null) { HideInsertionLine(); return; }
+
+        var listBoxTopInGrid = DatasetListBox.Bounds.Top;
+        var itemTopInGrid = listBoxTopInGrid + transformPoint.Value.Y;
+        var lineTop = insertAbove
+            ? itemTopInGrid - 3
+            : itemTopInGrid + item.Bounds.Height - 3;
+
+        InsertionLine.Margin = new Thickness(0, Math.Max(0, lineTop), 0, 0);
+        InsertionLine.IsVisible = true;
+    }
+
+    private void HideInsertionLine()
+    {
+        InsertionLine.IsVisible = false;
+    }
+
+    private void MoveDataset(int oldIndex, int newIndex)
+    {
+        if (oldIndex == newIndex
+            || oldIndex < 0 || oldIndex >= _datasets.Count
+            || newIndex < 0 || newIndex >= _datasets.Count)
+        {
+            return;
+        }
+
+        // 元の選択状態を一旦記憶しておき、reorder 後に復元する。SelectedDatasets
+        // はオブジェクト参照ベースなので、index が変わっても同じインスタンスを
+        // SelectedItems に戻せば追従できる。
+        var previouslySelected = _selectedDatasets.ToList();
+
+        var dataset = _datasets[oldIndex];
+        _datasets.RemoveAt(oldIndex);
+        _datasets.Insert(newIndex, dataset);
+
+        var item = _datasetItems[oldIndex];
+        _datasetItems.RemoveAt(oldIndex);
+        _datasetItems.Insert(newIndex, item);
+
+        // Avalonia の ListBox は List<T> を ItemsSource にしただけだと
+        // INotifyCollectionChanged が無く reorder が UI に反映されないので、
+        // 一度 null にしてから再 bind して強制再描画する。SelectedItems は
+        // この瞬間にクリアされるが、直後に元の選択を復元する。
+        _suppressFormattingEvents = true;
+        try
+        {
+            DatasetListBox.ItemsSource = null;
+            DatasetListBox.ItemsSource = _datasetItems;
+
+            DatasetListBox.SelectedItems?.Clear();
+            foreach (var ds in previouslySelected)
+            {
+                var idx = _datasets.IndexOf(ds);
+                if (idx >= 0 && idx < _datasetItems.Count)
+                {
+                    DatasetListBox.SelectedItems?.Add(_datasetItems[idx]);
+                }
+            }
+        }
+        finally
+        {
+            _suppressFormattingEvents = false;
+        }
+
+        RefreshPlot();
+    }
 
     private void ShowFileDropOverlay() => DatasetDropOverlay.IsVisible = true;
     private void HideFileDropOverlay() => DatasetDropOverlay.IsVisible = false;

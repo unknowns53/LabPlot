@@ -151,6 +151,28 @@
                                                                RadiusY="4"
                                                                IsHitTestVisible="False"
                                                                IsVisible="False" />
+                                                    <!-- Phase 7 Batch 6 step 4: 内部 reorder 用 Insertion Line。
+                                                         GPC / Spectrum 同形で ListBox と同じ Grid 階層に配置し、
+                                                         Margin.Top をリアルタイム計算してドロップ先指示子として表示する。 -->
+                                                    <Grid Name="InsertionLine"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Top"
+                                                          Height="6"
+                                                          Margin="0"
+                                                          IsVisible="False"
+                                                          IsHitTestVisible="False">
+                                                        <Rectangle Height="2"
+                                                                   VerticalAlignment="Center"
+                                                                   Fill="#2563EB" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 HorizontalAlignment="Left"
+                                                                 VerticalAlignment="Center" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 HorizontalAlignment="Right"
+                                                                 VerticalAlignment="Center" />
+                                                    </Grid>
                                                 </Grid>
                                             </Border>
                                             <TextBlock Margin="0,4,0,0"

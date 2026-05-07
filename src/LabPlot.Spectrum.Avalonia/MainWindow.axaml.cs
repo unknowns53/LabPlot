@@ -86,10 +86,16 @@ public partial class MainWindow : Window
 
     private bool _currentLegendAutoShow;
 
-    private const string DatasetReorderDataFormat = "Spectrum.DatasetEntryIndex";
+    // Phase 7 Batch 6 step 4: 内部 reorder は OS DragDrop layer を使わず
+    // PointerCapture + 手動位置計算で実装する。Avalonia 11.3 の
+    // DragDrop.DoDragDrop (obsolete) は custom DataFormat を渡しても
+    // 受け取り側が認識せず drop が reorder として処理されないことが
+    // 実機検証で判明したため、OS layer を bypass する。
     private Point? _datasetDragStartPoint;
     private int? _datasetDragSourceIndex;
     private ListBoxItem? _datasetDragSourceContainer;
+    private bool _isInternalReordering;
+    private IPointer? _reorderCapturedPointer;
 
     // Mouse-drag region selection for the integration feature.
     private Canvas? _integrationDragOverlay;
@@ -153,6 +159,8 @@ public partial class MainWindow : Window
         DatasetListBox.AddHandler(DragDrop.DropEvent, OnDatasetDrop);
         DatasetListBox.AddHandler(PointerPressedEvent, OnDatasetListBoxPointerPressed, RoutingStrategies.Tunnel);
         DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, RoutingStrategies.Tunnel);
+        DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, RoutingStrategies.Tunnel);
+        DatasetListBox.AddHandler(PointerCaptureLostEvent, OnDatasetListBoxPointerCaptureLost);
     }
 
     private void OnOpened(object? sender, EventArgs e)
@@ -1638,8 +1646,7 @@ public partial class MainWindow : Window
         _datasetDragSourceIndex = DatasetListBox.IndexFromContainer(item);
     }
 
-#pragma warning disable CS0618
-    private async void OnDatasetListBoxPointerMoved(object? sender, PointerEventArgs e)
+    private void OnDatasetListBoxPointerMoved(object? sender, PointerEventArgs e)
     {
         if (_datasetDragStartPoint is null
             || _datasetDragSourceContainer is null
@@ -1654,38 +1661,118 @@ public partial class MainWindow : Window
         }
 
         var current = e.GetPosition(DatasetListBox);
-        var dx = current.X - _datasetDragStartPoint.Value.X;
-        var dy = current.Y - _datasetDragStartPoint.Value.Y;
-        if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return;
 
-        var sourceIndex = _datasetDragSourceIndex.Value;
-        if (sourceIndex < 0 || sourceIndex >= _datasetEntries.Count)
+        if (!_isInternalReordering)
         {
-            _datasetDragStartPoint = null;
-            _datasetDragSourceContainer = null;
-            _datasetDragSourceIndex = null;
+            var dx = current.X - _datasetDragStartPoint.Value.X;
+            var dy = current.Y - _datasetDragStartPoint.Value.Y;
+            if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return;
+
+            var sourceIndex = _datasetDragSourceIndex.Value;
+            if (sourceIndex < 0 || sourceIndex >= _datasetEntries.Count)
+            {
+                ResetReorderState();
+                return;
+            }
+
+            _isInternalReordering = true;
+            _datasetDragSourceContainer.Opacity = 0.4;
+            e.Pointer.Capture(DatasetListBox);
+            _reorderCapturedPointer = e.Pointer;
+        }
+
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e.Source as Visual, e);
+        if (targetItem is null || ReferenceEquals(targetItem, _datasetDragSourceContainer))
+        {
+            HideInsertionLine();
+        }
+        else
+        {
+            UpdateInsertionLine(targetItem, insertAbove);
+        }
+        e.Handled = true;
+    }
+
+    private void OnDatasetListBoxPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isInternalReordering)
+        {
+            ResetReorderState();
             return;
         }
 
-        var sourceContainer = _datasetDragSourceContainer;
-        sourceContainer.Opacity = 0.4;
-        try
-        {
-            var data = new DataObject();
-            data.Set(DatasetReorderDataFormat, sourceIndex);
-            await DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
-        }
-        finally
-        {
-            sourceContainer.Opacity = 1.0;
-            _datasetDragStartPoint = null;
-            _datasetDragSourceContainer = null;
-            _datasetDragSourceIndex = null;
-            HideInsertionLine();
-        }
-    }
-#pragma warning restore CS0618
+        var sourceIndex = _datasetDragSourceIndex ?? -1;
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e.Source as Visual, e);
 
+        int newIndex;
+        if (targetItem is null)
+        {
+            newIndex = _datasetEntries.Count - 1;
+        }
+        else
+        {
+            var targetIndex = DatasetListBox.IndexFromContainer(targetItem);
+            if (targetIndex < 0)
+            {
+                HideInsertionLine();
+                ResetReorderState();
+                e.Handled = true;
+                return;
+            }
+            newIndex = insertAbove ? targetIndex : targetIndex + 1;
+            if (newIndex > sourceIndex) newIndex--;
+        }
+
+        if (newIndex < 0) newIndex = 0;
+        else if (newIndex >= _datasetEntries.Count) newIndex = _datasetEntries.Count - 1;
+
+        HideInsertionLine();
+
+        if (sourceIndex >= 0 && newIndex != sourceIndex)
+        {
+            MoveDataset(sourceIndex, newIndex);
+        }
+
+        ResetReorderState();
+        e.Handled = true;
+    }
+
+    private void OnDatasetListBoxPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        HideInsertionLine();
+        ResetReorderState();
+    }
+
+    private void ResetReorderState()
+    {
+        if (_datasetDragSourceContainer is not null)
+        {
+            _datasetDragSourceContainer.Opacity = 1.0;
+        }
+        if (_reorderCapturedPointer is { } pointer)
+        {
+            pointer.Capture(null);
+            _reorderCapturedPointer = null;
+        }
+        _isInternalReordering = false;
+        _datasetDragStartPoint = null;
+        _datasetDragSourceContainer = null;
+        _datasetDragSourceIndex = null;
+    }
+
+    private (ListBoxItem? Item, bool InsertAbove) ResolveDropTargetFromVisual(Visual? src, PointerEventArgs e)
+    {
+        if (src is null) return (null, false);
+        var item = FindAncestor<ListBoxItem>(src);
+        if (item is null) return (null, false);
+        var pos = e.GetPosition(item);
+        var insertAbove = pos.Y < item.Bounds.Height / 2;
+        return (item, insertAbove);
+    }
+
+    // Phase 7 Batch 6 step 4 以降、内部 reorder は OS DragDrop layer を介さず
+    // 手動 PointerCapture で処理する。ここに残るのは外部ファイルドロップ
+    // (Explorer から DatasetListBox へ TXT をドロップ) のハンドラのみ。
 #pragma warning disable CS0618
     private void OnDatasetDragOver(object? sender, DragEventArgs e)
     {
@@ -1693,32 +1780,12 @@ public partial class MainWindow : Window
         {
             e.DragEffects = DragDropEffects.Copy;
             ShowFileDropOverlay();
-            HideInsertionLine();
             e.Handled = true;
             return;
         }
-
         HideFileDropOverlay();
-
-        if (!e.Data.Contains(DatasetReorderDataFormat))
-        {
-            e.DragEffects = DragDropEffects.None;
-            HideInsertionLine();
-            e.Handled = true;
-            return;
-        }
-
-        e.DragEffects = DragDropEffects.Move;
+        e.DragEffects = DragDropEffects.None;
         e.Handled = true;
-
-        var (targetItem, insertAbove) = ResolveDropTarget(e);
-        if (targetItem is null)
-        {
-            HideInsertionLine();
-            return;
-        }
-
-        UpdateInsertionLine(targetItem, insertAbove);
     }
 
     private void OnDatasetDragLeave(object? sender, DragEventArgs e)
@@ -1728,74 +1795,26 @@ public partial class MainWindow : Window
             || pos.X > DatasetListBox.Bounds.Width
             || pos.Y > DatasetListBox.Bounds.Height)
         {
-            HideInsertionLine();
             HideFileDropOverlay();
         }
     }
 
     private async void OnDatasetDrop(object? sender, DragEventArgs e)
     {
-        HideInsertionLine();
         HideFileDropOverlay();
-
-        if (e.Data.Contains(DataFormats.Files))
-        {
-            var files = e.Data.GetFiles()?.ToArray();
-            if (files is not null && files.Length > 0)
-            {
-                var paths = files
-                    .Select(f => f.TryGetLocalPath())
-                    .Where(p => !string.IsNullOrEmpty(p))
-                    .Cast<string>()
-                    .ToArray();
-                if (paths.Length > 0)
-                {
-                    e.Handled = true;
-                    await ImportSpectrumFilesAsync(paths);
-                }
-            }
-            return;
-        }
-
-        if (!e.Data.Contains(DatasetReorderDataFormat)) return;
-        if (e.Data.Get(DatasetReorderDataFormat) is not int oldIndex) return;
-        if (oldIndex < 0 || oldIndex >= _datasetEntries.Count) return;
-
-        var (targetItem, insertAbove) = ResolveDropTarget(e);
-        int newIndex;
-        if (targetItem is null)
-        {
-            newIndex = _datasetEntries.Count - 1;
-        }
-        else
-        {
-            var targetIndex = DatasetListBox.IndexFromContainer(targetItem);
-            if (targetIndex < 0) return;
-
-            newIndex = insertAbove ? targetIndex : targetIndex + 1;
-            if (newIndex > oldIndex) newIndex--;
-        }
-
-        if (newIndex < 0) newIndex = 0;
-        else if (newIndex >= _datasetEntries.Count) newIndex = _datasetEntries.Count - 1;
-
-        if (newIndex == oldIndex) return;
-
+        if (!e.Data.Contains(DataFormats.Files)) return;
+        var files = e.Data.GetFiles()?.ToArray();
+        if (files is null || files.Length == 0) return;
+        var paths = files
+            .Select(f => f.TryGetLocalPath())
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Cast<string>()
+            .ToArray();
+        if (paths.Length == 0) return;
         e.Handled = true;
-        MoveDataset(oldIndex, newIndex);
+        await ImportSpectrumFilesAsync(paths);
     }
 #pragma warning restore CS0618
-
-    private (ListBoxItem? Item, bool InsertAbove) ResolveDropTarget(DragEventArgs e)
-    {
-        if (e.Source is not Visual src) return (null, false);
-        var item = FindAncestor<ListBoxItem>(src);
-        if (item is null) return (null, false);
-
-        var pos = e.GetPosition(item);
-        var insertAbove = pos.Y < item.Bounds.Height / 2;
-        return (item, insertAbove);
-    }
 
     private void UpdateInsertionLine(ListBoxItem item, bool insertAbove)
     {

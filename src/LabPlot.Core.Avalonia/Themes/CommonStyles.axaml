@@ -625,4 +625,38 @@
         </Style>
     </ControlTheme>
 
+    <!-- =========================================================
+         ToolTip 用 ControlTheme（Batch 1b で持ち越したもの）。
+         WPF 版は OverridesDefaultStyle=True + ControlTemplate で
+         Border + DropShadowEffect を被せる手作り実装だったが、
+         Avalonia は Border.BoxShadow が CSS と同じ syntax で 1 行
+         書けるので、ContentControl 派生の ToolTip テンプレートに
+         直接埋め込む。x:Key="{x:Type ToolTip}" で暗黙 ControlTheme
+         として登録され、ImplicitStyles 側の Setter だけでは表現
+         できなかった BoxShadow / CornerRadius を含めた見た目が
+         Fluent デフォルトの上から差し替わる。
+         WPF の DropShadowEffect ShadowDepth=2 / Direction=270 /
+         BlurRadius=12 / Opacity=0.15 / Color=#0F172A は
+         BoxShadow="0 2 12 0 #260F172A" に対応する (alpha 0x26 ≈ 15%)。
+         ========================================================= -->
+    <ControlTheme x:Key="{x:Type ToolTip}" TargetType="ToolTip">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="ToolTip">
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{StaticResource BorderDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        BoxShadow="0 2 12 0 #260F172A"
+                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
 </ResourceDictionary>

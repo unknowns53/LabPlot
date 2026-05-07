@@ -156,9 +156,14 @@ public partial class MainWindow : Window
         DatasetListBox.AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
         DatasetListBox.AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
         DatasetListBox.AddHandler(DragDrop.DropEvent, OnDatasetDrop);
-        DatasetListBox.AddHandler(PointerPressedEvent, OnDatasetListBoxPointerPressed, RoutingStrategies.Tunnel);
-        DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, RoutingStrategies.Tunnel);
-        DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, RoutingStrategies.Tunnel);
+        // Phase 7 Batch 6 step 5: handledEventsToo=true 必須。Avalonia の ListBox は
+        // 内部で PointerPressed を Tunnel/Bubble で消費し e.Handled=true を立てるため、
+        // 既定の AddHandler では reorder ハンドラが呼ばれない。Tunnel | Bubble の双方
+        // を購読し、handled なイベントも拾うことで確実にハンドラを動かす。
+        const RoutingStrategies route = RoutingStrategies.Tunnel | RoutingStrategies.Bubble;
+        DatasetListBox.AddHandler(PointerPressedEvent, OnDatasetListBoxPointerPressed, route, handledEventsToo: true);
+        DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, route, handledEventsToo: true);
+        DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, route, handledEventsToo: true);
         DatasetListBox.AddHandler(PointerCaptureLostEvent, OnDatasetListBoxPointerCaptureLost);
     }
 

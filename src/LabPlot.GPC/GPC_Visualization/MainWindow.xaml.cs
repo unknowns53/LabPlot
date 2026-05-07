@@ -76,6 +76,7 @@ public partial class MainWindow : Window
     private CalibrationCurve? _selectedCalibrationCurve;
     private string? _calibrationFilePath;
     private WpfPlot? _chromatogramPlot;
+    private LegendDragController? _legendDragController;
     private bool _updatingCalibrationSelection;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
@@ -1321,6 +1322,14 @@ public partial class MainWindow : Window
             _chromatogramPlot.MouseWheel += ChromatogramPlot_MouseInteractionFinished;
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_chromatogramPlot);
+
+            _legendDragController = new LegendDragController(
+                _chromatogramPlot,
+                () => _formattingConfig.LegendPosition,
+                () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
+                OnLegendDragCommit);
+            _legendDragController.Attach();
+
             UpdatePlotHostAspectRatio();
             InitializeEmptyPlot();
 
@@ -3077,6 +3086,19 @@ public partial class MainWindow : Window
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
+    }
+
+    private void OnLegendDragCommit(double offsetX, double offsetY)
+    {
+        // The drag controller wrote Legend.Margin during the move so the
+        // legend already sits at the final spot. Persist the offsets into
+        // _formattingConfig and the panel TextBoxes, then re-run the normal
+        // appearance pass so any subsequent Plot* call picks up the same
+        // ComputeLegendMargin result.
+        _formattingConfig.LegendOffsetX = offsetX;
+        _formattingConfig.LegendOffsetY = offsetY;
+        GraphFormatPanel.SyncLegendOffset(offsetX, offsetY);
+        ApplyGraphAppearanceAndRefresh();
     }
 
     private void ApplyGraphAppearanceAndRefresh()

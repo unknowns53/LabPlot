@@ -57,6 +57,7 @@ public partial class MainWindow : Window
     private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private WpfPlot? _plot;
+    private LegendDragController? _legendDragController;
     private DistributionMode _selectedMode = DistributionMode.Number;
     private int _selectedRunIndex;
     // Index into _datasetItems / _datasets that the per-dataset style
@@ -150,6 +151,13 @@ public partial class MainWindow : Window
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_plot);
 
+            _legendDragController = new LegendDragController(
+                _plot,
+                () => _formattingConfig.LegendPosition,
+                () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
+                OnLegendDragCommit);
+            _legendDragController.Attach();
+
             // Push the factory-default formatting config into the controls
             // and align the active distribution / run with it. Once session
             // persistence ships in Batch 6 a saved config will replace the
@@ -175,6 +183,19 @@ public partial class MainWindow : Window
             PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.InitFailed);
             ShowError($"グラフ表示の初期化に失敗しました: {ex.Message}");
         }
+    }
+
+    private void OnLegendDragCommit(double offsetX, double offsetY)
+    {
+        // The drag controller already wrote Legend.Margin during the move, so
+        // by the time we arrive here the user sees the legend at the final
+        // position. Persist the offsets into the live formatting config and
+        // let the panel TextBoxes catch up, then run RefreshPlot so any
+        // subsequent ApplyAll keeps the same Margin via ComputeLegendMargin.
+        _formattingConfig.LegendOffsetX = offsetX;
+        _formattingConfig.LegendOffsetY = offsetY;
+        GraphFormatPanel.SyncLegendOffset(offsetX, offsetY);
+        RefreshPlot();
     }
 
     private void InitializeEmptyPlot()

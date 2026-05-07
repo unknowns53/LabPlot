@@ -73,6 +73,7 @@ public partial class MainWindow : Window
     private int _activeIndex = -1;
     private SpectrumDataset? _currentDataset;
     private WpfPlot? _spectrumPlot;
+    private LegendDragController? _legendDragController;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
@@ -1240,6 +1241,18 @@ public partial class MainWindow : Window
             _spectrumPlot = new WpfPlot();
             _spectrumPlot.PreviewMouseUp += SpectrumPlot_MouseInteractionFinished;
             _spectrumPlot.MouseWheel += SpectrumPlot_MouseInteractionFinished;
+
+            // Attach the legend drag controller before the IntegrationResize
+            // handlers so a press on the legend marks e.Handled = true
+            // before the resize gesture can begin. Tunneling preview events
+            // run in subscription order on the WpfPlot itself, so the order
+            // here is what enforces the priority.
+            _legendDragController = new LegendDragController(
+                _spectrumPlot,
+                () => _formattingConfig.LegendPosition,
+                () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
+                OnLegendDragCommit);
+            _legendDragController.Attach();
 
             // Permanent handlers that drive the edge-resize gesture for
             // existing integration regions. They no-op while the
@@ -3393,6 +3406,19 @@ public partial class MainWindow : Window
     private void PlotContainerBorder_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
+    }
+
+    private void OnLegendDragCommit(double offsetX, double offsetY)
+    {
+        // The drag controller wrote Legend.Margin during the move so the
+        // legend already sits at the final spot. Persist the offsets into
+        // _formattingConfig and the panel TextBoxes, then re-run the normal
+        // appearance pass so any subsequent Plot* call picks up the same
+        // ComputeLegendMargin result.
+        _formattingConfig.LegendOffsetX = offsetX;
+        _formattingConfig.LegendOffsetY = offsetY;
+        GraphFormatPanel.SyncLegendOffset(offsetX, offsetY);
+        ApplyGraphAppearanceAndRefresh();
     }
 
     private void ApplyGraphAppearanceAndRefresh()

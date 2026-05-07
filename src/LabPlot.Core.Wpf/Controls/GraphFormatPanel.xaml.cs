@@ -126,6 +126,27 @@ public partial class GraphFormatPanel : UserControl
     }
 
     /// <summary>
+    /// Pushes new <c>(LegendOffsetX, LegendOffsetY)</c> values into the
+    /// X / Y TextBoxes without firing <see cref="GraphFormatChanged"/>.
+    /// Used by <c>LegendDragController</c> after a drag commits so the
+    /// offset readout matches the new legend position without provoking
+    /// a recursive re-capture.
+    /// </summary>
+    public void SyncLegendOffset(double offsetX, double offsetY)
+    {
+        _suppress = true;
+        try
+        {
+            LegendOffsetXTextBox.Text = ConfigNormalizer.FormatNumber(offsetX);
+            LegendOffsetYTextBox.Text = ConfigNormalizer.FormatNumber(offsetY);
+        }
+        finally
+        {
+            _suppress = false;
+        }
+    }
+
+    /// <summary>
     /// Read panel UI state into the shared portion of <paramref name="config"/>.
     /// Subclass-specific properties (calibration paths, λmax markers, ...) are
     /// the caller's responsibility.

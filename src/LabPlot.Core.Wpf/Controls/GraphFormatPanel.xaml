@@ -4,7 +4,17 @@
              xmlns:controls="clr-namespace:LabPlot.Core.Wpf.Controls">
     <StackPanel Margin="0,8,0,0">
 
-        <Expander Header="フォント" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{DynamicResource SectionIconPath}"
+                          Data="M 2,12 L 5,3 L 8,12 M 3,9 L 7,9 M 9,12 L 9,5 M 9,5 Q 9,3 11,3 Q 13,3 13,5 L 13,12 M 9,8 L 13,8" />
+                    <TextBlock Text="フォント"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
             <StackPanel Margin="0,8,0,0">
                 <TextBlock Text="フォント名" Style="{DynamicResource FieldLabelStyle}" />
                 <ComboBox x:Name="GraphFontComboBox"
@@ -30,7 +40,17 @@
             </StackPanel>
         </Expander>
 
-        <Expander Header="目盛" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{DynamicResource SectionIconPath}"
+                          Data="M 2,11 L 12,11 M 4,11 L 4,8 M 7,11 L 7,7 M 10,11 L 10,8 M 5,11 L 5,9.5 M 6,11 L 6,9.5 M 8,11 L 8,9.5 M 9,11 L 9,9.5" />
+                    <TextBlock Text="目盛"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
             <StackPanel Margin="0,8,0,0">
                 <CheckBox x:Name="YAxisTickLabelsCheckBox"
                           Content="Y軸の数字を表示する"
@@ -77,7 +97,17 @@
             </StackPanel>
         </Expander>
 
-        <Expander Header="枠とグリッド" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{DynamicResource SectionIconPath}"
+                          Data="M 2,2 L 12,2 L 12,12 L 2,12 Z M 7,2 L 7,12 M 2,7 L 12,7" />
+                    <TextBlock Text="枠とグリッド"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
             <StackPanel Margin="0,8,0,0">
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
@@ -133,7 +163,17 @@
             </StackPanel>
         </Expander>
 
-        <Expander Header="背景" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{DynamicResource SectionIconPath}"
+                          Data="M 2,2 L 12,2 L 12,12 L 2,12 Z M 4,4 L 10,4 M 4,7 L 10,7 M 4,10 L 10,10" />
+                    <TextBlock Text="背景"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
             <StackPanel Margin="0,8,0,0">
                 <TextBlock Text="背景色" Style="{DynamicResource FieldLabelStyle}" />
                 <controls:ColorPickerPanel x:Name="BackgroundColorPicker"
@@ -162,7 +202,17 @@
             </StackPanel>
         </Expander>
 
-        <Expander Header="凡例" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Style="{DynamicResource SectionIconPath}"
+                          Data="M 2,4 L 5,4 M 7,4 L 12,4 M 2,8 L 5,8 M 7,8 L 12,8 M 2,12 L 5,12 M 7,12 L 12,12" />
+                    <TextBlock Text="凡例"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
             <StackPanel Margin="0,8,0,0">
                 <TextBlock Text="表示" Style="{DynamicResource FieldLabelStyle}" />
                 <ComboBox x:Name="LegendVisibilityComboBox"

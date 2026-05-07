@@ -70,7 +70,17 @@
 
                         <!-- Section: File -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="データファイル" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource DataFileIconGeometry}" />
+                                        <TextBlock Text="データファイル"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <Button x:Name="OpenButton"
                                             Content="DLS xlsx を開く"
@@ -84,7 +94,17 @@
 
                         <!-- Section: Loaded datasets -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="読み込み済みデータセット" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource DatasetListIconGeometry}" />
+                                        <TextBlock Text="読み込み済みデータセット"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <Border BorderBrush="#E2E8F0"
                                             BorderThickness="1"
@@ -144,10 +164,13 @@
                             <Expander IsExpanded="False">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource LineStyleIconGeometry}" />
                                         <TextBlock Text="線スタイル"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
-                                                   Foreground="#0F172A" />
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
                                         <TextBlock x:Name="ActiveDatasetLabel"
                                                    Text="(選択中シート)"
                                                    FontSize="11"
@@ -256,10 +279,13 @@
                             <Expander IsExpanded="False">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="M 4,2 L 10,2 M 5,2 L 5,7 L 2,12 L 12,12 L 9,7 L 9,2 M 4,9 L 10,9" />
                                         <TextBlock Text="測定条件"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
-                                                   Foreground="#0F172A" />
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
                                         <TextBlock x:Name="ActiveMetadataLabel"
                                                    Text="(選択中シート)"
                                                    FontSize="11"
@@ -354,10 +380,13 @@
                             <Expander IsExpanded="False">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="M 1,12 Q 4,12 5,9 Q 7,2 9,9 Q 10,12 13,12" />
                                         <TextBlock Text="キュムラント解析"
                                                    FontWeight="SemiBold"
                                                    FontSize="13"
-                                                   Foreground="#0F172A" />
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
                                         <TextBlock x:Name="ActiveCumulantLabel"
                                                    Text="(選択中シート)"
                                                    FontSize="11"
@@ -487,7 +516,17 @@
 
                         <!-- Section: Display (distribution / run) -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="表示" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="M 1,7 Q 7,2 13,7 Q 7,12 1,7 Z M 6,7 A 1,1 0 1 0 8,7 A 1,1 0 1 0 6,7 Z" />
+                                        <TextBlock Text="表示"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <TextBlock Style="{StaticResource FieldLabelStyle}" Text="分布の種類" />
                                     <ComboBox x:Name="DistributionTypeComboBox"
@@ -514,7 +553,17 @@
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="軸範囲" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource AxisRangeIconGeometry}" />
+                                        <TextBlock Text="軸範囲"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <controls:AxisRangePanel x:Name="AxisRangePanel"
                                                          XAxisLabel="粒径軸 (nm)"
                                                          YAxisLabel="Y 軸 (%)"
@@ -525,7 +574,17 @@
 
                         <!-- Section: Graph labels -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="グラフラベル" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource GraphLabelIconGeometry}" />
+                                        <TextBlock Text="グラフラベル"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <TextBlock Text="タイトル" Style="{StaticResource FieldLabelStyle}" />
                                     <TextBox x:Name="TitleTextBox"
@@ -574,7 +633,17 @@
 
                         <!-- Section: Graph appearance -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="グラフ書式" IsExpanded="False">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource GraphFormatIconGeometry}" />
+                                        <TextBlock Text="グラフ書式"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <controls:GraphFormatPanel x:Name="GraphFormatPanel"
                                                            GraphFormatChanged="GraphFormatPanel_GraphFormatChanged"
                                                            AspectRatioChanged="GraphFormatPanel_AspectRatioChanged" />
@@ -583,7 +652,17 @@
 
                         <!-- Section: Analysis session -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="解析条件" IsExpanded="False">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource AnalysisConditionsIconGeometry}" />
+                                        <TextBlock Text="解析条件"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <Button x:Name="SaveSessionButton"
                                             Content="解析条件を保存"
@@ -610,7 +689,17 @@
 
                         <!-- Section: App preferences -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="環境設定" IsExpanded="False">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource PreferencesIconGeometry}" />
+                                        <TextBlock Text="環境設定"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <TextBlock Text="既定の出力フォルダ"
                                                Style="{StaticResource FieldLabelStyle}" />

@@ -76,7 +76,17 @@
 
                         <!-- Section: File -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="データファイル" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource DataFileIconGeometry}" />
+                                        <TextBlock Text="データファイル"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                 <Button x:Name="OpenSpectrumButton"
                                         Content="JASCO TXT を開く"
@@ -99,7 +109,17 @@
 
                         <!-- Section: Loaded datasets -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="読み込み済みデータセット" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource DatasetListIconGeometry}" />
+                                        <TextBlock Text="読み込み済みデータセット"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                 <Border BorderBrush="#E2E8F0"
                                         BorderThickness="1"
@@ -175,10 +195,13 @@
                             <Expander IsExpanded="False">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource SectionIconPath}"
+                                          Data="{StaticResource LineStyleIconGeometry}" />
                                     <TextBlock Text="線スタイル"
                                                FontWeight="SemiBold"
                                                FontSize="13"
-                                               Foreground="#0F172A" />
+                                               Foreground="#0F172A"
+                                               VerticalAlignment="Center" />
                                     <TextBlock x:Name="ActiveDatasetLabel"
                                                Text="(選択中データセット)"
                                                FontSize="11"
@@ -292,7 +315,17 @@
 
                         <!-- Section: Axis range -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="軸範囲" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource AxisRangeIconGeometry}" />
+                                        <TextBlock Text="軸範囲"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <controls:AxisRangePanel x:Name="AxisRangePanel"
                                                          Margin="0,8,0,0"
                                                          XAxisLabel="X"
@@ -304,7 +337,17 @@
 
                         <!-- Section: Graph labels -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="グラフラベル" IsExpanded="True">
+                            <Expander IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource GraphLabelIconGeometry}" />
+                                        <TextBlock Text="グラフラベル"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                 <TextBlock Text="タイトル"
                                            Style="{StaticResource FieldLabelStyle}" />
@@ -356,13 +399,33 @@
 
                         <!-- Section: Graph appearance -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="グラフ書式" IsExpanded="False">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource GraphFormatIconGeometry}" />
+                                        <TextBlock Text="グラフ書式"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                 <controls:GraphFormatPanel x:Name="GraphFormatPanel"
                                                            GraphFormatChanged="GraphFormatPanel_GraphFormatChanged"
                                                            AspectRatioChanged="GraphFormatPanel_AspectRatioChanged" />
 
-                                <Expander Header="軸の表示" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 2,2 L 2,12 L 12,12 M 4,9 L 6,7 L 8,9 L 11,5" />
+                                            <TextBlock Text="軸の表示"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                     <StackPanel Margin="0,8,0,0">
                                         <spectrumControls:SpectrumAxisDisplayPanel x:Name="AxisDisplayPanel"
                                                                                    AxisOrientationChanged="AxisDisplayPanel_AxisOrientationChanged"
@@ -370,7 +433,17 @@
                                     </StackPanel>
                                 </Expander>
 
-                                <Expander Header="メタデータ" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 7,1 A 6,6 0 1 0 7,13 A 6,6 0 1 0 7,1 M 7,5 L 7,5 M 7,7 L 7,10" />
+                                            <TextBlock Text="メタデータ"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                     <StackPanel Margin="0,8,0,0">
                                         <CheckBox x:Name="ShowMetadataCheckBox"
                                                   Content="測定メタデータをグラフに表示"
@@ -392,10 +465,30 @@
 
                         <!-- Section: Analysis -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="解析" IsExpanded="False">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="M 6,2 A 4,4 0 1 0 6,10 A 4,4 0 1 0 6,2 M 9,9 L 13,13" />
+                                        <TextBlock Text="解析"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
 
-                                <Expander Header="IR ピーク帰属" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 2,12 L 6,4 L 8,12 M 6,4 L 9,2" />
+                                            <TextBlock Text="IR ピーク帰属"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                     <StackPanel Margin="0,8,0,0">
                                     <Grid Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
@@ -448,7 +541,17 @@
                                     </StackPanel>
                                 </Expander>
 
-                                <Expander Header="IR スペクトル解析（ピーク検出）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 2,12 L 5,6 L 8,12 M 5,6 L 5,2 M 4,3 L 5,2 L 6,3" />
+                                            <TextBlock Text="IR スペクトル解析（ピーク検出）"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                     <StackPanel Margin="0,8,0,0">
                                         <TextBlock x:Name="IrPeakHintTextBlock"
                                                    Text="IR スペクトル（cm⁻¹）を開くとピーク検出が利用できます"
@@ -568,7 +671,17 @@
                                     </StackPanel>
                                 </Expander>
 
-                                <Expander Header="波長スキャン解析（λmax）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 2,11 L 6,3 L 10,11 M 5,3 L 7,3 M 6,1 L 6,3" />
+                                            <TextBlock Text="波長スキャン解析（λmax）"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                     <StackPanel Margin="0,8,0,0">
                                         <TextBlock x:Name="LambdaMaxHintTextBlock"
                                                    Text="波長スキャンを開くと λmax 検出が利用できます"
@@ -672,7 +785,17 @@
                                     </StackPanel>
                                 </Expander>
 
-                                <Expander Header="温度スキャン解析（Tc / ヒステリシス）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 2,12 Q 7,12 7,7 Q 7,2 12,2 M 2,2 Q 7,2 7,7 Q 7,12 12,12" />
+                                            <TextBlock Text="温度スキャン解析（Tc / ヒステリシス）"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                     <StackPanel Margin="0,8,0,0">
                                         <TextBlock x:Name="CloudPointHintTextBlock"
                                                    Text="温度スキャン（Transmittance）を開くと Tc 検出が利用できます"
@@ -741,7 +864,17 @@
                                     </StackPanel>
                                 </Expander>
 
-                                <Expander Header="積分" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 9,2 Q 11,2 11,4 M 5,12 Q 3,12 3,10 M 9,2 L 5,12" />
+                                            <TextBlock Text="積分"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <Grid Margin="0,0,0,6">
                                         <Grid.ColumnDefinitions>
@@ -932,7 +1065,17 @@
                                 </StackPanel>
                                 </Expander>
 
-                                <Expander Header="検量線（Beer-Lambert）" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                    <Expander.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Style="{StaticResource SectionIconPath}"
+                                                  Data="M 1,12 L 13,2 M 3,11 A 1,1 0 1 0 4,11 A 1,1 0 1 0 3,11 M 7,7 A 1,1 0 1 0 8,7 A 1,1 0 1 0 7,7 M 11,3 A 1,1 0 1 0 12,3 A 1,1 0 1 0 11,3" />
+                                            <TextBlock Text="検量線（Beer-Lambert）"
+                                                       FontWeight="SemiBold" FontSize="12"
+                                                       Foreground="#0F172A"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Expander.Header>
                                     <StackPanel Margin="0,8,0,0">
                                         <TextBlock x:Name="CalibrationHintTextBlock"
                                                    Text="2 件以上のデータセットを開くと検量線が作成できます"
@@ -974,7 +1117,17 @@
 
                         <!-- Section: Analysis session -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="解析条件" IsExpanded="False">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource AnalysisConditionsIconGeometry}" />
+                                        <TextBlock Text="解析条件"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <Button x:Name="SaveSessionButton"
                                             Content="解析条件を保存"
@@ -1001,7 +1154,17 @@
 
                         <!-- Section: App preferences -->
                         <Border Style="{StaticResource SectionStyle}">
-                            <Expander Header="環境設定" IsExpanded="False">
+                            <Expander IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource SectionIconPath}"
+                                              Data="{StaticResource PreferencesIconGeometry}" />
+                                        <TextBlock Text="環境設定"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
                                 <StackPanel Margin="0,8,0,0">
                                     <TextBlock Text="既定の出力フォルダ"
                                                Style="{StaticResource FieldLabelStyle}" />

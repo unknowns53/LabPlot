@@ -1,6 +1,41 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!-- セクション見出し用の 14×14 グリフ。Expander.Header の StackPanel 先頭に Path を
+         置き、この Style を適用する。Stroke は slate-600 (#475569)、親 Expander が
+         hover 状態のときに accent (#2563EB) に染める。Geometry はリソースとして
+         共有できる定番アイコンを下に並べておく。アプリ固有のセクションでは Path に
+         直接 Data="..." を書いてもよい。 -->
+    <Style x:Key="SectionIconPath" TargetType="Path">
+        <Setter Property="Width" Value="14" />
+        <Setter Property="Height" Value="14" />
+        <Setter Property="Stretch" Value="None" />
+        <Setter Property="Stroke" Value="#475569" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="StrokeStartLineCap" Value="Round" />
+        <Setter Property="StrokeEndLineCap" Value="Round" />
+        <Setter Property="StrokeLineJoin" Value="Round" />
+        <Setter Property="Fill" Value="Transparent" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Expander}}" Value="True">
+                <Setter Property="Stroke" Value="#2563EB" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- 共通アイコン Geometry。3 アプリ横断で同じ意味の Expander には同じグリフを当てる。 -->
+    <Geometry x:Key="DataFileIconGeometry">M 3,1 L 9,1 L 12,4 L 12,13 L 3,13 Z M 9,1 L 9,4 L 12,4</Geometry>
+    <Geometry x:Key="DatasetListIconGeometry">M 2,3 L 12,3 M 2,7 L 12,7 M 2,11 L 12,11</Geometry>
+    <Geometry x:Key="LineStyleIconGeometry">M 2,12 L 10,4 L 12,6 L 4,14 Z</Geometry>
+    <Geometry x:Key="AxisRangeIconGeometry">M 1,1 L 13,1 L 13,13 L 1,13 Z M 7,1 L 7,13 M 1,7 L 13,7</Geometry>
+    <Geometry x:Key="GraphLabelIconGeometry">M 2,7 L 7,2 L 13,2 L 13,8 L 8,13 L 2,7 Z</Geometry>
+    <Geometry x:Key="GraphFormatIconGeometry">M 9,1 L 13,5 L 6,12 L 2,8 Z M 6,12 L 4,14 L 1,11 L 3,9</Geometry>
+    <Geometry x:Key="AnalysisConditionsIconGeometry">M 2,2 L 12,2 L 12,12 L 2,12 Z M 4,2 L 4,6 L 10,6 L 10,2 M 5,9 L 9,9</Geometry>
+    <Geometry x:Key="PreferencesIconGeometry">M 7,1 L 7,3 M 7,11 L 7,13 M 1,7 L 3,7 M 11,7 L 13,7 M 3,3 L 4,4 M 10,10 L 11,11 M 11,3 L 10,4 M 3,11 L 4,10 M 5,5 L 9,5 L 9,9 L 5,9 Z</Geometry>
+
     <!-- 状態フィードバック用パレット。Error は ErrorBanner で長く使われている既存値に
          合わせる（互換のため Brush リソースは新規追加だけ）。Success / Warning は
          今回の追加で SuccessBanner / WarningBanner や将来のステータスチップで使う。 -->

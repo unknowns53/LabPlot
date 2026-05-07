@@ -2594,11 +2594,16 @@ public partial class MainWindow : Window
 
         try
         {
+            // Fade the source row while it's being dragged so the user can
+            // tell which entry is in flight (the InsertionAdorner above
+            // shows where it'll land).
+            item.Opacity = 0.4;
             var data = new DataObject(DatasetReorderDataFormat, sourceIndex);
             DragDrop.DoDragDrop(item, data, DragDropEffects.Move);
         }
         finally
         {
+            item.Opacity = 1.0;
             _datasetDragStartPoint = null;
             RemoveInsertionAdorner();
         }

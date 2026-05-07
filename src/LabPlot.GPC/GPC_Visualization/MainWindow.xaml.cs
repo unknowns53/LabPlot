@@ -496,11 +496,21 @@ public partial class MainWindow : Window
             return;
         }
 
+        var fileNames = dialog.FileNames.Length > 0
+            ? dialog.FileNames
+            : [dialog.FileName];
+        await ImportCsvFilesAsync(fileNames);
+    }
+
+    private async Task ImportCsvFilesAsync(string[] fileNames)
+    {
+        if (fileNames is null || fileNames.Length == 0)
+        {
+            return;
+        }
+
         try
         {
-            var fileNames = dialog.FileNames.Length > 0
-                ? dialog.FileNames
-                : [dialog.FileName];
             OpenCsvButton.IsEnabled = false;
             SetStatus("GPCデータを読み込み中です...", false);
 
@@ -2596,6 +2606,13 @@ public partial class MainWindow : Window
 
     private void DatasetListBox_DragOver(object sender, DragEventArgs e)
     {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+            return;
+        }
+
         if (!e.Data.GetDataPresent(DatasetReorderDataFormat))
         {
             e.Effects = DragDropEffects.None;
@@ -2627,9 +2644,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private void DatasetListBox_Drop(object sender, DragEventArgs e)
+    private async void DatasetListBox_Drop(object sender, DragEventArgs e)
     {
         RemoveInsertionAdorner();
+
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)
+            && e.Data.GetData(DataFormats.FileDrop) is string[] paths
+            && paths.Length > 0)
+        {
+            e.Handled = true;
+            await ImportCsvFilesAsync(paths);
+            return;
+        }
 
         if (e.Data.GetData(DatasetReorderDataFormat) is not int oldIndex)
         {

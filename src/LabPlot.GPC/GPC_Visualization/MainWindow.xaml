@@ -124,6 +124,7 @@
                                         Background="#F8FAFC">
                                     <Grid>
                                         <ListBox x:Name="DatasetListBox"
+                                                 MinHeight="120"
                                                  MaxHeight="180"
                                                  BorderThickness="0"
                                                  Background="Transparent"

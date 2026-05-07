@@ -673,9 +673,16 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) != true) return;
 
+        ImportWorkbook(dialog.FileName);
+    }
+
+    private void ImportWorkbook(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+
         try
         {
-            var loaded = _reader.Read(dialog.FileName);
+            var loaded = _reader.Read(filePath);
             _datasets.Clear();
             foreach (var ds in loaded) _datasets.Add(ds);
 
@@ -685,18 +692,18 @@ public partial class MainWindow : Window
             _datasetItems.Clear();
             foreach (var ds in _datasets) _datasetItems.Add(new DlsDatasetItem(ds));
 
-            _currentWorkbookPath = dialog.FileName;
+            _currentWorkbookPath = filePath;
             DatasetListBox.ItemsSource = null;
             DatasetListBox.ItemsSource = _datasetItems;
             UpdateDatasetListPlaceholder();
             DatasetCountText.Text = _datasets.Count == 0
                 ? "粒径分布シートが見つかりませんでした"
-                : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(dialog.FileName)}）";
+                : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(filePath)}）";
 
             HideError();
             SetStatus(_datasets.Count == 0
-                ? $"粒径分布シートが見つかりませんでした: {dialog.FileName}"
-                : $"{_datasets.Count} シートを読み込みました: {dialog.FileName}");
+                ? $"粒径分布シートが見つかりませんでした: {filePath}"
+                : $"{_datasets.Count} シートを読み込みました: {filePath}");
 
             if (_datasets.Count > 0)
                 DatasetListBox.SelectedIndex = 0;
@@ -706,6 +713,32 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             ShowError($"読み込みに失敗しました: {ex.Message}");
+        }
+    }
+
+    private void DatasetListBox_DragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void DatasetListBox_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)
+            && e.Data.GetData(DataFormats.FileDrop) is string[] paths
+            && paths.Length > 0)
+        {
+            e.Handled = true;
+            // DLS は xlsx を 1 ファイル単位で扱うので、複数 drop されても
+            // 最初の 1 つだけ採用する（ファイルダイアログでも Multiselect=false）。
+            ImportWorkbook(paths[0]);
         }
     }
 

@@ -118,7 +118,10 @@
                                                  MaxHeight="280"
                                                  BorderThickness="0"
                                                  Background="Transparent"
-                                                 Padding="0">
+                                                 Padding="0"
+                                                 AllowDrop="True"
+                                                 DragOver="DatasetListBox_DragOver"
+                                                 Drop="DatasetListBox_Drop">
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="ListBoxItem">
                                                     <Setter Property="Padding" Value="4,3" />

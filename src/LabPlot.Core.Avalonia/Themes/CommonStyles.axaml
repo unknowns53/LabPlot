@@ -639,6 +639,249 @@
          BlurRadius=12 / Opacity=0.15 / Color=#0F172A は
          BoxShadow="0 2 12 0 #260F172A" に対応する (alpha 0x26 ≈ 15%)。
          ========================================================= -->
+    <!-- =========================================================
+         CheckBox 暗黙 ControlTheme（Batch 1f）。
+         Fluent デフォルトの代わりに WPF 版と同じ「白い 18×18 角丸ボックス
+         + 内部にチェックマーク Path」のレイアウトを 1 から組み、
+         StrokeDashArray=10 / StrokeDashOffset の Animation で書き出し演出を
+         再現する。WPF 版は Storyboard EnterActions/ExitActions で
+         StrokeDashOffset を 10↔0 に動かしていたが、Avalonia は :checked と
+         :not(:checked) 各々の Style.Animations で対応する。
+         ========================================================= -->
+    <ControlTheme x:Key="{x:Type CheckBox}" TargetType="CheckBox">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="#334155" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="CheckBox">
+                <StackPanel Orientation="Horizontal" Background="Transparent">
+                    <Border Name="Box"
+                            Width="18" Height="18"
+                            CornerRadius="4"
+                            Background="White"
+                            BorderBrush="#94A3B8"
+                            BorderThickness="1.5"
+                            VerticalAlignment="Center">
+                        <Path Name="CheckMark"
+                              Stroke="White"
+                              StrokeThickness="2"
+                              StrokeLineCap="Round"
+                              StrokeJoin="Round"
+                              Stretch="None"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              StrokeDashArray="10"
+                              StrokeDashOffset="10"
+                              Data="M 3,8 L 7,12 L 13,4" />
+                    </Border>
+                    <ContentPresenter Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- 状態別フック。Avalonia の Selector 構文は CSS 風で、template 内の
+             名前付き要素は "/template/ Name#X" で参照する。 -->
+        <Style Selector="^:pointerover /template/ Border#Box">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:checked /template/ Border#Box">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:checked:pointerover /template/ Border#Box">
+            <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentHoverBrush}" />
+        </Style>
+        <Style Selector="^:focus /template/ Border#Box">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#Box">
+            <Setter Property="Background" Value="#F1F5F9" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentDisabledBrush}" />
+        </Style>
+        <Style Selector="^:disabled:checked /template/ Border#Box">
+            <Setter Property="Background" Value="{StaticResource AccentDisabledBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentDisabledBrush}" />
+        </Style>
+
+        <!-- CheckMark slide-in（Batch 1b で持ち越したやつ）。WPF 版は
+             DoubleAnimation StrokeDashOffset 10→0 / Duration 0:0:0.18 で
+             書き出し、Trigger.ExitActions で 0→10 / Duration 0:0:0.12 に
+             戻す。Avalonia は :checked と :not(:checked) 二方向の Style
+             Animations で同等の挙動を再現する。 -->
+        <Style Selector="^:checked /template/ Path#CheckMark">
+            <Style.Animations>
+                <Animation Duration="0:0:0.18" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="StrokeDashOffset" Value="10" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="StrokeDashOffset" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="^:not(:checked) /template/ Path#CheckMark">
+            <Style.Animations>
+                <Animation Duration="0:0:0.12" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="StrokeDashOffset" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="StrokeDashOffset" Value="10" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </ControlTheme>
+
+    <!-- =========================================================
+         Expander 暗黙 ControlTheme（Batch 1f）。
+         WPF 版は ToggleButton ヘッダー + 右端 Chevron + ContentPresenter
+         (slide+fade) という構造を ControlTemplate.Triggers で組んでいた。
+         Avalonia 版は同じ DockPanel 構造で実装し、:expanded / :not(:expanded)
+         pseudo-class に対応する Animation で Chevron の Angle と Content
+         の Opacity / TranslateY を動かす。
+         Batch 1e で ImplicitStyles に置いた fade-in Animation はこの
+         ControlTheme に集約済みなので、ImplicitStyles 側からは削除。
+         ========================================================= -->
+    <ControlTheme x:Key="{x:Type Expander}" TargetType="Expander">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="Expander">
+                <DockPanel>
+                    <ToggleButton Name="HeaderToggle"
+                                  DockPanel.Dock="Top"
+                                  IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  Padding="0"
+                                  Cursor="Hand"
+                                  HorizontalContentAlignment="Stretch"
+                                  Foreground="{TemplateBinding Foreground}"
+                                  FontSize="{TemplateBinding FontSize}"
+                                  FontWeight="{TemplateBinding FontWeight}">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border Name="HeaderBg"
+                                        Background="Transparent"
+                                        CornerRadius="4"
+                                        Padding="4,8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <ContentPresenter Grid.Column="0"
+                                                          VerticalAlignment="Center"
+                                                          Content="{TemplateBinding Content}"
+                                                          ContentTemplate="{TemplateBinding ContentTemplate}" />
+                                        <Path Name="Chevron"
+                                              Grid.Column="1"
+                                              Width="10" Height="6"
+                                              Stretch="None"
+                                              Stroke="#64748B"
+                                              StrokeThickness="1.6"
+                                              StrokeLineCap="Round"
+                                              StrokeJoin="Round"
+                                              VerticalAlignment="Center"
+                                              Margin="8,0,2,0"
+                                              Data="M 0,0 L 5,5 L 10,0"
+                                              RenderTransformOrigin="50%,50%">
+                                            <Path.RenderTransform>
+                                                <RotateTransform Angle="0" />
+                                            </Path.RenderTransform>
+                                        </Path>
+                                    </Grid>
+                                </Border>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                        <ContentPresenter Content="{TemplateBinding Header}"
+                                          ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                          VerticalAlignment="Center" />
+                    </ToggleButton>
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      DockPanel.Dock="Bottom"
+                                      IsVisible="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}}"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                        <ContentPresenter.RenderTransform>
+                            <TranslateTransform Y="0" />
+                        </ContentPresenter.RenderTransform>
+                    </ContentPresenter>
+                </DockPanel>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- ヘッダーホバーで accent 色に染める。WPF 版の
+             ToggleButton.IsMouseOver 内の Setter 2 件を Avalonia の
+             ネスト Selector で再現する。 -->
+        <Style Selector="^ /template/ ToggleButton#HeaderToggle:pointerover /template/ Border#HeaderBg">
+            <Setter Property="Background" Value="#F1F5F9" />
+        </Style>
+        <Style Selector="^ /template/ ToggleButton#HeaderToggle:pointerover /template/ Path#Chevron">
+            <Setter Property="Stroke" Value="{StaticResource AccentBrush}" />
+        </Style>
+
+        <!-- Chevron 0→180 度回転（Batch 1b で持ち越し）。:expanded で開く向き、
+             :not(:expanded) で戻す向きの Animation を双方向に定義。
+             RenderTransform に最初から RotateTransform が刺してあるので
+             "(RotateTransform.Angle)" 指定でアニメ可能。 -->
+        <Style Selector="^:expanded /template/ Path#Chevron">
+            <Style.Animations>
+                <Animation Duration="0:0:0.18" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(RotateTransform.Angle)" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(RotateTransform.Angle)" Value="180" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="^:not(:expanded) /template/ Path#Chevron">
+            <Style.Animations>
+                <Animation Duration="0:0:0.18" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(RotateTransform.Angle)" Value="180" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(RotateTransform.Angle)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Content の slide+fade（Batch 1e の fade-only Animation を
+             slide まで含めた完全版に格上げ）。Y=-6 から 0 に滑り込みつつ
+             Opacity 0→1。WPF 版の DoubleAnimation Y -6→0 と Opacity 0→1 /
+             Duration 0:0:0.18 と完全に同形。 -->
+        <Style Selector="^:expanded /template/ ContentPresenter#PART_ContentPresenter">
+            <Style.Animations>
+                <Animation Duration="0:0:0.18" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="(TranslateTransform.Y)" Value="-6" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1" />
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </ControlTheme>
+
     <ControlTheme x:Key="{x:Type ToolTip}" TargetType="ToolTip">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
         <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />

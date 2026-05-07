@@ -33,53 +33,11 @@
         <Setter Property="Cursor" Value="Arrow" />
     </Style>
 
-    <!-- CheckBox — Fluent デフォルトに対する色 / FontSize override。
-         WPF 版は ControlTemplate を 1 から書いて白い四角 + Path チェックマーク
-         + StrokeDashOffset アニメで描いていたが、Batch 1b では Fluent の標準
-         見た目をそのまま使い、accent 色だけ揃える。Batch 1c で ControlTemplate
-         を override してより WPF 版に近い見た目に格上げ。 -->
-    <Style Selector="CheckBox">
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="Foreground" Value="#334155" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Cursor" Value="Hand" />
-    </Style>
-    <Style Selector="CheckBox:disabled">
-        <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
-        <Setter Property="Cursor" Value="Arrow" />
-    </Style>
-
-    <!-- Expander — 見出し font / accent。Avalonia の Expander は左側の
-         三角チェブロンが標準なので、最初は Fluent デフォルトに沿う。
-         WPF 版相当のカスタムテンプレート (右端に v 字、Chevron 90 度回転 +
-         Translate アニメ) は ControlTemplate を全面書き換える必要がある
-         ため Batch 1f 以降。Batch 1e では Fluent の標準テンプレートを
-         残したまま、開いた瞬間に内容を Opacity 0→1 で fade-in させる
-         Animation Style だけ追加する。Avalonia の標準 Expander の
-         ContentPresenter は名前 PART_ContentPresenter で、Selector
-         "/template/ ContentPresenter#PART_ContentPresenter" でテンプレ内の
-         要素にぶら下げられる。 -->
-    <Style Selector="Expander">
-        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    </Style>
-    <!-- IsExpanded=true への遷移時に PART_ContentPresenter で fade-in を発火。
-         Animation の FillMode=Forward で終端値の Opacity=1 を維持する。
-         WPF 版の DoubleAnimation Opacity 0→1 / Duration 0.18s 相当。 -->
-    <Style Selector="Expander[IsExpanded=true] /template/ ContentPresenter#PART_ContentPresenter">
-        <Style.Animations>
-            <Animation Duration="0:0:0.18" FillMode="Forward">
-                <KeyFrame Cue="0%">
-                    <Setter Property="Opacity" Value="0" />
-                </KeyFrame>
-                <KeyFrame Cue="100%">
-                    <Setter Property="Opacity" Value="1" />
-                </KeyFrame>
-            </Animation>
-        </Style.Animations>
-    </Style>
+    <!-- CheckBox / Expander の Style と Animation は Batch 1f で
+         CommonStyles.axaml の暗黙 ControlTheme (`x:Key="{x:Type CheckBox}"` /
+         `x:Key="{x:Type Expander}"`) に Template ごと統合した。Batch 1e で
+         ImplicitStyles に置いた Expander の fade-in Animation も ControlTheme
+         内の Animation Style にまとめて移管済み。 -->
 
     <!-- ScrollBar — 細身グレー、hover で濃く。 -->
     <Style Selector="ScrollBar:vertical">

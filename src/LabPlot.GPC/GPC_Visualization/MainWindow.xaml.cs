@@ -1328,9 +1328,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        _chromatogramPlot.Plot.Title("GPC chromatogram");
-        _chromatogramPlot.Plot.XLabel("Time");
-        _chromatogramPlot.Plot.YLabel("Signal");
+        _chromatogramPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
+        _chromatogramPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
+        _chromatogramPlot.Plot.YLabel(DefaultLabels.PlaceholderYLabel);
         _chromatogramPlot.Plot.Axes.NumericTicksBottom();
         ApplyPlotAppearance();
         UpdateStatisticsText(null);
@@ -1668,7 +1668,7 @@ public partial class MainWindow : Window
         ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
             autoShow: _currentLegendAutoShow);
 
-        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
+        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? DefaultLabels.ChromatogramFallbackTitle));
         _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
         _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
         _chromatogramPlot.Plot.Axes.AutoScale();
@@ -1721,8 +1721,8 @@ public partial class MainWindow : Window
         ApplyLegend(_chromatogramPlot.Plot, CaptureFormattingConfigFromControls(),
             autoShow: _currentLegendAutoShow);
 
-        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? "GPC chromatogram"));
-        _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, $"{activeDataset.XLabel} (log scale)"));
+        _chromatogramPlot.Plot.Title(GetGraphTitle(Path.GetFileName(activeDataset.SourceFilePath) ?? DefaultLabels.ChromatogramFallbackTitle));
+        _chromatogramPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, string.Format(DefaultLabels.LogScaleXLabelFormat, activeDataset.XLabel)));
         _chromatogramPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, activeDataset.YLabel));
         _chromatogramPlot.Plot.Axes.AutoScale();
         if (!ApplyAxisLimits(xRange, yRange, true))

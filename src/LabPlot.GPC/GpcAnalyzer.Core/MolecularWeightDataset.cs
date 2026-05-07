@@ -11,9 +11,9 @@ public sealed class MolecularWeightDataset
 
     public required string Detector { get; init; }
 
-    public string XLabel { get; init; } = "Molecular Weight [Da]";
+    public string XLabel { get; init; } = DefaultLabels.MolecularWeightDatasetXLabel;
 
-    public string YLabel { get; init; } = "Signal";
+    public string YLabel { get; init; } = DefaultLabels.MolecularWeightDatasetYLabel;
 
     public MolecularWeightYMode YMode { get; init; } = MolecularWeightYMode.Signal;
 

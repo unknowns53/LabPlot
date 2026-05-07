@@ -10,9 +10,9 @@ public sealed class GpcDataset
 
     public string? Detector { get; init; }
 
-    public string XLabel { get; init; } = "X";
+    public string XLabel { get; init; } = DefaultLabels.ChromatogramDatasetXLabel;
 
-    public string YLabel { get; init; } = "Y";
+    public string YLabel { get; init; } = DefaultLabels.ChromatogramDatasetYLabel;
 
     public MolecularWeightStatistics? MolecularWeightStatistics { get; init; }
 

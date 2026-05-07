@@ -161,15 +161,25 @@
                                                           Margin="0"
                                                           IsVisible="False"
                                                           IsHitTestVisible="False">
+                                                        <Grid.Effect>
+                                                            <DropShadowEffect BlurRadius="8"
+                                                                              Color="#2563EB"
+                                                                              Opacity="0.55"
+                                                                              OffsetX="0"
+                                                                              OffsetY="0" />
+                                                        </Grid.Effect>
                                                         <Rectangle Height="2"
                                                                    VerticalAlignment="Center"
-                                                                   Fill="#2563EB" />
+                                                                   Fill="#2563EB"
+                                                                   Opacity="0.85" />
                                                         <Ellipse Width="6" Height="6"
                                                                  Fill="#2563EB"
+                                                                 Opacity="0.85"
                                                                  HorizontalAlignment="Left"
                                                                  VerticalAlignment="Center" />
                                                         <Ellipse Width="6" Height="6"
                                                                  Fill="#2563EB"
+                                                                 Opacity="0.85"
                                                                  HorizontalAlignment="Right"
                                                                  VerticalAlignment="Center" />
                                                     </Grid>

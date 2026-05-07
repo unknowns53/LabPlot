@@ -160,6 +160,12 @@ public partial class GraphFormatPanel : UserControl
         config.LegendVisibility = GetComboBoxTag(LegendVisibilityComboBox);
         config.LegendPosition = GetComboBoxTag(LegendPositionComboBox)
             ?? GraphFormattingConfigBase.DefaultLegendPositionValue;
+        config.LegendOffsetX = TryParseDouble(LegendOffsetXTextBox.Text, out var legendOffsetX)
+            ? legendOffsetX
+            : 0.0;
+        config.LegendOffsetY = TryParseDouble(LegendOffsetYTextBox.Text, out var legendOffsetY)
+            ? legendOffsetY
+            : 0.0;
         config.LegendFontSize = TryParsePositiveDouble(LegendFontSizeTextBox.Text, out var legendFontSize)
             ? legendFontSize
             : null;
@@ -197,6 +203,8 @@ public partial class GraphFormatPanel : UserControl
 
             SelectComboBoxByTag(LegendVisibilityComboBox, config.LegendVisibility ?? "Auto");
             SelectComboBoxByTag(LegendPositionComboBox, config.LegendPosition);
+            LegendOffsetXTextBox.Text = config.FormatLegendOffsetX();
+            LegendOffsetYTextBox.Text = config.FormatLegendOffsetY();
             LegendFontSizeTextBox.Text = config.FormatLegendFontSize();
         }
         finally
@@ -259,6 +267,30 @@ public partial class GraphFormatPanel : UserControl
     private void NumericTextBox_TextChanged(object sender, TextChangedEventArgs e) => RaiseGraphFormatChanged();
     private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => RaiseGraphFormatChanged();
     private void ColorPicker_ColorChanged(object? sender, EventArgs e) => RaiseGraphFormatChanged();
+
+    private void LegendOffsetTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        // 空欄や parse 失敗は 0 として扱われるが、テキストが空のまま見えると
+        // 0 と空欄の往復で見え方が揺れるので focus が外れたタイミングで
+        // 正規化された数値表現に揃える。
+        if (sender is not TextBox textBox) return;
+        if (_suppress) return;
+
+        var current = TryParseDouble(textBox.Text, out var parsed) ? parsed : 0.0;
+        var normalized = ConfigNormalizer.FormatNumber(current);
+        if (textBox.Text != normalized)
+        {
+            _suppress = true;
+            try
+            {
+                textBox.Text = normalized;
+            }
+            finally
+            {
+                _suppress = false;
+            }
+        }
+    }
 
     private void GraphFontComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

@@ -78,10 +78,15 @@ public sealed class GraphFormattingConfigTests
     [InlineData("UpperRight", "UpperRight")]
     [InlineData("upperright", "UpperRight")]
     [InlineData("UpperLeft", "UpperLeft")]
-    [InlineData("LowerRight", "LowerRight")]
-    [InlineData("LowerLeft", "LowerLeft")]
+    [InlineData("UpperCenter", "UpperCenter")]
+    [InlineData("uppercenter", "UpperCenter")]
+    [InlineData("MiddleLeft", "MiddleLeft")]
+    [InlineData("MiddleCenter", "MiddleCenter")]
     [InlineData("MiddleRight", "MiddleRight")]
     [InlineData("middleright", "MiddleRight")]
+    [InlineData("LowerLeft", "LowerLeft")]
+    [InlineData("LowerCenter", "LowerCenter")]
+    [InlineData("LowerRight", "LowerRight")]
     [InlineData(null, "UpperRight")]
     [InlineData("OutsideRight", "UpperRight")]
     [InlineData("Bogus", "UpperRight")]
@@ -92,6 +97,22 @@ public sealed class GraphFormattingConfigTests
         config.Normalize();
 
         Assert.Equal(expected, config.LegendPosition);
+    }
+
+    [Theory]
+    [InlineData(0.0, 0.0, 0.0, 0.0)]
+    [InlineData(50.0, -30.0, 50.0, -30.0)]
+    [InlineData(double.NaN, 5.0, 0.0, 5.0)]
+    [InlineData(5.0, double.PositiveInfinity, 5.0, 0.0)]
+    [InlineData(5000.0, -5000.0, GraphFormattingConfigBase.LegendOffsetLimit, -GraphFormattingConfigBase.LegendOffsetLimit)]
+    public void Normalize_LegendOffsets_ClampOrSnapToZero(double inputX, double inputY, double expectedX, double expectedY)
+    {
+        var config = new GraphFormattingConfig { LegendOffsetX = inputX, LegendOffsetY = inputY };
+
+        config.Normalize();
+
+        Assert.Equal(expectedX, config.LegendOffsetX);
+        Assert.Equal(expectedY, config.LegendOffsetY);
     }
 
     [Theory]

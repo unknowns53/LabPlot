@@ -27,6 +27,16 @@ public abstract class GraphFormattingConfigBase
     public const string DefaultLegendPositionValue = "UpperRight";
 
     /// <summary>
+    /// Maximum absolute pixel offset accepted for
+    /// <see cref="LegendOffsetX"/> / <see cref="LegendOffsetY"/>. Values
+    /// outside <c>[-LegendOffsetLimit, +LegendOffsetLimit]</c> snap back to
+    /// 0 so a fat-finger entry cannot fling the legend hundreds of pixels
+    /// off-canvas. Tuned so the maximum excursion comfortably reaches any
+    /// corner of a typical figure (most plots are well under 2000 px tall).
+    /// </summary>
+    public const double LegendOffsetLimit = 2000.0;
+
+    /// <summary>
     /// Multiplier applied to ScottPlot's <c>NumericAutomatic.TickDensity</c>
     /// for axes still using the automatic generator. 1.0 = ScottPlot stock
     /// density (felt too crowded across all three apps with the default
@@ -84,13 +94,32 @@ public abstract class GraphFormattingConfigBase
 
     /// <summary>
     /// Legend placement, mapped 1:1 onto <c>ScottPlot.Alignment</c>. One of
-    /// <c>"UpperRight"</c>, <c>"UpperLeft"</c>, <c>"LowerRight"</c>,
-    /// <c>"LowerLeft"</c>, <c>"MiddleRight"</c>. Any other value normalizes
-    /// back to <see cref="DefaultLegendPositionValue"/>. Edge-anchored
-    /// "outside" placements are not exposed because they need a different
-    /// ScottPlot API path.
+    /// the nine corner / center anchors (<c>"UpperLeft"</c>,
+    /// <c>"UpperCenter"</c>, <c>"UpperRight"</c>, <c>"MiddleLeft"</c>,
+    /// <c>"MiddleCenter"</c>, <c>"MiddleRight"</c>, <c>"LowerLeft"</c>,
+    /// <c>"LowerCenter"</c>, <c>"LowerRight"</c>). Any other value
+    /// normalizes back to <see cref="DefaultLegendPositionValue"/>.
+    /// Edge-anchored "outside" placements are not exposed because they
+    /// need a different ScottPlot API path.
     /// </summary>
     public string LegendPosition { get; set; } = DefaultLegendPositionValue;
+
+    /// <summary>
+    /// Horizontal pixel offset relative to the anchor selected by
+    /// <see cref="LegendPosition"/>. Positive values move the legend
+    /// rightwards, negative values leftwards. Combined with
+    /// <see cref="LegendOffsetY"/> via <c>ScottPlot.Legend.Margin</c> in
+    /// <c>PlotAppearance.ApplyLegend</c> so users can nudge the legend
+    /// off the chosen corner without leaving the anchor system.
+    /// </summary>
+    public double LegendOffsetX { get; set; }
+
+    /// <summary>
+    /// Vertical pixel offset relative to the anchor selected by
+    /// <see cref="LegendPosition"/>. Positive values move the legend
+    /// downwards, negative values upwards.
+    /// </summary>
+    public double LegendOffsetY { get; set; }
 
     /// <summary>
     /// User preference for the directory the export dialogs open to. Persisted
@@ -156,6 +185,21 @@ public abstract class GraphFormattingConfigBase
         {
             TickDensity = DefaultTickDensity;
         }
+
+        LegendOffsetX = ClampLegendOffset(LegendOffsetX);
+        LegendOffsetY = ClampLegendOffset(LegendOffsetY);
+    }
+
+    private static double ClampLegendOffset(double value)
+    {
+        if (!double.IsFinite(value))
+        {
+            return 0.0;
+        }
+
+        if (value < -LegendOffsetLimit) return -LegendOffsetLimit;
+        if (value > LegendOffsetLimit) return LegendOffsetLimit;
+        return value;
     }
 
     public string FormatFontSize()
@@ -229,12 +273,26 @@ public abstract class GraphFormattingConfigBase
             return DefaultLegendPositionValue;
         }
 
-        if (normalized.Equals("UpperRight", StringComparison.OrdinalIgnoreCase)) return "UpperRight";
         if (normalized.Equals("UpperLeft", StringComparison.OrdinalIgnoreCase)) return "UpperLeft";
-        if (normalized.Equals("LowerRight", StringComparison.OrdinalIgnoreCase)) return "LowerRight";
-        if (normalized.Equals("LowerLeft", StringComparison.OrdinalIgnoreCase)) return "LowerLeft";
+        if (normalized.Equals("UpperCenter", StringComparison.OrdinalIgnoreCase)) return "UpperCenter";
+        if (normalized.Equals("UpperRight", StringComparison.OrdinalIgnoreCase)) return "UpperRight";
+        if (normalized.Equals("MiddleLeft", StringComparison.OrdinalIgnoreCase)) return "MiddleLeft";
+        if (normalized.Equals("MiddleCenter", StringComparison.OrdinalIgnoreCase)) return "MiddleCenter";
         if (normalized.Equals("MiddleRight", StringComparison.OrdinalIgnoreCase)) return "MiddleRight";
+        if (normalized.Equals("LowerLeft", StringComparison.OrdinalIgnoreCase)) return "LowerLeft";
+        if (normalized.Equals("LowerCenter", StringComparison.OrdinalIgnoreCase)) return "LowerCenter";
+        if (normalized.Equals("LowerRight", StringComparison.OrdinalIgnoreCase)) return "LowerRight";
 
         return DefaultLegendPositionValue;
+    }
+
+    public string FormatLegendOffsetX()
+    {
+        return ConfigNormalizer.FormatNumber(LegendOffsetX);
+    }
+
+    public string FormatLegendOffsetY()
+    {
+        return ConfigNormalizer.FormatNumber(LegendOffsetY);
     }
 }

@@ -24,9 +24,9 @@ namespace LabPlot.Core;
 /// </remarks>
 public static class PlotAppearance
 {
-    public const float MajorTickLengthBase = 4f;
+    public const float MajorTickLengthBase = 8f;
 
-    public const float MinorTickLengthBase = 2f;
+    public const float MinorTickLengthBase = 4f;
 
     /// <summary>
     /// Default multiplier applied to ScottPlot's
@@ -298,6 +298,14 @@ public static class PlotAppearance
     }
 
     /// <summary>
+    /// ScottPlot's stock <c>Legend.Margin</c> at every edge. The legend
+    /// sits this many pixels inside the data area when offset = 0; user
+    /// offsets are applied as deltas relative to this baseline so a small
+    /// nudge stays close to the anchor instead of jumping off-canvas.
+    /// </summary>
+    public const float DefaultLegendEdgeMargin = 5f;
+
+    /// <summary>
     /// Applies legend visibility and placement from <paramref name="config"/>.
     /// <paramref name="autoShow"/> is the per-app auto-show decision (e.g.
     /// 2+ overlaid datasets, or any dataset has a custom legend name) that
@@ -317,16 +325,84 @@ public static class PlotAppearance
         if (show)
         {
             plot.Legend.Alignment = MapLegendAlignment(config.LegendPosition);
+            plot.Legend.Margin = ComputeLegendMargin(
+                config.LegendPosition,
+                config.LegendOffsetX,
+                config.LegendOffsetY);
         }
     }
 
     private static ScottPlot.Alignment MapLegendAlignment(string position) => position switch
     {
-        "UpperRight" => ScottPlot.Alignment.UpperRight,
         "UpperLeft" => ScottPlot.Alignment.UpperLeft,
-        "LowerRight" => ScottPlot.Alignment.LowerRight,
-        "LowerLeft" => ScottPlot.Alignment.LowerLeft,
+        "UpperCenter" => ScottPlot.Alignment.UpperCenter,
+        "UpperRight" => ScottPlot.Alignment.UpperRight,
+        "MiddleLeft" => ScottPlot.Alignment.MiddleLeft,
+        "MiddleCenter" => ScottPlot.Alignment.MiddleCenter,
         "MiddleRight" => ScottPlot.Alignment.MiddleRight,
+        "LowerLeft" => ScottPlot.Alignment.LowerLeft,
+        "LowerCenter" => ScottPlot.Alignment.LowerCenter,
+        "LowerRight" => ScottPlot.Alignment.LowerRight,
         _ => ScottPlot.Alignment.UpperRight,
     };
+
+    /// <summary>
+    /// Build a <c>PixelPadding</c> that nudges the legend by
+    /// <paramref name="offsetX"/> / <paramref name="offsetY"/> pixels from
+    /// the anchor implied by <paramref name="position"/>. Sign convention:
+    /// <c>+X</c> moves rightwards, <c>+Y</c> moves downwards (screen
+    /// coordinates). On corner anchors only one horizontal and one
+    /// vertical edge participate, so the offset hits a single edge as a
+    /// simple add/subtract on top of <see cref="DefaultLegendEdgeMargin"/>.
+    /// On center anchors the legend is symmetric on the relevant axis, so
+    /// we shift both opposing edges in opposite directions to slide the
+    /// midpoint while the baseline padding keeps the legend inside the
+    /// figure when offset = 0.
+    /// </summary>
+    public static ScottPlot.PixelPadding ComputeLegendMargin(string position, double offsetX, double offsetY)
+    {
+        float left = DefaultLegendEdgeMargin;
+        float right = DefaultLegendEdgeMargin;
+        float top = DefaultLegendEdgeMargin;
+        float bottom = DefaultLegendEdgeMargin;
+
+        float dx = (float)offsetX;
+        float dy = (float)offsetY;
+
+        // Horizontal: increasing Right pushes the legend leftwards, so the
+        // sign flips for right-anchored positions; left-anchored positions
+        // grow Left to push rightwards. Center anchors slide both edges to
+        // shift the midpoint.
+        if (position.EndsWith("Right", StringComparison.Ordinal))
+        {
+            right -= dx;
+        }
+        else if (position.EndsWith("Left", StringComparison.Ordinal))
+        {
+            left += dx;
+        }
+        else
+        {
+            left += dx;
+            right -= dx;
+        }
+
+        // Vertical: same idea on the Y axis (Bottom grows to push upwards,
+        // Top grows to push downwards). Middle anchors slide both edges.
+        if (position.StartsWith("Upper", StringComparison.Ordinal))
+        {
+            top += dy;
+        }
+        else if (position.StartsWith("Lower", StringComparison.Ordinal))
+        {
+            bottom -= dy;
+        }
+        else
+        {
+            top += dy;
+            bottom -= dy;
+        }
+
+        return new ScottPlot.PixelPadding(left, right, bottom, top);
+    }
 }

@@ -229,12 +229,51 @@
                           Style="{DynamicResource InputComboBoxStyle}"
                           Margin="0,0,0,8"
                           SelectionChanged="ComboBox_SelectionChanged">
-                    <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
                     <ComboBoxItem Content="左上" Tag="UpperLeft" />
-                    <ComboBoxItem Content="右下" Tag="LowerRight" />
-                    <ComboBoxItem Content="左下" Tag="LowerLeft" />
+                    <ComboBoxItem Content="上中央" Tag="UpperCenter" />
+                    <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
+                    <ComboBoxItem Content="左中央" Tag="MiddleLeft" />
+                    <ComboBoxItem Content="中央" Tag="MiddleCenter" />
                     <ComboBoxItem Content="右中央" Tag="MiddleRight" />
+                    <ComboBoxItem Content="左下" Tag="LowerLeft" />
+                    <ComboBoxItem Content="下中央" Tag="LowerCenter" />
+                    <ComboBoxItem Content="右下" Tag="LowerRight" />
                 </ComboBox>
+
+                <TextBlock Text="位置の微調整 (px)" Style="{DynamicResource FieldLabelStyle}" />
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="X (右が＋)"
+                               FontSize="11"
+                               Foreground="#64748B"
+                               Margin="0,0,0,2" />
+                    <TextBlock Grid.Row="0" Grid.Column="2"
+                               Text="Y (下が＋)"
+                               FontSize="11"
+                               Foreground="#64748B"
+                               Margin="0,0,0,2" />
+                    <TextBox Grid.Row="1" Grid.Column="0"
+                             x:Name="LegendOffsetXTextBox"
+                             Style="{DynamicResource InputTextBoxStyle}"
+                             ToolTip="ピクセル単位、負の値で左方向"
+                             TextChanged="NumericTextBox_TextChanged"
+                             LostFocus="LegendOffsetTextBox_LostFocus" />
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             x:Name="LegendOffsetYTextBox"
+                             Style="{DynamicResource InputTextBoxStyle}"
+                             ToolTip="ピクセル単位、負の値で上方向"
+                             TextChanged="NumericTextBox_TextChanged"
+                             LostFocus="LegendOffsetTextBox_LostFocus" />
+                </Grid>
 
                 <TextBlock Text="凡例フォントサイズ" Style="{DynamicResource FieldLabelStyle}" />
                 <TextBox x:Name="LegendFontSizeTextBox"

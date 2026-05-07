@@ -17,7 +17,7 @@ UV-Vis 波長スキャン・温度スキャン・FTIR スペクトルの可視�
 
 ## 1. インストール
 
-研究室で配布された `Spectrum_Visualization.exe`（自己完結型ビルド）を任意のフォルダに置いて、ダブルクリックで起動するだけです。.NET ランタイムの別途インストールは不要です。
+研究室で配布された **LabPlot ポータル** (`LabPlot.exe`、自己完結型ビルド) を任意のフォルダに置いて、ダブルクリックで起動します。表示されるカード型ランチャーから「UV-Vis」を選択するとこのアプリが立ち上がります。.NET ランタイムの別途インストールは不要です。
 
 > 同じフォルダ内の `samples/` には、動作確認用の波長スキャン CSV（`20240420_1-97_…`、`2-046_before_process` / `…_after_process`）、温度スキャン TXT 対（`2_heating.txt` / `2_cooling.txt`）、FTIR TXT（`1-16 HO-Ph-acetylene 1.0mg.txt`）が同梱されています。
 
@@ -110,18 +110,20 @@ dotnet build Spectrum_Visualization.slnx
 dotnet test SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj
 ```
 
-配布用の単一 exe を作成:
+このアプリは LabPlot ポータルから起動するクラスライブラリとして組み込まれています。`Spectrum_Visualization.csproj` は `WinExe` ではなく library 出力なので、`dotnet run` で直接起動はできません。デバッグ実行する場合は `LabPlot.slnx`（リポジトリ直下）から `LabPlot.Shell` をスタートアップに指定し、ポータルのカードから UV-Vis を起動してください。なお `Themes/CommonStyles.xaml`（DataGrid 系 4 style + `BoolToVisibility` converter）は `MainWindow` と `CalibrationCurveWindow` の `Window.Resources` から個別に Pack URI で merge する形に変更しています（旧 `App.xaml` を削除したため）。
+
+配布用の単一 exe を作成（リポジトリ直下から実行）:
 
 ```powershell
-dotnet publish Spectrum_Visualization/Spectrum_Visualization.csproj -p:PublishProfile=win-x64
+dotnet publish src/LabPlot.Shell/LabPlot.Shell.csproj -p:PublishProfile=win-x64
 ```
 
-成果物は `Spectrum_Visualization/bin/Release/net10.0-windows10.0.19041/win-x64/publish/` に出力されます。`samples/` フォルダも一緒にコピーされるので、フォルダごと配布してください。
+成果物は `src/LabPlot.Shell/bin/Release/net10.0-windows10.0.19041/win-x64/publish/LabPlot.exe` です。Spectrum の `samples/` は csproj の `CopyToPublishDirectory` 設定により ProjectReference 経由でこの publish フォルダに同梱されます。
 
 プロジェクト構成:
 
 ```text
-Spectrum_Visualization/      WPF アプリ本体
+Spectrum_Visualization/      WPF UI（クラスライブラリ、ポータルから起動）
 SpectrumAnalyzer.Core/       解析ロジック（リーダ、λmax / IR ピーク検出、積分、検量線、Tc 推定、エクスポート）
 SpectrumAnalyzer.Tests/      xUnit による単体テスト
 samples/                     配布用サンプルデータ（UV-Vis / 温度スキャン / FTIR）

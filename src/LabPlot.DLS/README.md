@@ -19,7 +19,7 @@ Malvern Zetasizer の DLS（動的光散乱）測定ブックを読み込んで�
 
 ## 1. インストール
 
-研究室で配布された `LabPlot.DLS.exe`（自己完結型ビルド）を任意のフォルダに置いて、ダブルクリックで起動するだけです。.NET ランタイムの別途インストールは不要です。
+研究室で配布された **LabPlot ポータル** (`LabPlot.exe`、自己完結型ビルド) を任意のフォルダに置いて、ダブルクリックで起動します。表示されるカード型ランチャーから「DLS」を選択するとこのアプリが立ち上がります。.NET ランタイムの別途インストールは不要です。
 
 ---
 
@@ -124,18 +124,20 @@ dotnet build LabPlot.DLS.slnx
 dotnet test DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj
 ```
 
-配布用の単一 exe を作成:
+このアプリは LabPlot ポータルから起動するクラスライブラリとして組み込まれています。`LabPlot.DLS.csproj` は `WinExe` ではなく library 出力なので、`dotnet run` で直接起動はできません。デバッグ実行する場合は `LabPlot.slnx`（リポジトリ直下）から `LabPlot.Shell` をスタートアップに指定し、ポータルのカードから DLS を起動してください。例外ハンドラ・ログ出力（`%LocalAppData%\LabPlot\Logs\shell-error.log`）はポータル側に集約されており、旧 `App.xaml` / `App.xaml.cs` は削除済みです。
+
+配布用の単一 exe を作成（リポジトリ直下から実行）:
 
 ```powershell
-dotnet publish LabPlot.DLS/LabPlot.DLS.csproj -p:PublishProfile=win-x64
+dotnet publish src/LabPlot.Shell/LabPlot.Shell.csproj -p:PublishProfile=win-x64
 ```
 
-成果物は `LabPlot.DLS/bin/Release/net10.0-windows10.0.19041/win-x64/publish/` に出力されます。
+成果物は `src/LabPlot.Shell/bin/Release/net10.0-windows10.0.19041/win-x64/publish/LabPlot.exe` です。
 
 プロジェクト構成:
 
 ```text
-LabPlot.DLS/                 WPF アプリ本体
+LabPlot.DLS/                 WPF UI（クラスライブラリ、ポータルから起動）
 DlsAnalyzer.Core/            解析ロジック（xlsx リーダ、ヘッダ分類、キュムラント解析、Stokes–Einstein、エクスポート）
 DlsAnalyzer.Tests/           xUnit による単体テスト
 ```

@@ -2,6 +2,14 @@
 
 研究室向けの測定データ可視化・解析アプリ群をまとめたモノレポです。Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）など、ラボの測定装置から出力されたデータを WPF アプリで読み込んで、ScottPlot による可視化・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行います。共通の解析・UI 基盤は `LabPlot.Core` / `LabPlot.Core.Wpf` に集約しています。
 
+## ポータル（単一 exe 配布）
+
+非エンジニア向けには、3 つの解析モジュールを 1 本の exe にまとめた **LabPlot ポータル** (`src/LabPlot.Shell`) で配布します。`LabPlot.exe` をダブルクリックするとカード型のランチャー画面が開き、GPC / UV-Vis / DLS のいずれかをクリックするとその解析ウィンドウが立ち上がる構成です。各解析モジュールはクラスライブラリとして組み込まれており、ポータルが唯一の `WinExe` です。
+
+- 例外ハンドラとログ出力（`%LocalAppData%\LabPlot\Logs\shell-error.log`）はポータル側に集約
+- 同じモジュールを 2 回開こうとすると既存ウィンドウをアクティブ化（重複起動の抑止）
+- 配布手順は後述の「[配布用の単一 exe を作成](#配布用の単一-exe-を作成)」を参照
+
 ## 含まれるアプリ
 
 - [`src/LabPlot.GPC`](src/LabPlot.GPC/README.md) — GPC（ゲル浸透クロマトグラフィー）データ可視化・分子量分布解析。Shimadzu LabSolutions の TXT エクスポートおよび `Time, Signal` 形式の CSV / TSV に対応
@@ -28,49 +36,44 @@
 
 ### モノレポ構成と slnx
 
-リポジトリ全体を束ねる slnx は持たず、アプリごとに 3 つの slnx を分けています。任意の slnx 単体を開けば、そのアプリ＋共有 Core ライブラリだけをビルド・デバッグできます。
+リポジトリ全体を束ねるトップレベル `LabPlot.slnx` と、アプリごとの `.slnx` の二層構成です。トップレベルを開けばポータル + 3 解析モジュール + 共有ライブラリの 12 プロジェクト全部を一括でビルド・テストできます。各アプリ単体の `.slnx` は library 化後も保持していて、そのアプリだけに集中して触りたいときに使えます（ただし WPF アプリ csproj は `WinExe` ではなくクラスライブラリとして出力されるため、単体 `dotnet run` はできません）。
 
-| アプリ | slnx | 実行プロジェクト |
+| 区分 | slnx | 主なプロジェクト |
 | --- | --- | --- |
-| GPC | `src/LabPlot.GPC/GPC_Visualization.slnx` | `src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj` |
-| Spectrum | `src/LabPlot.Spectrum/Spectrum_Visualization.slnx` | `src/LabPlot.Spectrum/Spectrum_Visualization/Spectrum_Visualization.csproj` |
-| DLS | `src/LabPlot.DLS/LabPlot.DLS.slnx` | `src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj` |
+| ポータル + 全モジュール | `LabPlot.slnx` | `src/LabPlot.Shell/LabPlot.Shell.csproj`（唯一の `WinExe`） |
+| GPC | `src/LabPlot.GPC/GPC_Visualization.slnx` | `src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj`（library） |
+| Spectrum | `src/LabPlot.Spectrum/Spectrum_Visualization.slnx` | `src/LabPlot.Spectrum/Spectrum_Visualization/Spectrum_Visualization.csproj`（library） |
+| DLS | `src/LabPlot.DLS/LabPlot.DLS.slnx` | `src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj`（library） |
 
 ### コマンドラインからのビルド・テスト・実行
 
 ```powershell
-# Build（GPC の例。他アプリも slnx を差し替えるだけ）
-dotnet build src/LabPlot.GPC/GPC_Visualization.slnx -c Debug
+# Build（トップレベル slnx で 12 プロジェクトを一括ビルド）
+dotnet build LabPlot.slnx -c Debug
 
-# Tests（各アプリの xUnit テスト）
+# Tests（トップレベルから全テストを一括実行）
+dotnet test LabPlot.slnx -c Debug
+
+# 特定モジュールだけテストしたい場合
 dotnet test src/LabPlot.GPC/GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj
 dotnet test src/LabPlot.Spectrum/SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj
 dotnet test src/LabPlot.DLS/DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj
 
-# Run（dotnet run でアプリを起動）
-dotnet run --project src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj
-dotnet run --project src/LabPlot.Spectrum/Spectrum_Visualization/Spectrum_Visualization.csproj
-dotnet run --project src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj
+# Run（ポータルを起動。3 つの解析モジュールはここから開く）
+dotnet run --project src/LabPlot.Shell/LabPlot.Shell.csproj
 ```
 
-Visual Studio で開く場合は、対応する `.slnx` を直接開けばテストエクスプローラから xUnit を実行できます。
+Visual Studio で開く場合は、`LabPlot.slnx` を直接開けばテストエクスプローラから全 xUnit を実行できます。アプリ単独に集中したいときはアプリ側の `.slnx` を開けば、そのアプリ＋共有ライブラリだけがロードされます。
 
 ### 配布用の単一 exe を作成
 
-非エンジニア向けに配布するときは、各アプリの `Properties/PublishProfiles/win-x64.pubxml` を使った publish プロファイル経由でビルドします。`Release` 構成・`win-x64` ランタイム・`SelfContained=true`・`PublishSingleFile=true` がプロファイル側で固定されているので、コマンド側で `-c` や `-r` を重ねて指定する必要はありません（指定するとプロファイルと矛盾するため非推奨）。.NET ランタイムが入っていない PC でも、生成された exe をダブルクリックするだけで起動できます。
+非エンジニア向けに配布するときは、`src/LabPlot.Shell/Properties/PublishProfiles/win-x64.pubxml` を使った publish プロファイル経由でビルドします。`Release` 構成・`win-x64` ランタイム・`SelfContained=true`・`PublishSingleFile=true` がプロファイル側で固定されているので、コマンド側で `-c` や `-r` を重ねて指定する必要はありません（指定するとプロファイルと矛盾するため非推奨）。.NET ランタイムが入っていない PC でも、生成された exe をダブルクリックするだけで起動できます。
 
 ```powershell
-# GPC
-dotnet publish src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj -p:PublishProfile=win-x64
-
-# Spectrum
-dotnet publish src/LabPlot.Spectrum/Spectrum_Visualization/Spectrum_Visualization.csproj -p:PublishProfile=win-x64
-
-# DLS
-dotnet publish src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj -p:PublishProfile=win-x64
+dotnet publish src/LabPlot.Shell/LabPlot.Shell.csproj -p:PublishProfile=win-x64
 ```
 
-成果物の出力先は各アプリの `<実行プロジェクト>/bin/Release/net10.0-windows10.0.19041/win-x64/publish/` 以下です。GPC / Spectrum はこのフォルダに `samples/` も同梱されるので、フォルダごと zip にして配布してください。DLS は `LabPlot.DLS.exe` 単体を配布するだけで動作します。
+成果物は `src/LabPlot.Shell/bin/Release/net10.0-windows10.0.19041/win-x64/publish/LabPlot.exe` に出力されます。GPC / Spectrum の `samples/` は各 csproj の `CopyToPublishDirectory` 設定で publish フォルダに同梱されるので、`publish/` フォルダごと zip にして配布してください。DLS は `samples/` を持たないため、追加同梱物はありません。
 
 ## デフォルト書式の格納場所
 

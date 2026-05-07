@@ -1,0 +1,24 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Shell.Avalonia.App"
+             RequestedThemeVariant="Light">
+
+    <Application.Resources>
+        <!-- Core.Avalonia の共通リソース (Brush / StreamGeometry / ControlTheme) を
+             Application 全体に展開する。WPF 版 App.xaml の MergedDictionaries に
+             相当するが、Avalonia は ResourceInclude を使う。 -->
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://LabPlot.Core.Avalonia/Themes/CommonStyles.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <!-- 暗黙 Style 群 (ScrollBar / ComboBoxItem 等) を取り込む。CommonStyles.axaml
+             側の Setter は ControlTheme として登録されるが、こちらは Selector 直書きの
+             Style なので Application.Styles 経由で適用する必要がある。 -->
+        <StyleInclude Source="avares://LabPlot.Core.Avalonia/Themes/ImplicitStyles.axaml" />
+    </Application.Styles>
+</Application>

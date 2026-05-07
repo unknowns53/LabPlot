@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Phase 7 Batch 2: WPF 版 LabPlot.Shell に対応する Avalonia 版エントリポイント。
+       net10.0-windows のみで動く WPF 版に対し、こちらは net10.0 で macOS / Linux にも
+       実行ファイルを出せる。Batch 3 以降で DLS / GPC / Spectrum の Avalonia 版が揃ったら
+       ProjectReference を追加し、PortalWindow から各モジュールを起動できるようにする。 -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LabPlot.Shell.Avalonia</RootNamespace>
+    <AssemblyName>LabPlot.Avalonia</AssemblyName>
+    <Version>0.1.0</Version>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LabPlot.Core.Avalonia\LabPlot.Core.Avalonia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.14" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.14" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.14" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.14" />
+  </ItemGroup>
+
+</Project>

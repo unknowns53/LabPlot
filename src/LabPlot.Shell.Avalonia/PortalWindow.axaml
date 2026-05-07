@@ -1,0 +1,234 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        x:Class="LabPlot.Shell.Avalonia.PortalWindow"
+        Title="LabPlot"
+        Height="540" Width="620"
+        CanResize="False"
+        Background="#F7F8FA"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        SystemDecorations="Full">
+
+    <!-- WPF 版の System.Windows.Shell.WindowChrome (CaptionHeight=44 / 角丸 0 / Aero 抑制)
+         に対応する Avalonia 設定。ExtendClientAreaToDecorationsHint=True で OS の
+         タイトルバーを内側に押し込み、ChromeHints=NoChrome でシステムボタンを完全に
+         消す。CustomTitleBar が Window.BeginMoveDrag を呼ぶことで上 44 px が
+         キャプション領域として機能する。 -->
+
+    <Window.Resources>
+        <!-- ポータル カード ボタン。WPF 版と完全同じ寸法・配色・シャドウで、
+             ホバー / 押下 / フォーカス / 無効 で枠色・背景を切り替える。WPF の
+             DropShadowEffect (depth=1, dir=270, blur=6, opacity=0.05, color=#0F172A)
+             は Border.BoxShadow="0 1 6 0 #0D0F172A" で再現する (alpha 0x0D ≈ 5%)。 -->
+        <ControlTheme x:Key="PortalCardStyle" TargetType="Button">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <ControlTemplate TargetType="Button">
+                    <Border Name="CardBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8"
+                            BoxShadow="0 1 6 0 #0D0F172A">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+
+            <!-- IsMouseOver / IsPressed / IsKeyboardFocused / IsEnabled の WPF Trigger を
+                 Avalonia の擬似クラス Selector に置換。/template/ で ControlTemplate
+                 内の Border#CardBorder を狙い撃つ。 -->
+            <Style Selector="^:pointerover /template/ Border#CardBorder">
+                <Setter Property="BorderBrush" Value="#2563EB" />
+            </Style>
+            <Style Selector="^:pressed /template/ Border#CardBorder">
+                <Setter Property="Background" Value="#F0F7FF" />
+            </Style>
+            <Style Selector="^:focus /template/ Border#CardBorder">
+                <Setter Property="BorderBrush" Value="#2563EB" />
+            </Style>
+            <Style Selector="^:disabled /template/ Border#CardBorder">
+                <Setter Property="BorderBrush" Value="#CBD5E1" />
+                <Setter Property="Background" Value="#F8FAFC" />
+            </Style>
+            <Style Selector="^:disabled">
+                <Setter Property="Cursor" Value="Arrow" />
+            </Style>
+        </ControlTheme>
+
+        <!-- カード内 36x36 アイコン バッジ。 -->
+        <ControlTheme x:Key="PortalCardBadgeStyle" TargetType="Border">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Background" Value="#DBEAFE" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </ControlTheme>
+
+        <!-- WPF の StrokeStartLineCap / StrokeEndLineCap / StrokeLineJoin は Avalonia では
+             StrokeLineCap (start/end 兼用) / StrokeJoin に統合される。SnapsToDevicePixels は
+             Window.UseLayoutRounding でカバーするので個別指定は省略。 -->
+        <ControlTheme x:Key="PortalCardIconStyle" TargetType="Path">
+            <Setter Property="Stroke" Value="#2563EB" />
+            <Setter Property="StrokeThickness" Value="1.7" />
+            <Setter Property="StrokeLineCap" Value="Round" />
+            <Setter Property="StrokeJoin" Value="Round" />
+            <Setter Property="Fill" Value="Transparent" />
+            <Setter Property="Stretch" Value="Uniform" />
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </ControlTheme>
+
+        <ControlTheme x:Key="PortalCardTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </ControlTheme>
+
+        <ControlTheme x:Key="PortalCardSubtitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="18" />
+            <Setter Property="Margin" Value="0,12,0,0" />
+        </ControlTheme>
+
+        <!-- + 追加プレースホルダーは 破線ボーダー風グレー一色 (Avalonia は破線 Border が
+             重いので Solid ボーダー + 薄背景で代替)。 -->
+        <ControlTheme x:Key="PortalPlaceholderCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="#F8FAFC" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Margin" Value="6" />
+            <Setter Property="Padding" Value="14" />
+        </ControlTheme>
+    </Window.Resources>
+
+    <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- ================= TITLE BAR ================= -->
+            <controls:CustomTitleBar Grid.Row="0"
+                                     AppName="LabPlot"
+                                     Subtitle="Analysis portal"
+                                     AppIconData="M 3,3 L 8,3 L 8,8 L 3,8 Z M 12,3 L 17,3 L 17,8 L 12,8 Z M 3,12 L 8,12 L 8,17 L 3,17 Z M 12,12 L 17,12 L 17,17 L 12,17 Z" />
+
+            <!-- ================= 2x2 CARD GRID ================= -->
+            <UniformGrid Grid.Row="1"
+                         Rows="2"
+                         Columns="2"
+                         Margin="20,12,20,20">
+
+                <!-- GPC -->
+                <Button Theme="{DynamicResource PortalCardStyle}"
+                        Click="OpenGpc_Click"
+                        ToolTip.Tip="GPC クロマトグラム解析">
+                    <Grid RowDefinitions="Auto,*">
+                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                            <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                      Data="M 2,16 L 6,16 L 8,11 L 10,3 L 12,11 L 14,16 L 18,16" />
+                            </Border>
+                            <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                       Text="GPC" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="1"
+                                   Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                   Text="サイズ排除クロマトグラフィー&#x0a;分子量分布の解析" />
+                    </Grid>
+                </Button>
+
+                <!-- UV-Vis -->
+                <Button Theme="{DynamicResource PortalCardStyle}"
+                        Click="OpenSpectrum_Click"
+                        ToolTip.Tip="UV-Vis スペクトル解析">
+                    <Grid RowDefinitions="Auto,*">
+                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                            <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                      Data="M 2,10 Q 4.25,3 6.5,10 Q 8.75,17 11,10 Q 13.25,3 15.5,10 Q 17,14 18,10" />
+                            </Border>
+                            <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                       Text="UV-Vis" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="1"
+                                   Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                   Text="紫外可視吸収スペクトル&#x0a;λmax / 曇点 / Beer-Lambert" />
+                    </Grid>
+                </Button>
+
+                <!-- DLS -->
+                <Button Theme="{DynamicResource PortalCardStyle}"
+                        Click="OpenDls_Click"
+                        ToolTip.Tip="DLS 粒径分布解析">
+                    <Grid RowDefinitions="Auto,*">
+                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                            <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                      Data="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
+                            </Border>
+                            <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                       Text="DLS" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="1"
+                                   Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                   Text="動的光散乱（粒径分布）&#x0a;キュムラント / 自己相関" />
+                    </Grid>
+                </Button>
+
+                <!-- + 追加プレースホルダー -->
+                <Border Theme="{DynamicResource PortalPlaceholderCardStyle}">
+                    <Grid RowDefinitions="Auto,*">
+                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                            <Border Width="36" Height="36"
+                                    CornerRadius="7"
+                                    Background="#E2E8F0"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0">
+                                <Path Stroke="#94A3B8"
+                                      StrokeThickness="1.8"
+                                      StrokeLineCap="Round"
+                                      Fill="Transparent"
+                                      Stretch="Uniform"
+                                      Width="18" Height="18"
+                                      Data="M 10,3 L 10,17 M 3,10 L 17,10" />
+                            </Border>
+                            <TextBlock FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="#94A3B8"
+                                       VerticalAlignment="Center"
+                                       Text="今後追加予定" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="1"
+                                   FontSize="12.5"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"
+                                   LineHeight="18"
+                                   Margin="0,12,0,0"
+                                   Text="DSC / TGA / NMR など&#x0a;新規アプリの拡張枠" />
+                    </Grid>
+                </Border>
+            </UniformGrid>
+        </Grid>
+    </Border>
+</Window>

@@ -3,6 +3,7 @@
   <Project Path="src/LabPlot.Core.Wpf/LabPlot.Core.Wpf.csproj" />
   <Project Path="src/LabPlot.Core.Avalonia/LabPlot.Core.Avalonia.csproj" />
   <Project Path="src/LabPlot.Shell/LabPlot.Shell.csproj" />
+  <Project Path="src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj" />
   <Project Path="src/LabPlot.GPC/GpcAnalyzer.Core/GpcAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.GPC/GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj" />
   <Project Path="src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj" />

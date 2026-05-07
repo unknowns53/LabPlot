@@ -396,12 +396,12 @@ public partial class CalibrationCurveWindow : Window
                 export.WriteXlsx(dialog.FileName);
             }
 
-            StatusTextBlock.Foreground = System.Windows.Media.Brushes.SeaGreen;
+            StatusTextBlock.Foreground = (System.Windows.Media.Brush)FindResource("SuccessForegroundBrush");
             StatusTextBlock.Text = $"保存しました: {dialog.FileName}";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            StatusTextBlock.Foreground = System.Windows.Media.Brushes.IndianRed;
+            StatusTextBlock.Foreground = (System.Windows.Media.Brush)FindResource("ErrorForegroundBrush");
             StatusTextBlock.Text = $"保存に失敗しました: {ex.Message}";
         }
     }
@@ -588,7 +588,7 @@ public partial class CalibrationCurveWindow : Window
 
         ResultSummaryTextBlock.Text = string.Join("\n", lines);
 
-        StatusTextBlock.Foreground = System.Windows.Media.Brushes.DarkGoldenrod;
+        StatusTextBlock.Foreground = (System.Windows.Media.Brush)FindResource("WarningForegroundBrush");
         StatusTextBlock.Text = string.Empty;
     }
 

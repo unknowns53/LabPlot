@@ -272,11 +272,14 @@
             </Border>
         </Grid>
 
-        <!-- Status text (errors / warnings) -->
+        <!-- Status text (errors / warnings). Foreground is overwritten in
+             code-behind via SuccessForegroundBrush / WarningForegroundBrush /
+             ErrorForegroundBrush so the warning shade only shows on initial
+             load (before any save / recalc has run). -->
         <TextBlock Grid.Row="3"
                    x:Name="StatusTextBlock"
                    FontSize="11"
-                   Foreground="#B45309"
+                   Foreground="{StaticResource WarningForegroundBrush}"
                    Margin="2,8,2,0"
                    TextWrapping="Wrap" />
 

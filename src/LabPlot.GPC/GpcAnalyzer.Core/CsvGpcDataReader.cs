@@ -122,8 +122,8 @@ public sealed class CsvGpcDataReader : IGpcDataReader
 
         csv.ReadHeader();
         var headers = csv.HeaderRecord ?? Array.Empty<string>();
-        var xLabel = GetLabel(headers, 0, "X");
-        var yLabel = GetLabel(headers, 1, "Y");
+        var xLabel = DefaultLabels.ApplySourceOverride(GetLabel(headers, 0, "X"));
+        var yLabel = DefaultLabels.ApplySourceOverride(GetLabel(headers, 1, "Y"));
 
         while (csv.Read())
         {
@@ -143,8 +143,8 @@ public sealed class CsvGpcDataReader : IGpcDataReader
     {
         var points = new List<GpcDataPoint>();
         var header = SplitLooseColumns(lines.First(line => !string.IsNullOrWhiteSpace(line)));
-        var xLabel = GetLabel(header, 0, "X");
-        var yLabel = GetLabel(header, 1, "Y");
+        var xLabel = DefaultLabels.ApplySourceOverride(GetLabel(header, 0, "X"));
+        var yLabel = DefaultLabels.ApplySourceOverride(GetLabel(header, 1, "Y"));
 
         foreach (var line in lines.SkipWhile(line => string.IsNullOrWhiteSpace(line)).Skip(1))
         {
@@ -167,8 +167,8 @@ public sealed class CsvGpcDataReader : IGpcDataReader
     {
         var points = new List<GpcDataPoint>();
         var header = SplitLooseColumns(headerLine);
-        var xLabel = GetLabel(header, 0, "X");
-        var yLabel = GetLabel(header, 1, "Y");
+        var xLabel = DefaultLabels.ApplySourceOverride(GetLabel(header, 0, "X"));
+        var yLabel = DefaultLabels.ApplySourceOverride(GetLabel(header, 1, "Y"));
 
         while (reader.ReadLine() is { } line)
         {
@@ -277,8 +277,8 @@ public sealed class CsvGpcDataReader : IGpcDataReader
 
                 if (LooksLikeChromatogramHeader(columns))
                 {
-                    xLabel = columns[0];
-                    yLabel = BuildIntensityLabel(columns[1], yUnits);
+                    xLabel = DefaultLabels.ApplySourceOverride(columns[0]);
+                    yLabel = BuildIntensityLabel(DefaultLabels.ApplySourceOverride(columns[1]), yUnits);
                     readingPoints = true;
                 }
 

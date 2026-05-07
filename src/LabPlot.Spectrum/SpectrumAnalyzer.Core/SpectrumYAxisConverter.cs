@@ -94,8 +94,8 @@ public static class SpectrumYAxisConverter
 
         return mode switch
         {
-            YAxisDisplayMode.Absorbance => "Absorbance",
-            YAxisDisplayMode.Transmittance => "Transmittance / %",
+            YAxisDisplayMode.Absorbance => DefaultLabels.AbsorbanceYLabel,
+            YAxisDisplayMode.Transmittance => DefaultLabels.TransmittanceYLabel,
             _ => dataset.YLabel,
         };
     }

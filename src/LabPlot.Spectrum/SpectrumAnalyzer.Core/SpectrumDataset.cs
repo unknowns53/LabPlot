@@ -7,9 +7,9 @@ public sealed class SpectrumDataset
 
     public string? SourceFilePath { get; init; }
 
-    public string XLabel { get; init; } = "X";
+    public string XLabel { get; init; } = DefaultLabels.DatasetXLabel;
 
-    public string YLabel { get; init; } = "Y";
+    public string YLabel { get; init; } = DefaultLabels.DatasetYLabel;
 
     public string? RawXUnits { get; init; }
 

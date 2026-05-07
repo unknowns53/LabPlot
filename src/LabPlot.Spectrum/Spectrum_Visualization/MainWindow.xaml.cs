@@ -1269,9 +1269,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        _spectrumPlot.Plot.Title("Spectrum");
-        _spectrumPlot.Plot.XLabel("X");
-        _spectrumPlot.Plot.YLabel("Y");
+        _spectrumPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
+        _spectrumPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
+        _spectrumPlot.Plot.YLabel(DefaultLabels.PlaceholderYLabel);
         _spectrumPlot.Plot.Axes.NumericTicksBottom();
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
@@ -1335,7 +1335,7 @@ public partial class MainWindow : Window
         ApplyLegend(_spectrumPlot.Plot, CaptureFormattingConfigFromControls(),
             autoShow: _currentLegendAutoShow);
 
-        _spectrumPlot.Plot.Title(GetGraphTitle(Path.GetFileNameWithoutExtension(activeDataset.SourceFilePath) ?? "Spectrum"));
+        _spectrumPlot.Plot.Title(GetGraphTitle(Path.GetFileNameWithoutExtension(activeDataset.SourceFilePath) ?? DefaultLabels.SpectrumFallbackTitle));
         _spectrumPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeDataset.XLabel));
         _spectrumPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, SpectrumYAxisConverter.GetDisplayYLabel(activeDataset, yDisplayMode)));
         _spectrumPlot.Plot.Axes.AutoScale();

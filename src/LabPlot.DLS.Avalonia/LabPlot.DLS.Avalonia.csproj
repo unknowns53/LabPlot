@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Phase 7 Batch 3: WPF 版 LabPlot.DLS と並行する Avalonia 版モジュール。
+       Library DLL として LabPlot.Shell.Avalonia から MainWindow を起動する。
+       共通基盤は LabPlot.Core.Avalonia が、解析ロジックは DlsAnalyzer.Core が
+       それぞれ担う（Phase 6 と同じ層分離）。ScottPlot.Avalonia 5.1.58 で WPF 版
+       (ScottPlot.WPF) と同じ API surface を保つ。 -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LabPlot.DLS.Avalonia</RootNamespace>
+    <AssemblyName>LabPlot.DLS.Avalonia</AssemblyName>
+    <Version>0.1.0</Version>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LabPlot.Core\LabPlot.Core.csproj" />
+    <ProjectReference Include="..\LabPlot.Core.Avalonia\LabPlot.Core.Avalonia.csproj" />
+    <ProjectReference Include="..\LabPlot.DLS\DlsAnalyzer.Core\DlsAnalyzer.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.14" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.14" />
+    <PackageReference Include="ScottPlot.Avalonia" Version="5.1.58" />
+  </ItemGroup>
+
+</Project>

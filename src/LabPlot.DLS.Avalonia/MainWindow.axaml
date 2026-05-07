@@ -1,0 +1,890 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        x:Class="LabPlot.DLS.Avalonia.MainWindow"
+        Title="DLS Analyzer" Height="860" MinHeight="660" Width="1280" MinWidth="960"
+        Background="#F7F8FA"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        SystemDecorations="Full">
+
+    <!-- Phase 7 Batch 3a: WPF MainWindow.xaml の Avalonia 版。WindowChrome は
+         ExtendClientAreaToDecorationsHint=True + ChromeHints=NoChrome で代替し、
+         ScottPlot.WPF の WpfPlot は ScottPlot.Avalonia の AvaPlot に code-behind
+         で差し替える。XAML の構造は WPF 版と同じ：CustomTitleBar + 360 px サイドバー
+         (8 セクション + sticky footer) + main area (header + plot container + status)。 -->
+
+    <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
+        <Grid RowDefinitions="Auto,*">
+
+            <!-- ================= TITLE BAR ================= -->
+            <controls:CustomTitleBar Grid.Row="0"
+                                     AppName="DLS Analyzer"
+                                     Subtitle="Particle size visualizer"
+                                     AppIconData="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
+
+            <Grid Grid.Row="1" ColumnDefinitions="360,*">
+
+                <!-- ================= SIDEBAR ================= -->
+                <Border Grid.Column="0"
+                        Background="#EEF2F7"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="0,0,1,0">
+                    <Grid RowDefinitions="*,Auto">
+
+                        <!-- Scrollable sections -->
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="20,10,20,12">
+
+                                <ContentControl Content="データ"
+                                                Theme="{DynamicResource GroupHeaderStyle}" />
+
+                                <!-- Section: File -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="True">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource DataFileIconGeometry}" />
+                                                <TextBlock Text="データファイル"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Button Name="OpenButton"
+                                                    Content="DLS xlsx を開く"
+                                                    Theme="{DynamicResource PrimaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    ToolTip.Tip="Zetasizer の xlsx データを開く (Ctrl+O)"
+                                                    Click="OpenButton_Click" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Loaded datasets -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="True">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource DatasetListIconGeometry}" />
+                                                <TextBlock Text="読み込み済みデータセット"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Border BorderBrush="#E2E8F0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Background="#F8FAFC">
+                                                <Grid>
+                                                    <ListBox Name="DatasetListBox"
+                                                             SelectionMode="Multiple"
+                                                             SelectionChanged="DatasetListBox_SelectionChanged"
+                                                             MinHeight="120"
+                                                             MaxHeight="280"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             Padding="0"
+                                                             DragDrop.AllowDrop="True">
+                                                        <ListBox.ItemTemplate>
+                                                            <!-- VM 型 (DlsDatasetItem) が Batch 3b で正式に
+                                                                 internal クラスとして登場するまで CompiledBindings
+                                                                 が解決できないので ReflectionBinding に切り替え。
+                                                                 Batch 3b で DataType + CompiledBinding に格上げ予定。 -->
+                                                            <DataTemplate>
+                                                                <Grid ColumnDefinitions="Auto,*">
+                                                                    <Border Grid.Column="0"
+                                                                            Width="14" Height="14"
+                                                                            Background="{ReflectionBinding ColorBrush}"
+                                                                            CornerRadius="2"
+                                                                            VerticalAlignment="Center"
+                                                                            Margin="2,0,8,0" />
+                                                                    <TextBlock Grid.Column="1"
+                                                                               Text="{ReflectionBinding SheetName}"
+                                                                               VerticalAlignment="Center" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ListBox.ItemTemplate>
+                                                    </ListBox>
+                                                    <StackPanel Name="DatasetListPlaceholder"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                Margin="8,18,8,18"
+                                                                IsHitTestVisible="False">
+                                                        <Path Width="32" Height="32"
+                                                              Stretch="None"
+                                                              Stroke="#94A3B8"
+                                                              StrokeThickness="1.5"
+                                                              StrokeLineCap="Round"
+                                                              StrokeJoin="Round"
+                                                              Fill="Transparent"
+                                                              HorizontalAlignment="Center"
+                                                              Data="M 6,22 L 6,26 L 26,26 L 26,22 M 16,5 L 16,20 M 10,11 L 16,5 L 22,11" />
+                                                        <TextBlock Text="ここに xlsx をドロップ"
+                                                                   FontSize="12"
+                                                                   Foreground="#64748B"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,8,0,2" />
+                                                        <TextBlock Text="または上のボタンから開く"
+                                                                   FontSize="11"
+                                                                   Foreground="#94A3B8"
+                                                                   HorizontalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <Rectangle Name="DatasetDropOverlay"
+                                                               Stroke="#2563EB"
+                                                               StrokeThickness="2"
+                                                               StrokeDashArray="3,2"
+                                                               Fill="#4DDBEAFE"
+                                                               RadiusX="4"
+                                                               RadiusY="4"
+                                                               IsHitTestVisible="False"
+                                                               IsVisible="False" />
+                                                </Grid>
+                                            </Border>
+                                            <TextBlock Margin="0,4,0,0"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"
+                                                       TextWrapping="Wrap"
+                                                       Text="Ctrl/Shift クリックで複数選択して重ね描きできます (Ctrl+L : 全選択／全解除)" />
+                                            <TextBlock Name="DatasetCountText"
+                                                       Margin="0,6,0,0"
+                                                       FontSize="12"
+                                                       Foreground="#64748B"
+                                                       Text="ファイル未読み込み" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Line style (active sheet) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource LineStyleIconGeometry}" />
+                                                <TextBlock Text="線スタイル"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Name="ActiveDatasetLabel"
+                                                           Text="(選択中シート)"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"
+                                                           VerticalAlignment="Bottom"
+                                                           Margin="6,0,0,2" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="色" Theme="{DynamicResource FieldLabelStyle}" />
+                                            <controls:ColorPickerPanel Name="LineColorPicker"
+                                                                        AllowAuto="True"
+                                                                        DefaultHex="#2563EB"
+                                                                        Margin="0,0,0,10"
+                                                                        ColorChanged="LineColorPicker_ColorChanged">
+                                                <ComboBoxItem Tag="Auto" IsSelected="True">
+                                                    <TextBlock Text="Auto" />
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="Custom">
+                                                    <TextBlock Text="Custom" />
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#2563EB">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#2563EB" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Blue" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#DC2626">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#DC2626" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Red" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#16A34A">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#16A34A" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Green" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#EA580C">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#EA580C" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Orange" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#7C3AED">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#7C3AED" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Purple" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#0891B2">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#0891B2" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Cyan" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#BE123C">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#BE123C" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Rose" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                                <ComboBoxItem Tag="#4B5563">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="18" Height="14" Background="#4B5563" CornerRadius="2" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Gray" />
+                                                    </StackPanel>
+                                                </ComboBoxItem>
+                                            </controls:ColorPickerPanel>
+
+                                            <TextBlock Text="凡例名" Theme="{DynamicResource FieldLabelStyle}" />
+                                            <TextBox Name="LegendNameTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Margin="0,0,0,10"
+                                                     ToolTip.Tip="凡例名を編集（F2 でフォーカス）"
+                                                     TextChanged="LegendNameTextBox_TextChanged" />
+
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="線幅" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="LineWidthTextBox"
+                                                             Text="1.5"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="LineWidthTextBox_TextChanged" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="マーカー" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MarkerSizeTextBox"
+                                                             Text="0"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MarkerSizeTextBox_TextChanged" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Measurement metadata (active sheet) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 4,2 L 10,2 M 5,2 L 5,7 L 2,12 L 12,12 L 9,7 L 9,2 M 4,9 L 10,9" />
+                                                <TextBlock Text="測定条件"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Name="ActiveMetadataLabel"
+                                                           Text="(選択中シート)"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"
+                                                           VerticalAlignment="Bottom"
+                                                           Margin="6,0,0,2" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="温度 (°C)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataTemperatureTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             LostFocus="MetadataTemperatureTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="濃度 (mg/mL)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataConcentrationTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             LostFocus="MetadataConcentrationTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <TextBlock Text="溶媒" Theme="{DynamicResource FieldLabelStyle}" />
+                                            <TextBox Name="MetadataSolventTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Margin="0,0,0,10"
+                                                     LostFocus="MetadataSolventTextBox_LostFocus"
+                                                     KeyDown="MetadataTextBox_KeyDown" />
+
+                                            <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="屈折率" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataRefractiveIndexTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="粘度 (mPa·s)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataViscosityTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             LostFocus="MetadataViscosityTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <TextBlock Text="装置設定"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"
+                                                       Margin="0,0,0,4" />
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="波長 (nm)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataWavelengthTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             LostFocus="MetadataWavelengthTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="散乱角 (°)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataScatteringAngleTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             LostFocus="MetadataScatteringAngleTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Cumulant analysis (active sheet) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 1,12 Q 4,12 5,9 Q 7,2 9,9 Q 10,12 13,12" />
+                                                <TextBlock Text="キュムラント解析"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Name="ActiveCumulantLabel"
+                                                           Text="(選択中シート)"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"
+                                                           VerticalAlignment="Bottom"
+                                                           Margin="6,0,0,2" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="フィット範囲 (μs)"
+                                                       Theme="{DynamicResource FieldLabelStyle}" />
+                                            <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                                                <TextBox Name="CumulantFitMinTextBox"
+                                                         Grid.Column="0"
+                                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                                         LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                                         KeyDown="MetadataTextBox_KeyDown" />
+                                                <TextBox Name="CumulantFitMaxTextBox"
+                                                         Grid.Column="2"
+                                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                                         LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                                         KeyDown="MetadataTextBox_KeyDown" />
+                                            </Grid>
+                                            <TextBlock Text="空欄で自動検出 (g₂-1 ≧ 0.1 を保持)"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"
+                                                       Margin="0,-6,0,10" />
+
+                                            <Border BorderBrush="#E2E8F0"
+                                                    BorderThickness="0,1,0,0"
+                                                    Padding="0,8,0,0">
+                                                <Grid ColumnDefinitions="Auto,8,*"
+                                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+
+                                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                                               Text="Z-average 径"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="CumulantZAverageText"
+                                                               Grid.Row="0" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                                                               Text="PdI"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="CumulantPdiText"
+                                                               Grid.Row="1" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                                               Text="Γ"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="CumulantGammaText"
+                                                               Grid.Row="2" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="3" Grid.Column="0"
+                                                               Text="適用範囲"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="CumulantRangeText"
+                                                               Grid.Row="3" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="4" Grid.Column="0"
+                                                               Text="R²"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="CumulantRSquaredText"
+                                                               Grid.Row="4" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Name="CumulantStatusText"
+                                                               Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
+                                                               Text=""
+                                                               FontSize="11"
+                                                               Foreground="#B45309"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,4,0,0"
+                                                               IsVisible="False" />
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Display (distribution / run) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="True">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 1,7 Q 7,2 13,7 Q 7,12 1,7 Z M 6,7 A 1,1 0 1 0 8,7 A 1,1 0 1 0 6,7 Z" />
+                                                <TextBlock Text="表示"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="分布の種類" />
+                                            <ComboBox Name="DistributionTypeComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      SelectionChanged="DistributionTypeComboBox_SelectionChanged"
+                                                      Margin="0,0,0,8">
+                                                <ComboBoxItem Content="Number (%)" Tag="Number" IsSelected="True" />
+                                                <ComboBoxItem Content="Intensity (%)" Tag="Intensity" />
+                                                <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                                                <ComboBoxItem Content="自己相関 g₂-1" Tag="Correlation" />
+                                            </ComboBox>
+
+                                            <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="Run" />
+                                            <ComboBox Name="RunComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      SelectionChanged="RunComboBox_SelectionChanged"
+                                                      IsEnabled="False" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <ContentControl Content="書式"
+                                                Theme="{DynamicResource GroupHeaderStyle}" />
+
+                                <!-- Section: Axis range -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="True">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource AxisRangeIconGeometry}" />
+                                                <TextBlock Text="軸範囲"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <controls:AxisRangePanel Name="AxisRangePanel"
+                                                                 XAxisLabel="粒径軸 (nm)"
+                                                                 YAxisLabel="Y 軸 (%)"
+                                                                 AxisRangeCommitted="AxisRangePanel_Committed"
+                                                                 Margin="0,8,0,0" />
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Graph labels -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="True">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource GraphLabelIconGeometry}" />
+                                                <TextBlock Text="グラフラベル"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="タイトル" Theme="{DynamicResource FieldLabelStyle}" />
+                                            <TextBox Name="TitleTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Margin="0,0,0,6"
+                                                     TextChanged="GraphLabelTextBox_TextChanged" />
+                                            <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                                                <CheckBox Name="TitleVisibleCheckBox"
+                                                          Grid.Column="0"
+                                                          Content="表示する"
+                                                          IsChecked="True"
+                                                          IsCheckedChanged="FormatCheckBox_Changed" />
+                                                <CheckBox Name="TitleBoldCheckBox"
+                                                          Grid.Column="2"
+                                                          Content="太字"
+                                                          IsChecked="True"
+                                                          IsCheckedChanged="FormatCheckBox_Changed" />
+                                            </Grid>
+
+                                            <TextBlock Text="X軸ラベル" Theme="{DynamicResource FieldLabelStyle}" />
+                                            <TextBox Name="XLabelTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Margin="0,0,0,8"
+                                                     TextChanged="GraphLabelTextBox_TextChanged" />
+
+                                            <TextBlock Text="Y軸ラベル" Theme="{DynamicResource FieldLabelStyle}" />
+                                            <TextBox Name="YLabelTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Margin="0,0,0,6"
+                                                     TextChanged="GraphLabelTextBox_TextChanged" />
+                                            <CheckBox Name="AxisLabelBoldCheckBox"
+                                                      Content="軸ラベルを太字"
+                                                      Margin="0,0,0,0"
+                                                      IsCheckedChanged="FormatCheckBox_Changed" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Graph appearance -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource GraphFormatIconGeometry}" />
+                                                <TextBlock Text="グラフ書式"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <controls:GraphFormatPanel Name="GraphFormatPanel"
+                                                                   GraphFormatChanged="GraphFormatPanel_GraphFormatChanged"
+                                                                   AspectRatioChanged="GraphFormatPanel_AspectRatioChanged" />
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Analysis session -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource AnalysisConditionsIconGeometry}" />
+                                                <TextBlock Text="解析条件"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Button Name="SaveSessionButton"
+                                                    Content="解析条件を保存"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    IsEnabled="False"
+                                                    Margin="0,0,0,8"
+                                                    ToolTip.Tip="解析条件を .dlsjson に保存 (Ctrl+Shift+S)"
+                                                    Click="SaveSessionButton_Click" />
+                                            <Button Name="LoadSessionButton"
+                                                    Content="解析条件を読み込み"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    ToolTip.Tip="解析条件 (.dlsjson) を読み込み (Ctrl+Shift+O)"
+                                                    Click="LoadSessionButton_Click" />
+                                            <TextBlock Text="今開いている解析の状態（データ・線スタイル・測定条件・キュムラント解析・軸範囲・グラフ書式）を任意の場所に .dlsjson として保存します。後でこのファイルを読み込めば、同じ解析をそのまま復元できます。"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,10,0,0" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: App preferences -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource PreferencesIconGeometry}" />
+                                                <TextBlock Text="環境設定"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="既定の出力フォルダ"
+                                                       Theme="{DynamicResource FieldLabelStyle}" />
+                                            <Grid Margin="0,0,0,12" ColumnDefinitions="*,6,Auto">
+                                                <TextBox Name="DefaultOutputDirectoryTextBox"
+                                                         Grid.Column="0"
+                                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                                         ToolTip.Tip="グラフ・データ・解析条件の保存ダイアログで開く初期フォルダ" />
+                                                <Button Grid.Column="2"
+                                                        Content="参照"
+                                                        Theme="{DynamicResource SecondaryButtonStyle}"
+                                                        Click="BrowseDefaultOutputDirectoryButton_Click" />
+                                            </Grid>
+
+                                            <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="既定の分布" />
+                                            <ComboBox Name="DefaultDistributionComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      SelectionChanged="FormatComboBox_SelectionChanged"
+                                                      Margin="0,0,0,8">
+                                                <ComboBoxItem Content="Number (%)" Tag="Number" IsSelected="True" />
+                                                <ComboBoxItem Content="Intensity (%)" Tag="Intensity" />
+                                                <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                                            </ComboBox>
+
+                                            <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="既定の Run (0 始まり)" />
+                                            <TextBox Name="DefaultRunIndexTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Text="0"
+                                                     TextChanged="FormatTextBox_TextChanged" />
+
+                                            <TextBlock Text="ここで設定した既定値は、画面下部の「既定値として保存」を押すとグラフ書式と一緒にユーザー設定として保存され、次回起動時に自動で適用されます。"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,12,0,0" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Sticky footer: defaults。WPF 版の DropShadowEffect (dir=90 / depth=3 / blur=10 / opacity=0.10)
+                             相当を BoxShadow="0 -3 10 0 #1A0F172A" で再現。 -->
+                        <Border Grid.Row="1"
+                                Background="#E2E8F0"
+                                BorderBrush="#CBD5E1"
+                                BorderThickness="0,1,0,0"
+                                Padding="20,12,20,14"
+                                BoxShadow="0 -3 10 0 #1A0F172A">
+                            <StackPanel>
+                                <TextBlock Text="既定値（次回起動時の初期状態）"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="#475569"
+                                           Margin="0,0,0,8" />
+                                <Grid ColumnDefinitions="*,10,*">
+                                    <Button Name="ResetGraphSettingsButton"
+                                            Grid.Column="0"
+                                            Content="既定値に戻す"
+                                            Theme="{DynamicResource SecondaryButtonStyle}"
+                                            ToolTip.Tip="グラフ書式・線スタイル・軸範囲を、保存されている既定値に戻します"
+                                            Click="ResetGraphSettingsButton_Click" />
+                                    <Button Name="SaveDefaultFormattingButton"
+                                            Grid.Column="2"
+                                            Content="既定値として保存"
+                                            Theme="{DynamicResource SecondaryButtonStyle}"
+                                            ToolTip.Tip="現在のグラフ書式・線スタイル・環境設定パスを、次回起動時の既定値として保存します"
+                                            Click="SaveDefaultFormattingButton_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- ================= MAIN AREA ================= -->
+                <Grid Grid.Column="1" Margin="24,22,24,18" RowDefinitions="Auto,*,Auto">
+
+                    <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,16">
+                        <Button Name="SaveGraphButton"
+                                DockPanel.Dock="Right"
+                                Content="PNG / SVG 保存"
+                                Theme="{DynamicResource PrimaryButtonStyle}"
+                                IsEnabled="False"
+                                ToolTip.Tip="グラフを PNG / SVG で保存 (Ctrl+S)"
+                                Click="SaveGraphButton_Click" />
+                        <Button Name="ExportButton"
+                                DockPanel.Dock="Right"
+                                Content="データ出力"
+                                Theme="{DynamicResource SecondaryButtonStyle}"
+                                IsEnabled="False"
+                                Margin="0,0,8,0"
+                                ToolTip.Tip="データを CSV / xlsx で出力 (Ctrl+E)"
+                                Click="ExportButton_Click" />
+                        <TextBlock Text="Particle size distribution"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#1E293B" />
+                    </DockPanel>
+
+                    <Border Name="PlotContainerBorder"
+                            Grid.Row="1"
+                            BorderBrush="#CBD5E1"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Background="White"
+                            SizeChanged="PlotContainerBorder_SizeChanged">
+                        <Grid>
+                            <Grid Name="PlotHost">
+                                <!-- スケルトン: 軸の影 + 仮データ線 + 横切るシマー帯。
+                                     プロット初期化時に PlotHost.Children.Clear() で消える。
+                                     WPF 版の Storyboard EventTrigger は Avalonia の Style.Animations
+                                     (IterationCount=INFINITE) に置き換えた。 -->
+                                <Grid Width="320" Height="200"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center">
+                                    <Grid Width="320" Height="180"
+                                          VerticalAlignment="Top"
+                                          ClipToBounds="True">
+                                        <Canvas Width="320" Height="180">
+                                            <Rectangle Canvas.Left="22" Canvas.Top="20"
+                                                       Width="2" Height="140"
+                                                       Fill="#E2E8F0" />
+                                            <Rectangle Canvas.Left="20" Canvas.Top="158"
+                                                       Width="280" Height="2"
+                                                       Fill="#E2E8F0" />
+                                            <Path Stroke="#CBD5E1"
+                                                  StrokeThickness="2.5"
+                                                  StrokeLineCap="Round"
+                                                  StrokeJoin="Round"
+                                                  Data="M 30,140 Q 70,140 100,80 Q 130,30 160,80 Q 190,140 230,120 Q 260,100 290,140" />
+                                        </Canvas>
+                                        <Border Name="ShimmerBand"
+                                                Classes="shimmer"
+                                                Width="120" Height="180"
+                                                HorizontalAlignment="Left"
+                                                IsHitTestVisible="False">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                                    <GradientStop Color="#00FFFFFF" Offset="0" />
+                                                    <GradientStop Color="#A0FFFFFF" Offset="0.5" />
+                                                    <GradientStop Color="#00FFFFFF" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <Border.RenderTransform>
+                                                <TranslateTransform X="-120" />
+                                            </Border.RenderTransform>
+                                            <Border.Styles>
+                                                <Style Selector="Border.shimmer">
+                                                    <Style.Animations>
+                                                        <Animation Duration="0:0:2" IterationCount="INFINITE">
+                                                            <KeyFrame Cue="0%">
+                                                                <Setter Property="(TranslateTransform.X)" Value="-120" />
+                                                            </KeyFrame>
+                                                            <KeyFrame Cue="100%">
+                                                                <Setter Property="(TranslateTransform.X)" Value="320" />
+                                                            </KeyFrame>
+                                                        </Animation>
+                                                    </Style.Animations>
+                                                </Style>
+                                            </Border.Styles>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock Name="PlotPlaceholderTextBlock"
+                                               Text="グラフを初期化しています..."
+                                               FontSize="11"
+                                               Foreground="#64748B"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Bottom"
+                                               Margin="0,0,0,4" />
+                                </Grid>
+                            </Grid>
+                            <Border Name="PlotControlsHintBadge"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    Margin="0,8,8,0"
+                                    Width="22" Height="22"
+                                    CornerRadius="11"
+                                    Background="#F1F5F9"
+                                    BorderBrush="#CBD5E1"
+                                    BorderThickness="1"
+                                    Cursor="Help"
+                                    ToolTip.Placement="Bottom"
+                                    ToolTip.ShowDelay="200">
+                                <ToolTip.Tip>
+                                    <StackPanel>
+                                        <TextBlock Text="プロット操作"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,0,0,6" />
+                                        <TextBlock Text="左ドラッグ : パン" Foreground="#475569" />
+                                        <TextBlock Text="右ドラッグ : 範囲ズーム" Foreground="#475569" />
+                                        <TextBlock Text="ホイール : 拡大／縮小" Foreground="#475569" />
+                                        <TextBlock Text="Ctrl + ホイール : 横方向のみ" Foreground="#475569" />
+                                        <TextBlock Text="Shift + ホイール : 縦方向のみ" Foreground="#475569" />
+                                        <TextBlock Text="ダブルクリック : ベンチマーク表示" Foreground="#475569" />
+                                    </StackPanel>
+                                </ToolTip.Tip>
+                                <!-- 情報 i アイコン: 円 + 縦バー (WPF 版の GeometryGroup を StreamGeometry 1 本にまとめた) -->
+                                <Path Width="3" Height="9"
+                                      Fill="#475569"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Stretch="None"
+                                      Data="M 1.5,0 A 1.25,1.25 0 1 0 1.5,2.5 A 1.25,1.25 0 1 0 1.5,0 Z M 0.25,3.75 H 2.75 V 9 H 0.25 Z" />
+                            </Border>
+                            <controls:ErrorBanner Name="ErrorBanner" />
+                            <controls:BusyOverlay Name="BusyOverlay" />
+                        </Grid>
+                    </Border>
+
+                    <!-- WPF の StatusBar に対応するボトムバー。Avalonia は StatusBar 標準コントロールが
+                         無いので Border + TextBlock で代替。 -->
+                    <Border Grid.Row="2" Margin="0,10,0,0" Background="Transparent">
+                        <TextBlock Name="StatusTextBlock"
+                                   Text="DLS xlsx を開いてください。"
+                                   Foreground="#475569" />
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

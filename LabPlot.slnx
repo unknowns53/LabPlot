@@ -13,4 +13,5 @@
   <Project Path="src/LabPlot.DLS/DlsAnalyzer.Core/DlsAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.DLS/DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj" />
   <Project Path="src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj" />
+  <Project Path="src/LabPlot.DLS.Avalonia/LabPlot.DLS.Avalonia.csproj" />
 </Solution>

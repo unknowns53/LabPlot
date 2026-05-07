@@ -16,6 +16,13 @@
       - Stop-Process -Name 'LabPlot.Avalonia' can clean up leftovers.
       - Console.WriteLine output stays visible in the terminal.
 
+    Build is invoked with -nodeReuse:false and UseSharedCompilation=false
+    so that MSBuild worker nodes and the Roslyn (VBCSCompiler) server do
+    not stay resident as 'dotnet.exe' ghosts after the build finishes.
+
+    -KillOnly additionally runs 'dotnet build-server shutdown' to evict
+    any already-resident MSBuild / Roslyn servers from previous builds.
+
 .PARAMETER Configuration
     'Debug' (default) or 'Release'.
 
@@ -59,14 +66,23 @@ if ($existing.Count -gt 0) {
 }
 
 if ($KillOnly) {
+    # Also evict resident MSBuild / Roslyn servers (they linger as
+    # 'dotnet.exe' processes that Stop-Process -Name LabPlot.Avalonia
+    # cannot reach).
+    Write-Host "Shutting down dotnet build server (MSBuild / VBCSCompiler) ..."
+    & dotnet build-server shutdown | Out-Null
     Write-Host "KillOnly specified; not launching."
     return
 }
 
 # 2. Build (unless skipped).
+#    -nodeReuse:false stops MSBuild worker nodes from staying resident.
+#    UseSharedCompilation=false stops the Roslyn (VBCSCompiler) server
+#    from staying resident. Together they prevent 'dotnet.exe' ghosts
+#    after the build completes.
 if (-not $NoBuild) {
     Write-Host "Building $Configuration ..."
-    & dotnet build $projectPath -c $Configuration -v minimal
+    & dotnet build $projectPath -c $Configuration -v minimal -nodeReuse:false /p:UseSharedCompilation=false
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Build failed with exit code $LASTEXITCODE"
         return

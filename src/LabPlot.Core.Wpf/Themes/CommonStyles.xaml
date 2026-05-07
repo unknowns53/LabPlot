@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
 
     <!-- セクション見出し用の 14×14 グリフ。Expander.Header の StackPanel 先頭に Path を
          置き、この Style を適用する。Stroke は slate-600 (#475569)、親 Expander が
@@ -940,6 +941,124 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- =========================================================
+         Custom window chrome — glyphs and button styles consumed
+         by `CustomTitleBar` to draw the minimize / maximize /
+         restore / close buttons in place of the default OS chrome.
+         Geometry resources are stored as `<Geometry>` so a button's
+         Tag (Object) can be TemplateBound to Path.Data (Geometry)
+         without going through the string parser at runtime. The
+         maximize button swaps Tag between `ChromeMaximizeIcon` and
+         `ChromeRestoreIcon` from CustomTitleBar's code-behind when
+         the host Window's WindowState changes.
+         ========================================================= -->
+
+    <Geometry x:Key="ChromeMinimizeIcon">M 0,5 L 10,5</Geometry>
+    <Geometry x:Key="ChromeMaximizeIcon">M 0,0 L 10,0 L 10,10 L 0,10 Z</Geometry>
+    <Geometry x:Key="ChromeRestoreIcon">M 2,0 L 10,0 L 10,8 L 8,8 M 0,2 L 8,2 L 8,10 L 0,10 Z</Geometry>
+    <Geometry x:Key="ChromeCloseIcon">M 0,0 L 10,10 M 10,0 L 0,10</Geometry>
+
+    <Style x:Key="ChromeButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Arrow" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="ButtonBorder"
+                            Background="{TemplateBinding Background}"
+                            SnapsToDevicePixels="True">
+                        <Path x:Name="ButtonGlyph"
+                              Data="{TemplateBinding Tag}"
+                              Stroke="#475569"
+                              StrokeThickness="1"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Stretch="None"
+                              Width="10"
+                              Height="10"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              SnapsToDevicePixels="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonBorder" Property="Background" Value="#E2E8F0" />
+                            <Setter TargetName="ButtonGlyph" Property="Stroke" Value="#0F172A" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ButtonBorder" Property="Background" Value="#CBD5E1" />
+                            <Setter TargetName="ButtonGlyph" Property="Stroke" Value="#0F172A" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ChromeCloseButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Arrow" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="ButtonBorder"
+                            Background="{TemplateBinding Background}"
+                            SnapsToDevicePixels="True">
+                        <Path x:Name="ButtonGlyph"
+                              Data="{TemplateBinding Tag}"
+                              Stroke="#475569"
+                              StrokeThickness="1"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Stretch="None"
+                              Width="10"
+                              Height="10"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              SnapsToDevicePixels="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonBorder" Property="Background" Value="#DC2626" />
+                            <Setter TargetName="ButtonGlyph" Property="Stroke" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ButtonBorder" Property="Background" Value="#B91C1C" />
+                            <Setter TargetName="ButtonGlyph" Property="Stroke" Value="White" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Window 全体を包む Border。WindowChrome+NonClientFrameEdges=None で動かすと
+         WindowState=Maximized のときに 7 px だけ画面外に張り出して中身が見切れる
+         ので、Maximized 時のみ 7 px の Margin で内側に押し込んで補正する。各
+         MainWindow の <Border Style="..."> として使う。 -->
+    <Style x:Key="WindowChromeRootBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="#F7F8FA" />
+        <Setter Property="Margin" Value="0" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                <Setter Property="Margin" Value="7" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

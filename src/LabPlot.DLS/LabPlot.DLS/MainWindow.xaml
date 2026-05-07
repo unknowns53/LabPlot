@@ -3,18 +3,43 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:LabPlot.DLS"
         xmlns:controls="clr-namespace:LabPlot.Core.Wpf.Controls;assembly=LabPlot.Core.Wpf"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="DLS Analyzer" Height="860" MinHeight="660" Width="1280" MinWidth="960"
         Background="#F7F8FA"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="ClearType"
-        UseLayoutRounding="True">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="360" MinWidth="320" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44"
+                            ResizeBorderThickness="6"
+                            GlassFrameThickness="0"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False"
+                            NonClientFrameEdges="None" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Border Style="{StaticResource WindowChromeRootBorderStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- ================= TITLE BAR ================= -->
+            <controls:CustomTitleBar Grid.Row="0"
+                                     AppName="DLS Analyzer"
+                                     Subtitle="Particle size visualizer"
+                                     AppIconData="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="360" MinWidth="320" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
         <!-- ================= SIDEBAR ================= -->
         <Border Grid.Column="0"
@@ -23,44 +48,12 @@
                 BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Header -->
-                <StackPanel Grid.Row="0"
-                            Orientation="Horizontal"
-                            Margin="20,22,20,10">
-                    <Border Width="36" Height="36"
-                            CornerRadius="8"
-                            Background="#DBEAFE"
-                            VerticalAlignment="Top"
-                            Margin="0,2,12,0">
-                        <Path Stroke="#2563EB"
-                              StrokeThickness="1.8"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round"
-                              StrokeLineJoin="Round"
-                              Stretch="None"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center"
-                              Data="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
-                    </Border>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="DLS Analyzer"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="#1E293B"
-                                   Margin="0,0,0,2" />
-                        <TextBlock Text="Particle size visualizer"
-                                   FontSize="11"
-                                   Foreground="#64748B" />
-                    </StackPanel>
-                </StackPanel>
-
                 <!-- Scrollable sections -->
-                <ScrollViewer Grid.Row="1"
+                <ScrollViewer Grid.Row="0"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20,10,20,12">
@@ -789,7 +782,7 @@
                 </ScrollViewer>
 
                 <!-- Sticky footer: defaults -->
-                <Border Grid.Row="2"
+                <Border Grid.Row="1"
                         Background="#E2E8F0"
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,1,0,0"
@@ -983,5 +976,7 @@
                            Foreground="#475569" />
             </StatusBar>
         </Grid>
-    </Grid>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>

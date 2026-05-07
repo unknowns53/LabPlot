@@ -18,6 +18,17 @@
         UseLayoutRounding="True"
         WindowStartupLocation="CenterScreen">
 
+    <!-- Spectrum 固有スタイル (DataGrid family + BoolToVisibility) を Window スコープで
+         merge。Phase 6 Batch 3 で App.xaml を削除したため、Application スコープから
+         Window スコープに移している。Core.Wpf 共通スタイルは Shell.App 側で merge 済。 -->
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Spectrum_Visualization;component/Themes/CommonStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="44"
                             ResizeBorderThickness="6"

@@ -4,6 +4,7 @@
     <ProjectReference Include="..\LabPlot.Core.Wpf\LabPlot.Core.Wpf.csproj" />
     <ProjectReference Include="..\LabPlot.DLS\LabPlot.DLS\LabPlot.DLS.csproj" />
     <ProjectReference Include="..\LabPlot.GPC\GPC_Visualization\GPC_Visualization.csproj" />
+    <ProjectReference Include="..\LabPlot.Spectrum\Spectrum_Visualization\Spectrum_Visualization.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

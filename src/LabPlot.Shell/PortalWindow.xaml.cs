@@ -11,7 +11,7 @@ public partial class PortalWindow : Window
 
     private void OpenGpc_Click(object sender, RoutedEventArgs e) => OpenSingleton<global::GPC_Visualization.MainWindow>();
 
-    private void OpenSpectrum_Click(object sender, RoutedEventArgs e) => ShowComingSoon("UV-Vis");
+    private void OpenSpectrum_Click(object sender, RoutedEventArgs e) => OpenSingleton<global::Spectrum_Visualization.MainWindow>();
 
     private void OpenDls_Click(object sender, RoutedEventArgs e) => OpenSingleton<DLS.MainWindow>();
 
@@ -26,18 +26,6 @@ public partial class PortalWindow : Window
 
         var window = new TWindow();
         window.Show();
-    }
-
-    // Batch 1 / 2 で DLS / GPC は接続済。Batch 3 で Spectrum を library 化したら
-    // ここの ShowComingSoon を OpenSingleton に置き換える。
-    private void ShowComingSoon(string moduleName)
-    {
-        MessageBox.Show(
-            this,
-            $"{moduleName} モジュールは後続 batch で接続予定です。",
-            "LabPlot",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
     }
 
     private static bool TryActivateExistingWindow<TWindow>() where TWindow : Window

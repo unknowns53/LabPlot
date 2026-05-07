@@ -16,12 +16,12 @@ internal static class DefaultLabels
     // Keeps the leading space so callers can interpolate it directly.
     public const string NoDataSuffix = " データなし";
 
-    public const string SizeXLabel = "Size (d.nm)";
-    public const string CorrelationTimeXLabel = "Time (μs)";
+    public const string SizeXLabel = "Size [nm]";
+    public const string CorrelationTimeXLabel = "Time [μs]";
 
-    public const string NumberYLabel = "Number (%)";
-    public const string IntensityYLabel = "Intensity (%)";
-    public const string VolumeYLabel = "Volume (%)";
+    public const string NumberYLabel = "Number [%]";
+    public const string IntensityYLabel = "Intensity [%]";
+    public const string VolumeYLabel = "Volume [%]";
     public const string CorrelationYLabel = "g₂-1";
 
     public static string GetPlotTypeLabel(DistributionMode mode) => mode switch

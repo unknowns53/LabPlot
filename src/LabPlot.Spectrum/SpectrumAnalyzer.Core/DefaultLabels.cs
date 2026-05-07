@@ -36,8 +36,8 @@ public static class DefaultLabels
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             // Examples — uncomment and edit to taste:
-            // ["Wavelength (nm)"] = "Wavelength / nm",
-            // ["Wavenumber (cm⁻¹)"] = "Wavenumber / cm⁻¹",
+            ["Wavelength (nm)"] = "Wavelength [nm]",
+            ["Wavenumber (cm⁻¹)"] = "Wavenumber [cm⁻¹]",
         };
 
     /// <summary>

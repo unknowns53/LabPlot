@@ -15,12 +15,12 @@ public static class DefaultLabels
 
     public const string ChromatogramFallbackTitle = "GPC Chromatogram";
 
-    public const string LogScaleXLabelFormat = "{0} (log scale)";
+    public const string LogScaleXLabelFormat = "{0}";
 
     public const string ChromatogramDatasetXLabel = "X";
     public const string ChromatogramDatasetYLabel = "Y";
 
-    public const string MolecularWeightDatasetXLabel = "Molecular Weight [Da]";
+    public const string MolecularWeightDatasetXLabel = "Molecular Weight";
     public const string MolecularWeightDatasetYLabel = "Signal";
 
     /// <summary>
@@ -37,8 +37,8 @@ public static class DefaultLabels
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             // Examples — uncomment and edit to taste:
-            // ["R.Time"] = "Retention time / min",
-            // ["Intensity"] = "Signal intensity",
+            ["R.Time"] = "R.Time [min]",
+            ["Intensity"] = "Intensity [mV]",
         };
 
     /// <summary>

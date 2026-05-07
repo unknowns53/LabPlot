@@ -776,7 +776,7 @@
                         <ToggleButton.Template>
                             <ControlTemplate TargetType="ToggleButton">
                                 <Border Name="HeaderBg"
-                                        Background="Transparent"
+                                        Background="{TemplateBinding Background}"
                                         CornerRadius="4"
                                         Padding="4,8">
                                     <Grid ColumnDefinitions="*,Auto">
@@ -823,14 +823,15 @@
             </ControlTemplate>
         </Setter>
 
-        <!-- ヘッダーホバーで accent 色に染める。WPF 版の
-             ToggleButton.IsMouseOver 内の Setter 2 件を Avalonia の
-             ネスト Selector で再現する。 -->
-        <Style Selector="^ /template/ ToggleButton#HeaderToggle:pointerover /template/ Border#HeaderBg">
+        <!-- ヘッダーホバーで背景に accent tint を被せる。Avalonia 11 では
+             1 つの Style 内で /template/ を 2 段ネストできない（ControlTemplate
+             styles cannot contain multiple template selectors）ため、
+             ToggleButton#HeaderToggle.Background を直接 Setter する形に
+             圧縮し、Border#HeaderBg は TemplateBinding で受ける構造にした。
+             これにより Chevron の Stroke 色変化は省略しているが、ヘッダ
+             背景の hover フィードバックは維持される。 -->
+        <Style Selector="^ /template/ ToggleButton#HeaderToggle:pointerover">
             <Setter Property="Background" Value="#F1F5F9" />
-        </Style>
-        <Style Selector="^ /template/ ToggleButton#HeaderToggle:pointerover /template/ Path#Chevron">
-            <Setter Property="Stroke" Value="{StaticResource AccentBrush}" />
         </Style>
 
         <!-- Chevron 0→180 度回転（Batch 1b で持ち越し）。:expanded で開く向き、

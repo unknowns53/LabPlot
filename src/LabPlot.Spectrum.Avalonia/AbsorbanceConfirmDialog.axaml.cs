@@ -32,10 +32,8 @@ public partial class AbsorbanceConfirmDialog : Window
         };
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
+    // 自動生成するので手動定義しない。
 
     private void YesButton_Click(object? sender, RoutedEventArgs e)
     {

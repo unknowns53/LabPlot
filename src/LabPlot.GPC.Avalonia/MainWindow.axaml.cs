@@ -118,18 +118,33 @@ public partial class MainWindow : Window
         DatasetListBox.ItemsSource = _datasetEntries;
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
         Opened += OnOpened;
+
+        // Avalonia 11 の DragDrop は ListBoxItem など子要素の AllowDrop=False が
+        // drop hit-test を吸収するため、Window レベルで bubble を待ち受ける必要がある。
+        // OnAttachedToVisualTree よりも ctor 直後に登録した方が確実なので、
+        // 公式サンプルと同じく InitializeComponent 直後に AddHandler する。
+        // AllowDrop は XAML 側 DragDrop.AllowDrop="True" で Window に設定済み。
+        AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
+        AddHandler(DragDrop.DropEvent, OnDatasetDrop);
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    // Avalonia.Generators (NameGenerator + AvaloniaXamlLoader) が partial class に
+    // InitializeComponent + x:Name フィールド代入を自動生成するので、ここでは
+    // 手動定義しない。Phase 7 Batch 6 で発覚した「GraphFormatPanel フィールドが
+    // null のまま ApplyFormattingConfigToControls が呼ばれて NRE」は手動メソッドが
+    // ジェネレータをマスクしていたため。
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
         // ListBox のドラッグ&ドロップ系 routed events は XAML 属性経由で
         // 配線できないので AddHandler で繋ぐ。AllowDrop は XAML で設定済み。
+        // Window レベルの DragDrop ハンドラは ctor で配線済み（Avalonia 11 の
+        // ListBoxItem 子要素 AllowDrop=False 問題への対策）。ここでは内部 reorder
+        // が ListBox の hit-test 内で完結するように、DatasetListBox にも個別に
+        // ハンドラを残しておく。bubble で Window レベルに上がるので、両方が
+        // 呼ばれる場合は e.Handled で重複処理を抑止する。
         DatasetListBox.AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
         DatasetListBox.AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
         DatasetListBox.AddHandler(DragDrop.DropEvent, OnDatasetDrop);

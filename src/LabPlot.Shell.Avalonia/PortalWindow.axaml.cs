@@ -33,10 +33,8 @@ public partial class PortalWindow : Window
         _chromeRoot = this.FindControl<Border>("ChromeRoot");
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
+    // 自動生成するので手動定義しない。
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {

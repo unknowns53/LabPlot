@@ -81,10 +81,8 @@ public partial class ColorPickerPanel : UserControl
             _hueSliderHost.SizeChanged += (_, _) => UpdateHueMarkerPosition();
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
+    // 自動生成するので手動定義しない。
 
     public bool AllowAuto
     {
@@ -99,16 +97,17 @@ public partial class ColorPickerPanel : UserControl
     }
 
     /// <summary>
-    /// XAML content slot. Children added inside the panel tag populate
-    /// the preset ComboBox; expected to be <see cref="ComboBoxItem"/>s
-    /// with their <c>Tag</c> set to either a "#RRGGBB" hex code, the
-    /// literal string "Auto" (only meaningful when
-    /// <see cref="AllowAuto"/> is true), or "Custom" for the free-input
-    /// fallback. Avalonia の <see cref="ContentAttribute"/> は WPF の
-    /// <c>[ContentProperty(nameof(Presets))]</c> 相当で、UserControl の
-    /// 既定 Content スロットをこのプロパティに転送する。
+    /// Preset ComboBox の Items コレクションへのアクセサ。外側 XAML から
+    /// は <c>&lt;controls:ColorPickerPanel.Presets&gt;&lt;ComboBoxItem .../&gt;
+    /// &lt;/controls:ColorPickerPanel.Presets&gt;</c> の明示書きで子要素を
+    /// 流し込む。各 ComboBoxItem の <c>Tag</c> は "#RRGGBB" hex / "Auto"
+    /// (<see cref="AllowAuto"/> = true のとき) / "Custom"（自由入力フォール
+    /// バック）のいずれか。WPF 版のような <c>[Content]</c> 属性の暗黙
+    /// 転送は使わない方針: Avalonia の <c>[Content]</c> は UserControl 自身
+    /// の axaml ロード中にも getter を呼びに来るため、ここでは安全な
+    /// explicit 構文で受ける（Phase 7 Batch 6 で発覚した起動時クラッシュ
+    /// "PresetComboBox is not initialised yet" の回避）。
     /// </summary>
-    [Content]
     public ItemCollection Presets => _presetComboBox?.Items
         ?? throw new InvalidOperationException("ColorPickerPanel: PresetComboBox is not initialised yet.");
 

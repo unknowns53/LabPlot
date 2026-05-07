@@ -11,7 +11,8 @@
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
         ExtendClientAreaTitleBarHeightHint="-1"
-        SystemDecorations="Full">
+        SystemDecorations="Full"
+        DragDrop.AllowDrop="True">
 
     <!-- Phase 7 Batch 4a: WPF MainWindow.xaml の Avalonia 版。WindowChrome は
          ExtendClientAreaToDecorationsHint=True + ChromeHints=NoChrome で代替し、
@@ -242,6 +243,7 @@
                                                                         DefaultHex="#2563EB"
                                                                         Margin="0,0,0,10"
                                                                         ColorChanged="LineColorPicker_ColorChanged">
+                                                <controls:ColorPickerPanel.Presets>
                                                 <ComboBoxItem Tag="Auto" IsSelected="True">
                                                     <TextBlock Text="Auto" />
                                                 </ComboBoxItem>
@@ -296,6 +298,7 @@
                                                         <TextBlock Text="Gray" />
                                                     </StackPanel>
                                                 </ComboBoxItem>
+                                                </controls:ColorPickerPanel.Presets>
                                             </controls:ColorPickerPanel>
 
                                             <TextBlock Text="凡例名"

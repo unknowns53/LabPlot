@@ -140,10 +140,8 @@ public partial class MainWindow : Window
         Opened += OnOpened;
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
+    // 自動生成するので手動定義しない（Phase 7 Batch 6 で発覚した null フィールド NRE 対策）。
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {

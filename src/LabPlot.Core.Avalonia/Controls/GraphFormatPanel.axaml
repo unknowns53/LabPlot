@@ -126,12 +126,14 @@
                                                     AllowAuto="False"
                                                     DefaultHex="#475569"
                                                     ColorChanged="ColorPicker_ColorChanged">
-                            <ComboBoxItem Content="Gray" Tag="#475569" IsSelected="True" />
-                            <ComboBoxItem Content="Black" Tag="#0F172A" />
-                            <ComboBoxItem Content="Blue" Tag="#2563EB" />
-                            <ComboBoxItem Content="Red" Tag="#DC2626" />
-                            <ComboBoxItem Content="Green" Tag="#16A34A" />
-                            <ComboBoxItem Content="Custom" Tag="Custom" />
+                            <controls:ColorPickerPanel.Presets>
+                                <ComboBoxItem Content="Gray" Tag="#475569" IsSelected="True" />
+                                <ComboBoxItem Content="Black" Tag="#0F172A" />
+                                <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                                <ComboBoxItem Content="Red" Tag="#DC2626" />
+                                <ComboBoxItem Content="Green" Tag="#16A34A" />
+                                <ComboBoxItem Content="Custom" Tag="Custom" />
+                            </controls:ColorPickerPanel.Presets>
                         </controls:ColorPickerPanel>
                     </StackPanel>
                 </Grid>
@@ -156,11 +158,13 @@
                                             DefaultHex="#FFFFFF"
                                             ColorChanged="ColorPicker_ColorChanged"
                                             Margin="0,0,0,8">
-                    <ComboBoxItem Content="White" Tag="#FFFFFF" IsSelected="True" />
-                    <ComboBoxItem Content="Off-white" Tag="#F8FAFC" />
-                    <ComboBoxItem Content="Light gray" Tag="#E2E8F0" />
-                    <ComboBoxItem Content="Black" Tag="#0F172A" />
-                    <ComboBoxItem Content="Custom" Tag="Custom" />
+                    <controls:ColorPickerPanel.Presets>
+                        <ComboBoxItem Content="White" Tag="#FFFFFF" IsSelected="True" />
+                        <ComboBoxItem Content="Off-white" Tag="#F8FAFC" />
+                        <ComboBoxItem Content="Light gray" Tag="#E2E8F0" />
+                        <ComboBoxItem Content="Black" Tag="#0F172A" />
+                        <ComboBoxItem Content="Custom" Tag="Custom" />
+                    </controls:ColorPickerPanel.Presets>
                 </controls:ColorPickerPanel>
 
                 <TextBlock Text="アスペクト比" Theme="{DynamicResource FieldLabelStyle}" />

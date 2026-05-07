@@ -50,10 +50,8 @@ public partial class CustomTitleBar : UserControl
         _maxRestoreButton = this.FindControl<Button>("MaxRestoreButton");
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
+    // 自動生成するので手動定義しない。
 
     public string AppName
     {

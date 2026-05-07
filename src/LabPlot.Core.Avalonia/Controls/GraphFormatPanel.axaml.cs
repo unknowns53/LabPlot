@@ -99,10 +99,8 @@ public partial class GraphFormatPanel : UserControl
         }
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
+    // 自動生成するので手動定義しない。
 
     /// <summary>Bubble for any change that should re-capture the formatting config.</summary>
     public event EventHandler? GraphFormatChanged;

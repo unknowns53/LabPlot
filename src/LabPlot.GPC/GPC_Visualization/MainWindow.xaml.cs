@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -1957,26 +1958,91 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(label) ? defaultLabel : label;
     }
 
+    // 単一データセット時の "Mn: V   Mw: V   Ð: V (source)" 形式と、
+    // 代表ピーク選択時の "Peak #N   Mn: V   Mw: V   Ð: V" 形式の両方を分解。
+    // chip 表示は単一行ケースだけで、複数行は fallback TextBlock に流す。
+    private static readonly Regex StatisticsLineRegex = new(
+        @"^(?:(?<label>.+?)   )?Mn:\s*(?<mn>\S+)\s+Mw:\s*(?<mw>\S+)\s+Ð:\s*(?<pdi>\S+?)(?:\s*\((?<src>[^)]+)\))?\s*$",
+        RegexOptions.Compiled);
+
+    private void SetStatisticsLine(string text)
+    {
+        if (string.IsNullOrEmpty(text) || text.Contains('\n'))
+        {
+            ShowStatisticsFallback(text ?? string.Empty);
+            return;
+        }
+
+        var match = StatisticsLineRegex.Match(text);
+        if (!match.Success)
+        {
+            ShowStatisticsFallback(text);
+            return;
+        }
+
+        var label = match.Groups["label"].Success ? match.Groups["label"].Value : string.Empty;
+        if (string.IsNullOrEmpty(label))
+        {
+            StatisticsPeakLabel.Visibility = Visibility.Collapsed;
+            StatisticsPeakLabel.Text = string.Empty;
+        }
+        else
+        {
+            StatisticsPeakLabel.Text = label;
+            StatisticsPeakLabel.Visibility = Visibility.Visible;
+        }
+
+        MnChipValue.Text = match.Groups["mn"].Value;
+        MwChipValue.Text = match.Groups["mw"].Value;
+        DispersityChipValue.Text = match.Groups["pdi"].Value;
+
+        if (match.Groups["src"].Success)
+        {
+            StatisticsSourceLabel.Text = $"({match.Groups["src"].Value})";
+            StatisticsSourceLabel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            StatisticsSourceLabel.Visibility = Visibility.Collapsed;
+            StatisticsSourceLabel.Text = string.Empty;
+        }
+
+        StatisticsChipPanel.Visibility = Visibility.Visible;
+        StatisticsTextBlock.Visibility = Visibility.Collapsed;
+    }
+
+    private void SetStatisticsMultiLine(IEnumerable<string> lines)
+    {
+        ShowStatisticsFallback(string.Join("\n", lines));
+    }
+
+    private void ShowStatisticsFallback(string text)
+    {
+        StatisticsChipPanel.Visibility = Visibility.Collapsed;
+        StatisticsTextBlock.Visibility = Visibility.Visible;
+        StatisticsTextBlock.Text = text;
+    }
+
     private void UpdateStatisticsText(MolecularWeightStatistics? statistics)
     {
         _currentStatistics = statistics;
 
         if (statistics is null || !statistics.HasAnyValue)
         {
-            StatisticsTextBlock.Text = "Mn: -   Mw: -   Ð: -";
+            SetStatisticsLine("Mn: -   Mw: -   Ð: -");
             UpdateRepresentativePeakSelector(null);
             return;
         }
 
         if (statistics.Peaks.Count > 0)
         {
-            StatisticsTextBlock.Text = FormatRepresentativeStatistics(statistics);
+            SetStatisticsLine(FormatRepresentativeStatistics(statistics));
             UpdateRepresentativePeakSelector(statistics);
             return;
         }
 
         var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
-        StatisticsTextBlock.Text = $"Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)} ({source})";
+        SetStatisticsLine($"Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)} ({source})");
         UpdateRepresentativePeakSelector(null);
     }
 
@@ -1985,7 +2051,7 @@ public partial class MainWindow : Window
         if (entries.Count == 0)
         {
             _currentStatistics = null;
-            StatisticsTextBlock.Text = "Mn: -   Mw: -   Ð: -";
+            SetStatisticsLine("Mn: -   Mw: -   Ð: -");
             UpdateRepresentativePeakSelector(null);
             return;
         }
@@ -2004,7 +2070,7 @@ public partial class MainWindow : Window
         {
             lines.Add($"{label}: {FormatStatisticsInline(stats)}");
         }
-        StatisticsTextBlock.Text = string.Join("\n", lines);
+        SetStatisticsMultiLine(lines);
     }
 
     private static string FormatStatisticsInline(MolecularWeightStatistics? statistics)
@@ -2123,7 +2189,7 @@ public partial class MainWindow : Window
         }
         var updated = _currentStatistics.WithSelectedPeak(peakId);
         _currentStatistics = updated;
-        StatisticsTextBlock.Text = FormatRepresentativeStatistics(updated);
+        SetStatisticsLine(FormatRepresentativeStatistics(updated));
     }
 
     private MolecularWeightStatistics? ApplyStoredSelectedPeak(MolecularWeightStatistics? stats, int datasetIndex)

@@ -741,11 +741,63 @@
                     SizeChanged="PlotContainerBorder_SizeChanged">
                 <Grid>
                     <Grid x:Name="PlotHost">
-                        <TextBlock x:Name="PlotPlaceholderTextBlock"
-                                   Text="グラフを初期化しています..."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="#64748B" />
+                        <!-- スケルトン: 軸の影 + 仮データ線 + 横切るシマー帯。
+                             プロット初期化時に PlotHost.Children.Clear() で消える。 -->
+                        <Grid Width="320" Height="200"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center">
+                            <Grid Width="320" Height="180"
+                                  VerticalAlignment="Top"
+                                  ClipToBounds="True">
+                                <Canvas Width="320" Height="180">
+                                    <Rectangle Canvas.Left="22" Canvas.Top="20"
+                                               Width="2" Height="140"
+                                               Fill="#E2E8F0" />
+                                    <Rectangle Canvas.Left="20" Canvas.Top="158"
+                                               Width="280" Height="2"
+                                               Fill="#E2E8F0" />
+                                    <Path Stroke="#CBD5E1"
+                                          StrokeThickness="2.5"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          Data="M 30,140 Q 70,140 100,80 Q 130,30 160,80 Q 190,140 230,120 Q 260,100 290,140" />
+                                </Canvas>
+                                <Border Width="120" Height="180"
+                                        HorizontalAlignment="Left"
+                                        IsHitTestVisible="False">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#00FFFFFF" Offset="0" />
+                                            <GradientStop Color="#A0FFFFFF" Offset="0.5" />
+                                            <GradientStop Color="#00FFFFFF" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Border.RenderTransform>
+                                        <TranslateTransform X="-120" />
+                                    </Border.RenderTransform>
+                                    <Border.Triggers>
+                                        <EventTrigger RoutedEvent="Border.Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation
+                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                        From="-120" To="320"
+                                                        Duration="0:0:2.0" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Border.Triggers>
+                                </Border>
+                            </Grid>
+                            <TextBlock x:Name="PlotPlaceholderTextBlock"
+                                       Text="グラフを初期化しています..."
+                                       FontSize="11"
+                                       Foreground="#64748B"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom"
+                                       Margin="0,0,0,4" />
+                        </Grid>
                     </Grid>
                     <Border x:Name="PlotControlsHintBadge"
                             HorizontalAlignment="Right"
@@ -777,14 +829,18 @@
                                 </StackPanel>
                             </ToolTip>
                         </Border.ToolTip>
-                        <TextBlock Text="i"
-                                   FontFamily="Segoe UI, Yu Gothic UI, sans-serif"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   FontStyle="Italic"
-                                   Foreground="#475569"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Path Width="3" Height="9"
+                              Fill="#475569"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              Stretch="None">
+                            <Path.Data>
+                                <GeometryGroup>
+                                    <EllipseGeometry Center="1.5,1.25" RadiusX="1.25" RadiusY="1.25" />
+                                    <RectangleGeometry Rect="0.25,3.75 2.5,5.25" />
+                                </GeometryGroup>
+                            </Path.Data>
+                        </Path>
                     </Border>
                     <controls:ErrorBanner x:Name="ErrorBanner" />
                 </Grid>

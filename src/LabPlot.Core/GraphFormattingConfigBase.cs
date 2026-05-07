@@ -17,7 +17,7 @@ namespace LabPlot.Core;
 /// </remarks>
 public abstract class GraphFormattingConfigBase
 {
-    public const double DefaultFontSize = 12;
+    public const double DefaultFontSize = 16;
     public const double DefaultLineWidth = 1.5;
     public const double DefaultMarkerSize = 0;
     public const double DefaultPlotFrameWidth = 1;

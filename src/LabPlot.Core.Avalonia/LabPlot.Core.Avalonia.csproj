@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- WPF 版 (LabPlot.Core.Wpf) と並行する Avalonia 版の共通基盤。
+         WPF が net10.0-windows10.0.19041 だったのに対し、こちらは net10.0 で OS 中立。
+         Phase 7 全体で WPF 版を v1.0.x の完成形として feature freeze し、新機能は
+         こちらに集約していく。 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>LabPlot.Core.Avalonia</RootNamespace>
+    <AssemblyName>LabPlot.Core.Avalonia</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LabPlot.Core\LabPlot.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.14" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.14" />
+    <PackageReference Include="ScottPlot.Avalonia" Version="5.1.58" />
+  </ItemGroup>
+
+</Project>

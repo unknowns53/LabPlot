@@ -1,0 +1,98 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ============================================================
+         Phase 7 Batch 1a: 共通カラー / Geometry / 単純 ControlTheme。
+         WPF 版 (LabPlot.Core.Wpf/Themes/CommonStyles.xaml) と同じ
+         デザイン言語を Avalonia で表現する第一段。
+
+         Batch 1b で扱う残作業:
+         - SectionIconPath (DataTrigger 含むため pseudoclass セレクタへ書き換え)
+         - GroupHeaderStyle (ControlTemplate ベース)
+         - InputTextBoxStyle / InputComboBoxStyle / InputCheckBoxStyle
+         - ExpanderStyle / ButtonStyle (ToolButton, PrimaryButton)
+         - ScrollBarStyle
+         ============================================================ -->
+
+    <!-- 共通アイコン Geometry。3 アプリ横断で同じ意味の Expander には同じグリフを当てる。
+         WPF 版は <Geometry> リテラルだったが Avalonia は <StreamGeometry> を要求する。 -->
+    <StreamGeometry x:Key="DataFileIconGeometry">M 3,1 L 9,1 L 12,4 L 12,13 L 3,13 Z M 9,1 L 9,4 L 12,4</StreamGeometry>
+    <StreamGeometry x:Key="DatasetListIconGeometry">M 2,3 L 12,3 M 2,7 L 12,7 M 2,11 L 12,11</StreamGeometry>
+    <StreamGeometry x:Key="LineStyleIconGeometry">M 2,12 L 10,4 L 12,6 L 4,14 Z</StreamGeometry>
+    <StreamGeometry x:Key="AxisRangeIconGeometry">M 1,1 L 13,1 L 13,13 L 1,13 Z M 7,1 L 7,13 M 1,7 L 13,7</StreamGeometry>
+    <StreamGeometry x:Key="GraphLabelIconGeometry">M 2,7 L 7,2 L 13,2 L 13,8 L 8,13 L 2,7 Z</StreamGeometry>
+    <StreamGeometry x:Key="GraphFormatIconGeometry">M 9,1 L 13,5 L 6,12 L 2,8 Z M 6,12 L 4,14 L 1,11 L 3,9</StreamGeometry>
+    <StreamGeometry x:Key="AnalysisConditionsIconGeometry">M 2,2 L 12,2 L 12,12 L 2,12 Z M 4,2 L 4,6 L 10,6 L 10,2 M 5,9 L 9,9</StreamGeometry>
+    <StreamGeometry x:Key="PreferencesIconGeometry">M 7,1 L 7,3 M 7,11 L 7,13 M 1,7 L 3,7 M 11,7 L 13,7 M 3,3 L 4,4 M 10,10 L 11,11 M 11,3 L 10,4 M 3,11 L 4,10 M 5,5 L 9,5 L 9,9 L 5,9 Z</StreamGeometry>
+
+    <!-- 状態フィードバック用パレット。Banner 系および将来のステータスチップで使う。 -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#10B981" />
+    <SolidColorBrush x:Key="SuccessForegroundBrush" Color="#065F46" />
+    <SolidColorBrush x:Key="SuccessBackgroundBrush" Color="#ECFDF5" />
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#A7F3D0" />
+
+    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
+    <SolidColorBrush x:Key="WarningForegroundBrush" Color="#92400E" />
+    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#FFFBEB" />
+    <SolidColorBrush x:Key="WarningBorderBrush" Color="#FCD34D" />
+
+    <SolidColorBrush x:Key="ErrorBrush" Color="#DC2626" />
+    <SolidColorBrush x:Key="ErrorForegroundBrush" Color="#7F1D1D" />
+    <SolidColorBrush x:Key="ErrorBackgroundBrush" Color="#FEE2E2" />
+    <SolidColorBrush x:Key="ErrorBorderBrush" Color="#FCA5A5" />
+
+    <!-- アクセント色。WPF 版では各 ControlTemplate に hard-coded だったが、Avalonia 移植に
+         合わせて共通 Brush として括り出し、Batch 1b の InputComboBoxStyle / Button 系から
+         参照できるようにする。 -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#1D4ED8" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#1E3A8A" />
+    <SolidColorBrush x:Key="AccentDisabledBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="AccentLightBrush" Color="#BFDBFE" />
+
+    <!-- 中間階調 / 罫線 / 文字色。slate-50 〜 slate-900 系で揃えている WPF 版と同じ値。 -->
+    <SolidColorBrush x:Key="SurfaceBrush" Color="White" />
+    <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="BorderDefaultBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="BorderHoverBrush" Color="#94A3B8" />
+    <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="ForegroundMutedBrush" Color="#475569" />
+    <SolidColorBrush x:Key="ForegroundDisabledBrush" Color="#94A3B8" />
+
+    <!-- セクション枠 (白カード + 角丸 8px + 薄影)。WPF 版は DropShadowEffect を Effect で
+         指定していたが、Avalonia では Border の BoxShadow プロパティで等価な結果が得られる。
+         BoxShadow 構文: "<offsetX> <offsetY> <blur> <spread> <color>"。WPF の
+         DropShadowEffect (depth=1, dir=270, blur=6, opacity=0.05, color=#0F172A) を
+         offsetX=0, offsetY=1, blur=6, alpha=0x0D (≈5%) で再現する。 -->
+    <ControlTheme x:Key="SectionStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="14" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+        <Setter Property="BoxShadow" Value="0 1 6 0 #0D0F172A" />
+    </ControlTheme>
+
+    <ControlTheme x:Key="SectionHeaderStyle" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </ControlTheme>
+
+    <ControlTheme x:Key="GroupLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundMutedBrush}" />
+        <Setter Property="Margin" Value="4,10,0,8" />
+    </ControlTheme>
+
+    <ControlTheme x:Key="FieldLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundMutedBrush}" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+    </ControlTheme>
+
+</ResourceDictionary>

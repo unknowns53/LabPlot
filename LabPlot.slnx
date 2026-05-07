@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="src/LabPlot.Core/LabPlot.Core.csproj" />
   <Project Path="src/LabPlot.Core.Wpf/LabPlot.Core.Wpf.csproj" />
+  <Project Path="src/LabPlot.Core.Avalonia/LabPlot.Core.Avalonia.csproj" />
   <Project Path="src/LabPlot.Shell/LabPlot.Shell.csproj" />
   <Project Path="src/LabPlot.GPC/GpcAnalyzer.Core/GpcAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.GPC/GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj" />

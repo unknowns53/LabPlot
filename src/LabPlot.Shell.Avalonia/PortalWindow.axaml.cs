@@ -18,9 +18,8 @@ namespace LabPlot.Shell.Avalonia;
 /// <see cref="Window.ExtendClientAreaChromeHintsProperty"/> で代替している。
 ///
 /// <para>
-/// Phase 7 Batch 2 時点では DLS / GPC / Spectrum の Avalonia 版が未着手のため、各カードの
-/// クリックは「Phase 7 で移植予定」を伝える簡易ダイアログを表示する。Batch 3-5 完了後に
-/// <see cref="OpenSingletonAsync"/> パターンで実モジュールを起動する形に差し替える。
+/// Phase 7 Batch 5a 時点で DLS / GPC / Spectrum すべての Avalonia 版を実起動に差し替え済み。
+/// 残るプレースホルダ枠は Phase 8 以降の追加モジュール用。
 /// </para>
 /// </summary>
 public partial class PortalWindow : Window
@@ -67,7 +66,7 @@ public partial class PortalWindow : Window
         => OpenSingleton<LabPlot.GPC.Avalonia.MainWindow>();
 
     private void OpenSpectrum_Click(object? sender, RoutedEventArgs e)
-        => _ = ShowComingSoonAsync("UV-Vis", "スペクトル解析モジュールは Phase 7 Batch 5 で移植予定です。");
+        => OpenSingleton<LabPlot.Spectrum.Avalonia.MainWindow>();
 
     private void OpenDls_Click(object? sender, RoutedEventArgs e)
         => OpenSingleton<LabPlot.DLS.Avalonia.MainWindow>();

@@ -15,4 +15,5 @@
   <Project Path="src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj" />
   <Project Path="src/LabPlot.DLS.Avalonia/LabPlot.DLS.Avalonia.csproj" />
   <Project Path="src/LabPlot.GPC.Avalonia/LabPlot.GPC.Avalonia.csproj" />
+  <Project Path="src/LabPlot.Spectrum.Avalonia/LabPlot.Spectrum.Avalonia.csproj" />
 </Solution>

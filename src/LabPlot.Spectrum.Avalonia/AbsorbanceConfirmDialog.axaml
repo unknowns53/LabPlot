@@ -1,0 +1,195 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabPlot.Spectrum.Avalonia.AbsorbanceConfirmDialog"
+        Title="Y 軸を Absorbance に切り替えますか？"
+        SizeToContent="Height"
+        Width="440"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="BorderOnly"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <ControlTheme x:Key="DialogPrimaryButton" TargetType="Button">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#2563EB" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border Name="Bd"
+                                CornerRadius="6"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}" />
+                        </Border>
+                        <Border Name="FocusRing"
+                                CornerRadius="8"
+                                BorderBrush="#60A5FA"
+                                BorderThickness="2"
+                                Margin="-2"
+                                Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover /template/ Border#Bd">
+                <Setter Property="Background" Value="#1D4ED8" />
+            </Style>
+            <Style Selector="^:pressed /template/ Border#Bd">
+                <Setter Property="Background" Value="#1E3A8A" />
+            </Style>
+            <Style Selector="^:focus-visible /template/ Border#FocusRing">
+                <Setter Property="Opacity" Value="1" />
+            </Style>
+        </ControlTheme>
+        <ControlTheme x:Key="DialogSecondaryButton" TargetType="Button">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="#334155" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border Name="Bd"
+                                CornerRadius="6"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}" />
+                        </Border>
+                        <Border Name="FocusRing"
+                                CornerRadius="8"
+                                BorderBrush="#60A5FA"
+                                BorderThickness="2"
+                                Margin="-2"
+                                Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover /template/ Border#Bd">
+                <Setter Property="Background" Value="#F1F5F9" />
+                <Setter Property="BorderBrush" Value="#94A3B8" />
+            </Style>
+            <Style Selector="^:pressed /template/ Border#Bd">
+                <Setter Property="Background" Value="#E2E8F0" />
+                <Setter Property="BorderBrush" Value="#64748B" />
+            </Style>
+            <Style Selector="^:focus-visible /template/ Border#FocusRing">
+                <Setter Property="Opacity" Value="1" />
+            </Style>
+        </ControlTheme>
+    </Window.Resources>
+    <Border Margin="16"
+            Background="White"
+            CornerRadius="10"
+            BorderBrush="#E2E8F0"
+            BorderThickness="1"
+            BoxShadow="0 2 20 0 #2E0F172A">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Header with icon -->
+            <Grid Grid.Row="0" Margin="24,22,24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0"
+                        Width="36" Height="36"
+                        CornerRadius="18"
+                        Background="#DBEAFE"
+                        VerticalAlignment="Top">
+                    <TextBlock Text="?"
+                               FontFamily="Segoe UI"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="#1D4ED8"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0">
+                    <TextBlock Text="Y 軸を Absorbance に切り替えますか？"
+                               FontWeight="SemiBold"
+                               FontSize="15"
+                               Foreground="#0F172A"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="積分は Absorbance 表示で行うのが一般的です。Absorbance に切り替えると Beer-Lambert 則に基づいた解釈ができます。"
+                               Margin="0,8,0,0"
+                               FontSize="12.5"
+                               Foreground="#475569"
+                               TextWrapping="Wrap"
+                               LineHeight="18" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Spacer -->
+            <Border Grid.Row="1" Height="20" />
+
+            <!-- Action bar -->
+            <Border Grid.Row="2"
+                    Background="#F8FAFC"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,10,10"
+                    Padding="20,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="CancelButton"
+                            Grid.Column="0"
+                            Content="キャンセル"
+                            Theme="{StaticResource DialogSecondaryButton}"
+                            IsCancel="True"
+                            Click="CancelButton_Click" />
+                    <Button x:Name="NoButton"
+                            Grid.Column="2"
+                            Content="そのまま追加"
+                            Theme="{StaticResource DialogSecondaryButton}"
+                            Click="NoButton_Click" />
+                    <Button x:Name="YesButton"
+                            Grid.Column="4"
+                            Content="切り替えて追加"
+                            Theme="{StaticResource DialogPrimaryButton}"
+                            IsDefault="True"
+                            Click="YesButton_Click" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

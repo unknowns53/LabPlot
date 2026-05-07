@@ -1,0 +1,278 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:scott="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
+        x:Class="LabPlot.Spectrum.Avalonia.CalibrationCurveWindow"
+        Title="Beer-Lambert 検量線エディタ"
+        Height="720" Width="1140" MinHeight="560" MinWidth="940"
+        WindowStartupLocation="CenterOwner"
+        Background="#F7F8FA"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True">
+
+    <Window.Styles>
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+        <StyleInclude Source="avares://LabPlot.Spectrum.Avalonia/Themes/CommonStyles.axaml" />
+    </Window.Styles>
+
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Beer-Lambert 検量線エディタ"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="#0F172A" />
+            <TextBlock Text="濃度を割り当てたデータセットから A = εcl の傾きを求めます。"
+                       FontSize="12"
+                       Foreground="#64748B"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- Settings panel -->
+        <Border Grid.Row="1" Theme="{DynamicResource SectionStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="定量モード" Theme="{DynamicResource FieldLabelStyle}" />
+                        <ComboBox x:Name="ModeComboBox"
+                                  Theme="{DynamicResource InputComboBoxStyle}"
+                                  SelectionChanged="ModeComboBox_SelectionChanged">
+                            <ComboBoxItem Tag="SingleWavelength" Content="単一波長 (A)" />
+                            <ComboBoxItem Tag="IntegrationArea" Content="積分領域 (面積)" />
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock x:Name="WavelengthLabel"
+                                   Text="波長 [nm]"
+                                   Theme="{DynamicResource FieldLabelStyle}" />
+                        <TextBox x:Name="WavelengthTextBox"
+                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                 ToolTip.Tip="単一波長モードのとき、ここで指定した波長の Absorbance を読み取ります"
+                                 TextChanged="WavelengthTextBox_TextChanged" />
+                        <ComboBox x:Name="RegionComboBox"
+                                  Theme="{DynamicResource InputComboBoxStyle}"
+                                  IsVisible="False"
+                                  ToolTip.Tip="積分領域モードのとき、参照する領域を選択します（書式パネルの『積分』で定義した領域から選びます）"
+                                  SelectionChanged="RegionComboBox_SelectionChanged" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Text="セル長 l [cm]" Theme="{DynamicResource FieldLabelStyle}" />
+                        <TextBox x:Name="PathLengthTextBox"
+                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                 ToolTip.Tip="ε = slope / l。標準キュベットは 1 cm"
+                                 TextChanged="PathLengthTextBox_TextChanged" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="6">
+                        <TextBlock Text="切片の扱い" Theme="{DynamicResource FieldLabelStyle}" />
+                        <ComboBox x:Name="FitModeComboBox"
+                                  Theme="{DynamicResource InputComboBoxStyle}"
+                                  SelectionChanged="FitModeComboBox_SelectionChanged">
+                            <ComboBoxItem Tag="ForceOrigin" Content="原点強制 (y = m x)" />
+                            <ComboBoxItem Tag="WithIntercept" Content="切片あり (y = m x + b)" />
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="濃度の単位" Theme="{DynamicResource FieldLabelStyle}" />
+                        <ComboBox x:Name="UnitComboBox"
+                                  Theme="{DynamicResource InputComboBoxStyle}"
+                                  SelectionChanged="UnitComboBox_SelectionChanged">
+                            <ComboBoxItem Tag="MolPerLiter" Content="M (mol/L)" />
+                            <ComboBoxItem Tag="MillimolPerLiter" Content="mM" />
+                            <ComboBoxItem Tag="MicromolPerLiter" Content="μM" />
+                            <ComboBoxItem Tag="NanomolPerLiter" Content="nM" />
+                            <ComboBoxItem Tag="MilligramPerMilliliter" Content="mg/mL" />
+                            <ComboBoxItem Tag="GramPerLiter" Content="g/L" />
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" x:Name="MolarMassPanel" IsVisible="False">
+                        <TextBlock Text="分子量 [g/mol]" Theme="{DynamicResource FieldLabelStyle}" />
+                        <TextBox x:Name="MolarMassTextBox"
+                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                 ToolTip.Tip="mg/mL や g/L を選んだときに mol/L へ換算するために必要"
+                                 TextChanged="MolarMassTextBox_TextChanged" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Main area: sample table + plot -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="440" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" MinWidth="420" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: sample DataGrid -->
+            <Border Grid.Column="0" Theme="{DynamicResource SectionStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="サンプル一覧"
+                               FontWeight="SemiBold"
+                               FontSize="13"
+                               Foreground="#0F172A"
+                               Margin="0,0,0,8" />
+
+                    <DataGrid x:Name="SamplesDataGrid"
+                              Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              CanUserReorderColumns="False"
+                              CellEditEnding="SamplesDataGrid_CellEditEnding">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="データセット"
+                                                Binding="{ReflectionBinding DisplayName}"
+                                                IsReadOnly="True"
+                                                Width="*"
+                                                MinWidth="120" />
+                            <DataGridTextColumn Header="濃度"
+                                                Binding="{ReflectionBinding ConcentrationText}"
+                                                Width="80" />
+                            <DataGridTextColumn Header="[M]"
+                                                Binding="{ReflectionBinding ConcentrationMolarText}"
+                                                IsReadOnly="True"
+                                                Width="90" />
+                            <DataGridTextColumn Header="信号"
+                                                Binding="{ReflectionBinding SignalText}"
+                                                IsReadOnly="True"
+                                                Width="80" />
+                            <DataGridTextColumn Header="予測"
+                                                Binding="{ReflectionBinding PredictedText}"
+                                                IsReadOnly="True"
+                                                Width="80" />
+                            <DataGridTextColumn Header="残差"
+                                                Binding="{ReflectionBinding ResidualText}"
+                                                IsReadOnly="True"
+                                                Width="80" />
+                            <DataGridCheckBoxColumn Header="除外"
+                                                    Binding="{ReflectionBinding IsExcluded, Mode=TwoWay}"
+                                                    Width="72" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="2"
+                               x:Name="UnitHelpTextBlock"
+                               FontSize="11"
+                               Foreground="#64748B"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+
+            <!-- Right: plot + result text -->
+            <Border Grid.Column="2" Theme="{DynamicResource SectionStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Text="検量線"
+                               FontWeight="SemiBold"
+                               FontSize="13"
+                               Foreground="#0F172A"
+                               Margin="0,0,0,8" />
+
+                    <scott:AvaPlot Grid.Row="1"
+                                   x:Name="CalibrationPlotHost"
+                                   MinHeight="240" />
+
+                    <Border Grid.Row="2"
+                            Background="#F8FAFC"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10,8"
+                            Margin="0,10,0,0">
+                        <TextBlock x:Name="ResultSummaryTextBlock"
+                                   FontFamily="Consolas, Cascadia Mono, monospace"
+                                   FontSize="12"
+                                   Foreground="#0F172A"
+                                   TextWrapping="Wrap" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status text (errors / warnings). Foreground は code-behind で SuccessForegroundBrush /
+             WarningForegroundBrush / ErrorForegroundBrush に切り替える。 -->
+        <TextBlock Grid.Row="3"
+                   x:Name="StatusTextBlock"
+                   FontSize="11"
+                   Foreground="{DynamicResource WarningForegroundBrush}"
+                   Margin="2,8,2,0"
+                   TextWrapping="Wrap" />
+
+        <!-- Action buttons -->
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0"
+                    x:Name="ExportButton"
+                    Content="CSV / XLSX 出力"
+                    Theme="{DynamicResource SecondaryButtonStyle}"
+                    Click="ExportButton_Click" />
+
+            <Button Grid.Column="2"
+                    x:Name="CancelButton"
+                    Content="キャンセル"
+                    Theme="{DynamicResource SecondaryButtonStyle}"
+                    IsCancel="True"
+                    Click="CancelButton_Click" />
+            <Button Grid.Column="4"
+                    x:Name="OkButton"
+                    Content="OK"
+                    Theme="{DynamicResource PrimaryButtonStyle}"
+                    IsDefault="True"
+                    Click="OkButton_Click" />
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,52 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Spectrum 固有のスタイル: 検量線エディタ (CalibrationCurveWindow) で使う
+         DataGrid family のみ。Avalonia 11 では Style は ResourceDictionary では
+         なく Styles コレクションに置く必要があるので、本ファイルは Styles の
+         ルートで定義し、Window.Styles から StyleInclude で取り込む。色は
+         #0F172A / #2563EB / #DBEAFE 系に揃え、レイアウト関連は Fluent
+         デフォルト (Avalonia.Controls.DataGrid/Themes/Fluent.xaml) を尊重する。 -->
+
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="#E2E8F0" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="HorizontalGridLinesBrush" Value="#E2E8F0" />
+        <Setter Property="VerticalGridLinesBrush" Value="#E2E8F0" />
+        <Setter Property="HeadersVisibility" Value="Column" />
+        <Setter Property="RowBackground" Value="White" />
+        <Setter Property="RowHeight" Value="28" />
+        <Setter Property="ColumnHeaderHeight" Value="32" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="#0F172A" />
+        <Setter Property="SelectionMode" Value="Single" />
+        <Setter Property="CanUserResizeColumns" Value="True" />
+        <Setter Property="CanUserSortColumns" Value="False" />
+    </Style>
+
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="#F1F5F9" />
+        <Setter Property="Foreground" Value="#475569" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="BorderBrush" Value="#E2E8F0" />
+        <Setter Property="BorderThickness" Value="0,0,1,1" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+
+    <Style Selector="DataGridRow">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="Foreground" Value="#0F172A" />
+    </Style>
+
+    <Style Selector="DataGridCell">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="6,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+</Styles>

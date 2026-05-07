@@ -1,6 +1,24 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!-- 状態フィードバック用パレット。Error は ErrorBanner で長く使われている既存値に
+         合わせる（互換のため Brush リソースは新規追加だけ）。Success / Warning は
+         今回の追加で SuccessBanner / WarningBanner や将来のステータスチップで使う。 -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#10B981" />
+    <SolidColorBrush x:Key="SuccessForegroundBrush" Color="#065F46" />
+    <SolidColorBrush x:Key="SuccessBackgroundBrush" Color="#ECFDF5" />
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#A7F3D0" />
+
+    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
+    <SolidColorBrush x:Key="WarningForegroundBrush" Color="#92400E" />
+    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#FFFBEB" />
+    <SolidColorBrush x:Key="WarningBorderBrush" Color="#FCD34D" />
+
+    <SolidColorBrush x:Key="ErrorBrush" Color="#DC2626" />
+    <SolidColorBrush x:Key="ErrorForegroundBrush" Color="#7F1D1D" />
+    <SolidColorBrush x:Key="ErrorBackgroundBrush" Color="#FEE2E2" />
+    <SolidColorBrush x:Key="ErrorBorderBrush" Color="#FCA5A5" />
+
     <Style x:Key="SectionStyle" TargetType="Border">
         <Setter Property="Background" Value="White" />
         <Setter Property="BorderBrush" Value="#E2E8F0" />

@@ -94,7 +94,7 @@ public sealed class SpectrumYAxisConverterTests
     {
         var dataset = MakeDataset("ABSORBANCE", new[] { 1.0 });
 
-        Assert.Equal("Transmittance / %", SpectrumYAxisConverter.GetDisplayYLabel(dataset, YAxisDisplayMode.Transmittance));
+        Assert.Equal(DefaultLabels.TransmittanceYLabel, SpectrumYAxisConverter.GetDisplayYLabel(dataset, YAxisDisplayMode.Transmittance));
     }
 
     [Fact]

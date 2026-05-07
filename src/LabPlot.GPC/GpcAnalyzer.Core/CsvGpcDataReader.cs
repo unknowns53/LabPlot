@@ -278,7 +278,13 @@ public sealed class CsvGpcDataReader : IGpcDataReader
                 if (LooksLikeChromatogramHeader(columns))
                 {
                     xLabel = DefaultLabels.ApplySourceOverride(columns[0]);
-                    yLabel = BuildIntensityLabel(DefaultLabels.ApplySourceOverride(columns[1]), yUnits);
+                    // 単位が CSV から取れているときは override を経由せずそのまま
+                    // "{label} ({unit})" 形式にする。override 経由だと
+                    // "Intensity" → "Intensity [mV]" のように単位が括弧付きで
+                    // 注入された後さらに "(mV)" が付与されて二重表記になる。
+                    yLabel = string.IsNullOrWhiteSpace(yUnits)
+                        ? DefaultLabels.ApplySourceOverride(columns[1])
+                        : BuildIntensityLabel(columns[1], yUnits);
                     readingPoints = true;
                 }
 

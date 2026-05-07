@@ -55,6 +55,23 @@ dotnet run --project src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj
 
 Visual Studio で開く場合は、対応する `.slnx` を直接開けばテストエクスプローラから xUnit を実行できます。
 
+### 配布用の単一 exe を作成
+
+非エンジニア向けに配布するときは、各アプリの `Properties/PublishProfiles/win-x64.pubxml` を使った publish プロファイル経由でビルドします。`Release` 構成・`win-x64` ランタイム・`SelfContained=true`・`PublishSingleFile=true` がプロファイル側で固定されているので、コマンド側で `-c` や `-r` を重ねて指定する必要はありません（指定するとプロファイルと矛盾するため非推奨）。.NET ランタイムが入っていない PC でも、生成された exe をダブルクリックするだけで起動できます。
+
+```powershell
+# GPC
+dotnet publish src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj -p:PublishProfile=win-x64
+
+# Spectrum
+dotnet publish src/LabPlot.Spectrum/Spectrum_Visualization/Spectrum_Visualization.csproj -p:PublishProfile=win-x64
+
+# DLS
+dotnet publish src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj -p:PublishProfile=win-x64
+```
+
+成果物の出力先は各アプリの `<実行プロジェクト>/bin/Release/net10.0-windows10.0.19041/win-x64/publish/` 以下です。GPC / Spectrum はこのフォルダに `samples/` も同梱されるので、フォルダごと zip にして配布してください。DLS は `LabPlot.DLS.exe` 単体を配布するだけで動作します。
+
 ## デフォルト書式の格納場所
 
 LabPlot のグラフ書式既定値は「ソースコード上の出荷時デフォルト」と「ユーザーごとに永続化される既定値」の二層に分かれています。アプリ起動時はまず後者を読み、ファイルが無ければ前者で初期化します。「リセット」ボタンはここで保持している保存済み既定値（無ければ出荷時デフォルト）にコントロールを戻すためのスナップショットです。

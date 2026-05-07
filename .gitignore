@@ -1,6 +1,7 @@
 # Build outputs
 bin/
 obj/
+publish/
 .vs/
 .dotnet-home/
 

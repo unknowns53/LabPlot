@@ -9,26 +9,27 @@ public partial class PortalWindow : Window
         InitializeComponent();
     }
 
-    private void OpenGpc_Click(object sender, RoutedEventArgs e) => ShowComingSoon("GPC");
+    private void OpenGpc_Click(object sender, RoutedEventArgs e) => OpenSingleton<global::GPC_Visualization.MainWindow>();
 
     private void OpenSpectrum_Click(object sender, RoutedEventArgs e) => ShowComingSoon("UV-Vis");
 
-    private void OpenDls_Click(object sender, RoutedEventArgs e)
+    private void OpenDls_Click(object sender, RoutedEventArgs e) => OpenSingleton<DLS.MainWindow>();
+
+    // 同モジュールが既に開いていればフォーカスのみ。複数同時オープンは「同じ
+    // モジュールを 2 つ並べたい」運用が想定しづらいので最初は単一インスタンス。
+    private static void OpenSingleton<TWindow>() where TWindow : Window, new()
     {
-        // 同モジュールが既に開いていればフォーカスのみ。複数同時オープンは「同じ
-        // モジュールを 2 つ並べたい」運用が想定しづらいので最初は単一インスタンス。
-        if (TryActivateExistingWindow<DLS.MainWindow>())
+        if (TryActivateExistingWindow<TWindow>())
         {
             return;
         }
 
-        var window = new DLS.MainWindow();
+        var window = new TWindow();
         window.Show();
     }
 
-    // Batch 1 で接続済 (DLS)。Batch 2 / 3 で GPC / Spectrum を library 化したら
-    // ここの ShowComingSoon を同じパターン (TryActivateExistingWindow → new ... ().Show())
-    // に置き換える。
+    // Batch 1 / 2 で DLS / GPC は接続済。Batch 3 で Spectrum を library 化したら
+    // ここの ShowComingSoon を OpenSingleton に置き換える。
     private void ShowComingSoon(string moduleName)
     {
         MessageBox.Show(

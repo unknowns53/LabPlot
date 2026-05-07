@@ -78,4 +78,108 @@ public sealed class PlotAppearanceTests
         Assert.Equal(4f, PlotAppearance.MinorTickLengthBase);
         Assert.Equal(2f, PlotAppearance.MajorTickLengthBase / PlotAppearance.MinorTickLengthBase);
     }
+
+    // 1000x600 data area used by the anchor / inverse tests below.
+    // top = 0, bottom = 600 (Y grows downwards in screen coords).
+    private static ScottPlot.PixelRect DataRect1000x600() => new(left: 0, right: 1000, bottom: 600, top: 0);
+
+    [Theory]
+    // Each cell of the 3x3 grid maps to one anchor. Pick centers that
+    // sit unambiguously inside their cell.
+    [InlineData(100, 50, "UpperLeft")]
+    [InlineData(500, 50, "UpperCenter")]
+    [InlineData(900, 50, "UpperRight")]
+    [InlineData(100, 300, "MiddleLeft")]
+    [InlineData(500, 300, "MiddleCenter")]
+    [InlineData(900, 300, "MiddleRight")]
+    [InlineData(100, 550, "LowerLeft")]
+    [InlineData(500, 550, "LowerCenter")]
+    [InlineData(900, 550, "LowerRight")]
+    public void ChooseBestLegendAnchor_PicksCellByLegendCenter(float cx, float cy, string expected)
+    {
+        var actual = PlotAppearance.ChooseBestLegendAnchor(cx, cy, DataRect1000x600());
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Theory]
+    [InlineData("UpperLeft")]
+    [InlineData("UpperCenter")]
+    [InlineData("UpperRight")]
+    [InlineData("MiddleLeft")]
+    [InlineData("MiddleCenter")]
+    [InlineData("MiddleRight")]
+    [InlineData("LowerLeft")]
+    [InlineData("LowerCenter")]
+    [InlineData("LowerRight")]
+    public void ComputeOffsetForLegendPosition_RoundTripsThroughComputeLegendMargin(string position)
+    {
+        var dataRect = DataRect1000x600();
+        const float legendW = 200f;
+        const float legendH = 80f;
+        // Pick a target inside the data area that doesn't sit exactly on
+        // an anchor — the inverse should still recover the offsets that
+        // ComputeLegendMargin would consume to place the legend here.
+        const float targetLeft = 350f;
+        const float targetTop = 220f;
+
+        var (offsetX, offsetY) = PlotAppearance.ComputeOffsetForLegendPosition(
+            position, targetLeft, targetTop, legendW, legendH, dataRect);
+
+        // Apply the computed offsets through ComputeLegendMargin and
+        // forward-derive what the legend top-left would be. The two
+        // pixel coordinates should round-trip to the original target
+        // within float tolerance.
+        var margin = PlotAppearance.ComputeLegendMargin(position, offsetX, offsetY);
+
+        float forwardLeft;
+        if (position.EndsWith("Right", StringComparison.Ordinal))
+        {
+            forwardLeft = dataRect.Right - margin.Right - legendW;
+        }
+        else if (position.EndsWith("Left", StringComparison.Ordinal))
+        {
+            forwardLeft = dataRect.Left + margin.Left;
+        }
+        else
+        {
+            forwardLeft = (dataRect.Left + margin.Left + dataRect.Right - margin.Right - legendW) / 2f;
+        }
+
+        float forwardTop;
+        if (position.StartsWith("Upper", StringComparison.Ordinal))
+        {
+            forwardTop = dataRect.Top + margin.Top;
+        }
+        else if (position.StartsWith("Lower", StringComparison.Ordinal))
+        {
+            forwardTop = dataRect.Bottom - margin.Bottom - legendH;
+        }
+        else
+        {
+            forwardTop = (dataRect.Top + margin.Top + dataRect.Bottom - margin.Bottom - legendH) / 2f;
+        }
+
+        Assert.Equal(targetLeft, forwardLeft, 3);
+        Assert.Equal(targetTop, forwardTop, 3);
+    }
+
+    [Fact]
+    public void ComputeOffsetForLegendPosition_AtAnchorOrigin_GivesZeroOffsets()
+    {
+        // Place the legend exactly at the natural UpperRight anchor
+        // (offset 0 → Margin = default 5 px on every side). The inverse
+        // should report back (0, 0).
+        var dataRect = DataRect1000x600();
+        const float legendW = 200f;
+        const float legendH = 80f;
+        var anchorLeft = dataRect.Right - PlotAppearance.DefaultLegendEdgeMargin - legendW;
+        var anchorTop = dataRect.Top + PlotAppearance.DefaultLegendEdgeMargin;
+
+        var (dx, dy) = PlotAppearance.ComputeOffsetForLegendPosition(
+            "UpperRight", anchorLeft, anchorTop, legendW, legendH, dataRect);
+
+        Assert.Equal(0.0, dx, 3);
+        Assert.Equal(0.0, dy, 3);
+    }
 }

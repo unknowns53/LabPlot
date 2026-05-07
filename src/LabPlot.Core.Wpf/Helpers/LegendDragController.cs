@@ -12,25 +12,38 @@ namespace LabPlot.Core.Wpf.Helpers;
 /// the current anchor (e.g. <c>"UpperRight"</c>), the current
 /// <c>(LegendOffsetX, LegendOffsetY)</c>, and a commit callback that
 /// fires once when the drag ends so the per-app code can update the
-/// formatting config and the offset TextBoxes in <c>GraphFormatPanel</c>.
+/// formatting config and the placement controls in
+/// <c>GraphFormatPanel</c>.
 /// </summary>
 /// <remarks>
-/// During a drag the controller writes <c>plot.Legend.Margin</c>
-/// directly via <see cref="PlotAppearance.ComputeLegendMargin"/> and
-/// calls <c>WpfPlot.Refresh()</c> — bypassing the per-app
-/// <c>ApplyPlotAppearance</c> rebuild keeps the move responsive even
-/// when the host's full refresh path is heavy (the DLS app re-runs
-/// scatter selection logic on every refresh, for example). The commit
-/// callback is fired exactly once at <c>MouseUp</c>, so the host can
-/// run its full refresh + sync the panel TextBoxes there.
+/// During a drag the controller picks the **best 9-cell anchor** every
+/// frame (<see cref="PlotAppearance.ChooseBestLegendAnchor"/>) and
+/// re-derives the matching offsets via
+/// <see cref="PlotAppearance.ComputeOffsetForLegendPosition"/>. Without
+/// this auto-pick, large drags from a corner anchor accumulate giant
+/// <c>Legend.Margin</c> values that ScottPlot is happy to consume but
+/// that push the legend off the data area visually. By rebasing onto the
+/// nearest anchor mid-drag, every offset stays within roughly one third
+/// of the data area on each axis — small enough that the legend always
+/// lands inside the plot.
 ///
-/// Hit-testing is done against the rectangle the legend would occupy
-/// given the current anchor / margin and <c>plot.Legend.GetImage()</c>
-/// for size — ScottPlot 5.1.58 does not expose a public hit-test for
-/// the legend, so we re-derive the rect every press. WPF mouse points
+/// The target legend rectangle is also clamped to <c>DataRect</c> so a
+/// runaway drag cannot fling the legend outside the data area at all.
+/// Hit-testing is done by mirroring
+/// <see cref="PlotAppearance.ComputeLegendMargin"/>'s anchor / center
+/// logic — ScottPlot 5.1.58 does not expose a public hit-test for the
+/// legend, so we re-derive the rect every press. WPF mouse points
 /// (device-independent units) are scaled by <c>WpfPlot.DisplayScale</c>
 /// before comparing to the ScottPlot pixel rect, which lives in
 /// physical pixels at the current DPI.
+///
+/// During a drag the controller writes <c>plot.Legend.Alignment</c>
+/// and <c>plot.Legend.Margin</c> directly and calls
+/// <c>WpfPlot.Refresh()</c> — bypassing the per-app
+/// <c>ApplyPlotAppearance</c> rebuild keeps the move responsive even
+/// when the host's full refresh path is heavy. The commit callback
+/// fires exactly once at <c>MouseUp</c> with the final anchor + offsets
+/// so the host can run its full refresh + sync the panel controls.
 /// </remarks>
 public sealed class LegendDragController
 {
@@ -44,25 +57,30 @@ public sealed class LegendDragController
     private readonly WpfPlot _wpfPlot;
     private readonly Func<string> _getPosition;
     private readonly Func<(double X, double Y)> _getOffset;
-    private readonly Action<double, double> _commitOffset;
+    private readonly Action<string, double, double> _commitPlacement;
 
     private bool _attached;
     private bool _maybeDragging;
     private bool _dragging;
     private Point _pressPoint;
-    private double _startOffsetX;
-    private double _startOffsetY;
+    private float _startLegendLeft;
+    private float _startLegendTop;
+    private float _startLegendW;
+    private float _startLegendH;
+    private string _draftPosition = string.Empty;
+    private double _draftOffsetX;
+    private double _draftOffsetY;
 
     public LegendDragController(
         WpfPlot wpfPlot,
         Func<string> getPosition,
         Func<(double X, double Y)> getOffset,
-        Action<double, double> commitOffset)
+        Action<string, double, double> commitPlacement)
     {
         _wpfPlot = wpfPlot ?? throw new ArgumentNullException(nameof(wpfPlot));
         _getPosition = getPosition ?? throw new ArgumentNullException(nameof(getPosition));
         _getOffset = getOffset ?? throw new ArgumentNullException(nameof(getOffset));
-        _commitOffset = commitOffset ?? throw new ArgumentNullException(nameof(commitOffset));
+        _commitPlacement = commitPlacement ?? throw new ArgumentNullException(nameof(commitPlacement));
     }
 
     /// <summary>
@@ -106,9 +124,14 @@ public sealed class LegendDragController
         _maybeDragging = true;
         _dragging = false;
         _pressPoint = p;
+        _startLegendLeft = rect.Left;
+        _startLegendTop = rect.Top;
+        _startLegendW = rect.Right - rect.Left;
+        _startLegendH = rect.Bottom - rect.Top;
+        _draftPosition = _getPosition();
         var (ox, oy) = _getOffset();
-        _startOffsetX = ox;
-        _startOffsetY = oy;
+        _draftOffsetX = ox;
+        _draftOffsetY = oy;
         _wpfPlot.CaptureMouse();
         _wpfPlot.Cursor = Cursors.SizeAll;
         e.Handled = true;
@@ -128,15 +151,46 @@ public sealed class LegendDragController
             _dragging = true;
         }
 
-        var (newX, newY) = ProjectMouseToOffset(dxDiu, dyDiu);
+        var dxPx = (float)(dxDiu * _wpfPlot.DisplayScale);
+        var dyPx = (float)(dyDiu * _wpfPlot.DisplayScale);
 
-        // Skip the per-app full refresh: the legend's geometry is the
-        // only thing changing during a drag, so writing Margin and
-        // re-blitting is enough. The commit at MouseUp triggers the
-        // host's normal refresh path.
         var plot = _wpfPlot.Plot;
-        plot.Legend.Margin = PlotAppearance.ComputeLegendMargin(_getPosition(), newX, newY);
+        ScottPlot.PixelRect dataRect;
+        try
+        {
+            dataRect = plot.LastRender.DataRect;
+        }
+        catch
+        {
+            return;
+        }
+
+        // Clamp the target legend rect to the data area so a runaway drag
+        // can never park the legend off-canvas. Width / height are taken
+        // from the press-time legend rect — the legend's own size doesn't
+        // change during a drag, only its position.
+        var targetLeft = Clamp(_startLegendLeft + dxPx, dataRect.Left, dataRect.Right - _startLegendW);
+        var targetTop = Clamp(_startLegendTop + dyPx, dataRect.Top, dataRect.Bottom - _startLegendH);
+
+        var legendCx = targetLeft + _startLegendW / 2f;
+        var legendCy = targetTop + _startLegendH / 2f;
+        var newPosition = PlotAppearance.ChooseBestLegendAnchor(legendCx, legendCy, dataRect);
+
+        var (newOffsetX, newOffsetY) = PlotAppearance.ComputeOffsetForLegendPosition(
+            newPosition, targetLeft, targetTop, _startLegendW, _startLegendH, dataRect);
+
+        // Skip the per-app full refresh: only the legend's anchor and
+        // margin change during a drag, so writing them and re-blitting
+        // is enough. The commit at MouseUp triggers the host's normal
+        // refresh path so any subsequent ApplyAll picks up the same
+        // values via ComputeLegendMargin.
+        plot.Legend.Alignment = PlotAppearance.MapLegendAlignment(newPosition);
+        plot.Legend.Margin = PlotAppearance.ComputeLegendMargin(newPosition, newOffsetX, newOffsetY);
         _wpfPlot.Refresh();
+
+        _draftPosition = newPosition;
+        _draftOffsetX = newOffsetX;
+        _draftOffsetY = newOffsetY;
         e.Handled = true;
     }
 
@@ -153,12 +207,7 @@ public sealed class LegendDragController
 
         if (!wasDragging) return;
 
-        var p = e.GetPosition(_wpfPlot);
-        var dxDiu = p.X - _pressPoint.X;
-        var dyDiu = p.Y - _pressPoint.Y;
-        var (finalX, finalY) = ProjectMouseToOffset(dxDiu, dyDiu);
-
-        _commitOffset(finalX, finalY);
+        _commitPlacement(_draftPosition, _draftOffsetX, _draftOffsetY);
         e.Handled = true;
     }
 
@@ -169,19 +218,11 @@ public sealed class LegendDragController
         _wpfPlot.ClearValue(FrameworkElement.CursorProperty);
     }
 
-    private (double X, double Y) ProjectMouseToOffset(double dxDiu, double dyDiu)
+    private static float Clamp(float value, float min, float max)
     {
-        var dxPx = dxDiu * _wpfPlot.DisplayScale;
-        var dyPx = dyDiu * _wpfPlot.DisplayScale;
-        var newX = ClampOffset(_startOffsetX + dxPx);
-        var newY = ClampOffset(_startOffsetY + dyPx);
-        return (newX, newY);
-    }
-
-    private static double ClampOffset(double value)
-    {
-        if (value < -GraphFormattingConfigBase.LegendOffsetLimit) return -GraphFormattingConfigBase.LegendOffsetLimit;
-        if (value > GraphFormattingConfigBase.LegendOffsetLimit) return GraphFormattingConfigBase.LegendOffsetLimit;
+        if (max < min) return min;
+        if (value < min) return min;
+        if (value > max) return max;
         return value;
     }
 

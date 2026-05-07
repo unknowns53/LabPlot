@@ -332,7 +332,15 @@ public static class PlotAppearance
         }
     }
 
-    private static ScottPlot.Alignment MapLegendAlignment(string position) => position switch
+    /// <summary>
+    /// Map the LabPlot legend-position string (e.g. <c>"UpperRight"</c>)
+    /// onto the matching <see cref="ScottPlot.Alignment"/> enum value.
+    /// Used by both <see cref="ApplyLegend"/> when applying a config and
+    /// by <c>LegendDragController</c> when re-anchoring the legend on the
+    /// fly during a drag. Unknown values fall back to
+    /// <see cref="ScottPlot.Alignment.UpperRight"/>.
+    /// </summary>
+    public static ScottPlot.Alignment MapLegendAlignment(string position) => position switch
     {
         "UpperLeft" => ScottPlot.Alignment.UpperLeft,
         "UpperCenter" => ScottPlot.Alignment.UpperCenter,
@@ -345,6 +353,89 @@ public static class PlotAppearance
         "LowerRight" => ScottPlot.Alignment.LowerRight,
         _ => ScottPlot.Alignment.UpperRight,
     };
+
+    /// <summary>
+    /// Pick the best 9-cell legend anchor for a legend whose center sits
+    /// at <paramref name="legendCenterX"/> / <paramref name="legendCenterY"/>
+    /// inside <paramref name="dataRect"/>. The data area is split into a
+    /// 3 × 3 grid; the cell containing the legend center decides whether
+    /// the horizontal anchor is <c>Left</c> / <c>Center</c> / <c>Right</c>
+    /// and the vertical anchor is <c>Upper</c> / <c>Middle</c> / <c>Lower</c>.
+    /// Auto-picking the anchor as the user drags keeps the offset values
+    /// small (within a third of the data area on each axis) and avoids
+    /// the giant Margin values that pushed the legend off-canvas under
+    /// the previous fixed-anchor scheme.
+    /// </summary>
+    public static string ChooseBestLegendAnchor(
+        float legendCenterX,
+        float legendCenterY,
+        ScottPlot.PixelRect dataRect)
+    {
+        float third = dataRect.Width / 3f;
+        float thirdY = dataRect.Height / 3f;
+
+        string xPart;
+        if (legendCenterX < dataRect.Left + third) xPart = "Left";
+        else if (legendCenterX > dataRect.Right - third) xPart = "Right";
+        else xPart = "Center";
+
+        string yPart;
+        if (legendCenterY < dataRect.Top + thirdY) yPart = "Upper";
+        else if (legendCenterY > dataRect.Bottom - thirdY) yPart = "Lower";
+        else yPart = "Middle";
+
+        return yPart + xPart;
+    }
+
+    /// <summary>
+    /// Inverse of <see cref="ComputeLegendMargin"/>: given a desired
+    /// legend top-left position and size in pixels, compute the
+    /// <c>(LegendOffsetX, LegendOffsetY)</c> values that produce that
+    /// placement under <paramref name="position"/>. Used by
+    /// <c>LegendDragController</c> after it picks a new anchor mid-drag,
+    /// so the per-anchor offsets stay small enough that ScottPlot
+    /// renders the legend inside the data area.
+    /// </summary>
+    public static (double X, double Y) ComputeOffsetForLegendPosition(
+        string position,
+        float legendLeft,
+        float legendTop,
+        float legendWidth,
+        float legendHeight,
+        ScottPlot.PixelRect dataRect)
+    {
+        const float pad = DefaultLegendEdgeMargin;
+
+        double dx;
+        if (position.EndsWith("Right", StringComparison.Ordinal))
+        {
+            dx = pad - (dataRect.Right - legendLeft - legendWidth);
+        }
+        else if (position.EndsWith("Left", StringComparison.Ordinal))
+        {
+            dx = legendLeft - dataRect.Left - pad;
+        }
+        else
+        {
+            dx = legendLeft - (dataRect.Left + dataRect.Right - legendWidth) / 2f;
+        }
+
+        double dy;
+        if (position.StartsWith("Upper", StringComparison.Ordinal))
+        {
+            dy = legendTop - dataRect.Top - pad;
+        }
+        else if (position.StartsWith("Lower", StringComparison.Ordinal))
+        {
+            dy = pad - (dataRect.Bottom - legendTop - legendHeight);
+        }
+        else
+        {
+            dy = legendTop - (dataRect.Top + dataRect.Bottom - legendHeight) / 2f;
+        }
+
+        return (dx, dy);
+    }
 
     /// <summary>
     /// Build a <c>PixelPadding</c> that nudges the legend by

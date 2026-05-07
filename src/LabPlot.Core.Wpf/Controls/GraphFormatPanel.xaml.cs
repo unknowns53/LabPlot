@@ -126,17 +126,22 @@ public partial class GraphFormatPanel : UserControl
     }
 
     /// <summary>
-    /// Pushes new <c>(LegendOffsetX, LegendOffsetY)</c> values into the
-    /// X / Y TextBoxes without firing <see cref="GraphFormatChanged"/>.
-    /// Used by <c>LegendDragController</c> after a drag commits so the
-    /// offset readout matches the new legend position without provoking
-    /// a recursive re-capture.
+    /// Pushes a new legend placement (<paramref name="position"/> +
+    /// pixel offsets) into the position ComboBox and the X / Y TextBoxes
+    /// without firing <see cref="GraphFormatChanged"/>. Used by
+    /// <c>LegendDragController</c> after a drag commits so the panel
+    /// readout matches the new legend position without provoking a
+    /// recursive re-capture. <paramref name="position"/> is one of the
+    /// nine anchor strings (<c>"UpperLeft"</c>, <c>"UpperCenter"</c>,
+    /// ..., <c>"LowerRight"</c>); unknown values leave the ComboBox
+    /// untouched.
     /// </summary>
-    public void SyncLegendOffset(double offsetX, double offsetY)
+    public void SyncLegendPlacement(string position, double offsetX, double offsetY)
     {
         _suppress = true;
         try
         {
+            SelectComboBoxByTag(LegendPositionComboBox, position);
             LegendOffsetXTextBox.Text = ConfigNormalizer.FormatNumber(offsetX);
             LegendOffsetYTextBox.Text = ConfigNormalizer.FormatNumber(offsetY);
         }

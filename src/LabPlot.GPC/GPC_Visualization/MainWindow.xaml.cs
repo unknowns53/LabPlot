@@ -3088,16 +3088,17 @@ public partial class MainWindow : Window
         UpdatePlotHostAspectRatio();
     }
 
-    private void OnLegendDragCommit(double offsetX, double offsetY)
+    private void OnLegendDragCommit(string position, double offsetX, double offsetY)
     {
-        // The drag controller wrote Legend.Margin during the move so the
-        // legend already sits at the final spot. Persist the offsets into
-        // _formattingConfig and the panel TextBoxes, then re-run the normal
-        // appearance pass so any subsequent Plot* call picks up the same
-        // ComputeLegendMargin result.
+        // The drag controller wrote Alignment + Margin during the move so
+        // the legend already sits at the final spot. Persist the anchor +
+        // offsets into _formattingConfig and the panel controls, then
+        // re-run the normal appearance pass so any subsequent Plot* call
+        // picks up the same placement via ComputeLegendMargin.
+        _formattingConfig.LegendPosition = position;
         _formattingConfig.LegendOffsetX = offsetX;
         _formattingConfig.LegendOffsetY = offsetY;
-        GraphFormatPanel.SyncLegendOffset(offsetX, offsetY);
+        GraphFormatPanel.SyncLegendPlacement(position, offsetX, offsetY);
         ApplyGraphAppearanceAndRefresh();
     }
 

@@ -185,16 +185,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnLegendDragCommit(double offsetX, double offsetY)
+    private void OnLegendDragCommit(string position, double offsetX, double offsetY)
     {
-        // The drag controller already wrote Legend.Margin during the move, so
-        // by the time we arrive here the user sees the legend at the final
-        // position. Persist the offsets into the live formatting config and
-        // let the panel TextBoxes catch up, then run RefreshPlot so any
-        // subsequent ApplyAll keeps the same Margin via ComputeLegendMargin.
+        // The drag controller already wrote Alignment + Margin during the
+        // move, so by the time we arrive here the user sees the legend at
+        // the final position. Persist the anchor + offsets into the live
+        // formatting config and let the panel controls catch up, then run
+        // RefreshPlot so any subsequent ApplyAll keeps the same placement
+        // via ComputeLegendMargin.
+        _formattingConfig.LegendPosition = position;
         _formattingConfig.LegendOffsetX = offsetX;
         _formattingConfig.LegendOffsetY = offsetY;
-        GraphFormatPanel.SyncLegendOffset(offsetX, offsetY);
+        GraphFormatPanel.SyncLegendPlacement(position, offsetX, offsetY);
         RefreshPlot();
     }
 

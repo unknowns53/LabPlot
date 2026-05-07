@@ -2,7 +2,7 @@
 
 LabPlot 全体の今後の機能追加・拡張計画をまとめたメモです。優先度や着手時期は流動的で、必要が具体化したものから順次着手する方針です。
 
-最終更新: 2026-05-02
+最終更新: 2026-05-07（Phase 7 Avalonia 移植本体 Batch 1–5 完了、Batch 6 macOS / Linux publish 検証へ）
 
 ---
 
@@ -68,16 +68,30 @@ Malvern Zetasizer の DLS データ可視化・解析を新規開発:
 
 ---
 
-## 5. クロスプラットフォーム展開
+## 5. クロスプラットフォーム展開（Phase 7、進行中）
 
-現状は WPF + win-x64 single-file exe で配布。macOS / Linux ユーザー向けには **Avalonia UI への移植** が選択肢。
+WPF + win-x64 single-file exe では macOS / Linux ユーザーに配れないので、2026-05-07 から **Avalonia UI への並行移植** に着手。
 
-- Avalonia は WPF と XAML 構造が近く、`MainWindow.xaml` と code-behind の多くは流用可能
-- ScottPlot は Avalonia 用コントロール（`ScottPlot.Avalonia`）が利用可能
-- 自前 ControlTemplate（ボタン / コンボボックス / チェックボックス等）の移植は必要
-- 想定作業量はアプリあたり 2〜4 日。コードベースが大きい GPC で先行検証してから Spectrum / DLS に展開する方が安全
+戦略は「並行ビルド + WPF feature freeze」。既存の WPF プロジェクト（`LabPlot.Shell` / `GPC_Visualization` / `Spectrum_Visualization` / `LabPlot.DLS` / `LabPlot.Core.Wpf`）は v1.0.x の完成形として凍結し、横に Avalonia 版（`LabPlot.Shell.Avalonia` / `LabPlot.GPC.Avalonia` / `LabPlot.Spectrum.Avalonia` / `LabPlot.DLS.Avalonia` / `LabPlot.Core.Avalonia`）を新規追加。WPF 版と Avalonia 版が同じ `LabPlot.Core` / `*Analyzer.Core` を参照する構造なので、ロジック層の進化は二重化なしで両系統に乗ります。
 
-CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → PNG / xlsx 変換だけ提供）も補助的な選択肢として残す。
+採用バージョン:
+
+- .NET 10
+- Avalonia 11.3.14（11 系最新安定版。Avalonia 12 は ScottPlot.Avalonia がまだ追従していないため見送り）
+- ScottPlot.Avalonia 5.1.58（既存 ScottPlot.WPF 5.1.58 と同番号）
+- Avalonia.Themes.Fluent 11.3.14、Avalonia.Controls.DataGrid 11.3.13（本体より 1 リビジョン下が NuGet 最新）
+
+進捗:
+
+- **Batch 0** ✅: 採用バージョン確定、XAML 規模把握（合計 6049 行 / 17 ファイル）、WPF→Avalonia 差分マッピング整備
+- **Batch 1** ✅: `LabPlot.Core.Avalonia` 立ち上げ。CommonStyles / ImplicitStyles / 7 UserControl（CustomTitleBar / AxisRangePanel / ColorPickerPanel / GraphFormatPanel / Error/Success/WarningBanner / BusyOverlay）/ FormatHelpers の Avalonia 版 / Storyboard 起源演出（Chevron 回転、CheckMark slide-in、Expander slide+fade、ToolTip BoxShadow）を Avalonia の Transitions + Animations で再現（Batch 1a `289b83a` / 1b `aee3659` / 1c `df1fca5` / 1d `0002fa6` / 1e `d1075d2` / 1f `1486532` / 1g `610e5e2`）
+- **Batch 2** ✅: `LabPlot.Shell.Avalonia` 立ち上げ。PortalWindow を AXAML 化、ログパスを Linux: `~/.local/share/LabPlot/Logs/`、macOS: `~/Library/Application Support/LabPlot/Logs/`、Windows: `%LocalAppData%\LabPlot\Logs\` に振り分け、3 経路で例外をログ集約（commit `691bad6`）
+- **Batch 3** ✅: `LabPlot.DLS.Avalonia` 移植。XAML 1 個（982 行）+ code-behind 2167 行を完全実装、xlsx 読み込み・キュムラント解析・Stokes-Einstein 計算・セッション保存復元まで WPF 版と同形（commit `8854311` / `041f2d2`）
+- **Batch 4** ✅: `GPC_Visualization.Avalonia` 移植。XAML 928 行 + code-behind 3131 行を完全実装、CSV/TXT 読み込み・較正曲線適用・分子量変換・統計 chip まで稼働（commit `f25d49e` / `e32f9e9`）
+- **Batch 5** ✅: `Spectrum_Visualization.Avalonia` 移植。XAML 5 個（最大 MainWindow 1431 行）+ code-behind 計 4849 行を完全実装、JASCO TXT 読み込み・線スタイル・軸書式・X 反転 / Y 表示モード・IR ピーク帰属・λmax / Tc 自動 + 手動検出・温度スキャン Tc（4 method + sigmoid fit）・積分領域・Beer-Lambert 検量線エディタまで稼働（commit `117e08e` / `76f5292`）
+- **Batch 6** （次）: macOS / Linux self-contained publish と動作検証。`dotnet publish src/LabPlot.Shell.Avalonia -r osx-arm64` / `-r linux-x64` で配布物を生成、起動・サンプル読み込み・PNG 出力・セッション保存復元を OS 横断で確認。Linux は WSL2 + WSLg（Windows 11 標準）で実機相当のチェック、macOS は GitHub Actions の `macos-latest` ランナーで起動スモークまで自動化、本格的な GUI 検証は実機所有者に依頼する運用を想定
+
+CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → PNG / xlsx 変換だけ提供）は補助的な選択肢として引き続き残します。
 
 ---
 
@@ -94,10 +108,10 @@ CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → 
 
 おおまかな優先度は以下を想定:
 
-1. **共通基盤化（1）**: DLS 開発前に `LabPlot.Core` / `LabPlot.Core.Wpf` を切り出し、保守の足場を整える
-2. **LabPlot.DLS 新規開発（2-DLS）**: Core が整った時点で着手
-3. **Spectrum 残課題（2-Spectrum）**: ブランク差し引き・濃度逆算・Boltzmann fit など、利用ニーズに合わせて随時
-4. **新規フォーマット対応（3）**: 共同研究者・研究室メンバーの要望が具体化したら
-5. **GPC パフォーマンス最適化（2-GPC）**: 体感で困るケースが出てきたら
-6. **新規アプリ候補（4）**: 必要が具体化してから
-7. **クロスプラットフォーム（5）**: 必要が出てから
+1. **共通基盤化（1）** ✅: `LabPlot.Core` / `LabPlot.Core.Wpf` / `LabPlot.Core.Avalonia` を切り出し済み
+2. **LabPlot.DLS 新規開発（2-DLS）** ✅: WPF 版・Avalonia 版とも完了
+3. **クロスプラットフォーム（5）** 進行中: Phase 7 Avalonia 移植本体（Batch 1–5）完了、残るは Batch 6 macOS / Linux publish & 動作検証
+4. **Spectrum 残課題（2-Spectrum）**: ブランク差し引き・濃度逆算・Boltzmann fit など、利用ニーズに合わせて随時
+5. **新規フォーマット対応（3）**: 共同研究者・研究室メンバーの要望が具体化したら
+6. **GPC パフォーマンス最適化（2-GPC）**: 体感で困るケースが出てきたら
+7. **新規アプリ候補（4）**: 必要が具体化してから

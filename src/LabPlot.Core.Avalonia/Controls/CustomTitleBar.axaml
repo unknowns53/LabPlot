@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Core.Avalonia.Controls.CustomTitleBar"
+             Height="44"
+             Background="#F7F8FA">
+    <Grid ColumnDefinitions="Auto,*,Auto">
+
+        <!-- ブランディング(左): 30 x 30 の #DBEAFE バッジに 16 x 16 のアイコン Path、
+             右隣にアプリ名(SemiBold 13.5)+サブタイトル(10.5) を縦積み。
+             WPF 版と完全同寸法・同 hex で揃えている。 -->
+        <StackPanel Grid.Column="0"
+                    Orientation="Horizontal"
+                    Margin="14,0,12,0"
+                    VerticalAlignment="Center">
+            <Border Width="30" Height="30"
+                    CornerRadius="6"
+                    Background="#DBEAFE"
+                    Margin="0,0,10,0">
+                <Path Name="AppIconPath"
+                      Stroke="#2563EB"
+                      StrokeThickness="1.6"
+                      StrokeLineCap="Round"
+                      StrokeJoin="Round"
+                      Fill="Transparent"
+                      Stretch="Uniform"
+                      Width="16" Height="16"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Name="AppNameTextBlock"
+                           FontSize="13.5"
+                           FontWeight="SemiBold"
+                           Foreground="#1E293B"
+                           Margin="0,0,0,1" />
+                <TextBlock Name="SubtitleTextBlock"
+                           FontSize="10.5"
+                           Foreground="#64748B" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- 中央のドラッグ領域。Avalonia は WPF の WindowChrome.CaptionHeight
+             相当が無く、PointerPressed で Window.BeginMoveDrag を呼ぶ
+             古典パターンになる。Background=Transparent でヒットテストは
+             通り、ダブルクリックで最大化・復元の切り替え。 -->
+        <Grid Grid.Column="1"
+              Background="Transparent"
+              PointerPressed="OnTitleBarPointerPressed" />
+
+        <!-- 右端の最小化 / 最大化-復元 / 閉じるボタン。Tag に StreamGeometry
+             リソースを流し込んで Path.Data を TemplateBinding で受ける
+             仕組みは WPF と同じ。Theme="{DynamicResource ...}" は Avalonia
+             の ControlTheme 解決経路。 -->
+        <StackPanel Grid.Column="2"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Top">
+            <Button Name="MinimizeButton"
+                    Theme="{DynamicResource ChromeButtonStyle}"
+                    Tag="{DynamicResource ChromeMinimizeIcon}"
+                    Click="MinimizeButton_Click"
+                    ToolTip.Tip="最小化" />
+            <Button Name="MaxRestoreButton"
+                    Theme="{DynamicResource ChromeButtonStyle}"
+                    Tag="{DynamicResource ChromeMaximizeIcon}"
+                    Click="MaxRestoreButton_Click"
+                    ToolTip.Tip="最大化" />
+            <Button Name="CloseButton"
+                    Theme="{DynamicResource ChromeCloseButtonStyle}"
+                    Tag="{DynamicResource ChromeCloseIcon}"
+                    Click="CloseButton_Click"
+                    ToolTip.Tip="閉じる" />
+        </StackPanel>
+    </Grid>
+</UserControl>

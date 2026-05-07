@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Core.Avalonia.Controls.AxisRangePanel"
+             x:Name="AxisRangePanelRoot">
+    <StackPanel>
+        <TextBlock Theme="{DynamicResource FieldLabelStyle}"
+                   Text="{Binding XAxisLabel, ElementName=AxisRangePanelRoot}" />
+        <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+            <StackPanel Grid.Column="0">
+                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="最小" />
+                <TextBox Name="XMinTextBox"
+                         Theme="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="最大" />
+                <TextBox Name="XMaxTextBox"
+                         Theme="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Theme="{DynamicResource FieldLabelStyle}"
+                   Text="{Binding YAxisLabel, ElementName=AxisRangePanelRoot}" />
+        <Grid ColumnDefinitions="*,8,*">
+            <StackPanel Grid.Column="0">
+                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="最小" />
+                <TextBox Name="YMinTextBox"
+                         Theme="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="最大" />
+                <TextBox Name="YMaxTextBox"
+                         Theme="{DynamicResource InputTextBoxStyle}"
+                         KeyDown="AxisTextBox_KeyDown"
+                         LostFocus="AxisTextBox_LostFocus" />
+            </StackPanel>
+        </Grid>
+
+        <Button Name="AutoRangeButton"
+                Content="自動範囲に戻す"
+                Theme="{DynamicResource SecondaryButtonStyle}"
+                HorizontalAlignment="Stretch"
+                Margin="0,10,0,0"
+                Click="AutoRangeButton_Click"
+                ToolTip.Tip="X / Y の最小・最大値を空欄に戻して自動範囲で表示します (Ctrl+R)" />
+    </StackPanel>
+</UserControl>

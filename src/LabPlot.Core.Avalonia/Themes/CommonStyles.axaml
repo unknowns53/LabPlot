@@ -8,15 +8,21 @@
 
          Batch 1a (commit 289b83a): 共通カラー / Geometry / 単純 ControlTheme
            (SectionStyle, SectionHeaderStyle, GroupLabelStyle, FieldLabelStyle)
-         Batch 1b (this commit): SectionIconPath / GroupHeaderStyle / Input
+         Batch 1b (commit aee3659): SectionIconPath / GroupHeaderStyle / Input
            系 ControlTheme (TextBox / ComboBox) / Button 3 種。Fluent テーマを
            BasedOn して Setter override で書き、ScrollBar / CheckBox / Expander
            は ImplicitStyles.axaml に分離。Storyboard 起源のアニメ
            (Chevron 回転 / CheckMark slide-in / Expander slide+fade) は
-           Batch 1c 行き。
-         Batch 1c (next): 重量 UserControl 4 個 (CustomTitleBar / AxisRangePanel /
-           ColorPickerPanel / GraphFormatPanel) + 関連 ControlTheme
-           (ChromeButtonStyle, WindowChromeRootBorderStyle) + アニメ。
+           Batch 1c 以降に持ち越し。
+         Batch 1c (this commit): CustomTitleBar / AxisRangePanel の 2 UserControl
+           移植 + Chrome 系リソース (ChromeMinimize/Maximize/Restore/CloseIcon
+           StreamGeometry + ChromeButtonStyle / ChromeCloseButtonStyle ControlTheme +
+           WindowChromeRootBorderStyle)。WPF の System.Windows.Shell.WindowChrome は
+           Avalonia の ExtendClientAreaToDecorationsHint=True で代替するため
+           IsHitTestVisibleInChrome は不要。Maximized 時の 7 px 補正も Avalonia
+           では Window 側 OffScreenMargin で吸収されるが、見た目を WPF と揃えるため
+           DataTrigger 風の Style Selector で Margin を切り替える。
+         Batch 1d 以降: ColorPickerPanel / GraphFormatPanel + アニメ系。
          ============================================================ -->
 
     <!-- 共通アイコン Geometry。3 アプリ横断で同じ意味の Expander には同じグリフを当てる。
@@ -501,6 +507,121 @@
         <Style Selector="^:disabled">
             <Setter Property="Foreground" Value="{StaticResource AccentDisabledBrush}" />
             <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+    </ControlTheme>
+
+    <!-- =========================================================
+         Chrome (タイトルバー) 用リソース。Avalonia は WPF の
+         System.Windows.Shell.WindowChrome の代わりに Window 側で
+         ExtendClientAreaToDecorationsHint=True を立て、CustomTitleBar
+         がアプリ上部に貼られて OS 標準の chrome を置き換える形になる。
+         そのため IsHitTestVisibleInChrome 添付プロパティは不要。
+         Geometry は WPF の <Geometry> 文字列リテラルが使えないので
+         <StreamGeometry> に置換。ChromeMaximizeIcon と ChromeRestoreIcon は
+         CustomTitleBar.axaml.cs の SyncMaxRestoreGlyph() が WindowState の
+         変化に応じて入れ替える。
+         ========================================================= -->
+
+    <StreamGeometry x:Key="ChromeMinimizeIcon">M 0,5 L 10,5</StreamGeometry>
+    <StreamGeometry x:Key="ChromeMaximizeIcon">M 0,0 L 10,0 L 10,10 L 0,10 Z</StreamGeometry>
+    <StreamGeometry x:Key="ChromeRestoreIcon">M 2,0 L 10,0 L 10,8 L 8,8 M 0,2 L 8,2 L 8,10 L 0,10 Z</StreamGeometry>
+    <StreamGeometry x:Key="ChromeCloseIcon">M 0,0 L 10,10 M 10,0 L 0,10</StreamGeometry>
+
+    <!-- 最小化 / 最大化 / 復元用の Chrome ボタン。WPF は ControlTemplate.Triggers で
+         IsMouseOver / IsPressed を切り替えていたが、Avalonia は Style Selector の
+         ^:pointerover / ^:pressed を使う。
+         Path.Data は TemplateBinding Tag で受けるので、CustomTitleBar 側で
+         Button.Tag に StreamGeometry を割り当てる仕組みは WPF と同じ。 -->
+    <ControlTheme x:Key="ChromeButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Arrow" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="Button">
+                <Border Name="ButtonBorder"
+                        Background="{TemplateBinding Background}">
+                    <Path Name="ButtonGlyph"
+                          Data="{TemplateBinding Tag}"
+                          Stroke="#475569"
+                          StrokeThickness="1"
+                          StrokeLineCap="Round"
+                          StrokeJoin="Round"
+                          Stretch="None"
+                          Width="10"
+                          Height="10"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#E2E8F0" />
+        </Style>
+        <Style Selector="^:pointerover /template/ Path#ButtonGlyph">
+            <Setter Property="Stroke" Value="#0F172A" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#CBD5E1" />
+        </Style>
+        <Style Selector="^:pressed /template/ Path#ButtonGlyph">
+            <Setter Property="Stroke" Value="#0F172A" />
+        </Style>
+    </ControlTheme>
+
+    <!-- 閉じるボタンだけは pointerover で赤系に染まるので別 ControlTheme。
+         WPF と同じ #DC2626 / #B91C1C でグリフを白に反転する。 -->
+    <ControlTheme x:Key="ChromeCloseButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Width" Value="46" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Arrow" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="Button">
+                <Border Name="ButtonBorder"
+                        Background="{TemplateBinding Background}">
+                    <Path Name="ButtonGlyph"
+                          Data="{TemplateBinding Tag}"
+                          Stroke="#475569"
+                          StrokeThickness="1"
+                          StrokeLineCap="Round"
+                          Stretch="None"
+                          Width="10"
+                          Height="10"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#DC2626" />
+        </Style>
+        <Style Selector="^:pointerover /template/ Path#ButtonGlyph">
+            <Setter Property="Stroke" Value="White" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#B91C1C" />
+        </Style>
+        <Style Selector="^:pressed /template/ Path#ButtonGlyph">
+            <Setter Property="Stroke" Value="White" />
+        </Style>
+    </ControlTheme>
+
+    <!-- WPF 版の WindowChromeRootBorderStyle と同じく、Maximized 時に
+         7 px の Margin を入れて画面外への張り出しを補正する Border 用 ControlTheme。
+         Avalonia は Window.OffScreenMargin で同じ補正が利く環境もあるが、
+         WPF と完全に同じ見た目に揃えるため UI 側でも保険を掛ける。 -->
+    <ControlTheme x:Key="WindowChromeRootBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="#F7F8FA" />
+        <Setter Property="Margin" Value="0" />
+        <Style Selector="^[Tag=Maximized]">
+            <Setter Property="Margin" Value="7" />
         </Style>
     </ControlTheme>
 

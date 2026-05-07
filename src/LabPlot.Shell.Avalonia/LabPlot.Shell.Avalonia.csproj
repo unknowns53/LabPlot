@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\LabPlot.Core.Avalonia\LabPlot.Core.Avalonia.csproj" />
     <ProjectReference Include="..\LabPlot.DLS.Avalonia\LabPlot.DLS.Avalonia.csproj" />
+    <ProjectReference Include="..\LabPlot.GPC.Avalonia\LabPlot.GPC.Avalonia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -64,7 +64,7 @@ public partial class PortalWindow : Window
     }
 
     private void OpenGpc_Click(object? sender, RoutedEventArgs e)
-        => _ = ShowComingSoonAsync("GPC", "クロマトグラム解析モジュールは Phase 7 Batch 4 で移植予定です。");
+        => OpenSingleton<LabPlot.GPC.Avalonia.MainWindow>();
 
     private void OpenSpectrum_Click(object? sender, RoutedEventArgs e)
         => _ = ShowComingSoonAsync("UV-Vis", "スペクトル解析モジュールは Phase 7 Batch 5 で移植予定です。");

@@ -180,9 +180,9 @@ public partial class MainWindow : Window
     {
         if (_plot is null) return;
         _plot.Plot.Clear();
-        _plot.Plot.Title(GetGraphTitle(PlotTypeLabel(_selectedMode)));
-        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultXLabel(_selectedMode)));
-        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
+        _plot.Plot.Title(GetGraphTitle(DefaultLabels.GetPlotTypeLabel(_selectedMode)));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
         ApplyLogXTicksForMode(_selectedMode);
         // Pick a sensible default viewport per mode. Correlation g₂-1
         // sits in [0, 1.05] over 0.5–10000 μs typically; particle size
@@ -300,8 +300,8 @@ public partial class MainWindow : Window
     {
         var entries = new List<DlsAnalysisExportEntry>();
         var modeName = _selectedMode.ToString();
-        var xLabel = DefaultXLabel(_selectedMode);
-        var yLabel = ModeLabel(_selectedMode);
+        var xLabel = DefaultLabels.GetDefaultXLabel(_selectedMode);
+        var yLabel = DefaultLabels.GetModeLabel(_selectedMode);
 
         foreach (var dataset in _selectedDatasets)
         {
@@ -1450,9 +1450,9 @@ public partial class MainWindow : Window
         {
             // All selected datasets lack the chosen mode. Render an empty
             // labelled plot so the user notices the mode mismatch.
-            _plot.Plot.Title(GetGraphTitle($"{ModeLabel(_selectedMode)} データなし"));
-            _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultXLabel(_selectedMode)));
-            _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
+            _plot.Plot.Title(GetGraphTitle($"{DefaultLabels.GetModeLabel(_selectedMode)}{DefaultLabels.NoDataSuffix}"));
+            _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+            _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
             ApplyLogXTicksForMode(_selectedMode);
             if (_selectedMode == DistributionMode.Correlation)
                 _plot.Plot.Axes.SetLimits(Math.Log10(0.5), Math.Log10(10000), 0, 1.05);
@@ -1465,8 +1465,8 @@ public partial class MainWindow : Window
         }
 
         _plot.Plot.Title(GetGraphTitle(BuildTitle()));
-        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultXLabel(_selectedMode)));
-        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, ModeLabel(_selectedMode)));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
         ApplyLogXTicksForMode(_selectedMode);
         _plot.Plot.Axes.AutoScale();
         ApplyPlotAppearance();
@@ -1483,10 +1483,10 @@ public partial class MainWindow : Window
             var runLabel = series is { RunCount: > 1 }
                 ? $", Run {Math.Clamp(_selectedRunIndex, 0, series.RunCount - 1) + 1}"
                 : string.Empty;
-            return $"{dataset.SheetName} ({ModeLabel(_selectedMode)}{runLabel})";
+            return $"{dataset.SheetName} ({DefaultLabels.GetModeLabel(_selectedMode)}{runLabel})";
         }
 
-        return $"{PlotTypeLabel(_selectedMode)} ({ModeLabel(_selectedMode)}, {_selectedDatasets.Count} datasets)";
+        return $"{DefaultLabels.GetPlotTypeLabel(_selectedMode)} ({DefaultLabels.GetModeLabel(_selectedMode)}, {_selectedDatasets.Count} datasets)";
     }
 
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
@@ -1913,32 +1913,6 @@ public partial class MainWindow : Window
             : new DataSeries(dist.SizeBinsNm, dist.Runs, dist.ActiveRunIndex);
     }
 
-    private static string ModeLabel(DistributionMode mode) => mode switch
-    {
-        DistributionMode.Intensity => "Intensity (%)",
-        DistributionMode.Volume => "Volume (%)",
-        DistributionMode.Correlation => "g₂-1",
-        _ => "Number (%)",
-    };
-
-    // Title prefix when more than one dataset is overlaid (or no dataset
-    // is selected at all). Mirrors the ScottPlot label convention used
-    // by GPC / Spectrum.
-    private static string PlotTypeLabel(DistributionMode mode) => mode switch
-    {
-        DistributionMode.Correlation => "Correlation Function",
-        _ => "Particle Size Distribution",
-    };
-
-    // Default X-axis label when the user has not typed an override into
-    // XLabelTextBox. The size axis stays in nm (logarithmic), the
-    // correlation axis is delay time in microseconds (also logarithmic).
-    private static string DefaultXLabel(DistributionMode mode) => mode switch
-    {
-        DistributionMode.Correlation => "Time (μs)",
-        _ => "Size (d.nm)",
-    };
-
     // Per-sheet style overrides. ColorHex / LegendName are nullable so the
     // empty case falls back to the auto palette / SheetName. LineWidth /
     // MarkerSize default to the shared GraphFormattingConfigBase values so
@@ -2073,19 +2047,6 @@ public partial class MainWindow : Window
         {
             ErrorBanner.Hide();
         }
-    }
-
-    private enum DistributionMode
-    {
-        Number,
-        Intensity,
-        Volume,
-        // Intensity autocorrelation function g₂-1 vs delay time (μs).
-        // Reads from DlsDataset.Correlation rather than the three particle-
-        // size distributions; treated as a fourth mode of the same
-        // DistributionTypeComboBox so overlay / run-switch / per-sheet
-        // styling all work uniformly.
-        Correlation,
     }
 
     // Unified view over the per-mode data access. ParticleSize* modes pull

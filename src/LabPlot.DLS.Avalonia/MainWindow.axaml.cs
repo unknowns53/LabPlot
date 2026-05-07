@@ -1,28 +1,85 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Platform.Storage;
+using DlsAnalyzer.Core;
+using LabPlot.Core;
+using LabPlot.Core.Avalonia.Helpers;
+using ScottPlot.Avalonia;
+using static LabPlot.Core.PlotAppearance;
+using static LabPlot.Core.Avalonia.FormatHelpers;
 
 namespace LabPlot.DLS.Avalonia;
 
 /// <summary>
-/// Avalonia 版 DLS Analyzer のメインウィンドウ。Phase 7 Batch 3a では XAML 構造の
-/// 移植のみを完成させ、実 logic（xlsx 読み込み / プロット描画 / セッション保存 /
-/// ScottPlot.Avalonia 連携）は Batch 3b で WPF 版 MainWindow.xaml.cs (2167 行) を
-/// Avalonia API に置き換える形で順次入れていく。
-///
-/// <para>
-/// このスタブで満たしているのは「AXAML が宣言した全イベント ハンドラを存在させる」
-/// ことのみ。各ハンドラは現状 no-op で、Window を表示しても操作が空回りする状態。
-/// 名前付きコントロールへの参照は Avalonia の XamlNameReferenceGenerator が
-/// partial class 側に自動生成する（AvaloniaUseCompiledBindingsByDefault=true）。
-/// </para>
+/// Avalonia 版 DLS Analyzer のメインウィンドウ。WPF 版 LabPlot.DLS.MainWindow.xaml.cs
+/// (2167 行) を Avalonia API に翻訳した本実装。WPF 専用 API は次の方針で置き換えた：
+/// <list type="bullet">
+///   <item>SaveFileDialog / OpenFileDialog / OpenFolderDialog → IStorageProvider の
+///     SaveFilePickerAsync / OpenFilePickerAsync / OpenFolderPickerAsync (全 async)</item>
+///   <item>ScottPlot.WPF.WpfPlot → ScottPlot.Avalonia.AvaPlot</item>
+///   <item>InputBindings + RoutedUICommand → OnKeyDown オーバーライドで集中ディスパッチ</item>
+///   <item>Keyboard.ClearFocus / FocusManager.SetFocusedElement → Window.Focus()</item>
+///   <item>Visibility.Visible / Collapsed → IsVisible (bool)</item>
+///   <item>DataFormats.FileDrop の string[] → DataFormats.Files の IStorageItem 列挙</item>
+///   <item>ScottPlot.Color の Avalonia.Media.Color 変換は LabPlot.Core.Avalonia.FormatHelpers.HexToAvaloniaColor</item>
+/// </list>
+/// LegendDragController（凡例マウスドラッグ）は WPF 専用ヘルパなので未移植。
+/// Avalonia 版は今のところドラッグ移動できないが、LegendPosition / LegendOffsetX/Y は
+/// GraphFormatPanel から設定可能。
 /// </summary>
 public partial class MainWindow : Window
 {
+    private static readonly string[] AutoLineColors =
+    [
+        "#2563EB", "#DC2626", "#16A34A", "#EA580C", "#7C3AED", "#0891B2", "#4B5563",
+    ];
+
+    private static readonly JsonSerializerOptions FormattingConfigJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+    };
+
+    private static readonly string FormattingConfigPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "LabPlot.DLS",
+        "formatting_config.json");
+
+    private readonly ZetasizerXlsxReader _reader = new();
+    private readonly List<DlsDataset> _datasets = new();
+    private readonly List<DlsDataset> _selectedDatasets = new();
+    private readonly List<DlsDatasetItem> _datasetItems = new();
+    private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
+    private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
+    private AvaPlot? _plot;
+    private DistributionMode _selectedMode = DistributionMode.Number;
+    private int _selectedRunIndex;
+    private int _activeItemIndex = -1;
+    private bool _suppressRunComboEvents;
+    private bool _suppressFormattingEvents;
+    private bool _suppressStyleControlEvents;
+    private bool _suppressMetadataControlEvents;
+    private string? _currentWorkbookPath;
+
     public MainWindow()
     {
         InitializeComponent();
+        LoadFormattingDefaults();
+        _formattingConfig = CloneFormattingConfig(_formattingDefaults);
+        Opened += OnOpened;
     }
 
     private void InitializeComponent()
@@ -30,57 +87,1817 @@ public partial class MainWindow : Window
         AvaloniaXamlLoader.Load(this);
     }
 
-    // ---------- Data file ----------
-    private void OpenButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        // ListBox のドラッグ&ドロップは routed event なので XAML 属性経由で
+        // 配線できず、AddHandler で明示的に繋ぐ必要がある。AllowDrop は
+        // XAML で `DragDrop.AllowDrop="True"` 済み。
+        DatasetListBox.AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
+        DatasetListBox.AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
+        DatasetListBox.AddHandler(DragDrop.DropEvent, OnDatasetDrop);
+    }
 
-    // ---------- Dataset list ----------
-    private void DatasetListBox_SelectionChanged(object? sender, SelectionChangedEventArgs e) { /* Batch 3b */ }
+    // WPF の Loaded イベント相当。Window.Opened は最初に画面に表示されるとき
+    // 1 回だけ発火し、ApplyTemplate / 子ツリー構築完了後に呼ばれる。
+    private void OnOpened(object? sender, EventArgs e)
+    {
+        try
+        {
+            _plot = new AvaPlot();
+            PlotHost.Children.Clear();
+            PlotHost.Children.Add(_plot);
 
-    // ---------- Per-sheet line style ----------
-    private void LineColorPicker_ColorChanged(object? sender, EventArgs e) { /* Batch 3b */ }
-    private void LegendNameTextBox_TextChanged(object? sender, TextChangedEventArgs e) { /* Batch 3b */ }
-    private void LineWidthTextBox_TextChanged(object? sender, TextChangedEventArgs e) { /* Batch 3b */ }
-    private void MarkerSizeTextBox_TextChanged(object? sender, TextChangedEventArgs e) { /* Batch 3b */ }
+            // LegendDragController は WPF 専用ヘルパなので Phase 7 内では未移植。
+            // 凡例位置 / オフセット は GraphFormatPanel 側からのみ操作可能。
+
+            ApplyFormattingConfigToControls(_formattingConfig);
+            SyncStyleControlsFromActiveItem();
+            SyncMetadataControlsFromActiveItem();
+            SyncCumulantControlsFromActiveItem();
+            _selectedMode = DistributionModeFromTag(_formattingConfig.DefaultDistributionMode);
+            SelectComboBoxByTag(DistributionTypeComboBox, _formattingConfig.DefaultDistributionMode);
+            _selectedRunIndex = Math.Max(0, _formattingConfig.DefaultRunIndex);
+
+            InitializeEmptyPlot();
+            UpdatePlotHostAspectRatio();
+        }
+        catch (Exception ex)
+        {
+            PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.InitFailed);
+            ShowError($"グラフ表示の初期化に失敗しました: {ex.Message}");
+        }
+    }
+
+    // WPF の InputBindings / RoutedUICommand 配列を OnKeyDown 1 メソッドに集約。
+    // 修飾キー判定は Avalonia の KeyModifiers flags で行う。
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        if (ctrl && shift)
+        {
+            switch (e.Key)
+            {
+                case Key.S: _ = SaveSessionAsync(); e.Handled = true; return;
+                case Key.O: _ = LoadSessionAsync(); e.Handled = true; return;
+            }
+        }
+        else if (ctrl)
+        {
+            switch (e.Key)
+            {
+                case Key.O: _ = OpenWorkbookAsync(); e.Handled = true; return;
+                case Key.S: _ = SaveGraphAsync(); e.Handled = true; return;
+                case Key.E: _ = ExportAnalysisAsync(); e.Handled = true; return;
+                case Key.R: AxisRangePanel.ResetToAuto(); e.Handled = true; return;
+                case Key.G: GraphFormatPanel.TogglePlotGrid(); e.Handled = true; return;
+                case Key.L: ToggleAllDatasets(); e.Handled = true; return;
+            }
+        }
+        else if (e.Key == Key.F2)
+        {
+            FocusLegendNameTextBox();
+            e.Handled = true;
+            return;
+        }
+        base.OnKeyDown(e);
+    }
+
+    private void ToggleAllDatasets()
+    {
+        if (DatasetListBox is null || DatasetListBox.ItemCount == 0) return;
+        if (DatasetListBox.SelectedItems is { Count: var sc } && sc == DatasetListBox.ItemCount)
+            DatasetListBox.SelectedItems.Clear();
+        else
+            DatasetListBox.SelectAll();
+    }
+
+    private void FocusLegendNameTextBox()
+    {
+        if (LegendNameTextBox is null || !LegendNameTextBox.IsEnabled) return;
+        LegendNameTextBox.Focus();
+        LegendNameTextBox.SelectAll();
+    }
+
+    private void InitializeEmptyPlot()
+    {
+        if (_plot is null) return;
+        _plot.Plot.Clear();
+        _plot.Plot.Title(GetGraphTitle(DefaultLabels.GetPlotTypeLabel(_selectedMode)));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
+        ApplyLogXTicksForMode(_selectedMode);
+        if (_selectedMode == DistributionMode.Correlation)
+            _plot.Plot.Axes.SetLimits(Math.Log10(0.5), Math.Log10(10000), 0, 1.05);
+        else
+            _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
+        ApplyPlotAppearance();
+        ApplyLegend(0);
+        _plot.Refresh();
+    }
+
+    // ---------- File open / drag-drop ----------
+
+    private void OpenButton_Click(object? sender, RoutedEventArgs e) => _ = OpenWorkbookAsync();
+
+    private async Task OpenWorkbookAsync()
+    {
+        var sp = StorageProvider;
+        if (sp is null) return;
+        var files = await sp.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Zetasizer xlsx を開く",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Excel ファイル") { Patterns = new[] { "*.xlsx" } },
+                FilePickerFileTypes.All,
+            },
+            SuggestedStartLocation = await GetDefaultStartLocationAsync(sp),
+        });
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+        await ImportWorkbookAsync(path);
+    }
+
+    private async Task<IStorageFolder?> GetDefaultStartLocationAsync(IStorageProvider sp)
+    {
+        var dir = FormattingDefaultsStore.GetExistingDefaultOutputDirectory(_formattingDefaults);
+        if (string.IsNullOrEmpty(dir)) return null;
+        try { return await sp.TryGetFolderFromPathAsync(dir); }
+        catch { return null; }
+    }
+
+    private async Task ImportWorkbookAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+
+        try
+        {
+            BusyOverlay.Show("xlsx を読み込み中…");
+            var loaded = await Task.Run(() => _reader.Read(filePath));
+            _datasets.Clear();
+            foreach (var ds in loaded) _datasets.Add(ds);
+
+            _datasetItems.Clear();
+            foreach (var ds in _datasets) _datasetItems.Add(new DlsDatasetItem(ds));
+
+            _currentWorkbookPath = filePath;
+            DatasetListBox.ItemsSource = null;
+            DatasetListBox.ItemsSource = _datasetItems;
+            UpdateDatasetListPlaceholder();
+            DatasetCountText.Text = _datasets.Count == 0
+                ? "粒径分布シートが見つかりませんでした"
+                : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(filePath)}）";
+
+            HideError();
+            SetStatus(_datasets.Count == 0
+                ? $"粒径分布シートが見つかりませんでした: {filePath}"
+                : $"{_datasets.Count} シートを読み込みました: {filePath}");
+
+            if (_datasets.Count > 0) DatasetListBox.SelectedIndex = 0;
+            else ClearActiveDatasets();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"読み込みに失敗しました: {ex.Message}");
+        }
+        finally
+        {
+            BusyOverlay.Hide();
+        }
+    }
+
+    // Avalonia 11.3 で DragEventArgs.Data / DataFormats.Files に [Obsolete]
+    // が付き、新 API (DataTransfer / DataFormat.File) への移行が推奨される
+    // ようになったが、新旧 API が共存しているうちは旧 API のまま使う。
+    // Phase 7 のうちに新 API へ揃えるかは Batch 7 (publish 検証) で判断。
+#pragma warning disable CS0618 // 旧 DragDrop API を意図して使用
+    private void OnDatasetDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.Data.Contains(DataFormats.Files))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+            ShowFileDropOverlay();
+        }
+        else
+        {
+            HideFileDropOverlay();
+            e.DragEffects = DragDropEffects.None;
+        }
+        e.Handled = true;
+    }
+
+    private void OnDatasetDragLeave(object? sender, DragEventArgs e)
+    {
+        // Avalonia の DragLeave は領域を出入りするたびに発火しがちなので、
+        // 単純に毎回隠す（Drop 直前の最後の DragOver で再表示される）。
+        HideFileDropOverlay();
+    }
+
+    private void OnDatasetDrop(object? sender, DragEventArgs e)
+    {
+        HideFileDropOverlay();
+        if (!e.Data.Contains(DataFormats.Files)) return;
+        var files = e.Data.GetFiles()?.ToArray();
+        if (files is null || files.Length == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+        e.Handled = true;
+        _ = ImportWorkbookAsync(path);
+    }
+#pragma warning restore CS0618
+
+    private void ShowFileDropOverlay() => DatasetDropOverlay.IsVisible = true;
+    private void HideFileDropOverlay() => DatasetDropOverlay.IsVisible = false;
+
+    // ---------- Save graph / export ----------
+
+    private void SaveGraphButton_Click(object? sender, RoutedEventArgs e) => _ = SaveGraphAsync();
+    private void ExportButton_Click(object? sender, RoutedEventArgs e) => _ = ExportAnalysisAsync();
+
+    private async Task SaveGraphAsync()
+    {
+        if (_plot is null || _selectedDatasets.Count == 0)
+        {
+            ShowError("出力可能なデータがありません。");
+            return;
+        }
+        var sp = StorageProvider;
+        if (sp is null) return;
+
+        var defaultName = $"{Path.GetFileNameWithoutExtension(GetCurrentWorkbookHint())}_dls";
+        var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "グラフを保存",
+            SuggestedFileName = $"{defaultName}.png",
+            DefaultExtension = "png",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("PNG画像") { Patterns = new[] { "*.png" } },
+                new FilePickerFileType("SVGベクター画像") { Patterns = new[] { "*.svg" } },
+            },
+            SuggestedStartLocation = await GetDefaultStartLocationAsync(sp),
+        });
+        if (file is null) return;
+        var path = file.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
+        try
+        {
+            var saveFormat = GraphSaveHelpers.GetGraphSaveFormat(path);
+            var fileName = GraphSaveHelpers.EnsureGraphSaveFileExtension(path, saveFormat);
+            var (width, height) = GraphSaveHelpers.GetExportImageSize(GraphFormatPanel.AspectRatioValue);
+            var exportStyleScale = GraphSaveHelpers.ExportDpi / GraphSaveHelpers.DisplayDpi;
+
+            ApplyExportStyleScale(exportStyleScale);
+            try
+            {
+                if (saveFormat == GraphSaveFormat.Svg)
+                {
+                    GraphSaveHelpers.SaveGraphSvg(_plot.Plot, fileName, width, height);
+                    SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})");
+                }
+                else
+                {
+                    GraphSaveHelpers.SaveGraphPng(_plot.Plot, fileName, width, height, GraphSaveHelpers.ExportDpi);
+                    SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {GraphSaveHelpers.ExportDpi} dpi)");
+                }
+                HideError();
+            }
+            finally
+            {
+                ApplyExportStyleScale(1f);
+                _plot.Refresh();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowError($"グラフの保存に失敗しました: {ex.Message}");
+        }
+    }
+
+    private async Task ExportAnalysisAsync()
+    {
+        if (_selectedDatasets.Count == 0)
+        {
+            ShowError("出力可能なデータがありません。");
+            return;
+        }
+        var sp = StorageProvider;
+        if (sp is null) return;
+
+        var defaultName = $"{Path.GetFileNameWithoutExtension(GetCurrentWorkbookHint())}_dls.xlsx";
+        var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "解析結果を保存",
+            SuggestedFileName = string.IsNullOrWhiteSpace(defaultName) ? "dls_export.xlsx" : defaultName,
+            DefaultExtension = "xlsx",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("Excel ファイル") { Patterns = new[] { "*.xlsx" } },
+                new FilePickerFileType("CSV") { Patterns = new[] { "*.csv" } },
+            },
+            SuggestedStartLocation = await GetDefaultStartLocationAsync(sp),
+        });
+        if (file is null) return;
+        var path = file.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
+        try
+        {
+            var data = BuildAnalysisExport();
+            if (data.Entries.Count == 0)
+            {
+                ShowError("出力可能なデータがありません。");
+                return;
+            }
+
+            var format = GetExportFormat(path);
+            var fileName = EnsureExportExtension(path, format);
+            IAnalysisExporter exporter = format == ExportFormat.Csv
+                ? new DlsCsvAnalysisExporter()
+                : new DlsXlsxAnalysisExporter();
+            exporter.Export(data, fileName);
+            HideError();
+            SetStatus($"解析結果を保存しました: {fileName}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            ShowError($"保存に失敗しました: {ex.Message}");
+        }
+    }
+
+    private AnalysisExport BuildAnalysisExport()
+    {
+        var entries = new List<DlsAnalysisExportEntry>();
+        var modeName = _selectedMode.ToString();
+        var xLabel = DefaultLabels.GetDefaultXLabel(_selectedMode);
+        var yLabel = DefaultLabels.GetModeLabel(_selectedMode);
+
+        foreach (var dataset in _selectedDatasets)
+        {
+            var datasetIdx = _datasets.IndexOf(dataset);
+            var item = (datasetIdx >= 0 && datasetIdx < _datasetItems.Count)
+                ? _datasetItems[datasetIdx]
+                : null;
+
+            var series = GetSeries(dataset, _selectedMode);
+            var (xs, ys) = ResolveSeriesPoints(series);
+
+            CumulantResult? cumulant = null;
+            double? hydrodynamicDiameterNm = null;
+            if (item is not null)
+            {
+                var outcome = CumulantAnalyzer.Analyze(
+                    dataset.Correlation,
+                    item.Cumulant.FitRangeMinMicroseconds,
+                    item.Cumulant.FitRangeMaxMicroseconds);
+                if (outcome.Success && outcome.Result is not null)
+                {
+                    cumulant = outcome.Result;
+                    var size = StokesEinstein.Compute(
+                        cumulant.FirstCumulantPerMicrosecond,
+                        item.Metadata.TemperatureCelsius,
+                        item.Metadata.ViscosityMpas,
+                        item.Metadata.RefractiveIndex,
+                        item.Metadata.WavelengthNm,
+                        item.Metadata.ScatteringAngleDegrees);
+                    if (size.Success) hydrodynamicDiameterNm = size.HydrodynamicDiameterNm;
+                }
+            }
+
+            entries.Add(new DlsAnalysisExportEntry
+            {
+                DisplayName = dataset.SheetName,
+                DistributionMode = modeName,
+                XLabel = xLabel,
+                YLabel = yLabel,
+                Xs = xs,
+                Ys = ys,
+                Cumulant = cumulant,
+                HydrodynamicDiameterNm = hydrodynamicDiameterNm,
+                TemperatureCelsius = item?.Metadata.TemperatureCelsius,
+                Solvent = item?.Metadata.Solvent,
+                ConcentrationMgPerMl = item?.Metadata.ConcentrationMgPerMl,
+                RefractiveIndex = item?.Metadata.RefractiveIndex,
+                ViscosityMpas = item?.Metadata.ViscosityMpas,
+                WavelengthNm = item?.Metadata.WavelengthNm,
+                ScatteringAngleDegrees = item?.Metadata.ScatteringAngleDegrees,
+            });
+        }
+
+        return new AnalysisExport
+        {
+            Entries = entries,
+            GeneratorName = "LabPlot DLS",
+        };
+    }
+
+    private static (IReadOnlyList<double> Xs, IReadOnlyList<double> Ys) ResolveSeriesPoints(DataSeries? series)
+    {
+        if (series is null || series.RunCount == 0)
+            return (Array.Empty<double>(), Array.Empty<double>());
+        var run = series.Runs[Math.Clamp(series.ActiveRunIndex, 0, series.RunCount - 1)];
+        var n = Math.Min(run.Count, series.Xs.Count);
+        var xs = new double[n];
+        var ys = new double[n];
+        for (int i = 0; i < n; i++)
+        {
+            xs[i] = series.Xs[i];
+            ys[i] = run[i];
+        }
+        return (xs, ys);
+    }
+
+    private enum ExportFormat { Xlsx, Csv }
+
+    private static ExportFormat GetExportFormat(string filePath)
+    {
+        var ext = Path.GetExtension(filePath);
+        if (string.Equals(ext, ".csv", StringComparison.OrdinalIgnoreCase)) return ExportFormat.Csv;
+        return ExportFormat.Xlsx;
+    }
+
+    private static string EnsureExportExtension(string filePath, ExportFormat format)
+    {
+        var expected = format == ExportFormat.Csv ? ".csv" : ".xlsx";
+        if (string.Equals(Path.GetExtension(filePath), expected, StringComparison.OrdinalIgnoreCase))
+            return filePath;
+        return Path.ChangeExtension(filePath, expected);
+    }
+
+    private void UpdateExportButtonState()
+    {
+        var hasData = _selectedDatasets.Count > 0;
+        ExportButton.IsEnabled = hasData;
+        SaveGraphButton.IsEnabled = hasData;
+        SaveSessionButton.IsEnabled = _datasetItems.Count > 0
+            && !string.IsNullOrEmpty(_currentWorkbookPath);
+    }
+
+    // ---------- Session save / load ----------
+
+    private void SaveSessionButton_Click(object? sender, RoutedEventArgs e) => _ = SaveSessionAsync();
+    private void LoadSessionButton_Click(object? sender, RoutedEventArgs e) => _ = LoadSessionAsync();
+
+    private async Task SaveSessionAsync()
+    {
+        if (_datasetItems.Count == 0 || string.IsNullOrEmpty(_currentWorkbookPath))
+        {
+            ShowError("保存する状態がありません。");
+            return;
+        }
+        var sp = StorageProvider;
+        if (sp is null) return;
+
+        var defaultName = $"{Path.GetFileNameWithoutExtension(_currentWorkbookPath)}_session.dlsjson";
+        var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "解析条件を保存",
+            SuggestedFileName = defaultName,
+            DefaultExtension = "dlsjson",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("DLS 解析条件") { Patterns = new[] { "*.dlsjson" } },
+                new FilePickerFileType("JSON") { Patterns = new[] { "*.json" } },
+            },
+            SuggestedStartLocation = await GetDefaultStartLocationAsync(sp),
+        });
+        if (file is null) return;
+        var path = file.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
+        try
+        {
+            var session = BuildSession();
+            new AnalysisSessionStore<DlsAnalysisSession>().Save(session, path);
+            HideError();
+            SetStatus($"解析条件を保存しました: {path}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowError($"保存に失敗しました: {ex.Message}");
+        }
+    }
+
+    private async Task LoadSessionAsync()
+    {
+        var sp = StorageProvider;
+        if (sp is null) return;
+
+        var files = await sp.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "解析条件を読み込み",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("DLS 解析条件") { Patterns = new[] { "*.dlsjson", "*.json" } },
+                FilePickerFileTypes.All,
+            },
+            SuggestedStartLocation = await GetDefaultStartLocationAsync(sp),
+        });
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+
+        DlsAnalysisSession session;
+        try
+        {
+            session = new AnalysisSessionStore<DlsAnalysisSession>().Load(path);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or FileNotFoundException)
+        {
+            ShowError($"読み込みに失敗しました: {ex.Message}");
+            return;
+        }
+
+        var warnings = new List<string>();
+        await ApplySessionAsync(session, warnings);
+
+        if (warnings.Count > 0)
+            ShowError($"一部復元できない項目あり: {string.Join(" / ", warnings)}");
+        else
+            HideError();
+    }
+
+    private DlsAnalysisSession BuildSession()
+    {
+        var sessionDatasets = new List<DlsAnalysisSessionDataset>();
+        for (int i = 0; i < _datasetItems.Count; i++)
+        {
+            var item = _datasetItems[i];
+            var ds = item.Dataset;
+            sessionDatasets.Add(new DlsAnalysisSessionDataset
+            {
+                SheetName = ds.SheetName,
+                SourceFilePath = _currentWorkbookPath ?? string.Empty,
+                Selected = _selectedDatasets.Contains(ds),
+                Style = new AnalysisSessionStyle
+                {
+                    ColorHex = item.Style.ColorHex,
+                    LegendName = item.Style.LegendName,
+                    LineWidth = item.Style.LineWidth,
+                    MarkerSize = item.Style.MarkerSize,
+                },
+                Metadata = new DlsAnalysisSessionMetadata
+                {
+                    TemperatureCelsius = item.Metadata.TemperatureCelsius,
+                    Solvent = item.Metadata.Solvent,
+                    ConcentrationMgPerMl = item.Metadata.ConcentrationMgPerMl,
+                    RefractiveIndex = item.Metadata.RefractiveIndex,
+                    ViscosityMpas = item.Metadata.ViscosityMpas,
+                    WavelengthNm = item.Metadata.WavelengthNm,
+                    ScatteringAngleDegrees = item.Metadata.ScatteringAngleDegrees,
+                },
+                CumulantSettings = new DlsAnalysisSessionCumulantSettings
+                {
+                    FitRangeMinMicroseconds = item.Cumulant.FitRangeMinMicroseconds,
+                    FitRangeMaxMicroseconds = item.Cumulant.FitRangeMaxMicroseconds,
+                },
+            });
+        }
+
+        return new DlsAnalysisSession
+        {
+            WorkbookPath = _currentWorkbookPath ?? string.Empty,
+            Datasets = sessionDatasets,
+            Axes = new AnalysisSessionAxes
+            {
+                XMin = AxisRangePanel.XMinValue,
+                XMax = AxisRangePanel.XMaxValue,
+                YMin = AxisRangePanel.YMinValue,
+                YMax = AxisRangePanel.YMaxValue,
+            },
+            Formatting = BuildSessionFormatting(),
+            Labels = new AnalysisSessionLabels
+            {
+                Title = TitleTextBox.Text ?? string.Empty,
+                XLabel = XLabelTextBox.Text ?? string.Empty,
+                YLabel = YLabelTextBox.Text ?? string.Empty,
+            },
+            SelectedDistributionMode = _selectedMode.ToString(),
+            SelectedRunIndex = _selectedRunIndex,
+            ActiveDatasetIndex = _activeItemIndex,
+            Overlay = _selectedDatasets.Count > 1,
+        };
+    }
+
+    // 戻り値 Task は LoadSessionAsync に async/await 経路を提供するためで、
+    // 中身は同期処理（reader.Read は I/O だが xlsx 1 ファイル分なので
+    // ImportWorkbookAsync 同様に Task.Run でオフロードしてもいいが、
+    // 既存セッションの再読み込みは BusyOverlay 無しで十分速い）。
+    private Task ApplySessionAsync(DlsAnalysisSession session, List<string> warnings)
+    {
+        if (string.IsNullOrWhiteSpace(session.WorkbookPath))
+        {
+            warnings.Add("xlsx ファイルパスが空です");
+            return Task.CompletedTask;
+        }
+        if (!File.Exists(session.WorkbookPath))
+        {
+            warnings.Add($"xlsx ファイルが見つかりません ({session.WorkbookPath})");
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            var loaded = _reader.Read(session.WorkbookPath);
+            _datasets.Clear();
+            foreach (var ds in loaded) _datasets.Add(ds);
+            _datasetItems.Clear();
+            foreach (var ds in _datasets) _datasetItems.Add(new DlsDatasetItem(ds));
+
+            _currentWorkbookPath = session.WorkbookPath;
+            DatasetListBox.ItemsSource = null;
+            DatasetListBox.ItemsSource = _datasetItems;
+            UpdateDatasetListPlaceholder();
+            DatasetCountText.Text =
+                $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(session.WorkbookPath)}）";
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"xlsx 再読み込み失敗: {ex.Message}");
+            return Task.CompletedTask;
+        }
+
+        foreach (var sessionDs in session.Datasets)
+        {
+            var item = _datasetItems.FirstOrDefault(it =>
+                string.Equals(it.SheetName, sessionDs.SheetName, StringComparison.Ordinal));
+            if (item is null)
+            {
+                warnings.Add($"シート '{sessionDs.SheetName}' が見つかりません");
+                continue;
+            }
+
+            item.Style.ColorHex = sessionDs.Style.ColorHex;
+            item.Style.LegendName = sessionDs.Style.LegendName;
+            item.Style.LineWidth = sessionDs.Style.LineWidth;
+            item.Style.MarkerSize = sessionDs.Style.MarkerSize;
+
+            item.Metadata.TemperatureCelsius = sessionDs.Metadata.TemperatureCelsius;
+            item.Metadata.Solvent = sessionDs.Metadata.Solvent;
+            item.Metadata.ConcentrationMgPerMl = sessionDs.Metadata.ConcentrationMgPerMl;
+            item.Metadata.RefractiveIndex = sessionDs.Metadata.RefractiveIndex;
+            item.Metadata.ViscosityMpas = sessionDs.Metadata.ViscosityMpas;
+            item.Metadata.WavelengthNm = sessionDs.Metadata.WavelengthNm;
+            item.Metadata.ScatteringAngleDegrees = sessionDs.Metadata.ScatteringAngleDegrees;
+
+            item.Cumulant.FitRangeMinMicroseconds = sessionDs.CumulantSettings.FitRangeMinMicroseconds;
+            item.Cumulant.FitRangeMaxMicroseconds = sessionDs.CumulantSettings.FitRangeMaxMicroseconds;
+        }
+
+        _selectedMode = DistributionModeFromTag(session.SelectedDistributionMode);
+        SelectComboBoxByTag(DistributionTypeComboBox, session.SelectedDistributionMode);
+        _selectedRunIndex = Math.Max(0, session.SelectedRunIndex);
+
+        if (session.Formatting is not null)
+        {
+            session.Formatting.Normalize();
+            session.Formatting.DefaultOutputDirectory = _formattingDefaults.DefaultOutputDirectory;
+            _formattingConfig = session.Formatting;
+            ApplyFormattingConfigToControls(_formattingConfig);
+            UpdatePlotHostAspectRatio();
+        }
+
+        _suppressFormattingEvents = true;
+        try
+        {
+            TitleTextBox.Text = session.Labels.Title ?? string.Empty;
+            XLabelTextBox.Text = session.Labels.XLabel ?? string.Empty;
+            YLabelTextBox.Text = session.Labels.YLabel ?? string.Empty;
+            AxisRangePanel.SetXValues(session.Axes.XMin, session.Axes.XMax);
+            AxisRangePanel.SetYValues(session.Axes.YMin, session.Axes.YMax);
+        }
+        finally
+        {
+            _suppressFormattingEvents = false;
+        }
+
+        DatasetListBox.SelectedItems?.Clear();
+        foreach (var sessionDs in session.Datasets.Where(d => d.Selected))
+        {
+            var item = _datasetItems.FirstOrDefault(it =>
+                string.Equals(it.SheetName, sessionDs.SheetName, StringComparison.Ordinal));
+            if (item is not null) DatasetListBox.SelectedItems?.Add(item);
+        }
+
+        if (_selectedDatasets.Count == 0)
+        {
+            _activeItemIndex = -1;
+            SyncStyleControlsFromActiveItem();
+            SyncMetadataControlsFromActiveItem();
+            SyncCumulantControlsFromActiveItem();
+            UpdateExportButtonState();
+            InitializeEmptyPlot();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private string GetCurrentWorkbookHint() => _currentWorkbookPath ?? "dls";
+
+    // ---------- Dataset selection ----------
+
+    private void DatasetListBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        _selectedDatasets.Clear();
+        foreach (var item in _datasetItems)
+        {
+            if (DatasetListBox.SelectedItems?.Contains(item) == true)
+                _selectedDatasets.Add(item.Dataset);
+        }
+
+        DlsDatasetItem? activeItem = null;
+        foreach (var added in e.AddedItems)
+        {
+            if (added is DlsDatasetItem item) activeItem = item;
+        }
+        if (activeItem is null && DatasetListBox.SelectedItems is { Count: > 0 } sels)
+        {
+            activeItem = sels[sels.Count - 1] as DlsDatasetItem;
+        }
+        _activeItemIndex = activeItem is null ? -1 : _datasetItems.IndexOf(activeItem);
+        SyncStyleControlsFromActiveItem();
+        SyncMetadataControlsFromActiveItem();
+        SyncCumulantControlsFromActiveItem();
+
+        UpdateRunCombo();
+        UpdateDistributionTypeAvailability();
+        UpdateExportButtonState();
+        RefreshPlot();
+    }
+
+    private void SyncStyleControlsFromActiveItem()
+    {
+        bool hasActive = _activeItemIndex >= 0 && _activeItemIndex < _datasetItems.Count;
+        LineColorPicker.IsEnabled = hasActive;
+        LegendNameTextBox.IsEnabled = hasActive;
+        LineWidthTextBox.IsEnabled = hasActive;
+        MarkerSizeTextBox.IsEnabled = hasActive;
+
+        if (!hasActive)
+        {
+            ActiveDatasetLabel.Text = "(選択中シート)";
+            return;
+        }
+
+        var item = _datasetItems[_activeItemIndex];
+        ActiveDatasetLabel.Text = $"({item.SheetName})";
+
+        _suppressStyleControlEvents = true;
+        try
+        {
+            LineColorPicker.DefaultHex = AutoLineColors[_activeItemIndex % AutoLineColors.Length];
+            LineColorPicker.SetHexValue(item.Style.ColorHex);
+            LegendNameTextBox.Text = item.Style.LegendName ?? string.Empty;
+            LineWidthTextBox.Text = FormatDouble(item.Style.LineWidth);
+            MarkerSizeTextBox.Text = FormatDouble(item.Style.MarkerSize);
+        }
+        finally
+        {
+            _suppressStyleControlEvents = false;
+        }
+    }
+
+    private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        _datasetItems[_activeItemIndex].Style.ColorHex = LineColorPicker.HexValue;
+        RefreshPlot();
+    }
+
+    private void LegendNameTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var legendName = (LegendNameTextBox.Text ?? string.Empty).Trim();
+        _datasetItems[_activeItemIndex].Style.LegendName =
+            string.IsNullOrWhiteSpace(legendName) ? null : legendName;
+        RefreshPlot();
+    }
+
+    private void LineWidthTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        if (TryParsePositiveDouble(LineWidthTextBox.Text, out var width))
+        {
+            _datasetItems[_activeItemIndex].Style.LineWidth = width;
+            RefreshPlot();
+        }
+    }
+
+    private void MarkerSizeTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressStyleControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        if (TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var size))
+        {
+            _datasetItems[_activeItemIndex].Style.MarkerSize = size;
+            RefreshPlot();
+        }
+    }
 
     // ---------- Measurement metadata ----------
-    private void MetadataTemperatureTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void MetadataConcentrationTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void MetadataSolventTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void MetadataRefractiveIndexTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void MetadataViscosityTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void MetadataWavelengthTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void MetadataScatteringAngleTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void MetadataTextBox_KeyDown(object? sender, KeyEventArgs e) { /* Batch 3b */ }
 
-    // ---------- Cumulant ----------
-    private void CumulantFitRangeTextBox_LostFocus(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
+    private void SyncMetadataControlsFromActiveItem()
+    {
+        bool hasActive = _activeItemIndex >= 0 && _activeItemIndex < _datasetItems.Count;
+        MetadataTemperatureTextBox.IsEnabled = hasActive;
+        MetadataConcentrationTextBox.IsEnabled = hasActive;
+        MetadataSolventTextBox.IsEnabled = hasActive;
+        MetadataRefractiveIndexTextBox.IsEnabled = hasActive;
+        MetadataViscosityTextBox.IsEnabled = hasActive;
 
-    // ---------- Display ----------
-    private void DistributionTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e) { /* Batch 3b */ }
-    private void RunComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e) { /* Batch 3b */ }
+        if (!hasActive)
+        {
+            ActiveMetadataLabel.Text = "(選択中シート)";
+            _suppressMetadataControlEvents = true;
+            try
+            {
+                MetadataTemperatureTextBox.Text = string.Empty;
+                MetadataConcentrationTextBox.Text = string.Empty;
+                MetadataSolventTextBox.Text = string.Empty;
+                MetadataRefractiveIndexTextBox.Text = string.Empty;
+                MetadataViscosityTextBox.Text = string.Empty;
+                MetadataWavelengthTextBox.Text = string.Empty;
+                MetadataScatteringAngleTextBox.Text = string.Empty;
+            }
+            finally { _suppressMetadataControlEvents = false; }
+            return;
+        }
 
-    // ---------- Axis / labels / format ----------
-    private void AxisRangePanel_Committed(object? sender, EventArgs e) { /* Batch 3b */ }
-    private void GraphLabelTextBox_TextChanged(object? sender, TextChangedEventArgs e) { /* Batch 3b */ }
-    private void FormatCheckBox_Changed(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e) { /* Batch 3b */ }
-    private void GraphFormatPanel_AspectRatioChanged(object? sender, EventArgs e) { /* Batch 3b */ }
+        MetadataWavelengthTextBox.IsEnabled = true;
+        MetadataScatteringAngleTextBox.IsEnabled = true;
 
-    // ---------- Session ----------
-    private void SaveSessionButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void LoadSessionButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
+        var metadata = _datasetItems[_activeItemIndex].Metadata;
+        ActiveMetadataLabel.Text = $"({_datasetItems[_activeItemIndex].SheetName})";
 
-    // ---------- Preferences ----------
-    private void BrowseDefaultOutputDirectoryButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void FormatComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e) { /* Batch 3b */ }
-    private void FormatTextBox_TextChanged(object? sender, TextChangedEventArgs e) { /* Batch 3b */ }
-    private void ResetGraphSettingsButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void SaveDefaultFormattingButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
+        _suppressMetadataControlEvents = true;
+        try
+        {
+            MetadataTemperatureTextBox.Text = FormatNullableDouble(metadata.TemperatureCelsius);
+            MetadataConcentrationTextBox.Text = FormatNullableDouble(metadata.ConcentrationMgPerMl);
+            MetadataSolventTextBox.Text = metadata.Solvent ?? string.Empty;
+            MetadataRefractiveIndexTextBox.Text = FormatNullableDouble(metadata.RefractiveIndex);
+            MetadataViscosityTextBox.Text = FormatNullableDouble(metadata.ViscosityMpas);
+            MetadataWavelengthTextBox.Text = FormatNullableDouble(metadata.WavelengthNm);
+            MetadataScatteringAngleTextBox.Text = FormatNullableDouble(metadata.ScatteringAngleDegrees);
+        }
+        finally { _suppressMetadataControlEvents = false; }
+    }
 
-    // ---------- Save / export ----------
-    private void SaveGraphButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
-    private void ExportButton_Click(object? sender, RoutedEventArgs e) { /* Batch 3b */ }
+    private void SyncCumulantControlsFromActiveItem()
+    {
+        bool hasActive = _activeItemIndex >= 0 && _activeItemIndex < _datasetItems.Count;
+        CumulantFitMinTextBox.IsEnabled = hasActive;
+        CumulantFitMaxTextBox.IsEnabled = hasActive;
 
-    // ---------- Plot host ----------
-    private void PlotContainerBorder_SizeChanged(object? sender, SizeChangedEventArgs e) { /* Batch 3b */ }
+        if (!hasActive)
+        {
+            ActiveCumulantLabel.Text = "(選択中シート)";
+            _suppressMetadataControlEvents = true;
+            try
+            {
+                CumulantFitMinTextBox.Text = string.Empty;
+                CumulantFitMaxTextBox.Text = string.Empty;
+            }
+            finally { _suppressMetadataControlEvents = false; }
+            UpdateCumulantDisplay();
+            return;
+        }
+
+        var item = _datasetItems[_activeItemIndex];
+        ActiveCumulantLabel.Text = $"({item.SheetName})";
+
+        _suppressMetadataControlEvents = true;
+        try
+        {
+            CumulantFitMinTextBox.Text = FormatNullableDouble(item.Cumulant.FitRangeMinMicroseconds);
+            CumulantFitMaxTextBox.Text = FormatNullableDouble(item.Cumulant.FitRangeMaxMicroseconds);
+        }
+        finally { _suppressMetadataControlEvents = false; }
+
+        UpdateCumulantDisplay();
+    }
+
+    private void UpdateCumulantDisplay()
+    {
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count)
+        {
+            ResetCumulantDisplay();
+            return;
+        }
+
+        var item = _datasetItems[_activeItemIndex];
+        var correlation = item.Dataset.Correlation;
+
+        if (correlation is null)
+        {
+            ResetCumulantDisplay();
+            ShowCumulantStatus("自己相関データがありません");
+            return;
+        }
+
+        var outcome = CumulantAnalyzer.Analyze(
+            correlation,
+            item.Cumulant.FitRangeMinMicroseconds,
+            item.Cumulant.FitRangeMaxMicroseconds);
+
+        if (!outcome.Success || outcome.Result is null)
+        {
+            ResetCumulantDisplay();
+            ShowCumulantStatus(outcome.FailureReason ?? "fit に失敗しました");
+            return;
+        }
+
+        var result = outcome.Result;
+        CumulantGammaText.Text = $"{FormatScientific(result.FirstCumulantPerMicrosecond)} μs⁻¹";
+        CumulantPdiText.Text = result.PolydispersityIndex.ToString("0.000",
+            CultureInfo.InvariantCulture);
+        CumulantRSquaredText.Text = result.RSquared.ToString("0.0000",
+            CultureInfo.InvariantCulture);
+        CumulantRangeText.Text =
+            $"{FormatDouble(result.AppliedRangeMinMicroseconds)} 〜 "
+            + $"{FormatDouble(result.AppliedRangeMaxMicroseconds)} μs"
+            + $" ({result.PointCount} 点)";
+
+        var sizeOutcome = StokesEinstein.Compute(
+            result.FirstCumulantPerMicrosecond,
+            item.Metadata.TemperatureCelsius,
+            item.Metadata.ViscosityMpas,
+            item.Metadata.RefractiveIndex,
+            item.Metadata.WavelengthNm,
+            item.Metadata.ScatteringAngleDegrees);
+
+        if (sizeOutcome.Success && sizeOutcome.HydrodynamicDiameterNm.HasValue)
+        {
+            CumulantZAverageText.Text =
+                $"{sizeOutcome.HydrodynamicDiameterNm.Value.ToString("0.0", CultureInfo.InvariantCulture)} nm";
+            HideCumulantStatus();
+        }
+        else
+        {
+            CumulantZAverageText.Text = "—";
+            var missing = string.Join("・", sizeOutcome.MissingFields);
+            ShowCumulantStatus(string.IsNullOrEmpty(missing)
+                ? "粒径計算に必要なメタデータが不足しています"
+                : $"{missing} が未入力で粒径計算できません");
+        }
+    }
+
+    private void ResetCumulantDisplay()
+    {
+        CumulantZAverageText.Text = "—";
+        CumulantPdiText.Text = "—";
+        CumulantGammaText.Text = "—";
+        CumulantRangeText.Text = "—";
+        CumulantRSquaredText.Text = "—";
+        HideCumulantStatus();
+    }
+
+    private void ShowCumulantStatus(string message)
+    {
+        CumulantStatusText.Text = message;
+        CumulantStatusText.IsVisible = true;
+    }
+
+    private void HideCumulantStatus()
+    {
+        CumulantStatusText.Text = string.Empty;
+        CumulantStatusText.IsVisible = false;
+    }
+
+    private static string FormatScientific(double value)
+    {
+        if (!double.IsFinite(value)) return "—";
+        return value.ToString("0.###e+0", CultureInfo.InvariantCulture);
+    }
+
+    // Enter で TextBox からフォーカスを外して LostFocus 経路に乗せる。
+    // WPF の Keyboard.ClearFocus + FocusManager.SetFocusedElement は
+    // Avalonia には等価が無いので、Window 自身に Focus() してフォーカスを
+    // TextBox から剥がす方針。
+    private void MetadataTextBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        Focus();
+        e.Handled = true;
+    }
+
+    private void MetadataTemperatureTextBox_LostFocus(object? sender, RoutedEventArgs e)
+        => CommitNumericMetadata(MetadataTemperatureTextBox, NumericConstraint.AnyFinite,
+            (item, value) => item.Metadata.TemperatureCelsius = value);
+
+    private void MetadataConcentrationTextBox_LostFocus(object? sender, RoutedEventArgs e)
+        => CommitNumericMetadata(MetadataConcentrationTextBox, NumericConstraint.NonNegative,
+            (item, value) => item.Metadata.ConcentrationMgPerMl = value);
+
+    private void MetadataRefractiveIndexTextBox_LostFocus(object? sender, RoutedEventArgs e)
+        => CommitNumericMetadata(MetadataRefractiveIndexTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.RefractiveIndex = value);
+
+    private void MetadataViscosityTextBox_LostFocus(object? sender, RoutedEventArgs e)
+        => CommitNumericMetadata(MetadataViscosityTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.ViscosityMpas = value);
+
+    private void MetadataWavelengthTextBox_LostFocus(object? sender, RoutedEventArgs e)
+        => CommitNumericMetadata(MetadataWavelengthTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.WavelengthNm = value);
+
+    private void MetadataScatteringAngleTextBox_LostFocus(object? sender, RoutedEventArgs e)
+        => CommitNumericMetadata(MetadataScatteringAngleTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.ScatteringAngleDegrees = value);
+
+    private void CumulantFitRangeTextBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressMetadataControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var item = _datasetItems[_activeItemIndex];
+        bool reverted = false;
+        if (!TryCommitCumulantBound(CumulantFitMinTextBox,
+                value => item.Cumulant.FitRangeMinMicroseconds = value))
+            reverted = true;
+        if (!TryCommitCumulantBound(CumulantFitMaxTextBox,
+                value => item.Cumulant.FitRangeMaxMicroseconds = value))
+            reverted = true;
+
+        if (reverted) SyncCumulantControlsFromActiveItem();
+        else UpdateCumulantDisplay();
+    }
+
+    private bool TryCommitCumulantBound(TextBox textBox, Action<double?> apply)
+    {
+        var raw = (textBox.Text ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            apply(null);
+            return true;
+        }
+        if (!TryParsePositiveDouble(raw, out var value)) return false;
+
+        apply(value);
+        _suppressMetadataControlEvents = true;
+        try { textBox.Text = FormatDouble(value); }
+        finally { _suppressMetadataControlEvents = false; }
+        return true;
+    }
+
+    private void MetadataSolventTextBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressMetadataControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var solvent = (MetadataSolventTextBox.Text ?? string.Empty).Trim();
+        _datasetItems[_activeItemIndex].Metadata.Solvent =
+            string.IsNullOrWhiteSpace(solvent) ? null : solvent;
+        UpdateCumulantDisplay();
+    }
+
+    private enum NumericConstraint { AnyFinite, NonNegative, Positive }
+
+    private void CommitNumericMetadata(
+        TextBox textBox,
+        NumericConstraint constraint,
+        Action<DlsDatasetItem, double?> apply)
+    {
+        if (!IsInitialized) return;
+        if (_suppressMetadataControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var item = _datasetItems[_activeItemIndex];
+        var raw = (textBox.Text ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            apply(item, null);
+            _suppressMetadataControlEvents = true;
+            try { textBox.Text = string.Empty; }
+            finally { _suppressMetadataControlEvents = false; }
+            return;
+        }
+
+        bool ok = constraint switch
+        {
+            NumericConstraint.Positive => TryParsePositiveDouble(raw, out _),
+            NumericConstraint.NonNegative => TryParseNonNegativeDouble(raw, out _),
+            _ => TryParseDouble(raw, out _),
+        };
+
+        if (!ok)
+        {
+            SyncMetadataControlsFromActiveItem();
+            return;
+        }
+
+        TryParseDouble(raw, out var value);
+        apply(item, value);
+
+        _suppressMetadataControlEvents = true;
+        try { textBox.Text = FormatDouble(value); }
+        finally { _suppressMetadataControlEvents = false; }
+
+        UpdateCumulantDisplay();
+    }
+
+    private static string FormatNullableDouble(double? value)
+        => value.HasValue ? FormatDouble(value.Value) : string.Empty;
+
+    // ---------- Display / format ----------
+
+    private void DistributionTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (DistributionTypeComboBox.SelectedItem is not ComboBoxItem item) return;
+        _selectedMode = DistributionModeFromTag(item.Tag as string);
+        UpdateRunCombo();
+        RefreshPlot();
+    }
+
+    private void RunComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressRunComboEvents) return;
+        _selectedRunIndex = Math.Max(0, RunComboBox.SelectedIndex);
+        RefreshPlot();
+    }
+
+    private void FormatTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void FormatComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void FormatCheckBox_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void GraphLabelTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        RefreshPlot();
+    }
+
+    private void AxisRangePanel_Committed(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void GraphFormatPanel_AspectRatioChanged(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (!_suppressFormattingEvents)
+            _formattingConfig = CaptureFormattingConfigFromControls();
+        UpdatePlotHostAspectRatio();
+    }
+
+    private void PlotContainerBorder_SizeChanged(object? sender, SizeChangedEventArgs e)
+        => UpdatePlotHostAspectRatio();
+
+    private void UpdatePlotHostAspectRatio()
+        => PlotHostAspectRatio.Apply(PlotHost, PlotContainerBorder, GraphFormatPanel.AspectRatioValue);
+
+    private void UpdateDatasetListPlaceholder()
+        => DatasetListPlaceholder.IsVisible = _datasetItems.Count == 0;
+
+    private void ClearActiveDatasets()
+    {
+        _selectedDatasets.Clear();
+        _activeItemIndex = -1;
+        SyncStyleControlsFromActiveItem();
+        SyncMetadataControlsFromActiveItem();
+        SyncCumulantControlsFromActiveItem();
+        UpdateExportButtonState();
+        InitializeEmptyPlot();
+    }
+
+    private void UpdateDistributionTypeAvailability()
+    {
+        for (int i = 0; i < DistributionTypeComboBox.ItemCount; i++)
+        {
+            if (DistributionTypeComboBox.Items[i] is not ComboBoxItem item) continue;
+            var mode = DistributionModeFromTag(item.Tag as string);
+            item.IsEnabled = _selectedDatasets.Count == 0
+                || _selectedDatasets.Any(ds => GetSeries(ds, mode) is not null);
+        }
+    }
+
+    private void UpdateRunCombo()
+    {
+        _suppressRunComboEvents = true;
+        try
+        {
+            RunComboBox.Items.Clear();
+            if (_selectedDatasets.Count != 1)
+            {
+                RunComboBox.IsEnabled = false;
+                _selectedRunIndex = 0;
+                return;
+            }
+
+            var series = GetSeries(_selectedDatasets[0], _selectedMode);
+            if (series is null || series.RunCount == 0)
+            {
+                RunComboBox.IsEnabled = false;
+                _selectedRunIndex = 0;
+                return;
+            }
+
+            for (int i = 0; i < series.RunCount; i++)
+                RunComboBox.Items.Add(new ComboBoxItem { Content = $"Run {i + 1}" });
+
+            RunComboBox.IsEnabled = series.RunCount > 1;
+            _selectedRunIndex = Math.Clamp(_selectedRunIndex, 0, series.RunCount - 1);
+            RunComboBox.SelectedIndex = _selectedRunIndex;
+        }
+        finally { _suppressRunComboEvents = false; }
+    }
+
+    // ---------- Plot ----------
+
+    private void RefreshPlot()
+    {
+        if (_plot is null) return;
+
+        if (_selectedDatasets.Count == 0)
+        {
+            InitializeEmptyPlot();
+            return;
+        }
+
+        _plot.Plot.Clear();
+
+        var seriesCount = 0;
+        foreach (var dataset in _selectedDatasets)
+        {
+            var series = GetSeries(dataset, _selectedMode);
+            if (series is null || series.RunCount == 0) continue;
+
+            var runIndex = _selectedDatasets.Count == 1
+                ? Math.Clamp(_selectedRunIndex, 0, series.RunCount - 1)
+                : Math.Clamp(series.ActiveRunIndex, 0, series.RunCount - 1);
+            var run = series.Runs[runIndex];
+            var rawXs = series.Xs;
+            var n = Math.Min(run.Count, rawXs.Count);
+            if (n == 0) continue;
+
+            var xs = new double[n];
+            var ys = new double[n];
+            for (int p = 0; p < n; p++)
+            {
+                xs[p] = Math.Log10(Math.Max(rawXs[p], 1e-6));
+                ys[p] = run[p];
+            }
+
+            var datasetIdx = _datasets.IndexOf(dataset);
+            var style = (datasetIdx >= 0 && datasetIdx < _datasetItems.Count)
+                ? _datasetItems[datasetIdx].Style
+                : null;
+
+            var scatter = _plot.Plot.Add.Scatter(xs, ys);
+            scatter.LineWidth = (float)(style?.LineWidth ?? _formattingConfig.LineWidth);
+            scatter.MarkerSize = (float)(style?.MarkerSize ?? _formattingConfig.MarkerSize);
+            ApplyDatasetColor(scatter, dataset);
+            var customLegendName = style?.LegendName;
+            scatter.LegendText = string.IsNullOrWhiteSpace(customLegendName)
+                ? dataset.SheetName
+                : customLegendName!;
+            seriesCount++;
+        }
+
+        for (int i = 0; i < _datasetItems.Count; i++)
+            _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
+
+        if (seriesCount == 0)
+        {
+            _plot.Plot.Title(GetGraphTitle($"{DefaultLabels.GetModeLabel(_selectedMode)}{DefaultLabels.NoDataSuffix}"));
+            _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+            _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
+            ApplyLogXTicksForMode(_selectedMode);
+            if (_selectedMode == DistributionMode.Correlation)
+                _plot.Plot.Axes.SetLimits(Math.Log10(0.5), Math.Log10(10000), 0, 1.05);
+            else
+                _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
+            ApplyPlotAppearance();
+            ApplyLegend(0);
+            _plot.Refresh();
+            return;
+        }
+
+        _plot.Plot.Title(GetGraphTitle(BuildTitle()));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
+        ApplyLogXTicksForMode(_selectedMode);
+        _plot.Plot.Axes.AutoScale();
+        ApplyPlotAppearance();
+        ApplyLegend(seriesCount);
+        _plot.Refresh();
+    }
+
+    private string BuildTitle()
+    {
+        if (_selectedDatasets.Count == 1)
+        {
+            var dataset = _selectedDatasets[0];
+            var series = GetSeries(dataset, _selectedMode);
+            var runLabel = series is { RunCount: > 1 }
+                ? $", Run {Math.Clamp(_selectedRunIndex, 0, series.RunCount - 1) + 1}"
+                : string.Empty;
+            return $"{dataset.SheetName} ({DefaultLabels.GetModeLabel(_selectedMode)}{runLabel})";
+        }
+
+        return $"{DefaultLabels.GetPlotTypeLabel(_selectedMode)} ({DefaultLabels.GetModeLabel(_selectedMode)}, {_selectedDatasets.Count} datasets)";
+    }
+
+    private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
+    {
+        var index = _datasets.IndexOf(dataset);
+        if (index < 0) index = 0;
+
+        if (index < _datasetItems.Count
+            && !string.IsNullOrWhiteSpace(_datasetItems[index].Style.ColorHex))
+        {
+            scatter.Color = ScottPlot.Color.FromHex(new[] { _datasetItems[index].Style.ColorHex! }).First();
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
+        {
+            scatter.Color = ScottPlot.Color.FromHex(new[] { _formattingConfig.DefaultLineColorHex }).First();
+            return;
+        }
+
+        var hex = AutoLineColors[index % AutoLineColors.Length];
+        scatter.Color = ScottPlot.Color.FromHex(new[] { hex }).First();
+    }
+
+    private SolidColorBrush ResolveDatasetBrush(int datasetIndex)
+    {
+        string hex;
+        if (datasetIndex >= 0 && datasetIndex < _datasetItems.Count
+            && !string.IsNullOrWhiteSpace(_datasetItems[datasetIndex].Style.ColorHex))
+        {
+            hex = _datasetItems[datasetIndex].Style.ColorHex!;
+        }
+        else if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
+        {
+            hex = _formattingConfig.DefaultLineColorHex!;
+        }
+        else
+        {
+            var i = Math.Max(0, datasetIndex);
+            hex = AutoLineColors[i % AutoLineColors.Length];
+        }
+        return new SolidColorBrush(HexToAvaloniaColor(hex));
+    }
+
+    private const int SizeAxisMinExponent = -1;
+    private const int SizeAxisMaxExponent = 4;
+    private const int CorrelationAxisMinExponent = -1;
+    private const int CorrelationAxisMaxExponent = 7;
+
+    private void ApplyLogXTicks(int minExponent, int maxExponent)
+    {
+        if (_plot is null) return;
+
+        var generator = new ScottPlot.TickGenerators.NumericManual();
+        for (int exponent = minExponent; exponent <= maxExponent; exponent++)
+        {
+            var label = exponent switch
+            {
+                < 0 => Math.Pow(10, exponent).ToString("0.#", CultureInfo.InvariantCulture),
+                _ => Math.Pow(10, exponent).ToString("0", CultureInfo.InvariantCulture),
+            };
+            generator.AddMajor(exponent, label);
+            if (exponent < maxExponent)
+            {
+                for (int multiplier = 2; multiplier <= 9; multiplier++)
+                    generator.AddMinor(exponent + Math.Log10(multiplier));
+            }
+        }
+        _plot.Plot.Axes.Bottom.TickGenerator = generator;
+    }
+
+    private void ApplyLogXTicksForMode(DistributionMode mode)
+    {
+        if (mode == DistributionMode.Correlation)
+            ApplyLogXTicks(CorrelationAxisMinExponent, CorrelationAxisMaxExponent);
+        else
+            ApplyLogXTicks(SizeAxisMinExponent, SizeAxisMaxExponent);
+    }
+
+    private void ApplyExportStyleScale(float scale)
+    {
+        if (_plot is null) return;
+        ApplyPlotAppearance(scale);
+        ApplyExistingSeriesStyles(scale);
+    }
+
+    private void ApplyExistingSeriesStyles(float scale)
+    {
+        if (_plot is null) return;
+
+        var scatters = _plot.Plot
+            .GetPlottables()
+            .OfType<ScottPlot.Plottables.Scatter>()
+            .ToArray();
+
+        var scatterIdx = 0;
+        foreach (var dataset in _selectedDatasets)
+        {
+            if (scatterIdx >= scatters.Length) break;
+            var series = GetSeries(dataset, _selectedMode);
+            if (series is null || series.RunCount == 0) continue;
+
+            var datasetIdx = _datasets.IndexOf(dataset);
+            var style = (datasetIdx >= 0 && datasetIdx < _datasetItems.Count)
+                ? _datasetItems[datasetIdx].Style
+                : null;
+            var baseLineWidth = (float)(style?.LineWidth ?? _formattingConfig.LineWidth);
+            var baseMarkerSize = (float)(style?.MarkerSize ?? _formattingConfig.MarkerSize);
+            scatters[scatterIdx].LineWidth = baseLineWidth * scale;
+            scatters[scatterIdx].MarkerSize = baseMarkerSize * scale;
+            scatterIdx++;
+        }
+    }
+
+    private void ApplyPlotAppearance(float scale = 1f)
+    {
+        if (_plot is null) return;
+        var plot = _plot.Plot;
+
+        ApplyAll(plot, _formattingConfig, scale);
+
+        if (_selectedMode == DistributionMode.Correlation) return;
+
+        if (_formattingConfig.XAxisMode == "Manual")
+        {
+            var xMinLog = Math.Log10(Math.Max(_formattingConfig.XAxisMinNm, 1e-6));
+            var xMaxLog = Math.Log10(Math.Max(_formattingConfig.XAxisMaxNm, 1e-6));
+            plot.Axes.SetLimitsX(xMinLog, xMaxLog);
+        }
+        if (_formattingConfig.YAxisMode == "Manual")
+            plot.Axes.SetLimitsY(_formattingConfig.YAxisMinPercent, _formattingConfig.YAxisMaxPercent);
+    }
+
+    private void ApplyLegend(int seriesCount)
+    {
+        if (_plot is null) return;
+
+        bool hasCustomLegendName = false;
+        if (seriesCount > 0)
+        {
+            foreach (var ds in _selectedDatasets)
+            {
+                var idx = _datasets.IndexOf(ds);
+                if (idx >= 0 && idx < _datasetItems.Count
+                    && !string.IsNullOrWhiteSpace(_datasetItems[idx].Style.LegendName))
+                {
+                    hasCustomLegendName = true;
+                    break;
+                }
+            }
+        }
+
+        var autoShow = seriesCount >= 2 || (seriesCount > 0 && hasCustomLegendName);
+        PlotAppearance.ApplyLegend(_plot.Plot, _formattingConfig, autoShow);
+    }
+
+    // ---------- Formatting config capture / apply ----------
+
+    private GraphFormattingConfig CaptureFormattingConfigFromControls()
+    {
+        var config = new GraphFormattingConfig();
+        GraphFormatPanel.Capture(config);
+
+        config.ShowTitle = TitleVisibleCheckBox.IsChecked == true;
+        config.TitleBold = TitleBoldCheckBox.IsChecked == true;
+        config.AxisLabelBold = AxisLabelBoldCheckBox.IsChecked == true;
+
+        config.DefaultLineColorHex = _formattingConfig.DefaultLineColorHex;
+        config.LineWidth = _formattingConfig.LineWidth;
+        config.MarkerSize = _formattingConfig.MarkerSize;
+
+        var outputDir = (DefaultOutputDirectoryTextBox.Text ?? string.Empty).Trim();
+        config.DefaultOutputDirectory = string.IsNullOrWhiteSpace(outputDir) ? null : outputDir;
+
+        config.XAxisMode = (AxisRangePanel.XMinValue.HasValue && AxisRangePanel.XMaxValue.HasValue)
+            ? "Manual" : "Auto";
+        config.XAxisMinNm = AxisRangePanel.XMinValue ?? GraphFormattingConfig.DefaultXAxisMinNm;
+        config.XAxisMaxNm = AxisRangePanel.XMaxValue ?? GraphFormattingConfig.DefaultXAxisMaxNm;
+        config.YAxisMode = (AxisRangePanel.YMinValue.HasValue && AxisRangePanel.YMaxValue.HasValue)
+            ? "Manual" : "Auto";
+        config.YAxisMinPercent = AxisRangePanel.YMinValue ?? GraphFormattingConfig.DefaultYAxisMinPercent;
+        config.YAxisMaxPercent = AxisRangePanel.YMaxValue ?? GraphFormattingConfig.DefaultYAxisMaxPercent;
+
+        config.DefaultDistributionMode = GetComboBoxTag(DefaultDistributionComboBox)
+            ?? GraphFormattingConfig.DefaultDistributionModeValue;
+        config.DefaultRunIndex = TryParseInt(DefaultRunIndexTextBox.Text, out var idx) ? idx : 0;
+
+        config.Normalize();
+        return config;
+    }
+
+    private void LoadFormattingDefaults()
+    {
+        _formattingDefaults = FormattingDefaultsStore.Load<GraphFormattingConfig>(
+            FormattingConfigPath,
+            FormattingConfigJsonOptions,
+            ShowError);
+    }
+
+    private void SaveFormattingDefaults()
+    {
+        FormattingDefaultsStore.Save(
+            _formattingDefaults,
+            FormattingConfigPath,
+            FormattingConfigJsonOptions);
+    }
+
+    private static GraphFormattingConfig CloneFormattingConfig(GraphFormattingConfig source)
+    {
+        var json = JsonSerializer.Serialize(source, FormattingConfigJsonOptions);
+        var clone = JsonSerializer.Deserialize<GraphFormattingConfig>(json, FormattingConfigJsonOptions)
+            ?? GraphFormattingConfig.CreateFactoryDefault();
+        clone.Normalize();
+        return clone;
+    }
+
+    private GraphFormattingConfig BuildSessionFormatting()
+    {
+        var formatting = CloneFormattingConfig(_formattingConfig);
+        formatting.DefaultOutputDirectory = null;
+        return formatting;
+    }
+
+    private async void BrowseDefaultOutputDirectoryButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var sp = StorageProvider;
+        if (sp is null) return;
+
+        IStorageFolder? start = null;
+        var current = (DefaultOutputDirectoryTextBox.Text ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(current) && Directory.Exists(current))
+        {
+            try { start = await sp.TryGetFolderFromPathAsync(current); }
+            catch { start = null; }
+        }
+
+        var folders = await sp.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "既定の出力フォルダを選択",
+            AllowMultiple = false,
+            SuggestedStartLocation = start,
+        });
+        if (folders.Count == 0) return;
+        var path = folders[0].TryGetLocalPath();
+        if (string.IsNullOrEmpty(path)) return;
+        DefaultOutputDirectoryTextBox.Text = path;
+    }
+
+    private void ResetGraphSettingsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        TitleTextBox.Text = string.Empty;
+        XLabelTextBox.Text = string.Empty;
+        YLabelTextBox.Text = string.Empty;
+        AxisRangePanel.SetXValues(null, null);
+        AxisRangePanel.SetYValues(null, null);
+        ApplyFormattingConfigToControls(_formattingDefaults);
+
+        foreach (var item in _datasetItems)
+            ApplyDefaultDatasetStyle(item);
+
+        SyncStyleControlsFromActiveItem();
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        UpdatePlotHostAspectRatio();
+        RefreshPlot();
+    }
+
+    private void SaveDefaultFormattingButton_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _formattingDefaults = CaptureFormattingConfigFromControls();
+            SaveFormattingDefaults();
+            HideError();
+            SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            ShowError($"書式の既定値を保存できませんでした: {ex.Message}");
+        }
+    }
+
+    private void ApplyDefaultDatasetStyle(DlsDatasetItem item)
+    {
+        item.Style.ColorHex = _formattingDefaults.DefaultLineColorHex;
+        item.Style.LegendName = null;
+        item.Style.LineWidth = _formattingDefaults.LineWidth;
+        item.Style.MarkerSize = _formattingDefaults.MarkerSize;
+    }
+
+    private void ApplyFormattingConfigToControls(GraphFormattingConfig config)
+    {
+        config.Normalize();
+
+        GraphFormatPanel.Apply(config);
+
+        _suppressFormattingEvents = true;
+        try
+        {
+            TitleVisibleCheckBox.IsChecked = config.ShowTitle;
+            TitleBoldCheckBox.IsChecked = config.TitleBold;
+            AxisLabelBoldCheckBox.IsChecked = config.AxisLabelBold;
+
+            AxisRangePanel.SetXValues(
+                config.XAxisMode == "Manual" ? config.XAxisMinNm : null,
+                config.XAxisMode == "Manual" ? config.XAxisMaxNm : null);
+            AxisRangePanel.SetYValues(
+                config.YAxisMode == "Manual" ? config.YAxisMinPercent : null,
+                config.YAxisMode == "Manual" ? config.YAxisMaxPercent : null);
+            SelectComboBoxByTag(DefaultDistributionComboBox, config.DefaultDistributionMode);
+            DefaultRunIndexTextBox.Text = config.DefaultRunIndex.ToString(CultureInfo.InvariantCulture);
+            DefaultOutputDirectoryTextBox.Text = config.DefaultOutputDirectory ?? string.Empty;
+        }
+        finally { _suppressFormattingEvents = false; }
+    }
+
+    // ---------- Generic helpers ----------
+
+    private static DistributionMode DistributionModeFromTag(string? tag) => tag switch
+    {
+        "Intensity" => DistributionMode.Intensity,
+        "Volume" => DistributionMode.Volume,
+        "Correlation" => DistributionMode.Correlation,
+        _ => DistributionMode.Number,
+    };
+
+    private static DataSeries? GetSeries(DlsDataset? dataset, DistributionMode mode)
+    {
+        if (dataset is null) return null;
+        if (mode == DistributionMode.Correlation)
+        {
+            var corr = dataset.Correlation;
+            return corr is null
+                ? null
+                : new DataSeries(corr.TimesMicroseconds, corr.Runs, corr.ActiveRunIndex);
+        }
+        var dist = mode switch
+        {
+            DistributionMode.Intensity => dataset.IntensityDistribution,
+            DistributionMode.Volume => dataset.VolumeDistribution,
+            _ => dataset.NumberDistribution,
+        };
+        return dist is null
+            ? null
+            : new DataSeries(dist.SizeBinsNm, dist.Runs, dist.ActiveRunIndex);
+    }
+
+    // DLS code-behind が ListBox の DataTemplate / 内部状態で参照する VM。
+    // WPF 版は private nested クラスだったが、Avalonia の AXAML が
+    // CompiledBinding に格上げできるよう internal に昇格して
+    // x:DataType で参照可能にする。
+    internal sealed class DlsDatasetStyle
+    {
+        public string? ColorHex { get; set; }
+        public string? LegendName { get; set; }
+        public double LineWidth { get; set; } = GraphFormattingConfigBase.DefaultLineWidth;
+        public double MarkerSize { get; set; } = GraphFormattingConfigBase.DefaultMarkerSize;
+    }
+
+    internal sealed class DlsDatasetMetadataState
+    {
+        public const double DefaultWavelengthNm = 633.0;
+        public const double DefaultScatteringAngleDegrees = 173.0;
+
+        public double? TemperatureCelsius { get; set; }
+        public string? Solvent { get; set; }
+        public double? ConcentrationMgPerMl { get; set; }
+        public double? RefractiveIndex { get; set; }
+        public double? ViscosityMpas { get; set; }
+        public double? WavelengthNm { get; set; } = DefaultWavelengthNm;
+        public double? ScatteringAngleDegrees { get; set; } = DefaultScatteringAngleDegrees;
+    }
+
+    internal sealed class DlsDatasetCumulantSettings
+    {
+        public double? FitRangeMinMicroseconds { get; set; }
+        public double? FitRangeMaxMicroseconds { get; set; }
+    }
+
+    internal sealed class DlsDatasetItem : INotifyPropertyChanged
+    {
+        public DlsDataset Dataset { get; }
+        public DlsDatasetStyle Style { get; } = new();
+        public DlsDatasetMetadataState Metadata { get; } = new();
+        public DlsDatasetCumulantSettings Cumulant { get; } = new();
+        public string SheetName => Dataset.SheetName;
+
+        private SolidColorBrush _colorBrush = new(Colors.Gray);
+        public SolidColorBrush ColorBrush
+        {
+            get => _colorBrush;
+            set
+            {
+                if (_colorBrush.Color == value.Color) return;
+                _colorBrush = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public DlsDatasetItem(DlsDataset dataset)
+        {
+            Dataset = dataset;
+            Metadata.TemperatureCelsius = dataset.Metadata.TemperatureCelsius;
+            Metadata.Solvent = dataset.Metadata.Solvent;
+            Metadata.ConcentrationMgPerMl = dataset.Metadata.ConcentrationMgPerMl;
+            Metadata.RefractiveIndex = dataset.Metadata.RefractiveIndex;
+            Metadata.ViscosityMpas = dataset.Metadata.ViscosityMpas;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    private string GetGraphTitle(string defaultTitle)
+    {
+        var title = (TitleTextBox.Text ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(title) ? defaultTitle : title;
+    }
+
+    private static string GetGraphLabel(TextBox textBox, string defaultLabel)
+    {
+        var label = (textBox.Text ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(label) ? defaultLabel : label;
+    }
+
+    private void ShowError(string message)
+    {
+        ErrorBanner.Show(message);
+        SetStatus(message, isError: true);
+    }
+
+    private void HideError() => ErrorBanner.Hide();
+
+    private void SetStatus(string message, bool isError = false)
+    {
+        if (StatusTextBlock is null) return;
+        StatusTextBlock.Text = message;
+        StatusTextBlock.Foreground = isError
+            ? new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C))
+            : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+        if (!isError) ErrorBanner.Hide();
+    }
+
+    private sealed record DataSeries(
+        IReadOnlyList<double> Xs,
+        IReadOnlyList<IReadOnlyList<double>> Runs,
+        int ActiveRunIndex)
+    {
+        public int RunCount => Runs.Count;
+    }
 }

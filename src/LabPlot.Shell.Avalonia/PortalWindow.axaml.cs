@@ -70,7 +70,7 @@ public partial class PortalWindow : Window
         => _ = ShowComingSoonAsync("UV-Vis", "スペクトル解析モジュールは Phase 7 Batch 5 で移植予定です。");
 
     private void OpenDls_Click(object? sender, RoutedEventArgs e)
-        => _ = ShowComingSoonAsync("DLS", "粒径分布解析モジュールは Phase 7 Batch 3 で移植予定です。");
+        => OpenSingleton<LabPlot.DLS.Avalonia.MainWindow>();
 
     /// <summary>
     /// Avalonia には標準 MessageBox が無いので、軽量な情報ダイアログを Window で代替する。

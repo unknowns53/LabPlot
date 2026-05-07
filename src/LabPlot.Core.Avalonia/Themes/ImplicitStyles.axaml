@@ -16,6 +16,23 @@
          ============================================================ -->
 
     <!-- ============================================================
+         Phase 7 Batch 6 step 3: フォント線幅を WPF 同等に強化
+         step 2 で SubpixelAntialias を当てたが、鷹栖くん実機確認では
+         「線幅自体が細い / アンチエイリアスが効いていない」体感。
+         Yu Gothic UI / Segoe UI の Regular ウェイトはそもそも細めで、
+         Avalonia の SkiaSharp 描画では特に薄く見える。WPF 版が体感的に
+         濃く見えるのは Frame 上の TextElement.FontWeight が
+         FluentTheme より少し太めの値（実質 Medium 相当）に揃って描かれて
+         いるため。Window セレクタで FontWeight=Medium をセットして
+         全 Window 配下の文字を Normal(400) → Medium(500) に底上げする。
+         FontWeight は継承プロパティなので子 Visual に伝播するが、
+         明示的に SemiBold/Bold が指定されているヘッダ系には影響しない。
+         ============================================================ -->
+    <Style Selector="Window">
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- ============================================================
          Phase 7 Batch 6 step 2: D&D 受け取りを ListBoxItem まで通す
          DragDrop.AllowDrop は Avalonia では非継承の attached property のため、
          Window や ListBox に True を立てても ListBoxItem 子要素では False のまま。

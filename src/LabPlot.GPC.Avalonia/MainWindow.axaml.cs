@@ -40,8 +40,9 @@ namespace LabPlot.GPC.Avalonia;
 ///     を Margin / IsVisible で位置決めする方式に置換</item>
 ///   <item>System.Windows.Threading.DispatcherTimer → Avalonia.Threading.DispatcherTimer</item>
 /// </list>
-/// LegendDragController (凡例マウスドラッグ) は WPF 専用ヘルパなので未移植。
-/// 凡例位置 / オフセット は GraphFormatPanel から設定可能。
+/// 凡例マウスドラッグは Phase 7 Batch 6 step 3 で
+/// <see cref="LabPlot.Core.Avalonia.Helpers.LegendDragController"/> として移植済み。
+/// 凡例位置 / オフセット は GraphFormatPanel + ドラッグ操作の双方から制御できる。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -94,6 +95,7 @@ public partial class MainWindow : Window
     private CalibrationCurve? _selectedCalibrationCurve;
     private string? _calibrationFilePath;
     private AvaPlot? _chromatogramPlot;
+    private LegendDragController? _legendDragController;
     private bool _updatingCalibrationSelection;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
@@ -1318,6 +1320,14 @@ public partial class MainWindow : Window
             _chromatogramPlot.PointerWheelChanged += ChromatogramPlot_PointerInteractionFinished;
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_chromatogramPlot);
+
+            // Phase 7 Batch 6 step 3: WPF 同等の凡例ドラッグ移動を有効化。
+            _legendDragController = new LegendDragController(
+                _chromatogramPlot,
+                () => _formattingConfig.LegendPosition,
+                () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
+                OnLegendDragCommit);
+            _legendDragController.Attach();
 
             UpdatePlotHostAspectRatio();
             InitializeEmptyPlot();
@@ -2906,6 +2916,20 @@ public partial class MainWindow : Window
     private void PlotContainerBorder_SizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
+    }
+
+    private void OnLegendDragCommit(string position, double offsetX, double offsetY)
+    {
+        // The drag controller wrote Alignment + Margin during the move so
+        // the legend already sits at the final spot. Persist the anchor +
+        // offsets into _formattingConfig and the panel controls, then re-run
+        // the normal appearance pass so any subsequent Plot* call picks up
+        // the same placement via ComputeLegendMargin.
+        _formattingConfig.LegendPosition = position;
+        _formattingConfig.LegendOffsetX = offsetX;
+        _formattingConfig.LegendOffsetY = offsetY;
+        GraphFormatPanel.SyncLegendPlacement(position, offsetX, offsetY);
+        ApplyGraphAppearanceAndRefresh();
     }
 
     private void ApplyGraphAppearanceAndRefresh()

@@ -36,9 +36,9 @@ namespace LabPlot.DLS.Avalonia;
 ///   <item>DataFormats.FileDrop の string[] → DataFormats.Files の IStorageItem 列挙</item>
 ///   <item>ScottPlot.Color の Avalonia.Media.Color 変換は LabPlot.Core.Avalonia.FormatHelpers.HexToAvaloniaColor</item>
 /// </list>
-/// LegendDragController（凡例マウスドラッグ）は WPF 専用ヘルパなので未移植。
-/// Avalonia 版は今のところドラッグ移動できないが、LegendPosition / LegendOffsetX/Y は
-/// GraphFormatPanel から設定可能。
+/// 凡例マウスドラッグは Phase 7 Batch 6 step 3 で
+/// <see cref="LabPlot.Core.Avalonia.Helpers.LegendDragController"/> として移植済み。
+/// LegendPosition / LegendOffsetX/Y は GraphFormatPanel + ドラッグ操作の双方から制御できる。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -65,6 +65,7 @@ public partial class MainWindow : Window
     private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private AvaPlot? _plot;
+    private LegendDragController? _legendDragController;
     private DistributionMode _selectedMode = DistributionMode.Number;
     private int _selectedRunIndex;
     private int _activeItemIndex = -1;
@@ -106,8 +107,13 @@ public partial class MainWindow : Window
             PlotHost.Children.Clear();
             PlotHost.Children.Add(_plot);
 
-            // LegendDragController は WPF 専用ヘルパなので Phase 7 内では未移植。
-            // 凡例位置 / オフセット は GraphFormatPanel 側からのみ操作可能。
+            // Phase 7 Batch 6 step 3: WPF 同等の凡例ドラッグ移動を有効化。
+            _legendDragController = new LegendDragController(
+                _plot,
+                () => _formattingConfig.LegendPosition,
+                () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
+                OnLegendDragCommit);
+            _legendDragController.Attach();
 
             ApplyFormattingConfigToControls(_formattingConfig);
             SyncStyleControlsFromActiveItem();
@@ -1355,6 +1361,21 @@ public partial class MainWindow : Window
     }
 
     // ---------- Plot ----------
+
+    private void OnLegendDragCommit(string position, double offsetX, double offsetY)
+    {
+        // The drag controller already wrote Alignment + Margin during the
+        // move, so by the time we arrive here the user sees the legend at
+        // the final position. Persist the anchor + offsets into the live
+        // formatting config and let the panel controls catch up, then run
+        // RefreshPlot so any subsequent ApplyAll keeps the same placement
+        // via ComputeLegendMargin.
+        _formattingConfig.LegendPosition = position;
+        _formattingConfig.LegendOffsetX = offsetX;
+        _formattingConfig.LegendOffsetY = offsetY;
+        GraphFormatPanel.SyncLegendPlacement(position, offsetX, offsetY);
+        RefreshPlot();
+    }
 
     private void RefreshPlot()
     {

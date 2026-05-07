@@ -34,7 +34,8 @@ namespace LabPlot.Spectrum.Avalonia;
 /// Avalonia API に翻訳した本実装。GPC.Avalonia / DLS.Avalonia の方針と同様、
 /// SaveFileDialog → IStorageProvider, WpfPlot → AvaPlot, InputBindings → OnKeyDown,
 /// Visibility → IsVisible, WPF Adorner → InsertionLine sibling、などへ置換している。
-/// LegendDragController（凡例ドラッグ）は WPF 専用で未移植。
+/// 凡例ドラッグは Phase 7 Batch 6 step 3 で
+/// <see cref="LabPlot.Core.Avalonia.Helpers.LegendDragController"/> として移植済み。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -78,6 +79,7 @@ public partial class MainWindow : Window
     private int _activeIndex = -1;
     private SpectrumDataset? _currentDataset;
     private AvaPlot? _spectrumPlot;
+    private LegendDragController? _legendDragController;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
@@ -1155,6 +1157,16 @@ public partial class MainWindow : Window
             _spectrumPlot = new AvaPlot();
             _spectrumPlot.PointerReleased += SpectrumPlot_PointerInteractionFinished;
             _spectrumPlot.PointerWheelChanged += SpectrumPlot_PointerInteractionFinished;
+
+            // Phase 7 Batch 6 step 3: WPF 同等の凡例ドラッグ移動を有効化。
+            // 積分領域 drag (下の 3 つの AddHandler) より先に Attach することで、
+            // 同じ Tunnel フェーズで Subscribe 順が早くなり、凡例 hit を先に拾える。
+            _legendDragController = new LegendDragController(
+                _spectrumPlot,
+                () => _formattingConfig.LegendPosition,
+                () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
+                OnLegendDragCommit);
+            _legendDragController.Attach();
 
             // Permanent handlers driving edge-resize for existing integration regions.
             _spectrumPlot.AddHandler(PointerMovedEvent, IntegrationResize_PointerMoved, RoutingStrategies.Tunnel);
@@ -3059,6 +3071,20 @@ public partial class MainWindow : Window
     private void PlotContainerBorder_SizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdatePlotHostAspectRatio();
+    }
+
+    private void OnLegendDragCommit(string position, double offsetX, double offsetY)
+    {
+        // The drag controller wrote Alignment + Margin during the move so
+        // the legend already sits at the final spot. Persist the anchor +
+        // offsets into _formattingConfig and the panel controls, then re-run
+        // the normal appearance pass so any subsequent Plot* call picks up
+        // the same placement via ComputeLegendMargin.
+        _formattingConfig.LegendPosition = position;
+        _formattingConfig.LegendOffsetX = offsetX;
+        _formattingConfig.LegendOffsetY = offsetY;
+        GraphFormatPanel.SyncLegendPlacement(position, offsetX, offsetY);
+        ApplyGraphAppearanceAndRefresh();
     }
 
     private void ApplyGraphAppearanceAndRefresh()

@@ -174,13 +174,31 @@
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
-                                        <TextBlock x:Name="DatasetListPlaceholder"
-                                                   Text="データ未読み込み"
-                                                   FontSize="11"
-                                                   Foreground="#94A3B8"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Margin="8" />
+                                        <StackPanel x:Name="DatasetListPlaceholder"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Margin="8,18,8,18"
+                                                    IsHitTestVisible="False">
+                                            <Path Width="32" Height="32"
+                                                  Stretch="None"
+                                                  Stroke="#94A3B8"
+                                                  StrokeThickness="1.5"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Fill="Transparent"
+                                                  HorizontalAlignment="Center"
+                                                  Data="M 6,22 L 6,26 L 26,26 L 26,22 M 16,5 L 16,20 M 10,11 L 16,5 L 22,11" />
+                                            <TextBlock Text="ここにファイルをドロップ"
+                                                       FontSize="12"
+                                                       Foreground="#64748B"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,8,0,2" />
+                                            <TextBlock Text="または上のボタンから開く"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"
+                                                       HorizontalAlignment="Center" />
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
                                 </StackPanel>

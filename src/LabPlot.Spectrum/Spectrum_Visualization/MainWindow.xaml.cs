@@ -1257,7 +1257,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            PlotPlaceholderTextBlock.Text = "グラフ表示の初期化に失敗しました。";
+            PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.InitFailed);
             ShowError($"グラフ表示の初期化に失敗しました: {ex.Message}");
         }
     }

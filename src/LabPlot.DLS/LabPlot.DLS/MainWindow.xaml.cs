@@ -172,6 +172,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.InitFailed);
             ShowError($"グラフ表示の初期化に失敗しました: {ex.Message}");
         }
     }
@@ -562,6 +563,7 @@ public partial class MainWindow : Window
             _currentWorkbookPath = session.WorkbookPath;
             DatasetListBox.ItemsSource = null;
             DatasetListBox.ItemsSource = _datasetItems;
+            UpdateDatasetListPlaceholder();
             DatasetCountText.Text =
                 $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(session.WorkbookPath)}）";
         }
@@ -686,6 +688,7 @@ public partial class MainWindow : Window
             _currentWorkbookPath = dialog.FileName;
             DatasetListBox.ItemsSource = null;
             DatasetListBox.ItemsSource = _datasetItems;
+            UpdateDatasetListPlaceholder();
             DatasetCountText.Text = _datasets.Count == 0
                 ? "粒径分布シートが見つかりませんでした"
                 : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(dialog.FileName)}）";
@@ -1316,6 +1319,11 @@ public partial class MainWindow : Window
     /// </summary>
     private void UpdatePlotHostAspectRatio()
         => PlotHostAspectRatio.Apply(PlotHost, PlotContainerBorder, GraphFormatPanel.AspectRatioValue);
+
+    private void UpdateDatasetListPlaceholder()
+        => DatasetListPlaceholder.Visibility = _datasetItems.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
     private void ClearActiveDatasets()
     {

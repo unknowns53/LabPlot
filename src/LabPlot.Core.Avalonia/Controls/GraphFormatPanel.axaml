@@ -1,0 +1,256 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:LabPlot.Core.Avalonia.Controls"
+             x:Class="LabPlot.Core.Avalonia.Controls.GraphFormatPanel">
+    <StackPanel Margin="0,8,0,0">
+
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Theme="{DynamicResource SectionIconPath}"
+                          Data="M 2,12 L 5,3 L 8,12 M 3,9 L 7,9 M 9,12 L 9,5 M 9,5 Q 9,3 11,3 Q 13,3 13,5 L 13,12 M 9,8 L 13,8" />
+                    <TextBlock Text="フォント"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="フォント名" Theme="{DynamicResource FieldLabelStyle}" />
+                <!-- WPF 版は IsEditable=True の ComboBox + PART_EditableTextBox の
+                     TextChanged 購読でフォント自由入力を実装していたが、Avalonia の
+                     ComboBox には IsEditable が無いので AutoCompleteBox に置き換える。
+                     候補リスト + 自由入力 + TextChanged が標準 API として揃っている
+                     ので、code-behind 側のテンプレ参照ハックも不要。 -->
+                <AutoCompleteBox Name="GraphFontComboBox"
+                                 Watermark="Auto"
+                                 Margin="0,0,0,10"
+                                 TextChanged="GraphFontComboBox_TextChanged" />
+
+                <TextBlock Text="フォントサイズ" Theme="{DynamicResource FieldLabelStyle}" />
+                <TextBox Name="GraphFontSizeTextBox"
+                         Text="12"
+                         Theme="{DynamicResource InputTextBoxStyle}"
+                         TextChanged="NumericTextBox_TextChanged" />
+            </StackPanel>
+        </Expander>
+
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Theme="{DynamicResource SectionIconPath}"
+                          Data="M 2,11 L 12,11 M 4,11 L 4,8 M 7,11 L 7,7 M 10,11 L 10,8 M 5,11 L 5,9.5 M 6,11 L 6,9.5 M 8,11 L 8,9.5 M 9,11 L 9,9.5" />
+                    <TextBlock Text="目盛"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel Margin="0,8,0,0">
+                <CheckBox Name="YAxisTickLabelsCheckBox"
+                          Content="Y軸の数字を表示する"
+                          IsChecked="True"
+                          Margin="0,0,0,6"
+                          IsCheckedChanged="CheckBox_Changed" />
+                <CheckBox Name="MajorTicksCheckBox"
+                          Content="主目盛を表示する"
+                          IsChecked="True"
+                          Margin="0,0,0,6"
+                          IsCheckedChanged="CheckBox_Changed" />
+                <CheckBox Name="MinorTicksCheckBox"
+                          Content="補助目盛を表示する"
+                          IsChecked="True"
+                          Margin="0,0,0,10"
+                          IsCheckedChanged="CheckBox_Changed" />
+
+                <Grid Margin="0,0,0,0" ColumnDefinitions="*,8,*">
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="目盛の密度" Theme="{DynamicResource FieldLabelStyle}" />
+                        <TextBox Name="TickDensityTextBox"
+                                 Text="0.5"
+                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                 ToolTip.Tip="0.1〜2.0 の範囲で入力 / 0.5=標準, 小さいほど目盛が粗くなる"
+                                 TextChanged="NumericTextBox_TextChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="目盛の線幅" Theme="{DynamicResource FieldLabelStyle}" />
+                        <TextBox Name="TickWidthTextBox"
+                                 Text="1"
+                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                 ToolTip.Tip="正の数で入力 (主目盛・補助目盛に共通)"
+                                 TextChanged="NumericTextBox_TextChanged" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Expander>
+
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Theme="{DynamicResource SectionIconPath}"
+                          Data="M 2,2 L 12,2 L 12,12 L 2,12 Z M 7,2 L 7,12 M 2,7 L 12,7" />
+                    <TextBlock Text="枠とグリッド"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel Margin="0,8,0,0">
+                <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                    <CheckBox Name="PlotGridCheckBox"
+                              Grid.Column="0"
+                              Content="グリッドを表示"
+                              IsChecked="True"
+                              VerticalAlignment="Center"
+                              ToolTip.Tip="グリッド線の表示を切替 (Ctrl+G)"
+                              IsCheckedChanged="CheckBox_Changed" />
+                    <CheckBox Name="PlotFrameCheckBox"
+                              Grid.Column="2"
+                              Content="プロット枠を表示"
+                              IsChecked="True"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="CheckBox_Changed" />
+                </Grid>
+
+                <Grid ColumnDefinitions="*,8,*">
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="枠線幅" Theme="{DynamicResource FieldLabelStyle}" />
+                        <TextBox Name="PlotFrameWidthTextBox"
+                                 Text="1"
+                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                 TextChanged="NumericTextBox_TextChanged" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="枠色" Theme="{DynamicResource FieldLabelStyle}" />
+                        <controls:ColorPickerPanel Name="PlotFrameColorPicker"
+                                                    AllowAuto="False"
+                                                    DefaultHex="#475569"
+                                                    ColorChanged="ColorPicker_ColorChanged">
+                            <ComboBoxItem Content="Gray" Tag="#475569" IsSelected="True" />
+                            <ComboBoxItem Content="Black" Tag="#0F172A" />
+                            <ComboBoxItem Content="Blue" Tag="#2563EB" />
+                            <ComboBoxItem Content="Red" Tag="#DC2626" />
+                            <ComboBoxItem Content="Green" Tag="#16A34A" />
+                            <ComboBoxItem Content="Custom" Tag="Custom" />
+                        </controls:ColorPickerPanel>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Expander>
+
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Theme="{DynamicResource SectionIconPath}"
+                          Data="M 2,2 L 12,2 L 12,12 L 2,12 Z M 4,4 L 10,4 M 4,7 L 10,7 M 4,10 L 10,10" />
+                    <TextBlock Text="背景"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="背景色" Theme="{DynamicResource FieldLabelStyle}" />
+                <controls:ColorPickerPanel Name="BackgroundColorPicker"
+                                            AllowAuto="False"
+                                            DefaultHex="#FFFFFF"
+                                            ColorChanged="ColorPicker_ColorChanged"
+                                            Margin="0,0,0,8">
+                    <ComboBoxItem Content="White" Tag="#FFFFFF" IsSelected="True" />
+                    <ComboBoxItem Content="Off-white" Tag="#F8FAFC" />
+                    <ComboBoxItem Content="Light gray" Tag="#E2E8F0" />
+                    <ComboBoxItem Content="Black" Tag="#0F172A" />
+                    <ComboBoxItem Content="Custom" Tag="Custom" />
+                </controls:ColorPickerPanel>
+
+                <TextBlock Text="アスペクト比" Theme="{DynamicResource FieldLabelStyle}" />
+                <ComboBox Name="AspectRatioComboBox"
+                          Theme="{DynamicResource InputComboBoxStyle}"
+                          HorizontalAlignment="Stretch"
+                          SelectedIndex="0"
+                          SelectionChanged="AspectRatioComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Auto" Tag="Auto" />
+                    <ComboBoxItem Content="16:9" Tag="16:9" />
+                    <ComboBoxItem Content="4:3" Tag="4:3" />
+                    <ComboBoxItem Content="3:2" Tag="3:2" />
+                    <ComboBoxItem Content="1:1" Tag="1:1" />
+                </ComboBox>
+            </StackPanel>
+        </Expander>
+
+        <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+            <Expander.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Path Theme="{DynamicResource SectionIconPath}"
+                          Data="M 2,4 L 5,4 M 7,4 L 12,4 M 2,8 L 5,8 M 7,8 L 12,8 M 2,12 L 5,12 M 7,12 L 12,12" />
+                    <TextBlock Text="凡例"
+                               FontWeight="SemiBold" FontSize="12"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Expander.Header>
+            <StackPanel Margin="0,8,0,0">
+                <TextBlock Text="表示" Theme="{DynamicResource FieldLabelStyle}" />
+                <ComboBox Name="LegendVisibilityComboBox"
+                          Theme="{DynamicResource InputComboBoxStyle}"
+                          HorizontalAlignment="Stretch"
+                          Margin="0,0,0,8"
+                          SelectionChanged="ComboBox_SelectionChanged">
+                    <ComboBoxItem Content="自動 (2件以上で表示)" Tag="Auto" IsSelected="True" />
+                    <ComboBoxItem Content="常に表示" Tag="Always" />
+                    <ComboBoxItem Content="非表示" Tag="Never" />
+                </ComboBox>
+
+                <TextBlock Text="位置" Theme="{DynamicResource FieldLabelStyle}" />
+                <ComboBox Name="LegendPositionComboBox"
+                          Theme="{DynamicResource InputComboBoxStyle}"
+                          HorizontalAlignment="Stretch"
+                          Margin="0,0,0,8"
+                          SelectionChanged="ComboBox_SelectionChanged">
+                    <ComboBoxItem Content="左上" Tag="UpperLeft" />
+                    <ComboBoxItem Content="上中央" Tag="UpperCenter" />
+                    <ComboBoxItem Content="右上" Tag="UpperRight" IsSelected="True" />
+                    <ComboBoxItem Content="左中央" Tag="MiddleLeft" />
+                    <ComboBoxItem Content="中央" Tag="MiddleCenter" />
+                    <ComboBoxItem Content="右中央" Tag="MiddleRight" />
+                    <ComboBoxItem Content="左下" Tag="LowerLeft" />
+                    <ComboBoxItem Content="下中央" Tag="LowerCenter" />
+                    <ComboBoxItem Content="右下" Tag="LowerRight" />
+                </ComboBox>
+
+                <TextBlock Text="位置の微調整 (px)" Theme="{DynamicResource FieldLabelStyle}" />
+                <Grid Margin="0,0,0,8" ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="X (右が＋)"
+                               FontSize="11"
+                               Foreground="#64748B"
+                               Margin="0,0,0,2" />
+                    <TextBlock Grid.Row="0" Grid.Column="2"
+                               Text="Y (下が＋)"
+                               FontSize="11"
+                               Foreground="#64748B"
+                               Margin="0,0,0,2" />
+                    <TextBox Grid.Row="1" Grid.Column="0"
+                             Name="LegendOffsetXTextBox"
+                             Theme="{DynamicResource InputTextBoxStyle}"
+                             ToolTip.Tip="ピクセル単位、負の値で左方向"
+                             TextChanged="NumericTextBox_TextChanged"
+                             LostFocus="LegendOffsetTextBox_LostFocus" />
+                    <TextBox Grid.Row="1" Grid.Column="2"
+                             Name="LegendOffsetYTextBox"
+                             Theme="{DynamicResource InputTextBoxStyle}"
+                             ToolTip.Tip="ピクセル単位、負の値で上方向"
+                             TextChanged="NumericTextBox_TextChanged"
+                             LostFocus="LegendOffsetTextBox_LostFocus" />
+                </Grid>
+
+                <TextBlock Text="凡例フォントサイズ" Theme="{DynamicResource FieldLabelStyle}" />
+                <TextBox Name="LegendFontSizeTextBox"
+                         Theme="{DynamicResource InputTextBoxStyle}"
+                         ToolTip.Tip="空欄で自動"
+                         TextChanged="NumericTextBox_TextChanged" />
+            </StackPanel>
+        </Expander>
+
+    </StackPanel>
+</UserControl>

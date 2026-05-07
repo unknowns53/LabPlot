@@ -10,7 +10,8 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <!-- Library 化済み (Phase 6 Batch 1)。ポータル LabPlot.Shell が唯一の WinExe で、
+         本プロジェクトはその DLL モジュールとして MainWindow を提供する。 -->
     <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

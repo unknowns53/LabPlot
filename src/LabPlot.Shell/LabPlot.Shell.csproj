@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LabPlot.Core.Wpf\LabPlot.Core.Wpf.csproj" />
+    <ProjectReference Include="..\LabPlot.DLS\LabPlot.DLS\LabPlot.DLS.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

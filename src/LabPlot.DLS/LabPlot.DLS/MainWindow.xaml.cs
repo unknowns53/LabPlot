@@ -722,15 +722,30 @@ public partial class MainWindow : Window
         {
             e.Effects = DragDropEffects.Copy;
             e.Handled = true;
+            ShowFileDropOverlay();
             return;
         }
 
+        HideFileDropOverlay();
         e.Effects = DragDropEffects.None;
         e.Handled = true;
     }
 
+    private void DatasetListBox_DragLeave(object sender, DragEventArgs e)
+    {
+        var pos = e.GetPosition(DatasetListBox);
+        if (pos.X < 0 || pos.Y < 0
+            || pos.X > DatasetListBox.ActualWidth
+            || pos.Y > DatasetListBox.ActualHeight)
+        {
+            HideFileDropOverlay();
+        }
+    }
+
     private void DatasetListBox_Drop(object sender, DragEventArgs e)
     {
+        HideFileDropOverlay();
+
         if (e.Data.GetDataPresent(DataFormats.FileDrop)
             && e.Data.GetData(DataFormats.FileDrop) is string[] paths
             && paths.Length > 0)
@@ -739,6 +754,22 @@ public partial class MainWindow : Window
             // DLS は xlsx を 1 ファイル単位で扱うので、複数 drop されても
             // 最初の 1 つだけ採用する（ファイルダイアログでも Multiselect=false）。
             ImportWorkbook(paths[0]);
+        }
+    }
+
+    private void ShowFileDropOverlay()
+    {
+        if (DatasetDropOverlay is not null)
+        {
+            DatasetDropOverlay.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void HideFileDropOverlay()
+    {
+        if (DatasetDropOverlay is not null)
+        {
+            DatasetDropOverlay.Visibility = Visibility.Collapsed;
         }
     }
 

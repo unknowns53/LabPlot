@@ -2610,8 +2610,11 @@ public partial class MainWindow : Window
         {
             e.Effects = DragDropEffects.Copy;
             e.Handled = true;
+            ShowFileDropOverlay();
             return;
         }
+
+        HideFileDropOverlay();
 
         if (!e.Data.GetDataPresent(DatasetReorderDataFormat))
         {
@@ -2641,12 +2644,14 @@ public partial class MainWindow : Window
             || pos.Y > DatasetListBox.ActualHeight)
         {
             RemoveInsertionAdorner();
+            HideFileDropOverlay();
         }
     }
 
     private async void DatasetListBox_Drop(object sender, DragEventArgs e)
     {
         RemoveInsertionAdorner();
+        HideFileDropOverlay();
 
         if (e.Data.GetDataPresent(DataFormats.FileDrop)
             && e.Data.GetData(DataFormats.FileDrop) is string[] paths
@@ -2749,6 +2754,22 @@ public partial class MainWindow : Window
         var layer = AdornerLayer.GetAdornerLayer(_datasetInsertionAdorner.AdornedElement);
         layer?.Remove(_datasetInsertionAdorner);
         _datasetInsertionAdorner = null;
+    }
+
+    private void ShowFileDropOverlay()
+    {
+        if (DatasetDropOverlay is not null)
+        {
+            DatasetDropOverlay.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void HideFileDropOverlay()
+    {
+        if (DatasetDropOverlay is not null)
+        {
+            DatasetDropOverlay.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void MoveDataset(int oldIndex, int newIndex)

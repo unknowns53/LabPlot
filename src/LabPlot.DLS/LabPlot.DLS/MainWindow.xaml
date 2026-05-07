@@ -121,6 +121,7 @@
                                                  Padding="0"
                                                  AllowDrop="True"
                                                  DragOver="DatasetListBox_DragOver"
+                                                 DragLeave="DatasetListBox_DragLeave"
                                                  Drop="DatasetListBox_Drop">
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="ListBoxItem">
@@ -173,6 +174,16 @@
                                                        Foreground="#94A3B8"
                                                        HorizontalAlignment="Center" />
                                         </StackPanel>
+                                        <Rectangle x:Name="DatasetDropOverlay"
+                                                   Stroke="#2563EB"
+                                                   StrokeThickness="2"
+                                                   StrokeDashArray="3,2"
+                                                   StrokeDashCap="Round"
+                                                   Fill="#4DDBEAFE"
+                                                   RadiusX="4"
+                                                   RadiusY="4"
+                                                   IsHitTestVisible="False"
+                                                   Visibility="Collapsed" />
                                         </Grid>
                                     </Border>
                                     <TextBlock Margin="0,4,0,0"

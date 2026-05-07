@@ -185,6 +185,28 @@
                                                                RadiusY="4"
                                                                IsHitTestVisible="False"
                                                                IsVisible="False" />
+                                                    <!-- WPF 版 InsertionAdorner の Avalonia 代替。AdornerLayer は無いので
+                                                         ListBox と同じ Grid 階層に絶対位置決めの sibling 要素を置き、
+                                                         OnDatasetDragOver で Margin と IsVisible を更新する。-->
+                                                    <Grid Name="InsertionLine"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Top"
+                                                          Height="6"
+                                                          Margin="0"
+                                                          IsVisible="False"
+                                                          IsHitTestVisible="False">
+                                                        <Rectangle Height="2"
+                                                                   VerticalAlignment="Center"
+                                                                   Fill="#2563EB" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 HorizontalAlignment="Left"
+                                                                 VerticalAlignment="Center" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 HorizontalAlignment="Right"
+                                                                 VerticalAlignment="Center" />
+                                                    </Grid>
                                                 </Grid>
                                             </Border>
                                         </StackPanel>

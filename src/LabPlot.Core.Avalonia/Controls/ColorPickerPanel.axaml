@@ -1,0 +1,135 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Core.Avalonia.Controls.ColorPickerPanel"
+             x:Name="ColorPickerPanelRoot">
+    <StackPanel>
+        <!-- Main row: preset ComboBox + colour preview -->
+        <Grid ColumnDefinitions="*,8,28">
+            <ComboBox Name="PresetComboBox"
+                      Grid.Column="0"
+                      Theme="{DynamicResource InputComboBoxStyle}"
+                      HorizontalAlignment="Stretch"
+                      SelectionChanged="PresetComboBox_SelectionChanged" />
+            <Border Name="PreviewBorder"
+                    Grid.Column="2"
+                    Height="28"
+                    BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="4" />
+        </Grid>
+
+        <!-- Custom expand area: hex input + HSV palette. IsVisible tracks
+             "Custom" preset selection so the Auto / preset cases stay tidy.
+             WPF 版の Visibility=Collapsed に相当するのは Avalonia では
+             IsVisible=False。 -->
+        <Border Name="CustomPanel"
+                Margin="0,8,0,0"
+                Padding="10,10,10,12"
+                Background="#F8FAFC"
+                BorderBrush="#E2E8F0"
+                BorderThickness="1"
+                CornerRadius="6"
+                IsVisible="False">
+            <StackPanel>
+                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="カラーコード" />
+                <TextBox Name="HexTextBox"
+                         Theme="{DynamicResource InputTextBoxStyle}"
+                         Margin="0,0,0,8"
+                         ToolTip.Tip="{Binding HexInputToolTip, ElementName=ColorPickerPanelRoot}"
+                         TextChanged="HexTextBox_TextChanged" />
+
+                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="カラーパレット" />
+
+                <!-- Saturation x Value square. Two stacked LinearGradientBrushes
+                     (white→hue horizontal, transparent→black vertical) form the
+                     classic SV picker; the Canvas hosts a draggable marker. -->
+                <Border BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        ClipToBounds="True"
+                        Margin="0,0,0,6">
+                    <Grid Name="SvSquareHost"
+                          Height="120"
+                          Background="Transparent"
+                          Cursor="Cross"
+                          PointerPressed="SvSquare_PointerPressed"
+                          PointerMoved="SvSquare_PointerMoved"
+                          PointerReleased="SvSquare_PointerReleased">
+                        <!-- Avalonia の XAML compiler は GradientStop の x:Name を
+                             許容しないので、Rectangle 側に Name を付けて
+                             code-behind から Fill (LinearGradientBrush) を都度
+                             差し替える形に切り替える。WPF 版が SvHueStop.Color
+                             だけ書き換えていた最適化に対し、Avalonia 版は brush
+                             まるごと再生成するが、Hue 変更頻度的に問題にならない。 -->
+                        <Rectangle Name="SvHueRect">
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                    <GradientStop Offset="0" Color="White" />
+                                    <GradientStop Offset="1" Color="#FF0000" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                        <Rectangle>
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                    <GradientStop Offset="0" Color="#00000000" />
+                                    <GradientStop Offset="1" Color="#FF000000" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                        <Canvas IsHitTestVisible="False">
+                            <Ellipse Name="SvMarker"
+                                     Width="14" Height="14"
+                                     Stroke="White"
+                                     StrokeThickness="2">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect OffsetX="0"
+                                                      OffsetY="0"
+                                                      BlurRadius="3"
+                                                      Opacity="0.5"
+                                                      Color="Black" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                        </Canvas>
+                    </Grid>
+                </Border>
+
+                <!-- Hue slider: full rainbow gradient with a draggable bar marker. -->
+                <Border BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        ClipToBounds="True">
+                    <Grid Name="HueSliderHost"
+                          Height="16"
+                          Background="Transparent"
+                          Cursor="Hand"
+                          PointerPressed="HueSlider_PointerPressed"
+                          PointerMoved="HueSlider_PointerMoved"
+                          PointerReleased="HueSlider_PointerReleased">
+                        <Rectangle>
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                    <GradientStop Offset="0.000" Color="#FF0000" />
+                                    <GradientStop Offset="0.166" Color="#FFFF00" />
+                                    <GradientStop Offset="0.333" Color="#00FF00" />
+                                    <GradientStop Offset="0.500" Color="#00FFFF" />
+                                    <GradientStop Offset="0.666" Color="#0000FF" />
+                                    <GradientStop Offset="0.833" Color="#FF00FF" />
+                                    <GradientStop Offset="1.000" Color="#FF0000" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                        <Canvas IsHitTestVisible="False">
+                            <Border Name="HueMarker"
+                                    Width="6" Height="16"
+                                    BorderBrush="White"
+                                    BorderThickness="2"
+                                    Background="#80000000"
+                                    CornerRadius="2" />
+                        </Canvas>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

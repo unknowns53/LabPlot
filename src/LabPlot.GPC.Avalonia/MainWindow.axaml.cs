@@ -116,6 +116,7 @@ public partial class MainWindow : Window
     private ListBoxItem? _datasetDragSourceContainer;
     private bool _isInternalReordering;
     private IPointer? _reorderCapturedPointer;
+    private readonly DragGhostController _dragGhost = new();
 
     public MainWindow()
     {
@@ -135,6 +136,24 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
         AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
         AddHandler(DragDrop.DropEvent, OnDatasetDrop);
+
+        // 内部 reorder 用の DatasetListBox 個別ハンドラも ctor で登録する。
+        // 以前は OnAttachedToVisualTree に置いていたが、外部 D&D は動くのに
+        // 内部 reorder だけ動かない症状を切り分けた結果、OnAttachedToVisualTree
+        // 経由の登録が実機で発火しないケースを確認したため、ctor 末尾に集約する。
+        // InitializeComponent 直後に DatasetListBox.ItemsSource= が成功している以上、
+        // x:Name 解決は完了済みで AddHandler は安全。
+        DatasetListBox.AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
+        DatasetListBox.AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
+        DatasetListBox.AddHandler(DragDrop.DropEvent, OnDatasetDrop);
+        // Avalonia の ListBox は内部で PointerPressed を消費し e.Handled=true を立てるため、
+        // 既定の AddHandler では reorder ハンドラが呼ばれない。Tunnel | Bubble 双方を購読し、
+        // handled なイベントも拾うことで確実にハンドラを動かす。
+        const RoutingStrategies route = RoutingStrategies.Tunnel | RoutingStrategies.Bubble;
+        DatasetListBox.AddHandler(PointerPressedEvent, OnDatasetListBoxPointerPressed, route, handledEventsToo: true);
+        DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, route, handledEventsToo: true);
+        DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, route, handledEventsToo: true);
+        DatasetListBox.AddHandler(PointerCaptureLostEvent, OnDatasetListBoxPointerCaptureLost);
     }
 
     // Avalonia.Generators (NameGenerator + AvaloniaXamlLoader) が partial class に
@@ -142,30 +161,6 @@ public partial class MainWindow : Window
     // 手動定義しない。Phase 7 Batch 6 で発覚した「GraphFormatPanel フィールドが
     // null のまま ApplyFormattingConfigToControls が呼ばれて NRE」は手動メソッドが
     // ジェネレータをマスクしていたため。
-
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-        // ListBox のドラッグ&ドロップ系 routed events は XAML 属性経由で
-        // 配線できないので AddHandler で繋ぐ。AllowDrop は XAML で設定済み。
-        // Window レベルの DragDrop ハンドラは ctor で配線済み（Avalonia 11 の
-        // ListBoxItem 子要素 AllowDrop=False 問題への対策）。ここでは内部 reorder
-        // が ListBox の hit-test 内で完結するように、DatasetListBox にも個別に
-        // ハンドラを残しておく。bubble で Window レベルに上がるので、両方が
-        // 呼ばれる場合は e.Handled で重複処理を抑止する。
-        DatasetListBox.AddHandler(DragDrop.DragOverEvent, OnDatasetDragOver);
-        DatasetListBox.AddHandler(DragDrop.DragLeaveEvent, OnDatasetDragLeave);
-        DatasetListBox.AddHandler(DragDrop.DropEvent, OnDatasetDrop);
-        // Phase 7 Batch 6 step 5: handledEventsToo=true 必須。Avalonia の ListBox は
-        // 内部で PointerPressed を Tunnel/Bubble で消費し e.Handled=true を立てるため、
-        // 既定の AddHandler では reorder ハンドラが呼ばれない。Tunnel | Bubble の双方
-        // を購読し、handled なイベントも拾うことで確実にハンドラを動かす。
-        const RoutingStrategies route = RoutingStrategies.Tunnel | RoutingStrategies.Bubble;
-        DatasetListBox.AddHandler(PointerPressedEvent, OnDatasetListBoxPointerPressed, route, handledEventsToo: true);
-        DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, route, handledEventsToo: true);
-        DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, route, handledEventsToo: true);
-        DatasetListBox.AddHandler(PointerCaptureLostEvent, OnDatasetListBoxPointerCaptureLost);
-    }
 
     private void OnOpened(object? sender, EventArgs e)
     {
@@ -2533,9 +2528,16 @@ public partial class MainWindow : Window
             _datasetDragSourceContainer.Opacity = 0.4;
             e.Pointer.Capture(DatasetListBox);
             _reorderCapturedPointer = e.Pointer;
+
+            // カーソル追従ゴースト: source 行の dataset 名を載せた半透明 Border を
+            // OverlayLayer に乗せて、PointerMoved に追従させる。WPF 版で OS シェルが
+            // 提供していたドラッグ画像の代替。
+            var label = _datasetEntries[sourceIndex].DisplayName;
+            _dragGhost.Show(this, label, e.GetPosition(this));
         }
 
         // 移動中: insertion line を更新。source 行自身の上に重なったら隠す。
+        _dragGhost.Move(e.GetPosition(this));
         var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e.Source as Visual, e);
         if (targetItem is null || ReferenceEquals(targetItem, _datasetDragSourceContainer))
         {
@@ -2614,6 +2616,9 @@ public partial class MainWindow : Window
             pointer.Capture(null);
             _reorderCapturedPointer = null;
         }
+        // Release / CaptureLost / 早期 abort のすべてからここに合流するので、
+        // ゴーストの破棄もここに集約する。Hide は冪等なので二重呼びに耐える。
+        _dragGhost.Hide();
         _isInternalReordering = false;
         _datasetDragStartPoint = null;
         _datasetDragSourceContainer = null;

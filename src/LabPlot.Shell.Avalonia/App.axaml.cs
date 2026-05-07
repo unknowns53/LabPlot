@@ -45,6 +45,10 @@ public partial class App : Application
             // RenderOptions.SetEdgeMode = Antialias が走る。
             Window.WindowOpenedEvent.AddClassHandler<Window>(OnAnyWindowOpened);
 
+            // Portal を × で閉じた瞬間に GPC / DLS / Spectrum / 子ダイアログをまとめて
+            // 終了させる。デフォルトの OnLastWindowClose だと子ウィンドウの閉じ忘れで
+            // dotnet プロセスが裏に残留しやすかったので Portal=MainWindow を起点に統一する。
+            desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.MainWindow = new PortalWindow();
         }
 

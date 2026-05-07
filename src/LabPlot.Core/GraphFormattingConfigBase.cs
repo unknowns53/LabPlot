@@ -21,6 +21,7 @@ public abstract class GraphFormattingConfigBase
     public const double DefaultLineWidth = 1.5;
     public const double DefaultMarkerSize = 0;
     public const double DefaultPlotFrameWidth = 1;
+    public const double DefaultTickWidth = 1;
     public const string DefaultPlotFrameColorHex = "#475569";
     public const string DefaultBackgroundColorHex = "#FFFFFF";
     public const string DefaultLegendPositionValue = "UpperRight";
@@ -47,6 +48,13 @@ public abstract class GraphFormattingConfigBase
     public bool ShowMajorTicks { get; set; } = true;
     public bool ShowMinorTicks { get; set; } = true;
     public double TickDensity { get; set; } = DefaultTickDensity;
+
+    /// <summary>
+    /// Line width applied to both major and minor tick marks. The two
+    /// share a single setting because users invariably want them to scale
+    /// together — only the (constant) tick lengths differ.
+    /// </summary>
+    public double TickWidth { get; set; } = DefaultTickWidth;
     public bool ShowPlotFrame { get; set; } = true;
     public double PlotFrameWidth { get; set; } = DefaultPlotFrameWidth;
     public string PlotFrameColorHex { get; set; } = DefaultPlotFrameColorHex;
@@ -119,6 +127,11 @@ public abstract class GraphFormattingConfigBase
             PlotFrameWidth = DefaultPlotFrameWidth;
         }
 
+        if (!ConfigNormalizer.IsPositive(TickWidth))
+        {
+            TickWidth = DefaultTickWidth;
+        }
+
         if (!ConfigNormalizer.IsHexColor(PlotFrameColorHex))
         {
             PlotFrameColorHex = DefaultPlotFrameColorHex;
@@ -160,6 +173,11 @@ public abstract class GraphFormattingConfigBase
     public string FormatFrameWidth()
     {
         return ConfigNormalizer.FormatNumber(PlotFrameWidth);
+    }
+
+    public string FormatTickWidth()
+    {
+        return ConfigNormalizer.FormatNumber(TickWidth);
     }
 
     public string FormatLineWidth()

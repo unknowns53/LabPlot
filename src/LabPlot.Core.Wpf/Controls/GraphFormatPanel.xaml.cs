@@ -145,6 +145,9 @@ public partial class GraphFormatPanel : UserControl
         config.TickDensity = TryParsePositiveDouble(TickDensityTextBox.Text, out var tickDensity)
             ? tickDensity
             : GraphFormattingConfigBase.DefaultTickDensity;
+        config.TickWidth = TryParsePositiveDouble(TickWidthTextBox.Text, out var tickWidth)
+            ? tickWidth
+            : GraphFormattingConfigBase.DefaultTickWidth;
         config.ShowPlotFrame = PlotFrameCheckBox.IsChecked == true;
         config.PlotFrameWidth = TryParsePositiveDouble(PlotFrameWidthTextBox.Text, out var frameWidth)
             ? frameWidth
@@ -181,6 +184,7 @@ public partial class GraphFormatPanel : UserControl
             MajorTicksCheckBox.IsChecked = config.ShowMajorTicks;
             MinorTicksCheckBox.IsChecked = config.ShowMinorTicks;
             TickDensityTextBox.Text = config.FormatTickDensity();
+            TickWidthTextBox.Text = config.FormatTickWidth();
             PlotFrameCheckBox.IsChecked = config.ShowPlotFrame;
             PlotFrameWidthTextBox.Text = config.FormatFrameWidth();
             PlotFrameColorPicker.SetHexValue(config.PlotFrameColorHex);

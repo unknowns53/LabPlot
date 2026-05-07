@@ -114,6 +114,23 @@ public sealed class GraphFormattingConfigTests
     }
 
     [Theory]
+    [InlineData(1.0, 1.0)]
+    [InlineData(0.5, 0.5)]
+    [InlineData(3.0, 3.0)]
+    [InlineData(0.0, GraphFormattingConfigBase.DefaultTickWidth)]
+    [InlineData(-0.5, GraphFormattingConfigBase.DefaultTickWidth)]
+    [InlineData(double.NaN, GraphFormattingConfigBase.DefaultTickWidth)]
+    [InlineData(double.PositiveInfinity, GraphFormattingConfigBase.DefaultTickWidth)]
+    public void Normalize_TickWidth_FallsBackOnNonPositive(double input, double expected)
+    {
+        var config = new GraphFormattingConfig { TickWidth = input };
+
+        config.Normalize();
+
+        Assert.Equal(expected, config.TickWidth);
+    }
+
+    [Theory]
     [InlineData(null, null)]
     [InlineData(0.0, null)]
     [InlineData(-1.0, null)]

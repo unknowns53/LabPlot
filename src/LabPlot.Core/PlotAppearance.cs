@@ -16,17 +16,17 @@ namespace LabPlot.Core;
 /// preview, and at scale ≈ 3.125 (PNG export at 96 → 300 DPI) they keep
 /// the same visual proportion. <see cref="ConfigureTickMarkStyle"/>
 /// always re-derives length / width from base × scale so the output is
-/// independent of any prior tick-style state.
+/// independent of any prior tick-style state. The width side became
+/// user-tunable in 2026-05; both major and minor tick widths now read
+/// from the single <see cref="GraphFormattingConfigBase.TickWidth"/>
+/// (users always want the two to scale together) rather than a fixed
+/// constant.
 /// </remarks>
 public static class PlotAppearance
 {
     public const float MajorTickLengthBase = 4f;
 
-    public const float MajorTickWidthBase = 1f;
-
     public const float MinorTickLengthBase = 2f;
-
-    public const float MinorTickWidthBase = 1f;
 
     /// <summary>
     /// Default multiplier applied to ScottPlot's
@@ -156,11 +156,12 @@ public static class PlotAppearance
         bool showMajor = config.ShowMajorTicks;
         bool showMinor = config.ShowMinorTicks;
         bool yAxisVisible = config.ShowYAxisTickLabels;
+        float tickWidth = (float)config.TickWidth;
 
-        ConfigureTickMarkStyle(plot.Axes.Bottom.MajorTickStyle, MajorTickLengthBase, MajorTickWidthBase, scale, showMajor);
-        ConfigureTickMarkStyle(plot.Axes.Bottom.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor);
-        ConfigureTickMarkStyle(plot.Axes.Left.MajorTickStyle, MajorTickLengthBase, MajorTickWidthBase, scale, showMajor && yAxisVisible);
-        ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, MinorTickWidthBase, scale, showMinor && yAxisVisible);
+        ConfigureTickMarkStyle(plot.Axes.Bottom.MajorTickStyle, MajorTickLengthBase, tickWidth, scale, showMajor);
+        ConfigureTickMarkStyle(plot.Axes.Bottom.MinorTickStyle, MinorTickLengthBase, tickWidth, scale, showMinor);
+        ConfigureTickMarkStyle(plot.Axes.Left.MajorTickStyle, MajorTickLengthBase, tickWidth, scale, showMajor && yAxisVisible);
+        ConfigureTickMarkStyle(plot.Axes.Left.MinorTickStyle, MinorTickLengthBase, tickWidth, scale, showMinor && yAxisVisible);
     }
 
     /// <summary>

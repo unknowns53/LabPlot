@@ -2,16 +2,21 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- ============================================================
-         Phase 7 Batch 1a: 共通カラー / Geometry / 単純 ControlTheme。
+         Phase 7 Core.Avalonia の共通 ControlTheme・リソース。
          WPF 版 (LabPlot.Core.Wpf/Themes/CommonStyles.xaml) と同じ
-         デザイン言語を Avalonia で表現する第一段。
+         デザイン言語を Avalonia で表現する。
 
-         Batch 1b で扱う残作業:
-         - SectionIconPath (DataTrigger 含むため pseudoclass セレクタへ書き換え)
-         - GroupHeaderStyle (ControlTemplate ベース)
-         - InputTextBoxStyle / InputComboBoxStyle / InputCheckBoxStyle
-         - ExpanderStyle / ButtonStyle (ToolButton, PrimaryButton)
-         - ScrollBarStyle
+         Batch 1a (commit 289b83a): 共通カラー / Geometry / 単純 ControlTheme
+           (SectionStyle, SectionHeaderStyle, GroupLabelStyle, FieldLabelStyle)
+         Batch 1b (this commit): SectionIconPath / GroupHeaderStyle / Input
+           系 ControlTheme (TextBox / ComboBox) / Button 3 種。Fluent テーマを
+           BasedOn して Setter override で書き、ScrollBar / CheckBox / Expander
+           は ImplicitStyles.axaml に分離。Storyboard 起源のアニメ
+           (Chevron 回転 / CheckMark slide-in / Expander slide+fade) は
+           Batch 1c 行き。
+         Batch 1c (next): 重量 UserControl 4 個 (CustomTitleBar / AxisRangePanel /
+           ColorPickerPanel / GraphFormatPanel) + 関連 ControlTheme
+           (ChromeButtonStyle, WindowChromeRootBorderStyle) + アニメ。
          ============================================================ -->
 
     <!-- 共通アイコン Geometry。3 アプリ横断で同じ意味の Expander には同じグリフを当てる。
@@ -93,6 +98,410 @@
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{StaticResource ForegroundMutedBrush}" />
         <Setter Property="Margin" Value="0,0,0,6" />
+    </ControlTheme>
+
+    <!-- ============================================================
+         Section 見出しアイコン (Path)
+         WPF 版は <DataTrigger Binding="{Binding IsMouseOver, AncestorType=Expander}">
+         で親 Expander の hover を検出していたが、Avalonia の ControlTheme は
+         単一コントロールの状態に閉じるので、外側コントロール (Expander) の
+         hover を ControlTheme 内で拾えない。Batch 1b 段階ではデフォルトの
+         slate-600 stroke のみ実装し、accent 色への切替は Batch 1c で
+         ImplicitStyles.axaml 側に "Expander:pointerover Path.section-icon"
+         セレクタを足して実現する (利用側で Path に Classes="section-icon"
+         を付与する運用)。 ============================================================ -->
+    <ControlTheme x:Key="SectionIconPath" TargetType="Path">
+        <Setter Property="Width" Value="14" />
+        <Setter Property="Height" Value="14" />
+        <Setter Property="Stretch" Value="None" />
+        <Setter Property="Stroke" Value="{StaticResource ForegroundMutedBrush}" />
+        <Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="StrokeLineCap" Value="Round" />
+        <Setter Property="StrokeJoin" Value="Round" />
+        <Setter Property="Fill" Value="Transparent" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+    </ControlTheme>
+
+    <!-- ============================================================
+         GroupHeaderStyle — ContentControl ベースの大見出し + 下線。
+         Content にテキストを置くと、SemiBold の小見出しと薄い下線
+         divider が一塊で描画される。 ============================================================ -->
+    <ControlTheme x:Key="GroupHeaderStyle" TargetType="ContentControl">
+        <Setter Property="Margin" Value="0,12,0,8" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundMutedBrush}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <StackPanel>
+                    <ContentPresenter Content="{TemplateBinding Content}"
+                                      Foreground="{TemplateBinding Foreground}"
+                                      FontSize="{TemplateBinding FontSize}"
+                                      FontWeight="{TemplateBinding FontWeight}"
+                                      Margin="2,0,0,6" />
+                    <Border Height="1"
+                            Background="{StaticResource BorderSubtleBrush}"
+                            HorizontalAlignment="Stretch" />
+                </StackPanel>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
+    <!-- ============================================================
+         Input TextBox — 高さ 32 / 角丸 6 / フォーカス時にアクセント枠
+         + 外周 FocusRing。Avalonia の TextBox は内部に PART_TextPresenter +
+         PART_ScrollViewer を持つので、最小限の Template を自前で組む。 ============================================================ -->
+    <ControlTheme x:Key="InputTextBoxStyle" TargetType="TextBox">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentLightBrush}" />
+        <Setter Property="SelectionForegroundBrush" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <Border Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6">
+                        <DockPanel>
+                            <ScrollViewer Name="PART_ScrollViewer"
+                                          HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                                          VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                                          Padding="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                                <TextPresenter Name="PART_TextPresenter"
+                                               Text="{TemplateBinding Text, Mode=TwoWay}"
+                                               CaretIndex="{TemplateBinding CaretIndex}"
+                                               SelectionStart="{TemplateBinding SelectionStart}"
+                                               SelectionEnd="{TemplateBinding SelectionEnd}"
+                                               TextAlignment="{TemplateBinding TextAlignment}"
+                                               TextWrapping="{TemplateBinding TextWrapping}"
+                                               PasswordChar="{TemplateBinding PasswordChar}"
+                                               RevealPassword="{TemplateBinding RevealPassword}"
+                                               SelectionBrush="{TemplateBinding SelectionBrush}"
+                                               SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                                               CaretBrush="{TemplateBinding CaretBrush}"
+                                               VerticalAlignment="Center" />
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                    <Border Name="FocusRing"
+                            CornerRadius="8"
+                            BorderBrush="{StaticResource AccentLightBrush}"
+                            BorderThickness="2"
+                            Margin="-2"
+                            Opacity="0"
+                            IsHitTestVisible="False" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#Bd">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}" />
+        </Style>
+        <Style Selector="^:focus /template/ Border#Bd">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:focus /template/ Border#FocusRing">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#Bd">
+            <Setter Property="Background" Value="{StaticResource SurfaceMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+        </Style>
+    </ControlTheme>
+
+    <!-- ============================================================
+         Input ComboBox — 高さ 32 / 右端 32px に Path で描いた v 字矢印 /
+         フォーカス時に accent 枠 + FocusRing。Avalonia の ComboBox は
+         WPF と内部構造が違い (PART_Popup ベースで item 描画を Popup 内 ListBox
+         が担う) ので、ControlTemplate を自前で書く。
+         IsEditable=True 用の特別ハンドリング (ToggleButton と TextBox の重ね) は
+         WPF 版の rendering 課題 (右端矢印が押せなくなる) を解決するための
+         workaround だったが、Avalonia の ComboBox は IsEditable をネイティブ
+         サポートしないので、編集可なドロップダウンが必要なら AutoCompleteBox
+         に置き換える運用 (Batch 1c 以降で利用側を確認)。 ============================================================ -->
+    <ControlTheme x:Key="InputComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="PlaceholderForeground" Value="{StaticResource ForegroundDisabledBrush}" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <Border Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6">
+                        <Grid ColumnDefinitions="*,32">
+                            <ContentControl Name="ContentPresenter"
+                                            Grid.Column="0"
+                                            Margin="{TemplateBinding Padding}"
+                                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                            Content="{TemplateBinding SelectionBoxItem}"
+                                            ContentTemplate="{TemplateBinding ItemTemplate}" />
+                            <Path Grid.Column="1"
+                                  Width="10" Height="6"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Stretch="None"
+                                  Stroke="#64748B"
+                                  StrokeThickness="1.6"
+                                  StrokeLineCap="Round"
+                                  StrokeJoin="Round"
+                                  Data="M 0,0 L 5,5 L 10,0" />
+                        </Grid>
+                    </Border>
+                    <Border Name="FocusRing"
+                            CornerRadius="8"
+                            BorderBrush="{StaticResource AccentLightBrush}"
+                            BorderThickness="2"
+                            Margin="-2"
+                            Opacity="0"
+                            IsHitTestVisible="False" />
+                    <Popup Name="PART_Popup"
+                           IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}"
+                           MinWidth="{Binding $parent[ComboBox].Bounds.Width}"
+                           MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                           PlacementTarget="{TemplateBinding}"
+                           Placement="BottomEdgeAlignedLeft">
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,4,0,8"
+                                BoxShadow="0 2 14 0 #2E0F172A">
+                            <ScrollViewer Margin="4"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsPresenter Name="PART_ItemsPresenter"
+                                                ItemsPanel="{TemplateBinding ItemsPanel}" />
+                            </ScrollViewer>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#Bd">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}" />
+        </Style>
+        <Style Selector="^:focus-within /template/ Border#Bd">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:focus-within /template/ Border#FocusRing">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="^:dropdownopen /template/ Border#Bd">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#Bd">
+            <Setter Property="Background" Value="{StaticResource SurfaceMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+        </Style>
+    </ControlTheme>
+
+    <!-- ============================================================
+         Primary / Secondary / Icon Button。アクセント青、グレー、丸っこい
+         アイコン (×) の 3 系統。WPF 版の Storyboard アニメは入れず、
+         状態切替のみ実装。Phase 7 後半でブラッシュアップ。 ============================================================ -->
+    <ControlTheme x:Key="PrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <Border Name="ShadowLayer"
+                            CornerRadius="6"
+                            Background="#1E3A8A"
+                            Opacity="0.18"
+                            Margin="0,2,0,-2" />
+                    <Border Name="ButtonBorder"
+                            CornerRadius="6"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <Border Name="FocusRing"
+                            CornerRadius="8"
+                            BorderBrush="#60A5FA"
+                            BorderThickness="2"
+                            Margin="-2"
+                            Opacity="0"
+                            IsHitTestVisible="False" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+        </Style>
+        <Style Selector="^:pointerover /template/ Border#ShadowLayer">
+            <Setter Property="Opacity" Value="0.28" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="{StaticResource AccentPressedBrush}" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ShadowLayer">
+            <Setter Property="Opacity" Value="0.10" />
+            <Setter Property="Margin" Value="0,1,0,-1" />
+        </Style>
+        <Style Selector="^:focus /template/ Border#FocusRing">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="{StaticResource AccentDisabledBrush}" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#ShadowLayer">
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+    </ControlTheme>
+
+    <ControlTheme x:Key="SecondaryButtonStyle" TargetType="Button">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="#334155" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <Border Name="ButtonBorder"
+                            CornerRadius="6"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <Border Name="FocusRing"
+                            CornerRadius="8"
+                            BorderBrush="#60A5FA"
+                            BorderThickness="2"
+                            Margin="-2"
+                            Opacity="0"
+                            IsHitTestVisible="False" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#F1F5F9" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="{StaticResource BorderSubtleBrush}" />
+            <Setter Property="BorderBrush" Value="#64748B" />
+        </Style>
+        <Style Selector="^:focus /template/ Border#FocusRing">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="{StaticResource SurfaceMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+    </ControlTheme>
+
+    <ControlTheme x:Key="IconButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="ButtonBorder"
+                        CornerRadius="12"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      RecognizesAccessKey="True" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="{StaticResource ErrorBackgroundBrush}" />
+        </Style>
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#FECACA" />
+        </Style>
+        <Style Selector="^:pressed">
+            <Setter Property="Foreground" Value="#B91C1C" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource AccentDisabledBrush}" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
     </ControlTheme>
 
 </ResourceDictionary>

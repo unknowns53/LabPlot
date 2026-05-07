@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Core.Avalonia.Controls.WarningBanner"
+             HorizontalAlignment="Center"
+             VerticalAlignment="Top"
+             Margin="0,12,0,0"
+             IsVisible="False">
+    <Border Background="#FFFBEB"
+            BorderBrush="#FCD34D"
+            BorderThickness="1"
+            CornerRadius="4"
+            Padding="10,6">
+        <StackPanel Orientation="Horizontal">
+            <!-- 警告アイコン: 三角 + 縦棒 + ドット。WPF 版は GeometryGroup +
+                 PathGeometry + RectangleGeometry の組み合わせだったが、
+                 Avalonia 版は同じ形を 1 本の StreamGeometry で描く。 -->
+            <Path Width="14" Height="14"
+                  Fill="#92400E"
+                  Stretch="None"
+                  VerticalAlignment="Center"
+                  Margin="0,0,8,0"
+                  Data="M 7,1 L 13,12 L 1,12 Z M 6,5 L 8,5 L 8,9 L 6,9 Z M 6,10 L 8,10 L 8,11.5 L 6,11.5 Z" />
+            <TextBlock Name="MessageTextBlock"
+                       Foreground="#92400E"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -1,0 +1,92 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ============================================================
+         Phase 7 Batch 1b: 暗黙 (key 無し) Style 群。
+         Window.Styles の <StyleInclude /> で取り込んで使う。CommonStyles.axaml
+         のリソース (Brush) に依存するので、合わせて Window.Resources にも
+         CommonStyles.axaml を merge する必要あり。
+
+         WPF 版 (LabPlot.Core.Wpf/Themes/CommonStyles.xaml) で <Style x:Key 無し>
+         として定義していた ComboBoxItem / CheckBox / Expander / ScrollBar /
+         ToolTip の Style に対応する。Batch 1b ではアニメ抜きの状態切替
+         のみ。Batch 1c でアニメ追加 + ControlTemplate のフルカスタムへ
+         必要に応じて格上げ。
+         ============================================================ -->
+
+    <!-- ComboBoxItem — 角丸 4 / hover で薄い grey、選択で薄い blue。 -->
+    <Style Selector="ComboBoxItem">
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#F1F5F9" />
+    </Style>
+    <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="#DBEAFE" />
+    </Style>
+    <Style Selector="ComboBoxItem:disabled">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+        <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+
+    <!-- CheckBox — Fluent デフォルトに対する色 / FontSize override。
+         WPF 版は ControlTemplate を 1 から書いて白い四角 + Path チェックマーク
+         + StrokeDashOffset アニメで描いていたが、Batch 1b では Fluent の標準
+         見た目をそのまま使い、accent 色だけ揃える。Batch 1c で ControlTemplate
+         を override してより WPF 版に近い見た目に格上げ。 -->
+    <Style Selector="CheckBox">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="#334155" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="CheckBox:disabled">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+        <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+
+    <!-- Expander — 見出し font / accent。Avalonia の Expander は左側の
+         三角チェブロンが標準なので、最初は Fluent デフォルトに沿う。
+         WPF 版相当のカスタムテンプレート (右端に v 字、Translate アニメ)
+         は Batch 1c で対応。 -->
+    <Style Selector="Expander">
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+
+    <!-- ScrollBar — 細身グレー、hover で濃く。 -->
+    <Style Selector="ScrollBar:vertical">
+        <Setter Property="Width" Value="10" />
+        <Setter Property="MinWidth" Value="10" />
+    </Style>
+    <Style Selector="ScrollBar:horizontal">
+        <Setter Property="Height" Value="10" />
+        <Setter Property="MinHeight" Value="10" />
+    </Style>
+    <Style Selector="ScrollBar /template/ Thumb">
+        <Setter Property="Background" Value="{StaticResource BorderDefaultBrush}" />
+    </Style>
+    <Style Selector="ScrollBar:pointerover /template/ Thumb">
+        <Setter Property="Background" Value="{StaticResource BorderHoverBrush}" />
+    </Style>
+
+    <!-- ToolTip — 白背景 + 濃いグレー文字。Avalonia の ToolTip は ContentControl
+         ベースで Border を直接持たないので、BoxShadow / CornerRadius は
+         ControlTheme を override する Batch 1c で対応。Batch 1b は色 / フォント /
+         padding のみ調整。 -->
+    <Style Selector="ToolTip">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+</Styles>

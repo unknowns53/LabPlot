@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Core.Avalonia.Controls.BusyOverlay"
+             IsVisible="False"
+             Focusable="False">
+    <UserControl.Styles>
+        <!-- スピナーの 1 回転を 1 秒で繰り返す Animation。WPF 版は EventTrigger
+             + Storyboard + DoubleAnimation で書いていたが、Avalonia は
+             Style.Animations の Animation IterationCount=Infinite で表現する。 -->
+        <Style Selector="Ellipse.spinner">
+            <Style.Animations>
+                <Animation Duration="0:0:1" IterationCount="Infinite">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(RotateTransform.Angle)" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(RotateTransform.Angle)" Value="360" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Background="#99FFFFFF">
+        <Border Background="White"
+                CornerRadius="8"
+                BorderBrush="#E2E8F0"
+                BorderThickness="1"
+                Padding="20,16"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MinWidth="180">
+            <StackPanel HorizontalAlignment="Center">
+                <Ellipse Classes="spinner"
+                         Width="32" Height="32"
+                         Stroke="#2563EB"
+                         StrokeThickness="3"
+                         StrokeLineCap="Round"
+                         StrokeDashArray="7.5,22.5"
+                         RenderTransformOrigin="50%,50%">
+                    <Ellipse.RenderTransform>
+                        <RotateTransform Angle="0" />
+                    </Ellipse.RenderTransform>
+                </Ellipse>
+                <TextBlock Name="MessageTextBlock"
+                           Margin="0,12,0,0"
+                           FontSize="13"
+                           Foreground="#0F172A"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="240"
+                           TextAlignment="Center" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

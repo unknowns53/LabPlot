@@ -1,10 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:LabPlot.Core.Avalonia.Controls"
              x:Class="LabPlot.Core.Avalonia.Controls.AxisRangePanel"
-             x:Name="AxisRangePanelRoot">
+             x:Name="AxisRangePanelRoot"
+             x:DataType="controls:AxisRangePanel"
+             x:CompileBindings="True">
     <StackPanel>
         <TextBlock Theme="{DynamicResource FieldLabelStyle}"
-                   Text="{Binding XAxisLabel, ElementName=AxisRangePanelRoot}" />
+                   Text="{CompiledBinding #AxisRangePanelRoot.XAxisLabel}" />
         <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
             <StackPanel Grid.Column="0">
                 <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="最小" />
@@ -23,7 +26,7 @@
         </Grid>
 
         <TextBlock Theme="{DynamicResource FieldLabelStyle}"
-                   Text="{Binding YAxisLabel, ElementName=AxisRangePanelRoot}" />
+                   Text="{CompiledBinding #AxisRangePanelRoot.YAxisLabel}" />
         <Grid ColumnDefinitions="*,8,*">
             <StackPanel Grid.Column="0">
                 <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="最小" />

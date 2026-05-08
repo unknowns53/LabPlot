@@ -1,7 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:LabPlot.Core.Avalonia.Controls"
              x:Class="LabPlot.Core.Avalonia.Controls.ColorPickerPanel"
-             x:Name="ColorPickerPanelRoot">
+             x:Name="ColorPickerPanelRoot"
+             x:DataType="controls:ColorPickerPanel"
+             x:CompileBindings="True">
     <StackPanel>
         <!-- Main row: preset ComboBox + colour preview -->
         <Grid ColumnDefinitions="*,8,28">
@@ -35,7 +38,7 @@
                 <TextBox Name="HexTextBox"
                          Theme="{DynamicResource InputTextBoxStyle}"
                          Margin="0,0,0,8"
-                         ToolTip.Tip="{Binding HexInputToolTip, ElementName=ColorPickerPanelRoot}"
+                         ToolTip.Tip="{CompiledBinding #ColorPickerPanelRoot.HexInputToolTip}"
                          TextChanged="HexTextBox_TextChanged" />
 
                 <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="カラーパレット" />

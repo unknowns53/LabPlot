@@ -731,7 +731,7 @@
                         Background="{TemplateBinding Background}">
                     <Path Name="ButtonGlyph"
                           Data="{TemplateBinding Tag}"
-                          Stroke="#475569"
+                          Stroke="{StaticResource ForegroundMutedBrush}"
                           StrokeThickness="1"
                           StrokeLineCap="Round"
                           StrokeJoin="Round"
@@ -773,7 +773,7 @@
                         Background="{TemplateBinding Background}">
                     <Path Name="ButtonGlyph"
                           Data="{TemplateBinding Tag}"
-                          Stroke="#475569"
+                          Stroke="{StaticResource ForegroundMutedBrush}"
                           StrokeThickness="1"
                           StrokeLineCap="Round"
                           Stretch="None"

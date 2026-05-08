@@ -22,22 +22,8 @@
          (8 セクション + sticky footer) + main area (header + plot container + status)。
          InsertionAdorner 相当はこの段階では未実装で、Batch 4b で再実装する。 -->
 
-    <Window.Styles>
-        <!-- Plot スケルトンのシマー帯。Border.shimmer に当てて -120 から +320 まで
-             連続 translate する。WPF 版の EventTrigger + Storyboard の置換。 -->
-        <Style Selector="Border.shimmer">
-            <Style.Animations>
-                <Animation Duration="0:0:2" IterationCount="INFINITE">
-                    <KeyFrame Cue="0%">
-                        <Setter Property="(TranslateTransform.X)" Value="-120" />
-                    </KeyFrame>
-                    <KeyFrame Cue="100%">
-                        <Setter Property="(TranslateTransform.X)" Value="320" />
-                    </KeyFrame>
-                </Animation>
-            </Style.Animations>
-        </Style>
-    </Window.Styles>
+    <!-- Border.shimmer Animation は Phase 7 ブラッシュアップ B8 で
+         Core.Avalonia/Themes/ImplicitStyles.axaml に移管済み。 -->
 
     <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
         <Grid RowDefinitions="Auto,*">

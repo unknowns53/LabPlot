@@ -16,6 +16,10 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- v1.2.1: exe 本体に埋め込むアイコン。エクスプローラ / タスクバー pin / ショートカット
+         右下のアプリ識別はこの .ico を見る。Window.Icon (PNG) は別経路で
+         Core.Avalonia/Assets/app-icon.png から avares 経由で読む。 -->
+    <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

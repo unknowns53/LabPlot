@@ -36,6 +36,9 @@ packages/
 !**/samples/**
 !**/screenshots/
 !**/screenshots/**
+# Avalonia AvaloniaResource (アプリアイコン等の埋め込みアセット) も追跡対象
+!**/Assets/
+!**/Assets/**
 
 # OS files
 Thumbs.db

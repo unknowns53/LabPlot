@@ -22,4 +22,12 @@
     <PackageReference Include="ScottPlot.Avalonia" Version="5.1.58" />
   </ItemGroup>
 
+  <!-- v1.2.1: アプリアイコン (PNG) を共通アセットとして埋め込む。Shell / DLS / GPC /
+       Spectrum すべての Window から avares://LabPlot.Core.Avalonia/Assets/app-icon.png
+       で参照する。Shell から各モジュールへの ProjectReference は循環するため、
+       共通基盤の Core.Avalonia 側に置くのが配置として正解。 -->
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
 </Project>

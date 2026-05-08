@@ -3,6 +3,7 @@
         xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
         x:Class="LabPlot.Shell.Avalonia.PortalWindow"
         Title="LabPlot"
+        Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
         Height="540" Width="620"
         CanResize="False"
         Background="#F7F8FA"

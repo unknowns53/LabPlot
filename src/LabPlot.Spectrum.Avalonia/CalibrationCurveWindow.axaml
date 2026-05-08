@@ -4,6 +4,7 @@
         xmlns:vm="using:LabPlot.Spectrum.Avalonia"
         x:Class="LabPlot.Spectrum.Avalonia.CalibrationCurveWindow"
         Title="Beer-Lambert 検量線エディタ"
+        Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
         Height="720" Width="1140" MinHeight="560" MinWidth="940"
         WindowStartupLocation="CenterOwner"
         Background="#F7F8FA"

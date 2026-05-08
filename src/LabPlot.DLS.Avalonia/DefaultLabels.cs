@@ -10,6 +10,7 @@ internal static class DefaultLabels
 {
     public const string ParticleSizeDistributionTitle = "Particle Size Distribution";
     public const string CorrelationFunctionTitle = "Correlation Function";
+    public const string TemperatureRampTitle = "Temperature Ramp";
 
     // Suffix appended to GetModeLabel(...) for the empty-state title shown
     // when none of the selected datasets carries the requested distribution.
@@ -18,21 +19,25 @@ internal static class DefaultLabels
 
     public const string SizeXLabel = "Size [nm]";
     public const string CorrelationTimeXLabel = "Time [μs]";
+    public const string TemperatureXLabel = "Temperature [°C]";
 
     public const string NumberYLabel = "Number [%]";
     public const string IntensityYLabel = "Intensity [%]";
     public const string VolumeYLabel = "Volume [%]";
     public const string CorrelationYLabel = "g₂-1";
+    public const string HydrodynamicDiameterYLabel = "d_h [nm]";
 
     public static string GetPlotTypeLabel(DistributionMode mode) => mode switch
     {
         DistributionMode.Correlation => CorrelationFunctionTitle,
+        DistributionMode.TemperatureRamp => TemperatureRampTitle,
         _ => ParticleSizeDistributionTitle,
     };
 
     public static string GetDefaultXLabel(DistributionMode mode) => mode switch
     {
         DistributionMode.Correlation => CorrelationTimeXLabel,
+        DistributionMode.TemperatureRamp => TemperatureXLabel,
         _ => SizeXLabel,
     };
 
@@ -41,6 +46,7 @@ internal static class DefaultLabels
         DistributionMode.Intensity => IntensityYLabel,
         DistributionMode.Volume => VolumeYLabel,
         DistributionMode.Correlation => CorrelationYLabel,
+        DistributionMode.TemperatureRamp => HydrodynamicDiameterYLabel,
         _ => NumberYLabel,
     };
 }

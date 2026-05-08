@@ -85,11 +85,63 @@ internal static class DlsSampleBuilder
         Seed = 20260509,
     };
 
+    /// <summary>
+    /// Generates a temperature-ramp series across the LCST. Each entry
+    /// is a single PNIPAM measurement at one temperature; concatenated
+    /// they trace a Boltzmann sigmoid in d_h. Used by both the bundled
+    /// demo workbook and any tests that exercise the ramp analyzer.
+    /// </summary>
+    public static IEnumerable<DlsSyntheticSheet> PnipamTemperatureRamp()
+    {
+        // Boltzmann recipe: T_c = 31 C, w = 0.8 C, d_low = 10 nm, d_high = 200 nm
+        const double tc = 31.0;
+        const double w = 0.8;
+        const double dLow = 10.0;
+        const double dHigh = 200.0;
+
+        var stops = new (double T, double Eta)[]
+        {
+            (25.0, 0.890),
+            (27.0, 0.852),
+            (29.0, 0.818),
+            (30.0, 0.798),
+            (31.0, 0.781),
+            (32.0, 0.765),
+            (33.0, 0.748),
+            (35.0, 0.719),
+        };
+
+        int seed = 20260520;
+        foreach (var (t, eta) in stops)
+        {
+            var s = 1.0 / (1.0 + Math.Exp(-(t - tc) / w));
+            var dh = dLow + (dHigh - dLow) * s;
+            yield return new DlsSyntheticSheet
+            {
+                SheetName = $"PNIPAM_ramp_{t.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture).Replace('.', 'p')}C",
+                SampleLabel = $"PNIPAM ramp {t:0.#}C",
+                TemperatureCelsius = t,
+                ViscosityMpas = eta,
+                RefractiveIndex = 1.330,
+                WavelengthNm = 633.0,
+                ScatteringAngleDegrees = 173.0,
+                Populations = new[]
+                {
+                    new DlsPopulation(DiameterNm: dh, IntensityWeight: 1.0,
+                        PolydispersityIndex: t < tc - 1.0 ? 0.08 : (t > tc + 1.0 ? 0.15 : 0.25)),
+                },
+                Seed = seed++,
+            };
+        }
+    }
+
     public static void WriteDemoWorkbook(string filePath)
     {
         using var workbook = new XLWorkbook();
         AddSheet(workbook, PnipamCoilAt25C);
         AddSheet(workbook, PnipamGlobuleAt35C);
+        foreach (var rampSheet in PnipamTemperatureRamp())
+            AddSheet(workbook, rampSheet);
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath))!);
         workbook.SaveAs(filePath);
     }

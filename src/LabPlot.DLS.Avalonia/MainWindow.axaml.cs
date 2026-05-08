@@ -1656,6 +1656,12 @@ public partial class MainWindow : Window
     {
         if (_plot is null) return;
 
+        if (_selectedMode == DistributionMode.TemperatureRamp)
+        {
+            RefreshTemperatureRampPlot();
+            return;
+        }
+
         if (_selectedDatasets.Count == 0)
         {
             InitializeEmptyPlot();
@@ -1736,6 +1742,9 @@ public partial class MainWindow : Window
 
     private string BuildTitle()
     {
+        if (_selectedMode == DistributionMode.TemperatureRamp)
+            return DefaultLabels.GetPlotTypeLabel(_selectedMode);
+
         if (_selectedDatasets.Count == 1)
         {
             var dataset = _selectedDatasets[0];
@@ -1747,6 +1756,188 @@ public partial class MainWindow : Window
         }
 
         return $"{DefaultLabels.GetPlotTypeLabel(_selectedMode)} ({DefaultLabels.GetModeLabel(_selectedMode)}, {_selectedDatasets.Count} datasets)";
+    }
+
+    // ---------- Temperature ramp (Boltzmann fit across loaded sheets) ----------
+
+    private void RefreshTemperatureRampPlot()
+    {
+        if (_plot is null) return;
+        PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
+
+        _plot.Plot.Clear();
+
+        // Color refresh keeps the dataset list dots (sidebar) consistent
+        // with the rest of the app even though the ramp plot itself does
+        // not draw per-dataset series.
+        for (int i = 0; i < _datasetItems.Count; i++)
+            _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
+
+        var (points, eligibleCount, missingTemp, missingFit) = BuildTemperatureRampPoints();
+        var outcome = TemperatureRampAnalyzer.Analyze(points);
+        UpdateTemperatureRampDisplay(eligibleCount, missingTemp, missingFit, outcome);
+
+        _plot.Plot.Title(GetGraphTitle(BuildTitle()));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
+        ApplyLogXTicksForMode(_selectedMode);
+        // Restore default Y tick generator since correlation / size axes
+        // may have left a NumericManual one in place.
+        _plot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+
+        if (points.Count == 0)
+        {
+            _plot.Plot.Axes.SetLimits(20, 40, 0, 200);
+            ApplyPlotAppearance();
+            ApplyLegend(0);
+            _plot.Refresh();
+            return;
+        }
+
+        var xs = new double[points.Count];
+        var ys = new double[points.Count];
+        for (int i = 0; i < points.Count; i++)
+        {
+            xs[i] = points[i].TemperatureCelsius;
+            ys[i] = points[i].DiameterNm;
+        }
+        var scatter = _plot.Plot.Add.ScatterPoints(xs, ys);
+        scatter.MarkerSize = (float)(_formattingConfig.MarkerSize * 1.4);
+        scatter.LegendText = "data";
+        if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
+            scatter.MarkerStyle.FillColor = ScottPlot.Color.FromHex(new[] { _formattingConfig.DefaultLineColorHex }).First();
+
+        if (outcome.Success && outcome.Result is not null)
+        {
+            var tMin = points.Min(p => p.TemperatureCelsius);
+            var tMax = points.Max(p => p.TemperatureCelsius);
+            var span = Math.Max(tMax - tMin, 1.0);
+            var t0 = tMin - span * 0.1;
+            var t1 = tMax + span * 0.1;
+            const int FitSampleCount = 200;
+            var fitX = new double[FitSampleCount];
+            var fitY = new double[FitSampleCount];
+            for (int i = 0; i < FitSampleCount; i++)
+            {
+                fitX[i] = t0 + (t1 - t0) * i / (FitSampleCount - 1);
+                fitY[i] = TemperatureRampAnalyzer.Predict(fitX[i], outcome.Result);
+            }
+            var line = _plot.Plot.Add.ScatterLine(fitX, fitY);
+            line.LineWidth = (float)Math.Max(_formattingConfig.LineWidth, 2.0);
+            line.LegendText = "Boltzmann fit";
+        }
+
+        _plot.Plot.Axes.AutoScale();
+        ApplyPlotAppearance();
+        ApplyLegend(outcome.Success ? 2 : 1);
+        _plot.Refresh();
+    }
+
+    private (List<TemperatureRampPoint> Points, int EligibleCount, int MissingTemp, int MissingFit) BuildTemperatureRampPoints()
+    {
+        var points = new List<TemperatureRampPoint>(_datasetItems.Count);
+        int missingTemp = 0;
+        int missingFit = 0;
+        foreach (var item in _datasetItems)
+        {
+            var t = item.Metadata.TemperatureCelsius;
+            if (t is null || !double.IsFinite(t.Value))
+            {
+                missingTemp++;
+                continue;
+            }
+
+            var cumulant = CumulantAnalyzer.Analyze(
+                item.Dataset.Correlation,
+                item.Cumulant.FitRangeMinMicroseconds,
+                item.Cumulant.FitRangeMaxMicroseconds);
+            if (!cumulant.Success || cumulant.Result is null)
+            {
+                missingFit++;
+                continue;
+            }
+
+            var size = StokesEinstein.Compute(
+                cumulant.Result.FirstCumulantPerMicrosecond,
+                item.Metadata.TemperatureCelsius,
+                item.Metadata.ViscosityMpas,
+                item.Metadata.RefractiveIndex,
+                item.Metadata.WavelengthNm,
+                item.Metadata.ScatteringAngleDegrees);
+            if (!size.Success || size.HydrodynamicDiameterNm is null)
+            {
+                missingFit++;
+                continue;
+            }
+
+            points.Add(new TemperatureRampPoint(t.Value, size.HydrodynamicDiameterNm.Value));
+        }
+        return (points, points.Count, missingTemp, missingFit);
+    }
+
+    private void UpdateTemperatureRampDisplay(int eligibleCount, int missingTemp, int missingFit, TemperatureRampOutcome outcome)
+    {
+        var totalSheets = _datasetItems.Count;
+        TemperatureRampPointCountLabel.Text = totalSheets == 0
+            ? "(0 点)"
+            : $"({eligibleCount}/{totalSheets} 点)";
+
+        if (!outcome.Success || outcome.Result is null)
+        {
+            ResetRampDisplay();
+            var reason = outcome.FailureReason ?? "解析できません";
+            var hints = new List<string>();
+            if (missingTemp > 0) hints.Add($"温度未入力 {missingTemp} 件");
+            if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
+            var detail = hints.Count > 0 ? $"（{string.Join(" / ", hints)}）" : string.Empty;
+            ShowRampStatus($"{reason}{detail}");
+            return;
+        }
+
+        var r = outcome.Result;
+        RampTransitionTemperatureText.Text =
+            $"{r.TransitionTemperatureCelsius.ToString("0.00", CultureInfo.InvariantCulture)} °C";
+        RampTransitionWidthText.Text =
+            $"{r.TransitionWidthCelsius.ToString("0.00", CultureInfo.InvariantCulture)} °C";
+        RampLowPlateauText.Text =
+            $"{r.LowPlateauNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
+        RampHighPlateauText.Text =
+            $"{r.HighPlateauNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
+        RampRSquaredText.Text =
+            r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
+
+        if (missingTemp > 0 || missingFit > 0)
+        {
+            var hints = new List<string>();
+            if (missingTemp > 0) hints.Add($"温度未入力 {missingTemp} 件");
+            if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
+            ShowRampStatus($"残り {string.Join(" / ", hints)} は除外しました");
+        }
+        else
+        {
+            HideRampStatus();
+        }
+    }
+
+    private void ResetRampDisplay()
+    {
+        RampTransitionTemperatureText.Text = "—";
+        RampTransitionWidthText.Text = "—";
+        RampLowPlateauText.Text = "—";
+        RampHighPlateauText.Text = "—";
+        RampRSquaredText.Text = "—";
+    }
+
+    private void ShowRampStatus(string message)
+    {
+        RampStatusText.Text = message;
+        RampStatusText.IsVisible = true;
+    }
+
+    private void HideRampStatus()
+    {
+        RampStatusText.Text = string.Empty;
+        RampStatusText.IsVisible = false;
     }
 
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
@@ -1822,8 +2013,19 @@ public partial class MainWindow : Window
     {
         if (mode == DistributionMode.Correlation)
             ApplyLogXTicks(CorrelationAxisMinExponent, CorrelationAxisMaxExponent);
+        else if (mode == DistributionMode.TemperatureRamp)
+            ApplyLinearXTicks();
         else
             ApplyLogXTicks(SizeAxisMinExponent, SizeAxisMaxExponent);
+    }
+
+    private void ApplyLinearXTicks()
+    {
+        if (_plot is null) return;
+        // Reset to ScottPlot's default automatic tick generator so the X
+        // axis renders 25 / 27 / 29 ... in linear °C rather than the
+        // log-spaced exponents used by size and correlation modes.
+        _plot.Plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
     }
 
     private void ApplyExportStyleScale(float scale)
@@ -2069,6 +2271,7 @@ public partial class MainWindow : Window
         "Intensity" => DistributionMode.Intensity,
         "Volume" => DistributionMode.Volume,
         "Correlation" => DistributionMode.Correlation,
+        "TemperatureRamp" => DistributionMode.TemperatureRamp,
         _ => DistributionMode.Number,
     };
 

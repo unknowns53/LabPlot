@@ -337,6 +337,105 @@
     </ControlTheme>
 
     <!-- ============================================================
+         Input AutoCompleteBox — Avalonia の ComboBox は IsEditable を
+         サポートしないため、フォント名 等の自由入力 + 候補ドロップダウンが
+         必要な場面では AutoCompleteBox に置き換えている (GraphFormatPanel
+         の GraphFontComboBox)。Phase 7 では中身の TextBox 部分が
+         Avalonia Fluent デフォルトのままで InputComboBoxStyle と揃わず、
+         ドロップダウンの popup も装飾のない naked ListBox になっていた。
+
+         この ControlTheme で:
+           1. 外側 Border#Bd は InputComboBoxStyle と同じ 32px / 6px-corner /
+              accent-on-focus シェル (FocusRing も同形)
+           2. PART_TextBox は内部 TextBox を Background=Transparent /
+              BorderThickness=0 にして外側 Border#Bd に枠を集約
+           3. Popup#PART_Popup は InputComboBoxStyle の popup card と
+              同じく surface 白 + 6px 角丸 + BoxShadow
+           4. PART_SelectingItemsControl (ListBox) は Background=Transparent /
+              BorderThickness=0 で popup card 内に貼る
+
+         Avalonia 11 の制約: AutoCompleteBox の TemplatePart 名 (PART_TextBox /
+         PART_Popup / PART_SelectingItemsControl) が違うとビルドは通って
+         動作だけ壊れる silent bug になるので、Avalonia.Controls の
+         AutoCompleteBox.cs にある [TemplatePart] と完全一致させる。
+         ============================================================ -->
+    <ControlTheme x:Key="InputAutoCompleteBoxStyle" TargetType="AutoCompleteBox">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource ForegroundPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="AutoCompleteBox">
+                <Grid>
+                    <Border Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            MinHeight="{TemplateBinding MinHeight}">
+                        <TextBox Name="PART_TextBox"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="{TemplateBinding Padding}"
+                                 Foreground="{TemplateBinding Foreground}"
+                                 Watermark="{TemplateBinding Watermark}"
+                                 VerticalContentAlignment="Center"
+                                 MinHeight="{TemplateBinding MinHeight}"
+                                 CaretBrush="{StaticResource AccentBrush}"
+                                 SelectionBrush="{StaticResource AccentLightBrush}"
+                                 SelectionForegroundBrush="{StaticResource ForegroundPrimaryBrush}" />
+                    </Border>
+                    <Border Name="FocusRing"
+                            CornerRadius="8"
+                            BorderBrush="{StaticResource FocusRingBrush}"
+                            BorderThickness="2"
+                            Margin="-2"
+                            Opacity="0"
+                            IsHitTestVisible="False" />
+                    <Popup Name="PART_Popup"
+                           IsOpen="{TemplateBinding IsDropDownOpen, Mode=TwoWay}"
+                           MinWidth="{Binding $parent[AutoCompleteBox].Bounds.Width}"
+                           MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                           PlacementTarget="{TemplateBinding}"
+                           Placement="BottomEdgeAlignedLeft">
+                        <Border Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,4,0,8"
+                                BoxShadow="0 2 14 0 #2E0F172A">
+                            <ListBox Name="PART_SelectingItemsControl"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Margin="4"
+                                     Foreground="{StaticResource ForegroundPrimaryBrush}" />
+                        </Border>
+                    </Popup>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#Bd">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}" />
+        </Style>
+        <Style Selector="^:focus-within /template/ Border#Bd">
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:focus-within /template/ Border#FocusRing">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#Bd">
+            <Setter Property="Background" Value="{StaticResource SurfaceMutedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+        </Style>
+    </ControlTheme>
+
+    <!-- ============================================================
          Primary / Secondary / Icon Button。アクセント青、グレー、丸っこい
          アイコン (×) の 3 系統。WPF 版の Storyboard アニメは入れず、
          状態切替のみ実装。Phase 7 後半でブラッシュアップ。 ============================================================ -->

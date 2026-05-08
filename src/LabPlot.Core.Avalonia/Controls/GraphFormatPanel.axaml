@@ -21,8 +21,14 @@
                      TextChanged 購読でフォント自由入力を実装していたが、Avalonia の
                      ComboBox には IsEditable が無いので AutoCompleteBox に置き換える。
                      候補リスト + 自由入力 + TextChanged が標準 API として揃っている
-                     ので、code-behind 側のテンプレ参照ハックも不要。 -->
+                     ので、code-behind 側のテンプレ参照ハックも不要。
+                     Phase 7 ブラッシュアップ B3: InputComboBoxStyle と高さ/角丸/枠を
+                     揃えた InputAutoCompleteBoxStyle を当てて popup の見た目も統一。
+                     MinimumPrefixLength=0 + FilterMode=ContainsCaseSensitive (default)
+                     のままだと初期 focus で候補が出ないので 0 件マッチ時のみ閉じる
+                     既定挙動に任せる。 -->
                 <AutoCompleteBox Name="GraphFontComboBox"
+                                 Theme="{DynamicResource InputAutoCompleteBoxStyle}"
                                  Watermark="Auto"
                                  Margin="0,0,0,10"
                                  TextChanged="GraphFontComboBox_TextChanged" />

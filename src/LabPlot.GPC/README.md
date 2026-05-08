@@ -1,6 +1,8 @@
 # GPC Visualization
 
-GPC（ゲル浸透クロマトグラフィー）の測定データを読み込んで、クロマトグラムや分子量分布を表示し、PNG / SVG / Excel / CSV として書き出すための Windows 用デスクトップアプリです。研究室で日常的に使うことを想定しています。
+> **v1.0.x 保守版（WPF）**: 主流系統は Avalonia 実装の [`src/LabPlot.GPC.Avalonia`](../LabPlot.GPC.Avalonia/) で、Windows / macOS / Linux 共通で動作します。本ライブラリは Windows 専用 WPF 版の保守用として残してあり、新機能・バグ修正は主流の Avalonia 版で受けます。本書は v1.0.x の機能仕様の参照ドキュメントとして利用してください。
+
+GPC（ゲル浸透クロマトグラフィー）の測定データを読み込んで、クロマトグラムや分子量分布を表示し、PNG / SVG / Excel / CSV として書き出すためのデスクトップアプリです。研究室で日常的に使うことを想定しています。
 
 主な機能:
 

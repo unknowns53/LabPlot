@@ -1,6 +1,8 @@
 # Spectrum Visualization
 
-UV-Vis 波長スキャン・温度スキャン・FTIR スペクトルの可視化と解析を行う Windows 用デスクトップアプリです。JASCO Spectra Manager の TXT / CSV エクスポートを読み込み、ScottPlot による即時プレビュー、ピーク検出、領域積分、Beer-Lambert 検量線、Tc（曇点温度）推定までを 1 つのウィンドウから扱えます。GPC アプリと同じ操作感・出力品質を持つ姉妹アプリで、`LabPlot.Core` / `LabPlot.Core.Wpf` の共通基盤を共有しています。
+> **v1.0.x 保守版（WPF）**: 主流系統は Avalonia 実装の [`src/LabPlot.Spectrum.Avalonia`](../LabPlot.Spectrum.Avalonia/) で、Windows / macOS / Linux 共通で動作します。本ライブラリは Windows 専用 WPF 版の保守用として残してあり、新機能・バグ修正は主流の Avalonia 版で受けます。本書は v1.0.x の機能仕様の参照ドキュメントとして利用してください。
+
+UV-Vis 波長スキャン・温度スキャン・FTIR スペクトルの可視化と解析を行うデスクトップアプリです。JASCO Spectra Manager の TXT / CSV エクスポートを読み込み、ScottPlot による即時プレビュー、ピーク検出、領域積分、Beer-Lambert 検量線、Tc（曇点温度）推定までを 1 つのウィンドウから扱えます。GPC アプリと同じ操作感・出力品質を持つ姉妹アプリで、`LabPlot.Core` / `LabPlot.Core.Wpf` の共通基盤を共有しています。
 
 主な機能:
 

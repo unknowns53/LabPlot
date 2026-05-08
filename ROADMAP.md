@@ -2,7 +2,7 @@
 
 LabPlot 全体の今後の機能追加・拡張計画をまとめたメモです。優先度や着手時期は流動的で、必要が具体化したものから順次着手する方針です。
 
-最終更新: 2026-05-07（Phase 7 Avalonia 移植本体 Batch 1–5 完了、Batch 6 macOS / Linux publish 検証へ）
+最終更新: 2026-05-08（**Avalonia 版を主流系統に切り替え**。Phase 7 Batch 6 の実機検証で 3 アプリのドラッグ並べ替え / ファイル D&D / 凡例 D&D / フォントの読みづらさが解決し、dotnet 亡霊プロセス問題も決着。WPF 版は v1.0.x の保守版として並行維持に降格）
 
 ---
 
@@ -10,8 +10,9 @@ LabPlot 全体の今後の機能追加・拡張計画をまとめたメモです
 
 GPC・Spectrum・DLS の 3 アプリで共通する解析ロジック・UI 部品を切り出し、保守と一貫性を担保する。
 
-- **`LabPlot.Core`**: 書式設定（`GraphFormattingConfig`）、セッション保存、PNG / SVG / Excel / CSV エクスポート、ScottPlot セットアップ補助、JASCO / LabSolutions / Zetasizer 等のリーダー抽象化（`ISpectrumDataReader` 系）。WPF 非依存とし、xUnit でテスト容易に
-- **`LabPlot.Core.Wpf`**: 共有 ResourceDictionary（`Themes/CommonStyles.xaml`）、ScottPlot ホストヘルパ、データセットのドラッグ並び替え支援、共通ダイアログなど
+- **`LabPlot.Core`**: 書式設定（`GraphFormattingConfig`）、セッション保存、PNG / SVG / Excel / CSV エクスポート、ScottPlot セットアップ補助、JASCO / LabSolutions / Zetasizer 等のリーダー抽象化（`ISpectrumDataReader` 系）。UI 非依存とし、xUnit でテスト容易に
+- **`LabPlot.Core.Avalonia`**: **主流系統**の共有 ResourceDictionary（`Themes/CommonStyles.axaml` + `Themes/ImplicitStyles.axaml`）、AxisRange / GraphFormat / ColorPicker / CustomTitleBar / Banner 群、IStorageProvider 経由のヘルパなど
+- **`LabPlot.Core.Wpf`**: v1.0.x 保守用の共有 ResourceDictionary（`Themes/CommonStyles.xaml`）、ScottPlot ホストヘルパ、データセットのドラッグ並び替え支援、共通ダイアログなど。Core.Avalonia と同シグネチャの API 群を維持
 
 切り出しは GPC / Spectrum を一気に書き換えるのではなく、対象を 1 種類ずつ移して両アプリのビルドが通る状態を維持しながら進める方針。DLS は最初から `LabPlot.Core` ベースで開発する。
 
@@ -68,11 +69,11 @@ Malvern Zetasizer の DLS データ可視化・解析を新規開発:
 
 ---
 
-## 5. クロスプラットフォーム展開（Phase 7、進行中）
+## 5. クロスプラットフォーム展開（Phase 7、Avalonia 主流化）
 
-WPF + win-x64 single-file exe では macOS / Linux ユーザーに配れないので、2026-05-07 から **Avalonia UI への並行移植** に着手。
+WPF + win-x64 single-file exe では macOS / Linux ユーザーに配れないので、2026-05-07 から **Avalonia UI への並行移植** に着手。Phase 7 Batch 1–6 の完了と実機検証を経て、2026-05-08 に **Avalonia 版を主流系統に切り替え**ました。
 
-戦略は「並行ビルド + WPF feature freeze」。既存の WPF プロジェクト（`LabPlot.Shell` / `GPC_Visualization` / `Spectrum_Visualization` / `LabPlot.DLS` / `LabPlot.Core.Wpf`）は v1.0.x の完成形として凍結し、横に Avalonia 版（`LabPlot.Shell.Avalonia` / `LabPlot.GPC.Avalonia` / `LabPlot.Spectrum.Avalonia` / `LabPlot.DLS.Avalonia` / `LabPlot.Core.Avalonia`）を新規追加。WPF 版と Avalonia 版が同じ `LabPlot.Core` / `*Analyzer.Core` を参照する構造なので、ロジック層の進化は二重化なしで両系統に乗ります。
+切り替え後の建付け: 主流系統は `LabPlot.Shell.Avalonia` / `LabPlot.GPC.Avalonia` / `LabPlot.Spectrum.Avalonia` / `LabPlot.DLS.Avalonia` / `LabPlot.Core.Avalonia` の 5 プロジェクトで Windows / macOS / Linux 共通バイナリを生成します。既存の WPF プロジェクト（`LabPlot.Shell` / `GPC_Visualization` / `Spectrum_Visualization` / `LabPlot.DLS` / `LabPlot.Core.Wpf`）は v1.0.x の保守版として並行維持し、研究室内で運用中の Windows ユーザーが望めば従来構成も使い続けられます。両系統が同じ `LabPlot.Core` / `*Analyzer.Core` を参照する構造なので、ロジック層の修正は二重化なしで両系統に反映できます。新機能・バグ修正は主流の Avalonia 版を優先し、必要なときだけ保守用の WPF 版にバックポートする運用です。
 
 採用バージョン:
 
@@ -89,7 +90,15 @@ WPF + win-x64 single-file exe では macOS / Linux ユーザーに配れない�
 - **Batch 3** ✅: `LabPlot.DLS.Avalonia` 移植。XAML 1 個（982 行）+ code-behind 2167 行を完全実装、xlsx 読み込み・キュムラント解析・Stokes-Einstein 計算・セッション保存復元まで WPF 版と同形（commit `8854311` / `041f2d2`）
 - **Batch 4** ✅: `GPC_Visualization.Avalonia` 移植。XAML 928 行 + code-behind 3131 行を完全実装、CSV/TXT 読み込み・較正曲線適用・分子量変換・統計 chip まで稼働（commit `f25d49e` / `e32f9e9`）
 - **Batch 5** ✅: `Spectrum_Visualization.Avalonia` 移植。XAML 5 個（最大 MainWindow 1431 行）+ code-behind 計 4849 行を完全実装、JASCO TXT 読み込み・線スタイル・軸書式・X 反転 / Y 表示モード・IR ピーク帰属・λmax / Tc 自動 + 手動検出・温度スキャン Tc（4 method + sigmoid fit）・積分領域・Beer-Lambert 検量線エディタまで稼働（commit `117e08e` / `76f5292`）
-- **Batch 6** （次）: macOS / Linux self-contained publish と動作検証。`dotnet publish src/LabPlot.Shell.Avalonia -r osx-arm64` / `-r linux-x64` で配布物を生成、起動・サンプル読み込み・PNG 出力・セッション保存復元を OS 横断で確認。Linux は WSL2 + WSLg（Windows 11 標準）で実機相当のチェック、macOS は GitHub Actions の `macos-latest` ランナーで起動スモークまで自動化、本格的な GUI 検証は実機所有者に依頼する運用を想定
+- **Batch 6** ✅: Windows 実機での 3 アプリ動作検証で Expander / ColorPicker / Avalonia.Generators 系の実装課題 3 件を fix、ファイル D&D / 凡例 D&D / 太字でないフォントの読みづらさも順次解決。GPC のドラッグ並べ替えを DataTemplate ベースのゴースト + InputHitTest 方式に整理して DLS / Spectrum へ横展開。`dotnet build` で MSBuild worker / Roslyn server が常駐する亡霊プロセス問題は `tools/run-avalonia.ps1` の `-nodeReuse:false /p:UseSharedCompilation=false` で根治
+- **Phase 7 主流化（2026-05-08）** ✅: Avalonia 版を主流系統に切り替え。README / ROADMAP / 各アプリドキュメントを「主流 = Avalonia、保守 = WPF」の建付けに書き換え
+
+残課題（主流化後に着手）:
+
+- macOS arm64 publish の起動スモーク CI 化（GitHub Actions `macos-latest` ランナー）と実機 GUI 検証の依頼運用整備
+- WSL2 + WSLg での Linux x64 publish 実機相当検証の手順 docs 化
+- `DragDrop.DoDragDrop` を CS0618 obsolete から新 `DataFormat.File` / `DataTransfer` / `DoDragDropAsync` へ移行
+- `DataTemplate` の `{ReflectionBinding}` を `x:DataType` + `CompiledBinding` に格上げ
 
 CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → PNG / xlsx 変換だけ提供）は補助的な選択肢として引き続き残します。
 
@@ -108,10 +117,11 @@ CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → 
 
 おおまかな優先度は以下を想定:
 
-1. **共通基盤化（1）** ✅: `LabPlot.Core` / `LabPlot.Core.Wpf` / `LabPlot.Core.Avalonia` を切り出し済み
-2. **LabPlot.DLS 新規開発（2-DLS）** ✅: WPF 版・Avalonia 版とも完了
-3. **クロスプラットフォーム（5）** 進行中: Phase 7 Avalonia 移植本体（Batch 1–5）完了、残るは Batch 6 macOS / Linux publish & 動作検証
-4. **Spectrum 残課題（2-Spectrum）**: ブランク差し引き・濃度逆算・Boltzmann fit など、利用ニーズに合わせて随時
-5. **新規フォーマット対応（3）**: 共同研究者・研究室メンバーの要望が具体化したら
-6. **GPC パフォーマンス最適化（2-GPC）**: 体感で困るケースが出てきたら
-7. **新規アプリ候補（4）**: 必要が具体化してから
+1. **共通基盤化（1）** ✅: `LabPlot.Core` / `LabPlot.Core.Avalonia`（主流） / `LabPlot.Core.Wpf`（保守）を切り出し済み
+2. **LabPlot.DLS 新規開発（2-DLS）** ✅: 主流・保守の両系統とも完了
+3. **クロスプラットフォーム（5）** ✅: Phase 7 Batch 1–6 完了、2026-05-08 に Avalonia 主流化を反映
+4. **Phase 7 後始末**: macOS / Linux publish 検証手順整備、`DataFormat.File` / `DataTransfer` / `DoDragDropAsync` への移行、`x:DataType` + `CompiledBinding` 格上げ
+5. **Spectrum 残課題（2-Spectrum）**: ブランク差し引き・濃度逆算・Boltzmann fit など、利用ニーズに合わせて随時
+6. **新規フォーマット対応（3）**: 共同研究者・研究室メンバーの要望が具体化したら
+7. **GPC パフォーマンス最適化（2-GPC）**: 体感で困るケースが出てきたら
+8. **新規アプリ候補（4）**: 必要が具体化してから

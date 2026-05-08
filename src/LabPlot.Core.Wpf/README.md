@@ -1,6 +1,8 @@
 # LabPlot.Core.Wpf
 
-LabPlot の WPF アプリ（GPC / Spectrum / DLS）が共有する UI コンポーネント・スタイル・ヘルパをまとめたライブラリです。WPF 依存はここに閉じ込め、`LabPlot.Core` と組み合わせて使う前提で設計しています。
+> **v1.0.x 保守用ライブラリ**: LabPlot の主流 UI 基盤は cross-platform な [`LabPlot.Core.Avalonia`](../LabPlot.Core.Avalonia/) です。本ライブラリは Windows 専用の WPF 系統（`GPC_Visualization` / `Spectrum_Visualization` / `LabPlot.DLS`）の保守版として残してあり、新機能は主流側に追加してください。
+
+LabPlot の WPF アプリ（GPC / Spectrum / DLS）が共有する UI コンポーネント・スタイル・ヘルパをまとめたライブラリです。WPF 依存はここに閉じ込め、`LabPlot.Core` と組み合わせて使う前提で設計しています。Core.Avalonia 側にも同シグネチャの実装が並走しているため、ロジック層の修正を両系統に反映するときの参考実装として活用できます。
 
 含まれる主なコンポーネント:
 
@@ -86,4 +88,4 @@ dotnet build src/LabPlot.Core.Wpf/LabPlot.Core.Wpf.csproj
 - `LabPlot.Core` — 書式設定の基底（`GraphFormattingConfigBase`）と ScottPlot ヘルパ（`PlotAppearance`）を経由する経路があるため。
 - `ScottPlot.WPF 5.1.x` — `WpfPlot` を直接触る `PlotHostAspectRatio` / `GraphSaveHelpers` のため。
 
-ターゲット: `net10.0-windows10.0.19041`（WPF 有効）。Avalonia への移植は将来の選択肢として残してありますが、現在は WPF 固定です。共有スタイルは `Themes/CommonStyles.xaml` 1 ファイルに集約してあるので、ControlTemplate を Avalonia 用に書き直す範囲だけが移植対象になります。
+ターゲット: `net10.0-windows10.0.19041`（WPF 有効）。主流の Avalonia 移植はすでに [`LabPlot.Core.Avalonia`](../LabPlot.Core.Avalonia/) として完了しており、本ライブラリは v1.0.x 保守用として固定されています。共有スタイルは `Themes/CommonStyles.xaml` に集約してあり、Avalonia 側の `Themes/CommonStyles.axaml` + `Themes/ImplicitStyles.axaml` と同じデザイントークン（アクセント色 `#2563EB` 系・角丸 6〜8 px・FocusVisualStyle 自前）で揃えてあります。

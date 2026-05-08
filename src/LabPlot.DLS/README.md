@@ -1,6 +1,8 @@
 # LabPlot.DLS
 
-Malvern Zetasizer の DLS（動的光散乱）測定ブックを読み込んで、粒径分布と自己相関関数を可視化し、キュムラント解析で Z-average / PdI / 流体力学半径を算出する Windows 用デスクトップアプリです。GPC / Spectrum と同じ操作感を踏襲しつつ、`LabPlot.Core` / `LabPlot.Core.Wpf` の共通基盤を共有しています。
+> **v1.0.x 保守版（WPF）**: 主流系統は Avalonia 実装の [`src/LabPlot.DLS.Avalonia`](../LabPlot.DLS.Avalonia/) で、Windows / macOS / Linux 共通で動作します。本ライブラリは Windows 専用 WPF 版の保守用として残してあり、新機能・バグ修正は主流の Avalonia 版で受けます。本書は v1.0.x の機能仕様の参照ドキュメントとして利用してください。
+
+Malvern Zetasizer の DLS（動的光散乱）測定ブックを読み込んで、粒径分布と自己相関関数を可視化し、キュムラント解析で Z-average / PdI / 流体力学半径を算出するデスクトップアプリです。GPC / Spectrum と同じ操作感を踏襲しつつ、`LabPlot.Core` / `LabPlot.Core.Wpf` の共通基盤を共有しています。
 
 主な機能:
 

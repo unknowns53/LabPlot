@@ -365,7 +365,11 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            Padding="{TemplateBinding Padding}">
+                            Padding="{TemplateBinding Padding}"
+                            RenderTransformOrigin="50%,50%">
+                        <Border.RenderTransform>
+                            <TranslateTransform Y="0" />
+                        </Border.RenderTransform>
                         <ContentPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                                           Content="{TemplateBinding Content}"
@@ -383,14 +387,51 @@
             </ControlTemplate>
         </Setter>
 
+        <!-- Hover 時はボタン本体を 1px 持ち上げて影 Opacity を上げ、押し込み時は
+             0px に戻して影も薄める (Phase 7 ブラッシュアップ B2)。WPF 版の
+             Storyboard DoubleAnimation Y -1↔0 / 0:0:0.12 と同形を Avalonia の
+             Style.Animations で再現。:not(:pointerover) の戻りアニメも書いて
+             マウスが外れたときに「ストン」とではなく滑らかに着地させる。 -->
         <Style Selector="^:pointerover /template/ Border#ButtonBorder">
             <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+            <Style.Animations>
+                <Animation Duration="0:0:0.12" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="^:not(:pointerover) /template/ Border#ButtonBorder">
+            <Style.Animations>
+                <Animation Duration="0:0:0.12" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
         </Style>
         <Style Selector="^:pointerover /template/ Border#ShadowLayer">
             <Setter Property="Opacity" Value="0.28" />
         </Style>
         <Style Selector="^:pressed /template/ Border#ButtonBorder">
             <Setter Property="Background" Value="{StaticResource AccentPressedBrush}" />
+            <Style.Animations>
+                <Animation Duration="0:0:0.08" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
         </Style>
         <Style Selector="^:pressed /template/ Border#ShadowLayer">
             <Setter Property="Opacity" Value="0.10" />
@@ -431,7 +472,11 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            Padding="{TemplateBinding Padding}">
+                            Padding="{TemplateBinding Padding}"
+                            RenderTransformOrigin="50%,50%">
+                        <Border.RenderTransform>
+                            <TranslateTransform Y="0" />
+                        </Border.RenderTransform>
                         <ContentPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                                           Content="{TemplateBinding Content}"
@@ -449,13 +494,48 @@
             </ControlTemplate>
         </Setter>
 
+        <!-- PrimaryButton と同じく hover で 1px lift / pressed で 0px に push-down。
+             Secondary は影レイヤーが無い分、リフトの動きが視認性を担う
+             (Phase 7 ブラッシュアップ B2)。 -->
         <Style Selector="^:pointerover /template/ Border#ButtonBorder">
             <Setter Property="Background" Value="#F1F5F9" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}" />
+            <Style.Animations>
+                <Animation Duration="0:0:0.12" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="^:not(:pointerover) /template/ Border#ButtonBorder">
+            <Style.Animations>
+                <Animation Duration="0:0:0.12" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
         </Style>
         <Style Selector="^:pressed /template/ Border#ButtonBorder">
             <Setter Property="Background" Value="{StaticResource BorderSubtleBrush}" />
             <Setter Property="BorderBrush" Value="#64748B" />
+            <Style.Animations>
+                <Animation Duration="0:0:0.08" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
         </Style>
         <Style Selector="^:focus /template/ Border#FocusRing">
             <Setter Property="Opacity" Value="1" />
@@ -833,12 +913,15 @@
         <!-- ヘッダーホバーで背景に accent tint を被せる。Avalonia 11 では
              1 つの Style 内で /template/ を 2 段ネストできない（ControlTemplate
              styles cannot contain multiple template selectors）ため、
-             ToggleButton#HeaderToggle.Background を直接 Setter する形に
-             圧縮し、Border#HeaderBg は TemplateBinding で受ける構造にした。
-             これにより Chevron の Stroke 色変化は省略しているが、ヘッダ
-             背景の hover フィードバックは維持される。 -->
+             Background は ToggleButton#HeaderToggle に直接、Chevron Stroke は
+             Expander 自身の :pointerover で Path#Chevron を狙う sibling
+             Style に分割し、二段ネストせずに同じ視覚効果を再現する
+             (Phase 7 ブラッシュアップ B2)。 -->
         <Style Selector="^ /template/ ToggleButton#HeaderToggle:pointerover">
             <Setter Property="Background" Value="#F1F5F9" />
+        </Style>
+        <Style Selector="^:pointerover /template/ Path#Chevron">
+            <Setter Property="Stroke" Value="{StaticResource AccentBrush}" />
         </Style>
 
         <!-- Chevron 0→180 度回転（Batch 1b で持ち越し）。:expanded で開く向き、

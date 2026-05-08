@@ -9,6 +9,14 @@
     <PackageReference Include="ScottPlot.WPF" Version="5.1.58" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\samples\**\*">
+      <Link>samples\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
   <PropertyGroup>
     <!-- Library 化済み (Phase 6 Batch 1)。ポータル LabPlot.Shell が唯一の WinExe で、
          本プロジェクトはその DLL モジュールとして MainWindow を提供する。 -->

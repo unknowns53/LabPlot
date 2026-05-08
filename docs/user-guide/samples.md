@@ -11,7 +11,7 @@ LabPlot の配布物には、動作確認用のサンプルデータが同梱さ
 - Windows: `<解凍したフォルダ>\samples\`
 - macOS / Linux: `<解凍したフォルダ>/samples/`
 
-DLS モジュールには同梱サンプルがありません（後述）。研究室の実機データを直接使ってください。
+DLS モジュールには合成データのデモが同梱されています（後述）。実機データが手元に無くてもキュムラント解析と Stokes–Einstein 計算の流れを試せます。
 
 ---
 
@@ -60,6 +60,19 @@ UV-Vis 波長スキャン、温度スキャン（ヒステリシス対）、FTIR
 
 ## DLS サンプル
 
-DLS モジュールには同梱サンプルがありません。Zetasizer の xlsx を研究室の実機から取り出してください。エクスポート手順は [Malvern Zetasizer のデータ準備](./data-preparation/malvern-zetasizer.md) を参照してください。
+PNIPAM の振る舞いを想定した合成データを 1 ファイル同梱しています。Zetasizer xlsx エクスポートと同じ列構造（`Size (d.nm)` / `Number (Percent)` / `Intensity (Percent)` / `Volume (Percent)` / `Time (µs)` / `Correlation Coefficient (g₂-1)` のヘッダ規約、3 run 構成）になっているので、実機ファイルとまったく同じ手順で読み込めます。
 
-LabPlot 側が期待するファイル形式（列ヘッダの命名規則、シート単位での扱いなど）は [DLS モジュールの使い方](./dls.md) と [装置別データ準備](./data-preparation/malvern-zetasizer.md) にまとめています。
+| ファイル | 内容 |
+| --- | --- |
+| `demo.xlsx` | 25 °C の PNIPAM コイル状態（単峰、d_h ≈ 10 nm）と 35 °C で LCST を越えた凝集状態（コイル + 凝集体の二峰、d_h ≈ 200 nm）を 2 シートにまとめた合成データ |
+
+試せること:
+
+- データ読み込み → 粒径分布／自己相関 g₂-1 の表示切替
+- サイドバーの測定条件に温度 25 °C・粘度 0.890 mPa·s・屈折率 1.330・波長 633 nm・散乱角 173° を入れて、コイルシートで Z-average 径が ≈ 10 nm に出ることを確認
+- 35 °C シートで `Number (%)` から `Intensity (%)` に切り替えると、二峰のうち凝集体側ピークが圧倒的に持ち上がる Rayleigh 散乱の効きを観察
+- `.dlsjson` に解析条件を保存して、次回起動時に同じ状態で復元できることを確認
+
+合成データの正体は `tools/DlsSampleGenerator/` のコンソールツールで、Stokes–Einstein 式と単一指数の重ね合わせで生成しています。手元で再生成したい場合は `dotnet run --project tools/DlsSampleGenerator` を実行してください。詳しくは同フォルダの README を参照。
+
+実機データを使う場合のエクスポート手順は [Malvern Zetasizer のデータ準備](./data-preparation/malvern-zetasizer.md) に、ファイル形式の詳細は [DLS モジュールの使い方](./dls.md) にまとめています。

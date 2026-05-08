@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Standalone console tool that generates a synthetic Zetasizer-shaped
+       xlsx for the DLS module's user-facing demo. Intentionally kept out
+       of LabPlot.slnx so it does not get pulled into the publish graph;
+       run with `dotnet run` plus an output-path argument whenever the
+       demo data needs to be regenerated, then commit the resulting
+       xlsx under src/LabPlot.DLS/samples/. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LabPlot.Tools.DlsSampleGenerator</RootNamespace>
+    <AssemblyName>DlsSampleGenerator</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+  </ItemGroup>
+
+</Project>

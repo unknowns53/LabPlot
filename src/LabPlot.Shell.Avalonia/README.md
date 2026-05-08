@@ -75,7 +75,7 @@ dotnet publish src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj -c Relea
 dotnet publish src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
 ```
 
-成果物は `bin/Release/net10.0/<rid>/publish/LabPlot.Avalonia(.exe)` に出力されます。GPC / Spectrum の `samples/` は ProjectReference 経由でこの publish フォルダに同梱されるので、`publish/` フォルダごと zip にして配布してください。DLS は `samples/` を持ちません。
+成果物は `bin/Release/net10.0/<rid>/publish/LabPlot.Avalonia(.exe)` に出力されます。GPC / Spectrum / DLS の `samples/` は ProjectReference 経由でこの publish フォルダに同梱されるので、`publish/` フォルダごと zip にして配布してください。DLS の合成データ（`demo.xlsx`）は `tools/DlsSampleGenerator` で生成され `src/LabPlot.DLS/samples/` にコミット済みなので、`dotnet publish` から見ると他モジュールと同じパターンで取り込まれます。
 
 動作検証:
 

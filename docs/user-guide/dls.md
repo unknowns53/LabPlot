@@ -27,6 +27,8 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 
 装置側でのエクスポート手順は [Malvern Zetasizer のデータ準備](./data-preparation/malvern-zetasizer.md) を参照してください。
 
+実機データが手元に無くても、配布物の `samples/demo.xlsx` に合成データ（PNIPAM の単峰コイル + 二峰凝集体の 2 シート）が同梱されているので、それで一通りの操作を試せます。詳細は [サンプルデータ一覧](./samples.md#dls-サンプル) を参照してください。
+
 ---
 
 ## 1. データを開く

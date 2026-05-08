@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using LabPlot.Core.Avalonia.Helpers;
 
 namespace LabPlot.Spectrum.Avalonia;
 
@@ -23,6 +24,9 @@ public partial class AbsorbanceConfirmDialog : Window
     public AbsorbanceConfirmDialog()
     {
         InitializeComponent();
+        // SubpixelAntialias / Antialias を Window 全体に当てて MainWindow 同等の
+        // 文字濃さに揃える。子 Visual に継承するので Window 1 個に当てれば足りる。
+        WindowAppearance.ApplyDefaults(this);
         PointerPressed += (_, e) =>
         {
             if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)

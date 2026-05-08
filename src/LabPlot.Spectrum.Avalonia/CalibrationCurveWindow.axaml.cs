@@ -13,6 +13,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using LabPlot.Core.Avalonia.Helpers;
 using ScottPlot;
 using SpectrumAnalyzer.Core;
 
@@ -59,6 +60,10 @@ public partial class CalibrationCurveWindow : Window
         string? defaultOutputDirectory = null)
     {
         InitializeComponent();
+        // Phase 7 ブラッシュアップ B6: MainWindow と同じ文字描画品質を当てる。
+        // 子 Window では Application 経由の WindowAppearance.ApplyDefaults が
+        // 自動適用されないので個別に呼ぶ。
+        WindowAppearance.ApplyDefaults(this);
 
         _availableRegions = availableRegions;
         _regionByLabel = availableRegions

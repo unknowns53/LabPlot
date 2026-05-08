@@ -15,97 +15,13 @@
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"
         UseLayoutRounding="True">
-    <Window.Resources>
-        <ControlTheme x:Key="DialogPrimaryButton" TargetType="Button">
-            <Setter Property="Height" Value="36" />
-            <Setter Property="MinWidth" Value="84" />
-            <Setter Property="Padding" Value="16,0" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="Background" Value="#2563EB" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <ControlTemplate TargetType="Button">
-                    <Grid>
-                        <Border Name="Bd"
-                                CornerRadius="6"
-                                Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Content="{TemplateBinding Content}" />
-                        </Border>
-                        <Border Name="FocusRing"
-                                CornerRadius="8"
-                                BorderBrush="#60A5FA"
-                                BorderThickness="2"
-                                Margin="-2"
-                                Opacity="0"
-                                IsHitTestVisible="False" />
-                    </Grid>
-                </ControlTemplate>
-            </Setter>
-            <Style Selector="^:pointerover /template/ Border#Bd">
-                <Setter Property="Background" Value="#1D4ED8" />
-            </Style>
-            <Style Selector="^:pressed /template/ Border#Bd">
-                <Setter Property="Background" Value="#1E3A8A" />
-            </Style>
-            <Style Selector="^:focus-visible /template/ Border#FocusRing">
-                <Setter Property="Opacity" Value="1" />
-            </Style>
-        </ControlTheme>
-        <ControlTheme x:Key="DialogSecondaryButton" TargetType="Button">
-            <Setter Property="Height" Value="36" />
-            <Setter Property="MinWidth" Value="84" />
-            <Setter Property="Padding" Value="14,0" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="Foreground" Value="#334155" />
-            <Setter Property="Background" Value="White" />
-            <Setter Property="BorderBrush" Value="#CBD5E1" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <ControlTemplate TargetType="Button">
-                    <Grid>
-                        <Border Name="Bd"
-                                CornerRadius="6"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Content="{TemplateBinding Content}" />
-                        </Border>
-                        <Border Name="FocusRing"
-                                CornerRadius="8"
-                                BorderBrush="#60A5FA"
-                                BorderThickness="2"
-                                Margin="-2"
-                                Opacity="0"
-                                IsHitTestVisible="False" />
-                    </Grid>
-                </ControlTemplate>
-            </Setter>
-            <Style Selector="^:pointerover /template/ Border#Bd">
-                <Setter Property="Background" Value="#F1F5F9" />
-                <Setter Property="BorderBrush" Value="#94A3B8" />
-            </Style>
-            <Style Selector="^:pressed /template/ Border#Bd">
-                <Setter Property="Background" Value="#E2E8F0" />
-                <Setter Property="BorderBrush" Value="#64748B" />
-            </Style>
-            <Style Selector="^:focus-visible /template/ Border#FocusRing">
-                <Setter Property="Opacity" Value="1" />
-            </Style>
-        </ControlTheme>
-    </Window.Resources>
+    <!-- Phase 7 ブラッシュアップ B6: ローカル DialogPrimaryButton /
+         DialogSecondaryButton ControlTheme は CommonStyles.axaml の
+         PrimaryButtonStyle / SecondaryButtonStyle と意味的に同じだったので
+         撤廃。Application.Resources 経由でグローバルに参照できる Theme に
+         置き換え、テーマ調整がローカル定義の更新漏れで同期しなくなる
+         リスクを排除した。MinWidth=84 は元の Dialog 固有の dimension なので
+         呼び出し側 (Button) で個別に保持する。 -->
     <Border Margin="16"
             Background="White"
             CornerRadius="10"
@@ -174,18 +90,23 @@
                     <Button x:Name="CancelButton"
                             Grid.Column="0"
                             Content="キャンセル"
-                            Theme="{StaticResource DialogSecondaryButton}"
+                            Theme="{DynamicResource SecondaryButtonStyle}"
+                            MinWidth="84"
+                            Height="36"
                             IsCancel="True"
                             Click="CancelButton_Click" />
                     <Button x:Name="NoButton"
                             Grid.Column="2"
                             Content="そのまま追加"
-                            Theme="{StaticResource DialogSecondaryButton}"
+                            Theme="{DynamicResource SecondaryButtonStyle}"
+                            MinWidth="84"
+                            Height="36"
                             Click="NoButton_Click" />
                     <Button x:Name="YesButton"
                             Grid.Column="4"
                             Content="切り替えて追加"
-                            Theme="{StaticResource DialogPrimaryButton}"
+                            Theme="{DynamicResource PrimaryButtonStyle}"
+                            MinWidth="84"
                             IsDefault="True"
                             Click="YesButton_Click" />
                 </Grid>

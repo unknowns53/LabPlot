@@ -13,14 +13,18 @@
 
 ## 含まれるアプリ
 
-- [`src/LabPlot.GPC`](src/LabPlot.GPC/README.md) — GPC（ゲル浸透クロマトグラフィー）データ可視化・分子量分布解析。Shimadzu LabSolutions の TXT エクスポートおよび `Time, Signal` 形式の CSV / TSV に対応
-- [`src/LabPlot.Spectrum`](src/LabPlot.Spectrum/README.md) — UV-Vis 波長スキャン / 温度スキャン / FTIR 解析。JASCO V-750 対応、ベースライン補正・ピーク積分・Beer-Lambert 検量線・λmax / Tc 自動抽出・IR ピーク検出を搭載
-- [`src/LabPlot.DLS`](src/LabPlot.DLS/README.md) — DLS 粒径分布・自己相関関数解析。Malvern Zetasizer の xlsx エクスポート対応、キュムラント解析と Stokes–Einstein 計算を搭載
+主流系統（Avalonia、Windows / macOS / Linux 共通）:
+
+- [`src/LabPlot.GPC.Avalonia`](src/LabPlot.GPC.Avalonia/README.md) — GPC（ゲル浸透クロマトグラフィー）データ可視化・分子量分布解析。Shimadzu LabSolutions の TXT エクスポートおよび `Time, Signal` 形式の CSV / TSV に対応
+- [`src/LabPlot.Spectrum.Avalonia`](src/LabPlot.Spectrum.Avalonia/README.md) — UV-Vis 波長スキャン / 温度スキャン / FTIR 解析。JASCO V-750 対応、ベースライン補正・ピーク積分・Beer-Lambert 検量線・λmax / Tc 自動抽出・IR ピーク検出を搭載
+- [`src/LabPlot.DLS.Avalonia`](src/LabPlot.DLS.Avalonia/README.md) — DLS 粒径分布・自己相関関数解析。Malvern Zetasizer の xlsx エクスポート対応、キュムラント解析と Stokes–Einstein 計算を搭載
+
+保守系統（WPF、Windows 専用、v1.0.x）の機能仕様詳細は各 v1.0.x README ([GPC](src/LabPlot.GPC/README.md) / [Spectrum](src/LabPlot.Spectrum/README.md) / [DLS](src/LabPlot.DLS/README.md)) を参照してください。
 
 ## 共有ライブラリ
 
 - [`src/LabPlot.Core`](src/LabPlot.Core/README.md) — 各アプリ共通の解析ロジック（書式設定、エクスポート、セッション保存、ScottPlot セットアップ補助など）。WPF / Avalonia 非依存で主流・保守の双方の UI 層から参照
-- `src/LabPlot.Core.Avalonia` — **主流系統**の Avalonia 版アプリ共通コンポーネント（`Themes/CommonStyles.axaml` + `Themes/ImplicitStyles.axaml`、AxisRange / ColorPicker / GraphFormat / CustomTitleBar / Banner 群、IStorageProvider 経由のヘルパ）
+- [`src/LabPlot.Core.Avalonia`](src/LabPlot.Core.Avalonia/README.md) — **主流系統**の Avalonia 版アプリ共通コンポーネント（`Themes/CommonStyles.axaml` + `Themes/ImplicitStyles.axaml`、AxisRange / ColorPicker / GraphFormat / CustomTitleBar / Banner 群、IStorageProvider 経由のヘルパ、`DragGhostController`）
 - [`src/LabPlot.Core.Wpf`](src/LabPlot.Core.Wpf/README.md) — v1.0.x 保守用の WPF 版アプリ共通コンポーネント（`Themes/CommonStyles.xaml`、Core.Avalonia と同形 API の AxisRange / GraphFormat / ColorPicker パネル、ScottPlot ホストヘルパ、書式設定の永続化）
 
 ## ロードマップ

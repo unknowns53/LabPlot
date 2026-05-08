@@ -1,15 +1,17 @@
 # LabPlot
 
-研究室向けの測定データ可視化・解析アプリ群をまとめたモノレポです。Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）など、ラボの測定装置から出力されたデータを読み込んで、ScottPlot による可視化・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行います。Windows / macOS / Linux 共通で動作する **Avalonia 実装が主流系統**で、Windows 専用の WPF 実装は v1.0.x の保守版として並行維持しています。共通の解析基盤は `LabPlot.Core`、UI 基盤は主流の `LabPlot.Core.Avalonia`（保守用に `LabPlot.Core.Wpf`）に集約しています。
+> **利用者向けマニュアルは [`docs/user-guide/`](docs/user-guide/README.md) を参照してください。** 本書はモノレポ全体の構成・ビルド手順・開発者向け情報をまとめたドキュメントです。
+
+研究室向けの測定データ可視化・解析アプリ群をまとめたモノレポです。Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）など、ラボの測定装置から出力されたデータを読み込んで、ScottPlot による可視化・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行います。Windows / macOS / Linux 共通で動作する **Avalonia 実装が主流系統**で、Windows 専用の WPF 実装は v1.1.0 の保守版として並行維持しています。共通の解析基盤は `LabPlot.Core`、UI 基盤は主流の `LabPlot.Core.Avalonia`（保守用に `LabPlot.Core.Wpf`）に集約しています。
 
 ## ポータル（単一 exe 配布）
 
-非エンジニア向けには、3 つの解析モジュールを 1 本の exe にまとめた **LabPlot ポータル**で配布します。主流は **Avalonia 版** `src/LabPlot.Shell.Avalonia`（`LabPlot.Avalonia`）で、Windows / macOS / Linux のすべてで同じ系統のバイナリを使えます。Windows で従来から運用してきた WPF 版 `src/LabPlot.Shell`（`LabPlot.exe`）は v1.0.x の保守用として残してありますが、新機能は Avalonia 版にのみ追加されます。いずれの版もダブルクリックでカード型ランチャーが開き、GPC / UV-Vis / DLS のいずれかをクリックすると解析ウィンドウが立ち上がる構成で、各解析モジュールはクラスライブラリとして組み込まれており、ポータルが唯一の実行可能アプリです。
+利用者向けには、3 つの解析モジュールを 1 本の exe にまとめた **LabPlot ポータル**で配布します。主流は **Avalonia 版** `src/LabPlot.Shell.Avalonia`（`LabPlot.Avalonia`）で、Windows / macOS / Linux のすべてで同じ系統のバイナリを使えます。Windows で従来から運用してきた WPF 版 `src/LabPlot.Shell`（`LabPlot.exe`）は v1.1.0 の保守用として残してありますが、新機能は Avalonia 版にのみ追加されます。いずれの版もダブルクリックでカード型ランチャーが開き、GPC / UV-Vis / DLS のいずれかをクリックすると解析ウィンドウが立ち上がる構成で、各解析モジュールはクラスライブラリとして組み込まれており、ポータルが唯一の実行可能アプリです。
 
 - 例外ハンドラとログ出力はポータル側に集約。ログパスは Windows: `%LocalAppData%\LabPlot\Logs\shell-error.log`、Linux: `~/.local/share/LabPlot/Logs/shell-error.log`、macOS: `~/Library/Application Support/LabPlot/Logs/shell-error.log`
 - 同じモジュールを 2 回開こうとすると既存ウィンドウをアクティブ化（重複起動の抑止）
 - 配布手順は後述の「[配布用の単一 exe を作成](#配布用の単一-exe-を作成)」を参照
-- WPF 版は v1.0.x で feature freeze。今後の新機能・バグ修正は主流の Avalonia 版で受ける方針です
+- WPF 版は v1.1.0 で feature freeze。今後の新機能・バグ修正は主流の Avalonia 版で受ける方針です
 
 ## 含まれるアプリ
 
@@ -19,13 +21,13 @@
 - [`src/LabPlot.Spectrum.Avalonia`](src/LabPlot.Spectrum.Avalonia/README.md) — UV-Vis 波長スキャン / 温度スキャン / FTIR 解析。JASCO V-750 対応、ベースライン補正・ピーク積分・Beer-Lambert 検量線・λmax / Tc 自動抽出・IR ピーク検出を搭載
 - [`src/LabPlot.DLS.Avalonia`](src/LabPlot.DLS.Avalonia/README.md) — DLS 粒径分布・自己相関関数解析。Malvern Zetasizer の xlsx エクスポート対応、キュムラント解析と Stokes–Einstein 計算を搭載
 
-保守系統（WPF、Windows 専用、v1.0.x）の機能仕様詳細は各 v1.0.x README ([GPC](src/LabPlot.GPC/README.md) / [Spectrum](src/LabPlot.Spectrum/README.md) / [DLS](src/LabPlot.DLS/README.md)) を参照してください。
+保守系統（WPF、Windows 専用）の機能仕様詳細は各 v1.1.0 README ([GPC](src/LabPlot.GPC/README.md) / [Spectrum](src/LabPlot.Spectrum/README.md) / [DLS](src/LabPlot.DLS/README.md)) を参照してください。
 
 ## 共有ライブラリ
 
 - [`src/LabPlot.Core`](src/LabPlot.Core/README.md) — 各アプリ共通の解析ロジック（書式設定、エクスポート、セッション保存、ScottPlot セットアップ補助など）。WPF / Avalonia 非依存で主流・保守の双方の UI 層から参照
 - [`src/LabPlot.Core.Avalonia`](src/LabPlot.Core.Avalonia/README.md) — **主流系統**の Avalonia 版アプリ共通コンポーネント（`Themes/CommonStyles.axaml` + `Themes/ImplicitStyles.axaml`、AxisRange / ColorPicker / GraphFormat / CustomTitleBar / Banner 群、IStorageProvider 経由のヘルパ、`DragGhostController`）
-- [`src/LabPlot.Core.Wpf`](src/LabPlot.Core.Wpf/README.md) — v1.0.x 保守用の WPF 版アプリ共通コンポーネント（`Themes/CommonStyles.xaml`、Core.Avalonia と同形 API の AxisRange / GraphFormat / ColorPicker パネル、ScottPlot ホストヘルパ、書式設定の永続化）
+- [`src/LabPlot.Core.Wpf`](src/LabPlot.Core.Wpf/README.md) — v1.1.0 保守用の WPF 版アプリ共通コンポーネント（`Themes/CommonStyles.xaml`、Core.Avalonia と同形 API の AxisRange / GraphFormat / ColorPicker パネル、ScottPlot ホストヘルパ、書式設定の永続化）
 
 ## ロードマップ
 
@@ -96,9 +98,9 @@ dotnet publish src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj -c Relea
 
 成果物は `src/LabPlot.Shell.Avalonia/bin/Release/net10.0/<rid>/publish/LabPlot.Avalonia(.exe)` に出力されます。GPC / Spectrum の `samples/` は各 csproj の `CopyToPublishDirectory` 設定で publish フォルダに同梱されるので、`publish/` フォルダごと zip にして配布してください。DLS は `samples/` を持たないため、追加同梱物はありません。動作検証は WSL（Linux x64、Windows 11 標準の WSLg で GUI 表示可能）で実機相当のチェックが取れます。macOS 側の本格的な GUI 検証は実機が必要なので、手元に環境が無い場合は GitHub Actions の `macos-latest` ランナーで起動スモークまでに留めて、対面検証は実機所有者に依頼する運用が現実的です。
 
-#### 保守配布（WPF 版、Windows 専用・v1.0.x 系統）
+#### 保守配布（WPF 版、Windows 専用・v1.1.0 系統）
 
-WPF 版の Windows 配布物は v1.0.x の保守用として残してあります。新規配布では主流の Avalonia 版を優先してください。WPF 版を必要とする場合は、`src/LabPlot.Shell/Properties/PublishProfiles/win-x64.pubxml` を使った publish プロファイル経由でビルドします。`Release` 構成・`win-x64` ランタイム・`SelfContained=true`・`PublishSingleFile=true` がプロファイル側で固定されているので、コマンド側で `-c` や `-r` を重ねて指定する必要はありません（指定するとプロファイルと矛盾するため非推奨）。
+WPF 版の Windows 配布物は v1.1.0 の保守用として残してあります。新規配布では主流の Avalonia 版を優先してください。WPF 版を必要とする場合は、`src/LabPlot.Shell/Properties/PublishProfiles/win-x64.pubxml` を使った publish プロファイル経由でビルドします。`Release` 構成・`win-x64` ランタイム・`SelfContained=true`・`PublishSingleFile=true` がプロファイル側で固定されているので、コマンド側で `-c` や `-r` を重ねて指定する必要はありません（指定するとプロファイルと矛盾するため非推奨）。
 
 ```powershell
 dotnet publish src/LabPlot.Shell/LabPlot.Shell.csproj -p:PublishProfile=win-x64
@@ -115,7 +117,7 @@ LabPlot のグラフ書式既定値は「ソースコード上の出荷時デフ
 新規インストール直後や `formatting_config.json` を削除した直後はこの値が効きます。
 
 - 全アプリ共通: [`src/LabPlot.Core/GraphFormattingConfigBase.cs`](src/LabPlot.Core/GraphFormattingConfigBase.cs)
-  - フォントサイズ (12 pt)・線幅 (1.5 px)・マーカーサイズ (0)・枠線色 `#475569`・背景色 `#FFFFFF`・凡例位置 `UpperRight`・目盛密度 0.5x など、すべてのアプリ共通の値
+  - フォントサイズ (16 pt)・線幅 (1.5 px)・マーカーサイズ (0)・枠線色 `#475569`・背景色 `#FFFFFF`・凡例位置 `UpperRight`・目盛密度 0.5x など、すべてのアプリ共通の値
 - GPC: [`src/LabPlot.GPC/GpcAnalyzer.Core/GraphFormattingConfig.cs`](src/LabPlot.GPC/GpcAnalyzer.Core/GraphFormattingConfig.cs) — 共通項目に加えて、最後に読み込んだ検量線ファイルパスを保持
 - Spectrum: [`src/LabPlot.Spectrum/SpectrumAnalyzer.Core/GraphFormattingConfig.cs`](src/LabPlot.Spectrum/SpectrumAnalyzer.Core/GraphFormattingConfig.cs) — X 軸方向 / Y 軸 A・T モード・λmax / 雲点 / IR ピーク検出・Beer-Lambert 検量線・積分領域 等
 - DLS: [`src/LabPlot.DLS/DlsAnalyzer.Core/GraphFormattingConfig.cs`](src/LabPlot.DLS/DlsAnalyzer.Core/GraphFormattingConfig.cs) — X / Y 軸範囲モード、初期分布種 (`Number`)、初期 Run インデックス 等

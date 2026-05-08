@@ -60,6 +60,13 @@
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#1E3A8A" />
     <SolidColorBrush x:Key="AccentDisabledBrush" Color="#CBD5E1" />
     <SolidColorBrush x:Key="AccentLightBrush" Color="#BFDBFE" />
+    <!-- FocusRing 専用トークン。Button / Input 系の外周 2px Border に当てる。
+         #60A5FA は WPF 版の FocusVisualStyle に近い淡 blue で、Accent 系より
+         一段薄くして「フォーカスは目立つが押し付けがましくない」見た目にする。
+         Phase 7 までは PrimaryButton/SecondaryButton ControlTemplate に
+         直接書いてあったが、テーマ調整時に hex 直書きが分散すると追跡しづらい
+         ので Brush 1 つに集約した。 -->
+    <SolidColorBrush x:Key="FocusRingBrush" Color="#60A5FA" />
 
     <!-- 中間階調 / 罫線 / 文字色。slate-50 〜 slate-900 系で揃えている WPF 版と同じ値。 -->
     <SolidColorBrush x:Key="SurfaceBrush" Color="White" />
@@ -367,7 +374,7 @@
                     </Border>
                     <Border Name="FocusRing"
                             CornerRadius="8"
-                            BorderBrush="#60A5FA"
+                            BorderBrush="{StaticResource FocusRingBrush}"
                             BorderThickness="2"
                             Margin="-2"
                             Opacity="0"
@@ -433,7 +440,7 @@
                     </Border>
                     <Border Name="FocusRing"
                             CornerRadius="8"
-                            BorderBrush="#60A5FA"
+                            BorderBrush="{StaticResource FocusRingBrush}"
                             BorderThickness="2"
                             Margin="-2"
                             Opacity="0"
@@ -880,6 +887,151 @@
                     </KeyFrame>
                 </Animation>
             </Style.Animations>
+        </Style>
+    </ControlTheme>
+
+    <!-- =========================================================
+         ScrollBar 暗黙 ControlTheme（Phase 7 ブラッシュアップ B1）。
+         Avalonia Fluent デフォルトは AllowAutoHide=True で「pointer
+         が乗ったときだけ ScrollBar が overlay 表示される」モード。
+         Phase 7 移植直後は ImplicitStyles.axaml に Width/MinWidth と
+         Thumb 色だけ Setter で当てており、ControlTemplate 自体は Fluent
+         のままだったため、サイドバーや GPC overlay stats panel で
+         「最初は引っ込んでいて、ドラッグした瞬間に本来の幅が現れる」
+         という古臭い挙動になっていた。
+
+         この ControlTheme で:
+           1. Track + Thumb のみのミニマル構成 (上下/左右の矢印ボタンは廃止)
+           2. Thumb は 6px 角丸 + Margin 2px で常時可視の細身 6px 描画
+           3. Page Up/Down 用 RepeatButton は透明 Template で残し、Track 上の
+              クリックでページスクロールする機能だけ維持
+           4. Width/Height = 10px (WPF 版と同等の細身)
+         を実現する。AllowAutoHide=False は ScrollViewer 側で全アプリに
+         一括適用する (ImplicitStyles.axaml 参照)。
+
+         Avalonia 11 の制約: ControlTheme 内で /template/ を 2 段ネスト
+         できないので、Thumb の Background 切替は ScrollBar の :pointerover
+         状態で Thumb.Background を直接 Setter する形を採る。
+         ========================================================= -->
+    <ControlTheme x:Key="{x:Type ScrollBar}" TargetType="ScrollBar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Arrow" />
+
+        <Style Selector="^:vertical">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="MinWidth" Value="10" />
+            <Setter Property="Template">
+                <ControlTemplate TargetType="ScrollBar">
+                    <Border Background="{TemplateBinding Background}">
+                        <Track Name="PART_Track"
+                               IsDirectionReversed="True"
+                               Minimum="{TemplateBinding Minimum}"
+                               Maximum="{TemplateBinding Maximum}"
+                               Value="{TemplateBinding Value, Mode=TwoWay}"
+                               ViewportSize="{TemplateBinding ViewportSize}"
+                               Orientation="{TemplateBinding Orientation}">
+                            <Track.DecreaseButton>
+                                <RepeatButton Name="PART_PageUpButton"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Background="{TemplateBinding Background}" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseButton>
+                            <Track.IncreaseButton>
+                                <RepeatButton Name="PART_PageDownButton"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Background="{TemplateBinding Background}" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseButton>
+                            <Thumb Name="ThumbVisual"
+                                   Background="{StaticResource BorderDefaultBrush}">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="3"
+                                                Margin="2,0" />
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Track>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+
+        <Style Selector="^:horizontal">
+            <Setter Property="Height" Value="10" />
+            <Setter Property="MinHeight" Value="10" />
+            <Setter Property="Template">
+                <ControlTemplate TargetType="ScrollBar">
+                    <Border Background="{TemplateBinding Background}">
+                        <Track Name="PART_Track"
+                               Minimum="{TemplateBinding Minimum}"
+                               Maximum="{TemplateBinding Maximum}"
+                               Value="{TemplateBinding Value, Mode=TwoWay}"
+                               ViewportSize="{TemplateBinding ViewportSize}"
+                               Orientation="{TemplateBinding Orientation}">
+                            <Track.DecreaseButton>
+                                <RepeatButton Name="PART_PageUpButton"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Background="{TemplateBinding Background}" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseButton>
+                            <Track.IncreaseButton>
+                                <RepeatButton Name="PART_PageDownButton"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Focusable="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Background="{TemplateBinding Background}" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseButton>
+                            <Thumb Name="ThumbVisual"
+                                   Background="{StaticResource BorderDefaultBrush}">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="3"
+                                                Margin="0,2" />
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Track>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+
+        <!-- Hover 状態で Thumb の色を一段濃く。pressed では更に強調。
+             Avalonia 11 の二段 /template/ ネスト禁止を避けるため、
+             Thumb の Background プロパティを直接 Setter している。Thumb の
+             ControlTemplate 内 Border は TemplateBinding Background で受ける。 -->
+        <Style Selector="^:pointerover /template/ Thumb#ThumbVisual">
+            <Setter Property="Background" Value="{StaticResource BorderHoverBrush}" />
+        </Style>
+        <Style Selector="^:pressed /template/ Thumb#ThumbVisual">
+            <Setter Property="Background" Value="{StaticResource ForegroundMutedBrush}" />
         </Style>
     </ControlTheme>
 

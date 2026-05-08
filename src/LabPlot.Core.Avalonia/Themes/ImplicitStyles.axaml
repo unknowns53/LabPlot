@@ -78,20 +78,18 @@
          ImplicitStyles に置いた Expander の fade-in Animation も ControlTheme
          内の Animation Style にまとめて移管済み。 -->
 
-    <!-- ScrollBar — 細身グレー、hover で濃く。 -->
-    <Style Selector="ScrollBar:vertical">
-        <Setter Property="Width" Value="10" />
-        <Setter Property="MinWidth" Value="10" />
-    </Style>
-    <Style Selector="ScrollBar:horizontal">
-        <Setter Property="Height" Value="10" />
-        <Setter Property="MinHeight" Value="10" />
-    </Style>
-    <Style Selector="ScrollBar /template/ Thumb">
-        <Setter Property="Background" Value="{StaticResource BorderDefaultBrush}" />
-    </Style>
-    <Style Selector="ScrollBar:pointerover /template/ Thumb">
-        <Setter Property="Background" Value="{StaticResource BorderHoverBrush}" />
+    <!-- ScrollViewer / ScrollBar — Phase 7 ブラッシュアップ B1 で
+         CommonStyles.axaml の {x:Type ScrollBar} ControlTheme に
+         Template ごと移管した。Setter のみだった旧定義 (Width/MinWidth +
+         Thumb 色) は ControlTheme に統合済み。
+
+         残るのは ScrollViewer 全体に効く AllowAutoHide=False で、Avalonia
+         Fluent デフォルトの「pointer 通過時だけ overlay 表示する」挙動
+         (古臭く、サイドバーや GPC overlay stats panel で「最初は引っ込む /
+         ドラッグで出現する」現象として表面化していた) を打ち消し、
+         常時可視のクラシックな ScrollBar 動作に揃える。 -->
+    <Style Selector="ScrollViewer">
+        <Setter Property="AllowAutoHide" Value="False" />
     </Style>
 
     <!-- ToolTip — Batch 1e で CommonStyles.axaml の ControlTheme

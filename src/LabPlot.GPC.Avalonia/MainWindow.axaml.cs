@@ -11,11 +11,15 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+// Avalonia.Controls.Shapes.Path は System.IO.Path と衝突するので、必要な型のみエイリアス参照する。
+using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using GpcAnalyzer.Core;
 using LabPlot.Core;
 using LabPlot.Core.Avalonia.Helpers;
@@ -82,6 +86,11 @@ public partial class MainWindow : Window
     private readonly List<GpcDataset> _loadedDatasets = new();
     private readonly List<DatasetStyle> _datasetStyles = new();
     private readonly List<string?> _datasetSelectedPeakIds = new();
+
+    // 重ね書き時の Row2 ItemsControl が表示する entries のキャッシュ。各行 ComboBox で
+    // 個別ピークが切り替わったときに、ラベル・ピーク一覧を保持したまま統計値だけ
+    // 差し替えて再構築するために保持する。単一データセット時 / 0 件時は null。
+    private List<(string Label, MolecularWeightStatistics? Stats)>? _lastMultiDatasetEntries;
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
     private readonly Dictionary<MolecularWeightCacheKey, MolecularWeightDataset> _molecularWeightCache = new();
     private readonly Dictionary<PlotSeriesCacheKey, PlotSeriesData> _plotSeriesCache = new();
@@ -1997,13 +2006,9 @@ public partial class MainWindow : Window
         StatisticsTextBlock.IsVisible = false;
     }
 
-    private void SetStatisticsMultiLine(IEnumerable<string> lines)
-    {
-        ShowStatisticsFallback(string.Join("\n", lines));
-    }
-
     private void ShowStatisticsFallback(string text)
     {
+        // SetStatisticsLine の regex 不一致時の保険（基本的には到達しない）。
         StatisticsChipPanel.IsVisible = false;
         StatisticsTextBlock.IsVisible = true;
         StatisticsTextBlock.Text = text;
@@ -2037,45 +2042,226 @@ public partial class MainWindow : Window
         if (entries.Count == 0)
         {
             _currentStatistics = null;
+            ShowSingleStatisticsView();
             SetStatisticsLine("Mn: -   Mw: -   Ð: -");
             UpdateRepresentativePeakSelector(null);
+            _lastMultiDatasetEntries = null;
             return;
         }
 
         if (entries.Count == 1)
         {
+            ShowSingleStatisticsView();
             UpdateStatisticsText(entries[0].Stats);
+            _lastMultiDatasetEntries = null;
             return;
         }
 
+        // 重ね書きモード: ItemsControl にデータセットごとの 1 行を生成する。
         _currentStatistics = null;
         UpdateRepresentativePeakSelector(null);
-
-        var lines = new List<string>(entries.Count);
-        foreach (var (label, stats) in entries)
-        {
-            lines.Add($"{label}: {FormatStatisticsInline(stats)}");
-        }
-        SetStatisticsMultiLine(lines);
+        _lastMultiDatasetEntries = entries.ToList();
+        ShowMultiStatisticsView();
+        BuildDatasetStatisticsRows(_lastMultiDatasetEntries);
     }
 
-    private static string FormatStatisticsInline(MolecularWeightStatistics? statistics)
+    private void ShowSingleStatisticsView()
     {
-        if (statistics is null || !statistics.HasAnyValue)
+        SingleStatisticsView.IsVisible = true;
+        MultiStatisticsScroll.IsVisible = false;
+        DatasetStatisticsList.Items.Clear();
+    }
+
+    private void ShowMultiStatisticsView()
+    {
+        SingleStatisticsView.IsVisible = false;
+        MultiStatisticsScroll.IsVisible = true;
+    }
+
+    private void BuildDatasetStatisticsRows(IReadOnlyList<(string Label, MolecularWeightStatistics? Stats)> entries)
+    {
+        DatasetStatisticsList.Items.Clear();
+        for (var i = 0; i < entries.Count; i++)
         {
-            return "Mn -  Mw -  Ð -";
+            var row = BuildDatasetStatisticsRow(i, entries[i].Label, entries[i].Stats);
+            DatasetStatisticsList.Items.Add(row);
+        }
+    }
+
+    private Control BuildDatasetStatisticsRow(int datasetIndex, string label, MolecularWeightStatistics? stats)
+    {
+        var grid = new Grid
+        {
+            Margin = new Thickness(0, 0, 0, 4),
+            VerticalAlignment = VerticalAlignment.Center,
+            ColumnDefinitions = ColumnDefinitions.Parse("Auto,Auto,*,Auto,Auto,Auto,Auto"),
+        };
+
+        // [0] 凡例ドット — プロット線の色と統計行を一目で対応付けるため。
+        var hex = (datasetIndex >= 0 && datasetIndex < _datasetStyles.Count
+                ? _datasetStyles[datasetIndex].ColorHex
+                : null)
+            ?? AutoLineColors[Math.Max(0, datasetIndex) % AutoLineColors.Length];
+        var dot = new Ellipse
+        {
+            Width = 10,
+            Height = 10,
+            Fill = SolidColorBrush.Parse(hex),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        Grid.SetColumn(dot, 0);
+        grid.Children.Add(dot);
+
+        // [1] ファイル名 — 長いパスは省略表示。
+        var fileName = new TextBlock
+        {
+            Text = label,
+            FontSize = 12,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = Brush.Parse("#0F172A"),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 0, 16, 0),
+            MaxWidth = 220,
+        };
+        ToolTip.SetTip(fileName, label);
+        Grid.SetColumn(fileName, 1);
+        grid.Children.Add(fileName);
+
+        // [3] [4] [5] Mn / Mw / Đ chip（コピー可能）。
+        var mnChip = BuildStatChip("Mn", FormatStatistic(stats?.Mn));
+        Grid.SetColumn(mnChip, 3);
+        grid.Children.Add(mnChip);
+
+        var mwChip = BuildStatChip("Mw", FormatStatistic(stats?.Mw));
+        Grid.SetColumn(mwChip, 4);
+        grid.Children.Add(mwChip);
+
+        var pdiChip = BuildStatChip("Ð", FormatStatistic(stats?.Pdi));
+        Grid.SetColumn(pdiChip, 5);
+        grid.Children.Add(pdiChip);
+
+        // [6] このデータセット専用のピーク選択 ComboBox。Tag で datasetIndex を引き取る。
+        var combo = BuildDatasetRowPeakSelector(datasetIndex, stats);
+        Grid.SetColumn(combo, 6);
+        grid.Children.Add(combo);
+
+        return grid;
+    }
+
+    private static Border BuildStatChip(string label, string value)
+    {
+        var stack = new StackPanel { Orientation = Orientation.Horizontal };
+        stack.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 11,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = Brush.Parse("#64748B"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+        });
+        stack.Children.Add(new SelectableTextBlock
+        {
+            Text = value,
+            FontSize = 12,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = Brush.Parse("#0F172A"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        return new Border
+        {
+            Background = Brushes.White,
+            BorderBrush = Brush.Parse("#E2E8F0"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4),
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = stack,
+        };
+    }
+
+    private ComboBox BuildDatasetRowPeakSelector(int datasetIndex, MolecularWeightStatistics? stats)
+    {
+        var combo = new ComboBox
+        {
+            MinWidth = 140,
+            Tag = datasetIndex,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        // 既存 RepresentativePeakComboBox と同じ ControlTheme を流用して見た目を揃える。
+        if (this.TryFindResource("InputComboBoxStyle", out var resource) && resource is ControlTheme theme)
+        {
+            combo.Theme = theme;
         }
 
-        if (statistics.Peaks.Count > 0)
+        if (stats is null || stats.Peaks.Count == 0)
         {
-            var representativePeakId = statistics.SelectedPeakId
-                ?? MolecularWeightStatistics.SelectAutoRepresentativePeak(statistics.Peaks)?.PeakId;
-            var label = representativePeakId is null ? "" : $"#{representativePeakId} ";
-            return $"{label}Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  Ð {FormatStatistic(statistics.Pdi)}";
+            combo.IsEnabled = false;
+            combo.PlaceholderText = "—";
+            return combo;
         }
 
-        var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
-        return $"Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  Ð {FormatStatistic(statistics.Pdi)} ({source})";
+        var auto = MolecularWeightStatistics.SelectAutoRepresentativePeak(stats.Peaks);
+        combo.Items.Add(new ComboBoxItem
+        {
+            Content = auto is not null ? $"自動 (Peak #{auto.PeakId})" : "自動",
+            Tag = null,
+        });
+
+        var orderedPeaks = stats.Peaks
+            .OrderBy(peak => TryParsePeakNumber(peak.PeakId))
+            .ThenBy(peak => peak.PeakId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        foreach (var peak in orderedPeaks)
+        {
+            combo.Items.Add(new ComboBoxItem
+            {
+                Content = FormatPeakComboBoxItem(peak),
+                Tag = peak.PeakId,
+            });
+        }
+
+        var selectedIndex = 0;
+        if (!stats.IsAutoSelected)
+        {
+            for (var i = 1; i < combo.Items.Count; i++)
+            {
+                if (combo.Items[i] is ComboBoxItem item
+                    && string.Equals(item.Tag as string, stats.SelectedPeakId, StringComparison.OrdinalIgnoreCase))
+                {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        combo.SelectedIndex = selectedIndex;
+        // SelectedIndex 設定後に登録 — 行構築フェーズの SelectionChanged を抑止するため。
+        combo.SelectionChanged += DatasetRowPeakComboBox_SelectionChanged;
+        return combo;
+    }
+
+    private void DatasetRowPeakComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox combo) return;
+        if (combo.Tag is not int datasetIndex) return;
+        if (datasetIndex < 0 || datasetIndex >= _datasetSelectedPeakIds.Count) return;
+        if (combo.SelectedItem is not ComboBoxItem item) return;
+
+        var peakId = item.Tag as string;
+        _datasetSelectedPeakIds[datasetIndex] = peakId;
+
+        if (_lastMultiDatasetEntries is null) return;
+        if (datasetIndex >= _lastMultiDatasetEntries.Count) return;
+
+        var entry = _lastMultiDatasetEntries[datasetIndex];
+        var updated = entry.Stats?.WithSelectedPeak(peakId);
+        _lastMultiDatasetEntries[datasetIndex] = (entry.Label, updated);
+        BuildDatasetStatisticsRows(_lastMultiDatasetEntries);
     }
 
     private static string FormatRepresentativeStatistics(MolecularWeightStatistics statistics)

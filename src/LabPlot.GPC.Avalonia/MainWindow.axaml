@@ -793,113 +793,129 @@
                             CornerRadius="8"
                             Padding="16,12"
                             Margin="0,16,0,0">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Grid Grid.Column="0" VerticalAlignment="Center">
-                                <!-- Chip 表示: 単一データセットの代表値（Mn / Mw / Đ）。
-                                     SetStatisticsLine() がパースして各 chip 値を埋める。 -->
-                                <StackPanel Name="StatisticsChipPanel"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <TextBlock Name="StatisticsPeakLabel"
+                        <Panel>
+                            <!-- 単一データセット時の chip 表示。
+                                 多数重ね書き時は IsVisible=false にして MultiStatisticsScroll に切り替わる。 -->
+                            <Grid Name="SingleStatisticsView"
+                                  ColumnDefinitions="*,Auto">
+                                <Grid Grid.Column="0" VerticalAlignment="Center">
+                                    <!-- Chip 表示: 単一データセットの代表値（Mn / Mw / Đ）。
+                                         SetStatisticsLine() がパースして各 chip 値を埋める。
+                                         値テキストは SelectableTextBlock でドラッグ選択 + Ctrl+C コピー可。 -->
+                                    <StackPanel Name="StatisticsChipPanel"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Name="StatisticsPeakLabel"
+                                                   Text=""
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#475569"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"
+                                                   IsVisible="False" />
+                                        <Border Background="White"
+                                                BorderBrush="#E2E8F0"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="10,6"
+                                                Margin="0,0,8,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Mn"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#64748B"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0" />
+                                                <SelectableTextBlock Name="MnChipValue"
+                                                                     Text="—"
+                                                                     FontWeight="SemiBold"
+                                                                     Foreground="#0F172A"
+                                                                     VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Background="White"
+                                                BorderBrush="#E2E8F0"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="10,6"
+                                                Margin="0,0,8,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Mw"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#64748B"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0" />
+                                                <SelectableTextBlock Name="MwChipValue"
+                                                                     Text="—"
+                                                                     FontWeight="SemiBold"
+                                                                     Foreground="#0F172A"
+                                                                     VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Background="White"
+                                                BorderBrush="#E2E8F0"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="10,6">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Ð"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#64748B"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0" />
+                                                <SelectableTextBlock Name="DispersityChipValue"
+                                                                     Text="—"
+                                                                     FontWeight="SemiBold"
+                                                                     Foreground="#0F172A"
+                                                                     VerticalAlignment="Center" />
+                                                <TextBlock Name="StatisticsSourceLabel"
+                                                           Text=""
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"
+                                                           VerticalAlignment="Center"
+                                                           Margin="6,0,0,0"
+                                                           IsVisible="False" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <!-- 単一行用 regex 不一致時の fallback。複数データセット時には使わない。 -->
+                                    <TextBlock Name="StatisticsTextBlock"
                                                Text=""
-                                               FontSize="12"
+                                               Foreground="#0F172A"
                                                FontWeight="SemiBold"
-                                               Foreground="#475569"
+                                               TextWrapping="Wrap"
                                                VerticalAlignment="Center"
-                                               Margin="0,0,12,0"
                                                IsVisible="False" />
-                                    <Border Background="White"
-                                            BorderBrush="#E2E8F0"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            Padding="10,6"
-                                            Margin="0,0,8,0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="Mn"
-                                                       FontSize="11"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#64748B"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0" />
-                                            <TextBlock Name="MnChipValue"
-                                                       Text="—"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#0F172A"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Background="White"
-                                            BorderBrush="#E2E8F0"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            Padding="10,6"
-                                            Margin="0,0,8,0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="Mw"
-                                                       FontSize="11"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#64748B"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0" />
-                                            <TextBlock Name="MwChipValue"
-                                                       Text="—"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#0F172A"
-                                                       VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Background="White"
-                                            BorderBrush="#E2E8F0"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            Padding="10,6">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="Ð"
-                                                       FontSize="11"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#64748B"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0" />
-                                            <TextBlock Name="DispersityChipValue"
-                                                       Text="—"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#0F172A"
-                                                       VerticalAlignment="Center" />
-                                            <TextBlock Name="StatisticsSourceLabel"
-                                                       Text=""
-                                                       FontSize="11"
-                                                       Foreground="#94A3B8"
-                                                       VerticalAlignment="Center"
-                                                       Margin="6,0,0,0"
-                                                       IsVisible="False" />
-                                        </StackPanel>
-                                    </Border>
+                                </Grid>
+                                <StackPanel Grid.Column="1"
+                                            Name="RepresentativePeakPanel"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="16,0,0,0"
+                                            IsVisible="False">
+                                    <TextBlock Text="代表ピーク："
+                                               VerticalAlignment="Center"
+                                               Foreground="#475569"
+                                               Margin="0,0,8,0" />
+                                    <ComboBox Name="RepresentativePeakComboBox"
+                                              MinWidth="160"
+                                              Theme="{DynamicResource InputComboBoxStyle}"
+                                              SelectionChanged="RepresentativePeakComboBox_SelectionChanged" />
                                 </StackPanel>
-                                <!-- 多データセット時の fallback: 1 行/データセットの行表示。 -->
-                                <TextBlock Name="StatisticsTextBlock"
-                                           Text=""
-                                           Foreground="#0F172A"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center"
-                                           IsVisible="False" />
                             </Grid>
-                            <StackPanel Grid.Column="1"
-                                        Name="RepresentativePeakPanel"
-                                        Orientation="Horizontal"
-                                        VerticalAlignment="Center"
-                                        Margin="16,0,0,0"
-                                        IsVisible="False">
-                                <TextBlock Text="代表ピーク："
-                                           VerticalAlignment="Center"
-                                           Foreground="#475569"
-                                           Margin="0,0,8,0" />
-                                <ComboBox Name="RepresentativePeakComboBox"
-                                          MinWidth="160"
-                                          Theme="{DynamicResource InputComboBoxStyle}"
-                                          SelectionChanged="RepresentativePeakComboBox_SelectionChanged" />
-                            </StackPanel>
-                        </Grid>
+                            <!-- 重ね書き（複数データセット）時の表示。
+                                 MaxHeight 160 を超えたら縦スクロール。各行は BuildDatasetStatisticsRow で
+                                 動的生成され、行ごとの ComboBox で個別ピーク選択ができる。 -->
+                            <ScrollViewer Name="MultiStatisticsScroll"
+                                          MaxHeight="160"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          IsVisible="False">
+                                <ItemsControl Name="DatasetStatisticsList" />
+                            </ScrollViewer>
+                        </Panel>
                     </Border>
 
                     <Grid Grid.Row="3" Margin="0,10,0,0">

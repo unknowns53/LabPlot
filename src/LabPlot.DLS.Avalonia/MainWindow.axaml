@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        xmlns:vm="using:LabPlot.DLS.Avalonia"
         x:Class="LabPlot.DLS.Avalonia.MainWindow"
         Title="DLS Analyzer" Height="860" MinHeight="660" Width="1280" MinWidth="960"
         Background="#F7F8FA"
@@ -99,20 +100,16 @@
                                                              Padding="0"
                                                              DragDrop.AllowDrop="True">
                                                         <ListBox.ItemTemplate>
-                                                            <!-- VM 型 (DlsDatasetItem) が Batch 3b で正式に
-                                                                 internal クラスとして登場するまで CompiledBindings
-                                                                 が解決できないので ReflectionBinding に切り替え。
-                                                                 Batch 3b で DataType + CompiledBinding に格上げ予定。 -->
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+DlsDatasetItem">
                                                                 <Grid ColumnDefinitions="Auto,*">
                                                                     <Border Grid.Column="0"
                                                                             Width="14" Height="14"
-                                                                            Background="{ReflectionBinding ColorBrush}"
+                                                                            Background="{CompiledBinding ColorBrush}"
                                                                             CornerRadius="2"
                                                                             VerticalAlignment="Center"
                                                                             Margin="2,0,8,0" />
                                                                     <TextBlock Grid.Column="1"
-                                                                               Text="{ReflectionBinding SheetName}"
+                                                                               Text="{CompiledBinding SheetName}"
                                                                                VerticalAlignment="Center" />
                                                                 </Grid>
                                                             </DataTemplate>

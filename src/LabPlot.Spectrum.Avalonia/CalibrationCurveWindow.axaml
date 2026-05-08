@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:scott="clr-namespace:ScottPlot.Avalonia;assembly=ScottPlot.Avalonia"
+        xmlns:vm="using:LabPlot.Spectrum.Avalonia"
         x:Class="LabPlot.Spectrum.Avalonia.CalibrationCurveWindow"
         Title="Beer-Lambert 検量線エディタ"
         Height="720" Width="1140" MinHeight="560" MinWidth="940"
@@ -155,37 +156,38 @@
                                Margin="0,0,0,8" />
 
                     <DataGrid x:Name="SamplesDataGrid"
+                              x:DataType="vm:CalibrationCurveWindow+RowVm"
                               Grid.Row="1"
                               AutoGenerateColumns="False"
                               CanUserReorderColumns="False"
                               CellEditEnding="SamplesDataGrid_CellEditEnding">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="データセット"
-                                                Binding="{ReflectionBinding DisplayName}"
+                                                Binding="{CompiledBinding DisplayName}"
                                                 IsReadOnly="True"
                                                 Width="*"
                                                 MinWidth="120" />
                             <DataGridTextColumn Header="濃度"
-                                                Binding="{ReflectionBinding ConcentrationText}"
+                                                Binding="{CompiledBinding ConcentrationText}"
                                                 Width="80" />
                             <DataGridTextColumn Header="[M]"
-                                                Binding="{ReflectionBinding ConcentrationMolarText}"
+                                                Binding="{CompiledBinding ConcentrationMolarText}"
                                                 IsReadOnly="True"
                                                 Width="90" />
                             <DataGridTextColumn Header="信号"
-                                                Binding="{ReflectionBinding SignalText}"
+                                                Binding="{CompiledBinding SignalText}"
                                                 IsReadOnly="True"
                                                 Width="80" />
                             <DataGridTextColumn Header="予測"
-                                                Binding="{ReflectionBinding PredictedText}"
+                                                Binding="{CompiledBinding PredictedText}"
                                                 IsReadOnly="True"
                                                 Width="80" />
                             <DataGridTextColumn Header="残差"
-                                                Binding="{ReflectionBinding ResidualText}"
+                                                Binding="{CompiledBinding ResidualText}"
                                                 IsReadOnly="True"
                                                 Width="80" />
                             <DataGridCheckBoxColumn Header="除外"
-                                                    Binding="{ReflectionBinding IsExcluded, Mode=TwoWay}"
+                                                    Binding="{CompiledBinding IsExcluded, Mode=TwoWay}"
                                                     Width="72" />
                         </DataGrid.Columns>
                     </DataGrid>

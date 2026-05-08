@@ -2528,7 +2528,7 @@ public partial class MainWindow : Window
 
     // ---------- Manual λmax markers ----------
 
-    private sealed class ManualLambdaMaxEntryVm
+    internal sealed class ManualLambdaMaxEntryVm
     {
         public required string DatasetKey { get; init; }
         public required double WavelengthNm { get; init; }
@@ -2738,7 +2738,7 @@ public partial class MainWindow : Window
 
     // ---------- Manual IR peak markers ----------
 
-    private sealed class ManualIrPeakEntryVm
+    internal sealed class ManualIrPeakEntryVm
     {
         public required string DatasetKey { get; init; }
         public required double WavenumberCm1 { get; init; }

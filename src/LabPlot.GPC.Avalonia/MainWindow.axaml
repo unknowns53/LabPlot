@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        xmlns:vm="using:LabPlot.GPC.Avalonia"
         x:Class="LabPlot.GPC.Avalonia.MainWindow"
         Title="GPC Analyzer" Height="860" MinHeight="660" Width="1240" MinWidth="960"
         Background="#F7F8FA"
@@ -125,28 +126,24 @@
                                                              DragDrop.AllowDrop="True"
                                                              SelectionChanged="DatasetListBox_SelectionChanged">
                                                         <ListBox.ItemTemplate>
-                                                            <!-- DatasetEntryVm 型は Batch 4b で internal 化される
-                                                                 まで CompiledBindings が解決できないので
-                                                                 ReflectionBinding で繋ぐ。Batch 4b 以降で
-                                                                 DataType + CompiledBinding に格上げ予定。 -->
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+DatasetEntryVm">
                                                                 <Grid ColumnDefinitions="Auto,*,Auto">
                                                                     <Border Grid.Column="0"
                                                                             Width="14" Height="14"
-                                                                            Background="{ReflectionBinding ColorBrush}"
+                                                                            Background="{CompiledBinding ColorBrush}"
                                                                             CornerRadius="2"
                                                                             VerticalAlignment="Center"
                                                                             Margin="2,0,8,0" />
                                                                     <TextBlock Grid.Column="1"
-                                                                               Text="{ReflectionBinding DisplayName}"
-                                                                               ToolTip.Tip="{ReflectionBinding FullPath}"
+                                                                               Text="{CompiledBinding DisplayName}"
+                                                                               ToolTip.Tip="{CompiledBinding FullPath}"
                                                                                TextTrimming="CharacterEllipsis"
                                                                                VerticalAlignment="Center" />
                                                                     <Button Grid.Column="2"
                                                                             Content="×"
                                                                             Theme="{DynamicResource IconButtonStyle}"
                                                                             VerticalAlignment="Center"
-                                                                            Tag="{ReflectionBinding}"
+                                                                            Tag="{CompiledBinding}"
                                                                             Click="RemoveDatasetButton_Click"
                                                                             ToolTip.Tip="削除" />
                                                                 </Grid>

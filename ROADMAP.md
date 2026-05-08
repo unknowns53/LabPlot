@@ -2,7 +2,7 @@
 
 LabPlot 全体の今後の機能追加・拡張計画をまとめたメモです。優先度や着手時期は流動的で、必要が具体化したものから順次着手する方針です。
 
-最終更新: 2026-05-08（**Avalonia 版を主流系統に切り替え**。Phase 7 Batch 6 の実機検証で 3 アプリのドラッグ並べ替え / ファイル D&D / 凡例 D&D / フォントの読みづらさが解決し、dotnet 亡霊プロセス問題も決着。WPF 版は v1.0.x の保守版として並行維持に降格。後始末 Batch 7a で外部ファイル D&D を Avalonia 11.3 の新 API に移行）
+最終更新: 2026-05-08（**Avalonia 版を主流系統に切り替え**。Phase 7 Batch 6 の実機検証で 3 アプリのドラッグ並べ替え / ファイル D&D / 凡例 D&D / フォントの読みづらさが解決し、dotnet 亡霊プロセス問題も決着。WPF 版は v1.0.x の保守版として並行維持に降格。後始末 Batch 7a で外部ファイル D&D を Avalonia 11.3 の新 API に移行 + Batch 7e で `{ReflectionBinding}` × 40 件を `{CompiledBinding}` に格上げ）
 
 ---
 
@@ -93,12 +93,12 @@ WPF + win-x64 single-file exe では macOS / Linux ユーザーに配れない�
 - **Batch 6** ✅: Windows 実機での 3 アプリ動作検証で Expander / ColorPicker / Avalonia.Generators 系の実装課題 3 件を fix、ファイル D&D / 凡例 D&D / 太字でないフォントの読みづらさも順次解決。GPC のドラッグ並べ替えを DataTemplate ベースのゴースト + InputHitTest 方式に整理して DLS / Spectrum へ横展開。`dotnet build` で MSBuild worker / Roslyn server が常駐する亡霊プロセス問題は `tools/run-avalonia.ps1` の `-nodeReuse:false /p:UseSharedCompilation=false` で根治
 - **Phase 7 主流化（2026-05-08）** ✅: Avalonia 版を主流系統に切り替え。README / ROADMAP / 各アプリドキュメントを「主流 = Avalonia、保守 = WPF」の建付けに書き換え
 - **Phase 7 後始末 Batch 7a（2026-05-08）** ✅: 3 アプリの外部ファイル D&D ハンドラを Avalonia 11.3 の新 API（`DragEventArgs.DataTransfer` / `DataFormat.File` / `IAsyncDataTransfer.TryGetFilesAsync`）に移行、`#pragma warning disable CS0618` 対 3 組を削除。DLS の `OnDatasetDrop` も `async void` に揃えた
+- **Phase 7 後始末 Batch 7e（2026-05-08）** ✅: 3 アプリ MainWindow + Spectrum CalibrationCurveWindow の AXAML を `{ReflectionBinding}` × 40 件 → `{CompiledBinding}` に格上げ。各 ItemTemplate / DataGrid に `x:DataType="vm:Window+Vm"` を付与し、Spectrum の `ManualLambdaMaxEntryVm` / `ManualIrPeakEntryVm` を `private` → `internal` に昇格
 
 残課題（主流化後に着手）:
 
 - macOS arm64 publish の起動スモーク CI 化（GitHub Actions `macos-latest` ランナー）と実機 GUI 検証の依頼運用整備
 - WSL2 + WSLg での Linux x64 publish 実機相当検証の手順 docs 化
-- `DataTemplate` の `{ReflectionBinding}` を `x:DataType` + `CompiledBinding` に格上げ
 
 CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → PNG / xlsx 変換だけ提供）は補助的な選択肢として引き続き残します。
 
@@ -120,7 +120,7 @@ CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → 
 1. **共通基盤化（1）** ✅: `LabPlot.Core` / `LabPlot.Core.Avalonia`（主流） / `LabPlot.Core.Wpf`（保守）を切り出し済み
 2. **LabPlot.DLS 新規開発（2-DLS）** ✅: 主流・保守の両系統とも完了
 3. **クロスプラットフォーム（5）** ✅: Phase 7 Batch 1–6 完了、2026-05-08 に Avalonia 主流化を反映
-4. **Phase 7 後始末**: macOS / Linux publish 検証手順整備、`x:DataType` + `CompiledBinding` 格上げ（`DragDrop` 新 API 移行は Batch 7a で完了）
+4. **Phase 7 後始末**: macOS / Linux publish 検証手順整備（`DragDrop` 新 API 移行は Batch 7a / `CompiledBinding` 格上げは Batch 7e で完了）
 5. **Spectrum 残課題（2-Spectrum）**: ブランク差し引き・濃度逆算・Boltzmann fit など、利用ニーズに合わせて随時
 6. **新規フォーマット対応（3）**: 共同研究者・研究室メンバーの要望が具体化したら
 7. **GPC パフォーマンス最適化（2-GPC）**: 体感で困るケースが出てきたら

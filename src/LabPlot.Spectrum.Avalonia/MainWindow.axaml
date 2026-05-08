@@ -3,6 +3,7 @@
         xmlns:core="clr-namespace:SpectrumAnalyzer.Core;assembly=SpectrumAnalyzer.Core"
         xmlns:controls="clr-namespace:LabPlot.Core.Avalonia.Controls;assembly=LabPlot.Core.Avalonia"
         xmlns:spectrumControls="clr-namespace:LabPlot.Spectrum.Avalonia.Controls"
+        xmlns:vm="using:LabPlot.Spectrum.Avalonia"
         x:Class="LabPlot.Spectrum.Avalonia.MainWindow"
         Title="Spectrum Analyzer" Height="860" MinHeight="660" Width="1240" MinWidth="960"
         Background="#F7F8FA"
@@ -116,7 +117,7 @@
                                                              DragDrop.AllowDrop="True"
                                                              SelectionChanged="DatasetListBox_SelectionChanged">
                                                         <ListBox.ItemTemplate>
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+DatasetEntryVm">
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="Auto" />
@@ -125,20 +126,20 @@
                                                                     </Grid.ColumnDefinitions>
                                                                     <Border Grid.Column="0"
                                                                             Width="14" Height="14"
-                                                                            Background="{ReflectionBinding ColorBrush}"
+                                                                            Background="{CompiledBinding ColorBrush}"
                                                                             CornerRadius="2"
                                                                             VerticalAlignment="Center"
                                                                             Margin="2,0,8,0" />
                                                                     <TextBlock Grid.Column="1"
-                                                                               Text="{ReflectionBinding DisplayName}"
-                                                                               ToolTip.Tip="{ReflectionBinding FullPath}"
+                                                                               Text="{CompiledBinding DisplayName}"
+                                                                               ToolTip.Tip="{CompiledBinding FullPath}"
                                                                                TextTrimming="CharacterEllipsis"
                                                                                VerticalAlignment="Center" />
                                                                     <Button Grid.Column="2"
                                                                             Content="×"
                                                                             Theme="{DynamicResource IconButtonStyle}"
                                                                             VerticalAlignment="Center"
-                                                                            Tag="{ReflectionBinding}"
+                                                                            Tag="{CompiledBinding}"
                                                                             Click="RemoveDatasetButton_Click"
                                                                             ToolTip.Tip="削除" />
                                                                 </Grid>
@@ -528,7 +529,7 @@
                                                                IsVisible="False" />
                                                     <ItemsControl x:Name="PeakAssignmentItemsControl">
                                                         <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+PeakAssignmentVm">
                                                                 <Grid Margin="0,3,0,3">
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="14" />
@@ -537,14 +538,14 @@
                                                                     </Grid.ColumnDefinitions>
                                                                     <Border Grid.Column="0"
                                                                             Width="14" Height="14"
-                                                                            Background="{ReflectionBinding ColorBrush}"
+                                                                            Background="{CompiledBinding ColorBrush}"
                                                                             BorderBrush="#475569"
                                                                             BorderThickness="1"
                                                                             CornerRadius="2"
                                                                             VerticalAlignment="Center" />
                                                                     <CheckBox Grid.Column="2"
-                                                                              Content="{ReflectionBinding Label}"
-                                                                              IsChecked="{ReflectionBinding IsEnabled, Mode=TwoWay}"
+                                                                              Content="{CompiledBinding Label}"
+                                                                              IsChecked="{CompiledBinding IsEnabled, Mode=TwoWay}"
                                                                               IsCheckedChanged="PeakAssignmentCheckBox_Changed" />
                                                                 </Grid>
                                                             </DataTemplate>
@@ -655,7 +656,7 @@
                                                                Margin="0,2,0,0" />
                                                     <ItemsControl x:Name="ManualIrPeakItemsControl">
                                                         <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+ManualIrPeakEntryVm">
                                                                 <Grid Margin="0,2,0,2">
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="*" />
@@ -663,17 +664,17 @@
                                                                         <ColumnDefinition Width="24" />
                                                                     </Grid.ColumnDefinitions>
                                                                     <TextBlock Grid.Column="0"
-                                                                               Text="{ReflectionBinding DisplayText}"
+                                                                               Text="{CompiledBinding DisplayText}"
                                                                                FontSize="11"
                                                                                VerticalAlignment="Center"
                                                                                TextTrimming="CharacterEllipsis"
-                                                                               ToolTip.Tip="{ReflectionBinding DisplayText}" />
+                                                                               ToolTip.Tip="{CompiledBinding DisplayText}" />
                                                                     <Button Grid.Column="2"
                                                                             Content="×"
                                                                             Padding="0"
                                                                             Theme="{DynamicResource SecondaryButtonStyle}"
                                                                             Click="RemoveManualIrPeakButton_Click"
-                                                                            Tag="{ReflectionBinding}"
+                                                                            Tag="{CompiledBinding}"
                                                                             ToolTip.Tip="このマーカーを削除" />
                                                                 </Grid>
                                                             </DataTemplate>
@@ -768,7 +769,7 @@
                                                                Margin="0,2,0,0" />
                                                     <ItemsControl x:Name="ManualLambdaMaxItemsControl">
                                                         <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+ManualLambdaMaxEntryVm">
                                                                 <Grid Margin="0,2,0,2">
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="*" />
@@ -776,17 +777,17 @@
                                                                         <ColumnDefinition Width="24" />
                                                                     </Grid.ColumnDefinitions>
                                                                     <TextBlock Grid.Column="0"
-                                                                               Text="{ReflectionBinding DisplayText}"
+                                                                               Text="{CompiledBinding DisplayText}"
                                                                                FontSize="11"
                                                                                VerticalAlignment="Center"
                                                                                TextTrimming="CharacterEllipsis"
-                                                                               ToolTip.Tip="{ReflectionBinding DisplayText}" />
+                                                                               ToolTip.Tip="{CompiledBinding DisplayText}" />
                                                                     <Button Grid.Column="2"
                                                                             Content="×"
                                                                             Padding="0"
                                                                             Theme="{DynamicResource SecondaryButtonStyle}"
                                                                             Click="RemoveManualLambdaMaxButton_Click"
-                                                                            Tag="{ReflectionBinding}"
+                                                                            Tag="{CompiledBinding}"
                                                                             ToolTip.Tip="このマーカーを削除" />
                                                                 </Grid>
                                                             </DataTemplate>
@@ -904,7 +905,7 @@
 
                                                     <ItemsControl x:Name="IntegrationRegionItemsControl">
                                                         <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+IntegrationRegionVm">
                                                                 <Border Margin="0,2,0,4"
                                                                         Padding="6,4,6,6"
                                                                         Background="#F8FAFC"
@@ -926,7 +927,7 @@
                                                                                        Foreground="#64748B"
                                                                                        VerticalAlignment="Center" />
                                                                             <TextBox Grid.Column="2"
-                                                                                     Text="{ReflectionBinding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     Text="{CompiledBinding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                      Theme="{DynamicResource InputTextBoxStyle}"
                                                                                      ToolTip.Tip="領域の名前" />
                                                                             <Button Grid.Column="4"
@@ -952,7 +953,7 @@
                                                                                        Foreground="#64748B"
                                                                                        VerticalAlignment="Center" />
                                                                             <TextBox Grid.Column="2"
-                                                                                     Text="{ReflectionBinding XMinText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     Text="{CompiledBinding XMinText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                      Theme="{DynamicResource InputTextBoxStyle}"
                                                                                      ToolTip.Tip="X 範囲の最小値" />
                                                                             <TextBlock Grid.Column="4"
@@ -961,7 +962,7 @@
                                                                                        Foreground="#64748B"
                                                                                        VerticalAlignment="Center" />
                                                                             <TextBox Grid.Column="6"
-                                                                                     Text="{ReflectionBinding XMaxText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     Text="{CompiledBinding XMaxText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                      Theme="{DynamicResource InputTextBoxStyle}"
                                                                                      ToolTip.Tip="X 範囲の最大値" />
                                                                         </Grid>
@@ -977,7 +978,7 @@
                                                                                        Foreground="#64748B"
                                                                                        VerticalAlignment="Center" />
                                                                             <ComboBox Grid.Column="2"
-                                                                                      SelectedItem="{ReflectionBinding Baseline, Mode=TwoWay}"
+                                                                                      SelectedItem="{CompiledBinding Baseline, Mode=TwoWay}"
                                                                                       Theme="{DynamicResource InputComboBoxStyle}"
                                                                                       ToolTip.Tip="ベースライン補正の方法">
                                                                                 <core:BaselineMethod>None</core:BaselineMethod>
@@ -988,7 +989,7 @@
                                                                                 <core:BaselineMethod>Polynomial</core:BaselineMethod>
                                                                             </ComboBox>
                                                                         </Grid>
-                                                                        <Grid IsVisible="{ReflectionBinding IsRubberBand}">
+                                                                        <Grid IsVisible="{CompiledBinding IsRubberBand}">
                                                                             <Grid.ColumnDefinitions>
                                                                                 <ColumnDefinition Width="56" />
                                                                                 <ColumnDefinition Width="4" />
@@ -1000,11 +1001,11 @@
                                                                                        Foreground="#64748B"
                                                                                        VerticalAlignment="Center" />
                                                                             <TextBox Grid.Column="2"
-                                                                                     Text="{ReflectionBinding RubberBandSegmentsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     Text="{CompiledBinding RubberBandSegmentsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                      Theme="{DynamicResource InputTextBoxStyle}"
                                                                                      ToolTip.Tip="ラバーバンドの分割数 (2 以上、既定 16)" />
                                                                         </Grid>
-                                                                        <Grid IsVisible="{ReflectionBinding IsPolynomial}">
+                                                                        <Grid IsVisible="{CompiledBinding IsPolynomial}">
                                                                             <Grid.ColumnDefinitions>
                                                                                 <ColumnDefinition Width="56" />
                                                                                 <ColumnDefinition Width="4" />
@@ -1016,7 +1017,7 @@
                                                                                        Foreground="#64748B"
                                                                                        VerticalAlignment="Center" />
                                                                             <TextBox Grid.Column="2"
-                                                                                     Text="{ReflectionBinding PolynomialOrderText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     Text="{CompiledBinding PolynomialOrderText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                                      Theme="{DynamicResource InputTextBoxStyle}"
                                                                                      ToolTip.Tip="多項式の次数 (1 - 5、既定 2)" />
                                                                         </Grid>
@@ -1036,7 +1037,7 @@
                                                                Margin="0,0,0,4" />
                                                     <ItemsControl x:Name="IntegrationResultItemsControl">
                                                         <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+IntegrationResultRowVm">
                                                                 <Grid Margin="0,2,0,2">
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="*" />
@@ -1046,18 +1047,18 @@
                                                                         <ColumnDefinition Width="80" />
                                                                     </Grid.ColumnDefinitions>
                                                                     <TextBlock Grid.Column="0"
-                                                                               Text="{ReflectionBinding DatasetName}"
+                                                                               Text="{CompiledBinding DatasetName}"
                                                                                TextTrimming="CharacterEllipsis"
-                                                                               ToolTip.Tip="{ReflectionBinding DatasetName}" />
+                                                                               ToolTip.Tip="{CompiledBinding DatasetName}" />
                                                                     <TextBlock Grid.Column="2"
-                                                                               Text="{ReflectionBinding RegionLabel}"
+                                                                               Text="{CompiledBinding RegionLabel}"
                                                                                TextTrimming="CharacterEllipsis"
-                                                                               ToolTip.Tip="{ReflectionBinding Tooltip}" />
+                                                                               ToolTip.Tip="{CompiledBinding Tooltip}" />
                                                                     <TextBlock Grid.Column="4"
-                                                                               Text="{ReflectionBinding AreaText}"
+                                                                               Text="{CompiledBinding AreaText}"
                                                                                TextAlignment="Right"
                                                                                FontFamily="Consolas, Cascadia Mono, monospace"
-                                                                               ToolTip.Tip="{ReflectionBinding Tooltip}" />
+                                                                               ToolTip.Tip="{CompiledBinding Tooltip}" />
                                                                 </Grid>
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>

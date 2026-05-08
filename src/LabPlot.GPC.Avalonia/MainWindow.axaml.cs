@@ -2337,6 +2337,28 @@ public partial class MainWindow : Window
             MolecularWeightCheckBox.IsChecked = false;
             MolecularWeightYModeComboBox.SelectedIndex = 0;
         }
+
+        RefreshSolventDetectorBadge();
+    }
+
+    private void RefreshSolventDetectorBadge()
+    {
+        // 較正曲線が未選択 / 溶媒・検出器いずれか欠落のときはバッジを隠す。
+        // 既存の SolventComboBox / DetectorComboBox は較正曲線選択前は IsEnabled=false なので、
+        // ここでは _selectedCalibrationCurve を真の出所として使う。
+        var curve = _selectedCalibrationCurve;
+        var solvent = curve?.Solvent;
+        var detector = curve?.Detector;
+
+        if (curve is null || string.IsNullOrWhiteSpace(solvent) || string.IsNullOrWhiteSpace(detector))
+        {
+            SolventDetectorBadge.IsVisible = false;
+            return;
+        }
+
+        SolventBadgeValue.Text = solvent;
+        DetectorBadgeValue.Text = detector;
+        SolventDetectorBadge.IsVisible = true;
     }
 
     private MolecularWeightYMode GetSelectedMolecularWeightYMode()

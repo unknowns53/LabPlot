@@ -1,5 +1,7 @@
 # LabPlot.Spectrum.Avalonia
 
+> **利用者向け操作手順は [`docs/user-guide/spectrum.md`](../../docs/user-guide/spectrum.md) を参照してください。** 本書は開発者向けの差分メモです。
+
 UV-Vis 波長スキャン・温度スキャン・FTIR スペクトルの可視化と解析を行う **主流系統** モジュールです。Windows / macOS / Linux 共通で動作し、ポータル `LabPlot.Avalonia` のカード「UV-Vis」から起動されます。
 
 > 保守用の WPF 系統には [`src/LabPlot.Spectrum`](../LabPlot.Spectrum/) があり、新機能・バグ修正は本モジュールを優先して受けます。機能仕様は基本的に WPF 版と同等で、UI 操作と機能の詳細は WPF 側 README を参考にできます。

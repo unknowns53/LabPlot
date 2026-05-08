@@ -1,5 +1,7 @@
 # LabPlot.Shell.Avalonia
 
+> **利用者向け操作手順は [`docs/user-guide/portal.md`](../../docs/user-guide/portal.md) を参照してください。** 本書は開発者向けです。
+
 LabPlot の **主流系統** ポータルアプリです。3 つの解析モジュール（GPC / Spectrum / DLS）を 1 本の self-contained 実行ファイル `LabPlot.Avalonia` にまとめ、Windows / macOS / Linux 共通のカード型ランチャー画面から起動できます。
 
 > 保守用の WPF 系統には [`src/LabPlot.Shell`](../LabPlot.Shell/)（`LabPlot.exe`、Windows 専用）があり、新機能・バグ修正は本プロジェクトを優先して受けます。

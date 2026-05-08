@@ -1,5 +1,7 @@
 # LabPlot.DLS.Avalonia
 
+> **利用者向け操作手順は [`docs/user-guide/dls.md`](../../docs/user-guide/dls.md) を参照してください。** 本書は開発者向けの差分メモです。
+
 Malvern Zetasizer の DLS（動的光散乱）測定ブックを読み込んで、粒径分布と自己相関関数を可視化し、キュムラント解析で Z-average / PdI / 流体力学半径を算出する **主流系統** モジュールです。Windows / macOS / Linux 共通で動作し、ポータル `LabPlot.Avalonia` のカード「DLS」から起動されます。
 
 > 保守用の WPF 系統には [`src/LabPlot.DLS`](../LabPlot.DLS/) があり、新機能・バグ修正は本モジュールを優先して受けます。機能仕様は基本的に WPF 版と同等で、UI 操作と機能の詳細は WPF 側 README を参考にできます。

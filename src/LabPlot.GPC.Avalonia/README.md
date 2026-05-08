@@ -1,5 +1,7 @@
 # LabPlot.GPC.Avalonia
 
+> **利用者向け操作手順は [`docs/user-guide/gpc.md`](../../docs/user-guide/gpc.md) を参照してください。** 本書は開発者向けの差分メモです。
+
 GPC（ゲル浸透クロマトグラフィー）の測定データを読み込んで、クロマトグラムや分子量分布を表示し、PNG / SVG / Excel / CSV として書き出すための **主流系統** モジュールです。Windows / macOS / Linux 共通で動作し、ポータル `LabPlot.Avalonia` のカード「GPC」から起動されます。
 
 > 保守用の WPF 系統には [`src/LabPlot.GPC`](../LabPlot.GPC/) があり、新機能・バグ修正は本モジュールを優先して受けます。機能仕様は基本的に WPF 版と同等で、UI 操作と機能の詳細は WPF 側 README を参考にできます。

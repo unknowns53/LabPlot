@@ -69,7 +69,9 @@ Phase 7 Batch 6 step 1 で踏んだ runtime issue を再発させないための
 - [ ] DatasetListBox にエントリが追加され、色付きスウォッチが表示される
 - [ ] グラフに実データがプロットされる
 - [ ] **ファイル D&D**: Explorer から DatasetListBox に xlsx をドロップ → ロード成功
-      (Phase 7 Batch 6 step 2 で ListBoxItem AllowDrop=True を立てた効果の確認)
+      (Phase 7 Batch 6 step 2 で ListBoxItem AllowDrop=True を立てた効果と、
+      Batch 7a で `DragEventArgs.DataTransfer` / `DataFormat.File` /
+      `TryGetFilesAsync` 経由に切替済みの確認)
 
 ### 解析
 - [ ] Cumulant フィットを実行して D / Rh が表示される
@@ -106,6 +108,8 @@ DLS よりさらに機能数が多いので、優先度を A (必須) / B (確�
 - [ ] JASCO TXT ファイルを「TXT を開く」で読み込み → スペクトル表示
 - [ ] DatasetListBox にエントリ追加、色付きスウォッチ表示
 - [ ] **ファイル D&D**: Explorer から DatasetListBox に TXT をドロップ → ロード成功
+      (Batch 7a で `DragEventArgs.DataTransfer` / `DataFormat.File` /
+      `TryGetFilesAsync` 経由に切替済みの確認)
 - [ ] X 軸 / Y 軸切替 (波長 ↔ 波数 / 透過率 ↔ 吸光度) が反映される
 
 ### A. メタデータ / λmax / IR ピーク

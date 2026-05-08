@@ -291,14 +291,11 @@ public partial class MainWindow : Window
         }
     }
 
-    // Avalonia 11.3 で DragEventArgs.Data / DataFormats.Files に [Obsolete]
-    // が付き、新 API (DataTransfer / DataFormat.File) への移行が推奨される
-    // ようになったが、新旧 API が共存しているうちは旧 API のまま使う。
-    // Phase 7 のうちに新 API へ揃えるかは Batch 7 (publish 検証) で判断。
-#pragma warning disable CS0618 // 旧 DragDrop API を意図して使用
+    // Phase 7 後始末 Batch 7a で Avalonia 11.3 の新 API
+    // (DataTransfer / DataFormat.File / TryGetFilesAsync) に移行済み。
     private void OnDatasetDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains(DataFormats.Files))
+        if (e.DataTransfer is not null && e.DataTransfer.Contains(DataFormat.File))
         {
             e.DragEffects = DragDropEffects.Copy;
             ShowFileDropOverlay();
@@ -321,15 +318,16 @@ public partial class MainWindow : Window
     private void OnDatasetDrop(object? sender, DragEventArgs e)
     {
         HideFileDropOverlay();
-        if (!e.Data.Contains(DataFormats.Files)) return;
-        var files = e.Data.GetFiles()?.ToArray();
-        if (files is null || files.Length == 0) return;
-        var path = files[0].TryGetLocalPath();
+        if (e.DataTransfer is null || !e.DataTransfer.Contains(DataFormat.File)) return;
+        var files = e.DataTransfer.TryGetFiles();
+        if (files is null) return;
+        var first = files.FirstOrDefault();
+        if (first is null) return;
+        var path = first.TryGetLocalPath();
         if (string.IsNullOrEmpty(path)) return;
         e.Handled = true;
         _ = ImportWorkbookAsync(path);
     }
-#pragma warning restore CS0618
 
     // ---------- Drag-reorder (Phase 7 Batch 6 step 4 で新規追加) ----------
     // GPC / Spectrum と同じ手動 PointerCapture 方式。WPF DLS 自体には reorder

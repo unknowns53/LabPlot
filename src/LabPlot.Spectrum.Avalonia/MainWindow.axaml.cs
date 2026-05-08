@@ -1802,10 +1802,11 @@ public partial class MainWindow : Window
     // Phase 7 Batch 6 step 4 以降、内部 reorder は OS DragDrop layer を介さず
     // 手動 PointerCapture で処理する。ここに残るのは外部ファイルドロップ
     // (Explorer から DatasetListBox へ TXT をドロップ) のハンドラのみ。
-#pragma warning disable CS0618
+    // Phase 7 後始末 Batch 7a で Avalonia 11.3 の新 API
+    // (DataTransfer / DataFormat.File / TryGetFilesAsync) に移行済み。
     private void OnDatasetDragOver(object? sender, DragEventArgs e)
     {
-        if (e.Data.Contains(DataFormats.Files))
+        if (e.DataTransfer is not null && e.DataTransfer.Contains(DataFormat.File))
         {
             e.DragEffects = DragDropEffects.Copy;
             ShowFileDropOverlay();
@@ -1831,9 +1832,9 @@ public partial class MainWindow : Window
     private async void OnDatasetDrop(object? sender, DragEventArgs e)
     {
         HideFileDropOverlay();
-        if (!e.Data.Contains(DataFormats.Files)) return;
-        var files = e.Data.GetFiles()?.ToArray();
-        if (files is null || files.Length == 0) return;
+        if (e.DataTransfer is null || !e.DataTransfer.Contains(DataFormat.File)) return;
+        var files = e.DataTransfer.TryGetFiles();
+        if (files is null) return;
         var paths = files
             .Select(f => f.TryGetLocalPath())
             .Where(p => !string.IsNullOrEmpty(p))
@@ -1843,7 +1844,6 @@ public partial class MainWindow : Window
         e.Handled = true;
         await ImportSpectrumFilesAsync(paths);
     }
-#pragma warning restore CS0618
 
     private void UpdateInsertionLine(ListBoxItem item, bool insertAbove)
     {

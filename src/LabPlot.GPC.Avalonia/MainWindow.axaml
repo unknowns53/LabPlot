@@ -906,10 +906,12 @@
                                 </StackPanel>
                             </Grid>
                             <!-- 重ね書き（複数データセット）時の表示。
-                                 MaxHeight 160 を超えたら縦スクロール。各行は BuildDatasetStatisticsRow で
-                                 動的生成され、行ごとの ComboBox で個別ピーク選択ができる。 -->
+                                 MaxHeight 108 を超えたら縦スクロール。プロット領域を圧迫しないよう
+                                 5 件読み込み時にすでにスクロールが出る高さにしてある。各行は
+                                 BuildDatasetStatisticsRow で動的生成され、行ごとの ComboBox で
+                                 個別ピーク選択ができる。 -->
                             <ScrollViewer Name="MultiStatisticsScroll"
-                                          MaxHeight="160"
+                                          MaxHeight="108"
                                           VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled"
                                           IsVisible="False">

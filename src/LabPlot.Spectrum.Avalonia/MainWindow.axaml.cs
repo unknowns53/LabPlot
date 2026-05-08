@@ -1197,6 +1197,9 @@ public partial class MainWindow : Window
             PlotHost.Children.Add(_integrationDragOverlay);
 
             UpdatePlotHostAspectRatio();
+            // 初期化成功時点でスケルトンを消す。placeholder TextBlock の文言は
+            // InitializeEmptyPlot で SetState(EmptyReady) に切り替わる。
+            PlotPlaceholderSkeleton.IsVisible = false;
             InitializeEmptyPlot();
 
             if (_currentDataset is not null)
@@ -1215,6 +1218,10 @@ public partial class MainWindow : Window
     private void InitializeEmptyPlot()
     {
         if (_spectrumPlot is null) return;
+
+        // データ無しの状態 — placeholder を「ファイルを読み込むと…」に切り替え。
+        // 起動時 (InitializePlotControl 直後) と全データセット削除時の両方から呼ばれる。
+        PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
 
         _spectrumPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
         _spectrumPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
@@ -1247,6 +1254,9 @@ public partial class MainWindow : Window
             SetGraphActionsEnabled(false);
             return;
         }
+
+        // データを描画するので placeholder を非表示にする。
+        PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
 
         UpdatePeakAssignmentUi(_currentDataset);
 

@@ -140,6 +140,9 @@ public partial class MainWindow : Window
             SelectComboBoxByTag(DistributionTypeComboBox, _formattingConfig.DefaultDistributionMode);
             _selectedRunIndex = Math.Max(0, _formattingConfig.DefaultRunIndex);
 
+            // 初期化成功時点でスケルトンを消す。placeholder TextBlock の文言は
+            // InitializeEmptyPlot で SetState(EmptyReady) に切り替わる。
+            PlotPlaceholderSkeleton.IsVisible = false;
             InitializeEmptyPlot();
             UpdatePlotHostAspectRatio();
         }
@@ -204,6 +207,11 @@ public partial class MainWindow : Window
     private void InitializeEmptyPlot()
     {
         if (_plot is null) return;
+
+        // データ無しの状態 — placeholder を「ファイルを読み込むと…」に切り替え。
+        // 起動時 (OnOpened 直後) と全データセット解除時の両方から呼ばれる。
+        PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
+
         _plot.Plot.Clear();
         _plot.Plot.Title(GetGraphTitle(DefaultLabels.GetPlotTypeLabel(_selectedMode)));
         _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
@@ -1653,6 +1661,9 @@ public partial class MainWindow : Window
             InitializeEmptyPlot();
             return;
         }
+
+        // データを描画するので placeholder を非表示にする。
+        PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
 
         _plot.Plot.Clear();
 

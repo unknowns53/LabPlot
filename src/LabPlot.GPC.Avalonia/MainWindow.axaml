@@ -686,55 +686,61 @@
                             Background="White"
                             SizeChanged="PlotContainerBorder_SizeChanged">
                         <Grid>
-                            <!-- ScottPlot コントロールはここに動的に挿入される。InitializePlotControl で
-                                 Children.Clear() するため、操作ヒントバッジは PlotHost の外側に置く。 -->
-                            <Grid Name="PlotHost">
-                                <!-- スケルトン: 軸の影 + 仮データ線 + 横切るシマー帯。
-                                     プロット初期化時に PlotHost.Children.Clear() で消える。 -->
-                                <Grid Width="320" Height="200"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center">
-                                    <Grid Width="320" Height="180"
-                                          VerticalAlignment="Top"
-                                          ClipToBounds="True">
-                                        <Canvas Width="320" Height="180">
-                                            <Rectangle Canvas.Left="22" Canvas.Top="20"
-                                                       Width="2" Height="140"
-                                                       Fill="#E2E8F0" />
-                                            <Rectangle Canvas.Left="20" Canvas.Top="158"
-                                                       Width="280" Height="2"
-                                                       Fill="#E2E8F0" />
-                                            <Path Stroke="#CBD5E1"
-                                                  StrokeThickness="2.5"
-                                                  StrokeLineCap="Round"
-                                                  StrokeJoin="Round"
-                                                  Data="M 30,140 Q 70,140 100,80 Q 130,30 160,80 Q 190,140 230,120 Q 260,100 290,140" />
-                                        </Canvas>
-                                        <Border Classes="shimmer"
-                                                Width="120" Height="180"
-                                                HorizontalAlignment="Left"
-                                                IsHitTestVisible="False">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-                                                    <GradientStop Color="#00FFFFFF" Offset="0" />
-                                                    <GradientStop Color="#A0FFFFFF" Offset="0.5" />
-                                                    <GradientStop Color="#00FFFFFF" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <Border.RenderTransform>
-                                                <TranslateTransform X="-120" />
-                                            </Border.RenderTransform>
-                                        </Border>
-                                    </Grid>
-                                    <TextBlock Name="PlotPlaceholderTextBlock"
-                                               Text="グラフを初期化しています..."
-                                               FontSize="11"
-                                               Foreground="#64748B"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Bottom"
-                                               Margin="0,0,0,4" />
+                            <!-- スケルトン (軸影 + 仮曲線 + シマー帯) は PlotHost の外側に置き、
+                                 InitializePlotControl の Children.Clear() で消えないようにする。
+                                 IsVisible は C# 側で初期化中のみ true。 -->
+                            <Grid Name="PlotPlaceholderSkeleton"
+                                  Width="320" Height="200"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  IsHitTestVisible="False">
+                                <Grid Width="320" Height="180"
+                                      VerticalAlignment="Top"
+                                      ClipToBounds="True">
+                                    <Canvas Width="320" Height="180">
+                                        <Rectangle Canvas.Left="22" Canvas.Top="20"
+                                                   Width="2" Height="140"
+                                                   Fill="#E2E8F0" />
+                                        <Rectangle Canvas.Left="20" Canvas.Top="158"
+                                                   Width="280" Height="2"
+                                                   Fill="#E2E8F0" />
+                                        <Path Stroke="#CBD5E1"
+                                              StrokeThickness="2.5"
+                                              StrokeLineCap="Round"
+                                              StrokeJoin="Round"
+                                              Data="M 30,140 Q 70,140 100,80 Q 130,30 160,80 Q 190,140 230,120 Q 260,100 290,140" />
+                                    </Canvas>
+                                    <Border Classes="shimmer"
+                                            Width="120" Height="180"
+                                            HorizontalAlignment="Left"
+                                            IsHitTestVisible="False">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                                <GradientStop Color="#00FFFFFF" Offset="0" />
+                                                <GradientStop Color="#A0FFFFFF" Offset="0.5" />
+                                                <GradientStop Color="#00FFFFFF" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Border.RenderTransform>
+                                            <TranslateTransform X="-120" />
+                                        </Border.RenderTransform>
+                                    </Border>
                                 </Grid>
                             </Grid>
+                            <!-- ScottPlot コントロールはここに動的に挿入される。
+                                 InitializePlotControl で Children.Clear() するため、
+                                 操作ヒントバッジ・スケルトン・placeholder は PlotHost の外側に置く。 -->
+                            <Grid Name="PlotHost" />
+                            <!-- placeholder TextBlock は 3 状態 (Initializing / EmptyReady / InitFailed) を
+                                 PlotPlaceholder ヘルパー経由で文言と IsVisible で切り替える。 -->
+                            <TextBlock Name="PlotPlaceholderTextBlock"
+                                       Text="グラフを初期化しています..."
+                                       FontSize="11"
+                                       Foreground="#64748B"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,116,0,0"
+                                       IsHitTestVisible="False" />
                             <Border Name="PlotControlsHintBadge"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Top"

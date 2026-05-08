@@ -30,5 +30,17 @@ public static class PlotPlaceholder
             State.InitFailed => InitFailedText,
             _ => target.Text,
         };
+        // SetState を呼ぶ側は「文言を出したい」のが意図なので、IsVisible も同時に立てる。
+        // データ描画開始時は Hide(...) を呼んで明示的に消す。
+        target.IsVisible = true;
+    }
+
+    /// <summary>
+    /// データ描画開始など、placeholder を消したい場面で呼ぶ。SetState(...) と対称。
+    /// </summary>
+    public static void Hide(TextBlock? target)
+    {
+        if (target is null) return;
+        target.IsVisible = false;
     }
 }

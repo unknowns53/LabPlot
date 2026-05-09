@@ -12,6 +12,7 @@ internal static class DefaultLabels
     public const string CorrelationFunctionTitle = "Correlation Function";
     public const string TemperatureRampTitle = "Temperature Ramp";
     public const string ConcentrationSeriesTitle = "Concentration Series";
+    public const string SizeDistributionInversionTitle = "Size Distribution (CONTIN-like)";
 
     // Suffix appended to GetModeLabel(...) for the empty-state title shown
     // when none of the selected datasets carries the requested distribution.
@@ -35,6 +36,7 @@ internal static class DefaultLabels
         DistributionMode.Correlation => CorrelationFunctionTitle,
         DistributionMode.TemperatureRamp => TemperatureRampTitle,
         DistributionMode.ConcentrationSeries => ConcentrationSeriesTitle,
+        DistributionMode.SizeDistributionInversion => SizeDistributionInversionTitle,
         _ => ParticleSizeDistributionTitle,
     };
 
@@ -53,6 +55,7 @@ internal static class DefaultLabels
         DistributionMode.Correlation => CorrelationYLabel,
         DistributionMode.TemperatureRamp => HydrodynamicDiameterYLabel,
         DistributionMode.ConcentrationSeries => DiffusionCoefficientYLabel,
+        DistributionMode.SizeDistributionInversion => IntensityYLabel,
         _ => NumberYLabel,
     };
 }

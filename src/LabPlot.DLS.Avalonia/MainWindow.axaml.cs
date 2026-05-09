@@ -85,6 +85,12 @@ public partial class MainWindow : Window
     private bool _suppressFormattingEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressMetadataControlEvents;
+    private bool _suppressInversionControlEvents;
+
+    /// <summary>Sub-weight ("Intensity"/"Number"/"Volume") plotted within the inversion mode.</summary>
+    private DistributionMode _inversionWeight = DistributionMode.Intensity;
+    private bool _inversionUseAutoAlpha = true;
+    private double _inversionManualAlpha = 0.01;
     private string? _currentWorkbookPath;
 
     public MainWindow()
@@ -1668,6 +1674,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_selectedMode == DistributionMode.SizeDistributionInversion)
+        {
+            RefreshSizeDistributionInversionPlot();
+            return;
+        }
+
         if (_selectedDatasets.Count == 0)
         {
             InitializeEmptyPlot();
@@ -2197,6 +2209,269 @@ public partial class MainWindow : Window
         ConcentrationStatusText.IsVisible = false;
     }
 
+    // ---------- Size distribution inversion (CONTIN-style NNLS per sheet) ----------
+
+    private void RefreshSizeDistributionInversionPlot()
+    {
+        if (_plot is null) return;
+
+        if (_selectedDatasets.Count == 0)
+        {
+            InitializeEmptyPlot();
+            ResetInversionDisplay();
+            ShowInversionStatus("シートを選択してください");
+            return;
+        }
+
+        PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
+        _plot.Plot.Clear();
+
+        for (int i = 0; i < _datasetItems.Count; i++)
+            _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
+
+        var weightLabel = _inversionWeight switch
+        {
+            DistributionMode.Number => DefaultLabels.NumberYLabel,
+            DistributionMode.Volume => DefaultLabels.VolumeYLabel,
+            _ => DefaultLabels.IntensityYLabel,
+        };
+
+        // Single-line title that names the active sheet (or count) plus the
+        // selected sub-weight so the saved PNG identifies the run.
+        string title;
+        if (_selectedDatasets.Count == 1)
+            title = $"{_selectedDatasets[0].SheetName} (CONTIN-like, {weightLabel})";
+        else
+            title = $"{DefaultLabels.SizeDistributionInversionTitle} ({weightLabel}, {_selectedDatasets.Count} datasets)";
+
+        _plot.Plot.Title(GetGraphTitle(title));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.SizeXLabel));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, weightLabel));
+        ApplyLogXTicksForMode(_selectedMode);
+        _plot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+
+        SizeDistributionInversionOutcome? activeOutcome = null;
+        DlsDatasetItem? activeItem = null;
+        int seriesCount = 0;
+        int failedCount = 0;
+        int missingMetaCount = 0;
+        var failureReasons = new HashSet<string>();
+
+        // Run inversion per selected sheet so overlay still works (each
+        // sheet keeps its own optics / solvent metadata). This is the
+        // expensive path: 16 NNLS calls per sheet, ~200 ms each on a
+        // 60-bin grid; acceptable for the typical 1-3 selected sheets but
+        // a future improvement is to cache per (sheet, alpha) and run on
+        // a background thread.
+        var options = BuildInversionOptions();
+        for (int datasetIdx = 0; datasetIdx < _selectedDatasets.Count; datasetIdx++)
+        {
+            var dataset = _selectedDatasets[datasetIdx];
+            var item = FindItemForDataset(dataset);
+            if (item is null) continue;
+
+            var outcome = SizeDistributionInverter.Invert(
+                dataset.Correlation,
+                item.Metadata.TemperatureCelsius,
+                item.Metadata.ViscosityMpas,
+                item.Metadata.RefractiveIndex,
+                item.Metadata.WavelengthNm,
+                item.Metadata.ScatteringAngleDegrees,
+                options);
+
+            if (datasetIdx == 0)
+            {
+                activeOutcome = outcome;
+                activeItem = item;
+            }
+
+            if (!outcome.Success || outcome.Result is null)
+            {
+                if (outcome.MissingFields.Count > 0) missingMetaCount++;
+                else failedCount++;
+                if (!string.IsNullOrEmpty(outcome.FailureReason))
+                    failureReasons.Add(outcome.FailureReason!);
+                continue;
+            }
+
+            var bins = outcome.Result.Bins;
+            var xs = new double[bins.Count];
+            var ys = new double[bins.Count];
+            for (int i = 0; i < bins.Count; i++)
+            {
+                xs[i] = Math.Log10(Math.Max(bins[i].DiameterNm, 1e-6));
+                ys[i] = _inversionWeight switch
+                {
+                    DistributionMode.Number => bins[i].NumberWeight,
+                    DistributionMode.Volume => bins[i].VolumeWeight,
+                    _ => bins[i].IntensityWeight,
+                };
+            }
+
+            var indexInDatasets = _datasets.IndexOf(dataset);
+            var style = (indexInDatasets >= 0 && indexInDatasets < _datasetItems.Count)
+                ? _datasetItems[indexInDatasets].Style
+                : null;
+
+            var scatter = _plot.Plot.Add.Scatter(xs, ys);
+            scatter.LineWidth = (float)(style?.LineWidth ?? _formattingConfig.LineWidth);
+            scatter.MarkerSize = (float)(style?.MarkerSize ?? _formattingConfig.MarkerSize);
+            ApplyDatasetColor(scatter, dataset);
+            var customLegendName = style?.LegendName;
+            scatter.LegendText = string.IsNullOrWhiteSpace(customLegendName)
+                ? dataset.SheetName
+                : customLegendName!;
+            seriesCount++;
+        }
+
+        UpdateInversionDisplay(activeOutcome, activeItem, failedCount, missingMetaCount, failureReasons);
+
+        if (seriesCount == 0)
+        {
+            _plot.Plot.Axes.SetLimits(Math.Log10(0.3), Math.Log10(10000), 0, 30);
+            ApplyPlotAppearance();
+            ApplyLegend(0);
+            _plot.Refresh();
+            return;
+        }
+
+        _plot.Plot.Axes.AutoScale();
+        ApplyPlotAppearance();
+        ApplyLegend(seriesCount);
+        _plot.Refresh();
+    }
+
+    private SizeDistributionInverterOptions BuildInversionOptions()
+    {
+        if (_inversionUseAutoAlpha)
+            return new SizeDistributionInverterOptions();
+
+        var manual = _inversionManualAlpha;
+        if (!double.IsFinite(manual) || manual <= 0) manual = 0.01;
+        return new SizeDistributionInverterOptions
+        {
+            RegularizationAlpha = manual,
+        };
+    }
+
+    private DlsDatasetItem? FindItemForDataset(DlsDataset dataset)
+    {
+        var idx = _datasets.IndexOf(dataset);
+        return idx >= 0 && idx < _datasetItems.Count ? _datasetItems[idx] : null;
+    }
+
+    private void UpdateInversionDisplay(
+        SizeDistributionInversionOutcome? outcome,
+        DlsDatasetItem? activeItem,
+        int failedCount,
+        int missingMetaCount,
+        HashSet<string> failureReasons)
+    {
+        if (outcome is null || activeItem is null)
+        {
+            ResetInversionDisplay();
+            ShowInversionStatus("解析対象のシートが見つかりません");
+            return;
+        }
+
+        if (!outcome.Success || outcome.Result is null)
+        {
+            ResetInversionDisplay();
+            if (outcome.MissingFields.Count > 0)
+                ShowInversionStatus("測定条件を入力してください: " + string.Join(" / ", outcome.MissingFields));
+            else
+                ShowInversionStatus(outcome.FailureReason ?? "解析できません");
+            return;
+        }
+
+        var r = outcome.Result;
+        InversionAlphaText.Text = r.RegularizationAlpha.ToString("0.####E+0", CultureInfo.InvariantCulture);
+        InversionRSquaredText.Text = r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
+        InversionBetaText.Text = r.Beta.ToString("0.000", CultureInfo.InvariantCulture);
+        InversionFreeBinText.Text = $"{r.FreeBinCount} / {r.Bins.Count}";
+
+        var hints = new List<string>();
+        if (_selectedDatasets.Count > 1)
+            hints.Add($"先頭シート ({_selectedDatasets[0].SheetName}) の値を表示");
+        if (failedCount > 0) hints.Add($"逆変換失敗 {failedCount} 件");
+        if (missingMetaCount > 0) hints.Add($"測定条件不足 {missingMetaCount} 件");
+        if (failureReasons.Count > 0)
+            hints.Add(string.Join(" / ", failureReasons));
+
+        if (hints.Count > 0)
+            ShowInversionStatus(string.Join(" / ", hints));
+        else
+            HideInversionStatus();
+    }
+
+    private void ResetInversionDisplay()
+    {
+        InversionAlphaText.Text = "—";
+        InversionRSquaredText.Text = "—";
+        InversionBetaText.Text = "—";
+        InversionFreeBinText.Text = "—";
+    }
+
+    private void ShowInversionStatus(string message)
+    {
+        InversionStatusText.Text = message;
+        InversionStatusText.IsVisible = true;
+    }
+
+    private void HideInversionStatus()
+    {
+        InversionStatusText.Text = string.Empty;
+        InversionStatusText.IsVisible = false;
+    }
+
+    private void InversionWeightComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressInversionControlEvents) return;
+        if (sender is not ComboBox cb || cb.SelectedItem is not ComboBoxItem item) return;
+        var tag = item.Tag as string;
+        _inversionWeight = tag switch
+        {
+            "Number" => DistributionMode.Number,
+            "Volume" => DistributionMode.Volume,
+            _ => DistributionMode.Intensity,
+        };
+        if (_selectedMode == DistributionMode.SizeDistributionInversion)
+            RefreshPlot();
+    }
+
+    private void InversionAlphaAutoCheckBox_IsCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressInversionControlEvents) return;
+        _inversionUseAutoAlpha = InversionAlphaAutoCheckBox.IsChecked == true;
+        InversionAlphaTextBox.IsEnabled = !_inversionUseAutoAlpha;
+        if (_selectedMode == DistributionMode.SizeDistributionInversion)
+            RefreshPlot();
+    }
+
+    private void InversionAlphaTextBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressInversionControlEvents) return;
+        if (double.TryParse(InversionAlphaTextBox.Text, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out var parsed)
+            && double.IsFinite(parsed) && parsed > 0)
+        {
+            _inversionManualAlpha = parsed;
+        }
+        else
+        {
+            // Snap back to the last valid value so the field never sits in
+            // a state the inverter would reject.
+            _suppressInversionControlEvents = true;
+            try
+            {
+                InversionAlphaTextBox.Text = _inversionManualAlpha.ToString("0.####", CultureInfo.InvariantCulture);
+            }
+            finally { _suppressInversionControlEvents = false; }
+        }
+        if (!_inversionUseAutoAlpha && _selectedMode == DistributionMode.SizeDistributionInversion)
+            RefreshPlot();
+    }
+
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
     {
         var index = _datasets.IndexOf(dataset);
@@ -2531,6 +2806,7 @@ public partial class MainWindow : Window
         "Correlation" => DistributionMode.Correlation,
         "TemperatureRamp" => DistributionMode.TemperatureRamp,
         "ConcentrationSeries" => DistributionMode.ConcentrationSeries,
+        "SizeDistributionInversion" => DistributionMode.SizeDistributionInversion,
         _ => DistributionMode.Number,
     };
 

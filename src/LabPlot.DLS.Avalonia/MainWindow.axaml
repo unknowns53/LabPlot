@@ -736,6 +736,126 @@
                                     </Expander>
                                 </Border>
 
+                                <!-- Section: Size distribution inversion (CONTIN-style NNLS) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 1,12 L 4,4 L 7,10 L 10,2 L 13,12" />
+                                                <TextBlock Text="サイズ分布逆変換"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="自己相関関数 g₂-1(τ) を Tikhonov 正則化付き NNLS で逆ラプラス変換し、連続サイズ分布を再構成します。多峰サンプルでキュムラントの「平均」を超えてピーク構造を見たいときに使ってください。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,8" />
+
+                                            <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="重み" />
+                                            <ComboBox Name="InversionWeightComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      SelectionChanged="InversionWeightComboBox_SelectionChanged"
+                                                      Margin="0,0,0,8">
+                                                <ComboBoxItem Content="Intensity (%)" Tag="Intensity" IsSelected="True" />
+                                                <ComboBoxItem Content="Number (%)" Tag="Number" />
+                                                <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                                            </ComboBox>
+
+                                            <CheckBox Name="InversionAlphaAutoCheckBox"
+                                                      Content="α を自動選択 (L-curve)"
+                                                      IsChecked="True"
+                                                      IsCheckedChanged="InversionAlphaAutoCheckBox_IsCheckedChanged"
+                                                      Margin="0,0,0,4" />
+                                            <Grid ColumnDefinitions="Auto,8,*"
+                                                  Margin="0,0,0,8">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="手動 α"
+                                                           Foreground="#475569"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                                <TextBox Name="InversionAlphaTextBox"
+                                                         Grid.Column="2"
+                                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                                         Text="0.01"
+                                                         IsEnabled="False"
+                                                         LostFocus="InversionAlphaTextBox_LostFocus" />
+                                            </Grid>
+
+                                            <Border BorderBrush="#E2E8F0"
+                                                    BorderThickness="0,1,0,0"
+                                                    Padding="0,8,0,0">
+                                                <Grid ColumnDefinitions="Auto,8,*"
+                                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+
+                                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                                               Text="採用 α"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="InversionAlphaText"
+                                                               Grid.Row="0" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                                                               Text="R²"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="InversionRSquaredText"
+                                                               Grid.Row="1" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                                               Text="β"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="InversionBetaText"
+                                                               Grid.Row="2" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="3" Grid.Column="0"
+                                                               Text="自由ビン数"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="InversionFreeBinText"
+                                                               Grid.Row="3" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Name="InversionStatusText"
+                                                               Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
+                                                               Text=""
+                                                               FontSize="11"
+                                                               Foreground="#B45309"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,4,0,0"
+                                                               IsVisible="False" />
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
                                 <!-- Section: Display (distribution / run) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
                                     <Expander IsExpanded="True">
@@ -761,6 +881,7 @@
                                                 <ComboBoxItem Content="自己相関 g₂-1" Tag="Correlation" />
                                                 <ComboBoxItem Content="温度ランプ T vs d_h" Tag="TemperatureRamp" />
                                                 <ComboBoxItem Content="濃度シリーズ c vs D" Tag="ConcentrationSeries" />
+                                                <ComboBoxItem Content="サイズ分布逆変換 (CONTIN-like)" Tag="SizeDistributionInversion" />
                                             </ComboBox>
 
                                             <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="Run" />

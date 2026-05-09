@@ -135,6 +135,59 @@ internal static class DlsSampleBuilder
         }
     }
 
+    /// <summary>
+    /// Generates a concentration-series at 25 C across the dilute regime
+    /// (0.5 - 10 mg/mL). Each entry is a single PNIPAM measurement at one
+    /// concentration; concatenated they trace D(c) = D0 (1 + k_D c) with
+    /// k_D = -25 mL/g (an attractive-interaction PNIPAM-like recipe).
+    /// </summary>
+    public static IEnumerable<DlsSyntheticSheet> PnipamConcentrationSeries()
+    {
+        // d_h(c=0) = 10 nm, k_D = -25 mL/g. Apparent diameter follows
+        //   d_h(c) = d_h(c=0) / (1 + k_D c [g/mL])
+        // because D(c) = D0 (1 + k_D c) and d_h ∝ 1/D.
+        const double dHydroAtZero = 10.0;
+        const double kD = -25.0;
+
+        var stops = new (double C, string Suffix)[]
+        {
+            (0.5,  "0p5"),
+            (1.0,  "1"),
+            (2.0,  "2"),
+            (4.0,  "4"),
+            (6.0,  "6"),
+            (8.0,  "8"),
+            (10.0, "10"),
+        };
+
+        int seed = 20260530;
+        foreach (var (c, suffix) in stops)
+        {
+            var cGPerMl = c * 1e-3;
+            var apparentDh = dHydroAtZero / (1.0 + kD * cGPerMl);
+            // The cumulant fit will see broader peaks at higher concentration
+            // because of the extra polydispersity from interaction-induced
+            // distributions; encode that in the lognormal width.
+            var pdi = c < 2.0 ? 0.08 : (c < 6.0 ? 0.10 : 0.13);
+
+            yield return new DlsSyntheticSheet
+            {
+                SheetName = $"PNIPAM_conc_{suffix}mgmL",
+                SampleLabel = $"PNIPAM conc {c.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}mg/mL",
+                TemperatureCelsius = 25.0,
+                ViscosityMpas = 0.890,
+                RefractiveIndex = 1.330,
+                WavelengthNm = 633.0,
+                ScatteringAngleDegrees = 173.0,
+                Populations = new[]
+                {
+                    new DlsPopulation(DiameterNm: apparentDh, IntensityWeight: 1.0, PolydispersityIndex: pdi),
+                },
+                Seed = seed++,
+            };
+        }
+    }
+
     public static void WriteDemoWorkbook(string filePath)
     {
         using var workbook = new XLWorkbook();
@@ -142,6 +195,8 @@ internal static class DlsSampleBuilder
         AddSheet(workbook, PnipamGlobuleAt35C);
         foreach (var rampSheet in PnipamTemperatureRamp())
             AddSheet(workbook, rampSheet);
+        foreach (var concSheet in PnipamConcentrationSeries())
+            AddSheet(workbook, concSheet);
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath))!);
         workbook.SaveAs(filePath);
     }

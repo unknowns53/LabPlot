@@ -627,6 +627,115 @@
                                     </Expander>
                                 </Border>
 
+                                <!-- Section: Concentration series analysis (linear D vs c fit) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 1,12 L 13,3" />
+                                                <TextBlock Text="濃度シリーズ解析"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Name="ConcentrationSeriesPointCountLabel"
+                                                           Text="(0 点)"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"
+                                                           VerticalAlignment="Bottom"
+                                                           Margin="6,0,0,2" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="読み込み済みの全シートの濃度（測定条件）と D を線形回帰し、無限希釈拡散係数 D₀ と拡散ビリアル係数 k_D を抽出します。「分布の種類」を「濃度シリーズ」に切り替えるとプロット側にも反映されます。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,8" />
+
+                                            <Border BorderBrush="#E2E8F0"
+                                                    BorderThickness="0,1,0,0"
+                                                    Padding="0,8,0,0">
+                                                <Grid ColumnDefinitions="Auto,8,*"
+                                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+
+                                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                                               Text="D₀ (c→0)"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="ConcentrationD0Text"
+                                                               Grid.Row="0" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                                                               Text="k_D"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="ConcentrationKDText"
+                                                               Grid.Row="1" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                                               Text="d_h (c→0)"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="ConcentrationDhText"
+                                                               Grid.Row="2" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="3" Grid.Column="0"
+                                                               Text="R²"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="ConcentrationRSquaredText"
+                                                               Grid.Row="3" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="12"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Grid.Row="4" Grid.Column="0"
+                                                               Text="参照条件"
+                                                               Foreground="#475569"
+                                                               FontSize="12"
+                                                               Margin="0,0,0,4" />
+                                                    <TextBlock Name="ConcentrationReferenceText"
+                                                               Grid.Row="4" Grid.Column="2"
+                                                               Text="—"
+                                                               FontSize="11"
+                                                               Foreground="#0F172A"
+                                                               Margin="0,0,0,4" />
+
+                                                    <TextBlock Name="ConcentrationStatusText"
+                                                               Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
+                                                               Text=""
+                                                               FontSize="11"
+                                                               Foreground="#B45309"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,4,0,0"
+                                                               IsVisible="False" />
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
                                 <!-- Section: Display (distribution / run) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
                                     <Expander IsExpanded="True">
@@ -651,6 +760,7 @@
                                                 <ComboBoxItem Content="Volume (%)" Tag="Volume" />
                                                 <ComboBoxItem Content="自己相関 g₂-1" Tag="Correlation" />
                                                 <ComboBoxItem Content="温度ランプ T vs d_h" Tag="TemperatureRamp" />
+                                                <ComboBoxItem Content="濃度シリーズ c vs D" Tag="ConcentrationSeries" />
                                             </ComboBox>
 
                                             <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="Run" />

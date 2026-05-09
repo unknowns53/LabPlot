@@ -35,13 +35,63 @@ public sealed class DemoXlsxReadbackTests
         var reader = new ZetasizerXlsxReader();
         var datasets = reader.Read(DemoXlsxPath());
 
-        // Two showcase sheets (single coil, bimodal globule) plus the
-        // temperature ramp series (8 stops across the LCST).
+        // Two showcase sheets (single coil, bimodal globule), the
+        // temperature ramp series (8 stops across the LCST), and the
+        // 25 C concentration series (7 stops between 0.5 and 10 mg/mL).
         Assert.Contains(datasets, d => d.SheetName == "PNIPAM_25C");
         Assert.Contains(datasets, d => d.SheetName == "PNIPAM_35C");
 
         var rampCount = datasets.Count(d => d.SheetName.StartsWith("PNIPAM_ramp_"));
         Assert.True(rampCount >= 6, $"Ramp series should contribute at least 6 sheets but got {rampCount}");
+
+        var concCount = datasets.Count(d => d.SheetName.StartsWith("PNIPAM_conc_"));
+        Assert.True(concCount >= 5, $"Concentration series should contribute at least 5 sheets but got {concCount}");
+    }
+
+    [Fact]
+    public void ConcentrationSeriesSheetsRecoverNegativeKD()
+    {
+        var reader = new ZetasizerXlsxReader();
+        var datasets = reader.Read(DemoXlsxPath());
+
+        // Same recipe the demo generator started from: T = 25 C, water
+        // viscosity 0.890 mPa·s, k_D = -25 mL/g, d_h(c=0) = 10 nm. The
+        // sheet name carries the concentration in its suffix.
+        var concSheets = datasets.Where(d => d.SheetName.StartsWith("PNIPAM_conc_")).ToList();
+        var stops = new (double C, string Suffix)[]
+        {
+            (0.5, "0p5"), (1.0, "1"), (2.0, "2"), (4.0, "4"),
+            (6.0, "6"), (8.0, "8"), (10.0, "10"),
+        };
+
+        var points = new List<ConcentrationSeriesPoint>();
+        foreach (var (c, suffix) in stops)
+        {
+            var sheet = concSheets.FirstOrDefault(s => s.SheetName.EndsWith("_" + suffix + "mgmL"));
+            if (sheet?.Correlation is null) continue;
+            var cumulant = CumulantAnalyzer.Analyze(sheet.Correlation);
+            if (!cumulant.Success) continue;
+            var size = StokesEinstein.Compute(
+                cumulant.Result!.FirstCumulantPerMicrosecond,
+                temperatureCelsius: 25.0,
+                viscosityMpas: 0.890,
+                refractiveIndex: 1.330,
+                wavelengthNm: 633.0,
+                scatteringAngleDegrees: 173.0);
+            if (!size.Success || size.DiffusionCoefficientM2PerSecond is null) continue;
+            points.Add(new ConcentrationSeriesPoint(c, size.DiffusionCoefficientM2PerSecond.Value));
+        }
+
+        var outcome = ConcentrationSeriesAnalyzer.Analyze(points, 25.0, 0.890);
+        Assert.True(outcome.Success, outcome.FailureReason);
+        // Expect d_h(c=0) within ±15% of 10 nm and k_D negative with
+        // magnitude in the right ballpark; cumulant noise + finite
+        // sampling allow loose bounds compared with the synthetic core
+        // tests.
+        Assert.InRange(outcome.Result!.HydrodynamicDiameterAtZeroConcentrationNm, 8.5, 11.5);
+        Assert.True(outcome.Result.KDmlPerGram < 0,
+            $"Expected attractive interaction (k_D < 0) but got {outcome.Result.KDmlPerGram} mL/g");
+        Assert.InRange(outcome.Result.KDmlPerGram, -45.0, -10.0);
     }
 
     [Fact]

@@ -1662,6 +1662,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_selectedMode == DistributionMode.ConcentrationSeries)
+        {
+            RefreshConcentrationSeriesPlot();
+            return;
+        }
+
         if (_selectedDatasets.Count == 0)
         {
             InitializeEmptyPlot();
@@ -1742,7 +1748,8 @@ public partial class MainWindow : Window
 
     private string BuildTitle()
     {
-        if (_selectedMode == DistributionMode.TemperatureRamp)
+        if (_selectedMode == DistributionMode.TemperatureRamp
+            || _selectedMode == DistributionMode.ConcentrationSeries)
             return DefaultLabels.GetPlotTypeLabel(_selectedMode);
 
         if (_selectedDatasets.Count == 1)
@@ -1940,6 +1947,256 @@ public partial class MainWindow : Window
         RampStatusText.IsVisible = false;
     }
 
+    // ---------- Concentration series (D vs c linear fit across loaded sheets) ----------
+
+    /// <summary>μm²/s display unit for the diffusion coefficient axis (D × 1e12).</summary>
+    private const double DiffusionDisplayScale = 1e12;
+
+    private void RefreshConcentrationSeriesPlot()
+    {
+        if (_plot is null) return;
+        PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
+
+        _plot.Plot.Clear();
+
+        for (int i = 0; i < _datasetItems.Count; i++)
+            _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
+
+        var (points, refTemperatureCelsius, refViscosityMpas, multiTemperature, multiViscosity,
+             eligibleCount, missingConc, missingFit) = BuildConcentrationSeriesPoints();
+
+        ConcentrationSeriesOutcome outcome;
+        if (points.Count == 0
+            || double.IsNaN(refTemperatureCelsius) || double.IsNaN(refViscosityMpas))
+        {
+            outcome = ConcentrationSeriesOutcome.Fail("有効な (c, D) 点がありません");
+        }
+        else
+        {
+            outcome = ConcentrationSeriesAnalyzer.Analyze(
+                points, refTemperatureCelsius, refViscosityMpas);
+        }
+
+        UpdateConcentrationSeriesDisplay(
+            eligibleCount, missingConc, missingFit, multiTemperature, multiViscosity, outcome);
+
+        _plot.Plot.Title(GetGraphTitle(BuildTitle()));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
+        ApplyLogXTicksForMode(_selectedMode);
+        _plot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+
+        if (points.Count == 0)
+        {
+            _plot.Plot.Axes.SetLimits(0, 10, 0, 100);
+            ApplyPlotAppearance();
+            ApplyLegend(0);
+            _plot.Refresh();
+            return;
+        }
+
+        var xs = new double[points.Count];
+        var ys = new double[points.Count];
+        for (int i = 0; i < points.Count; i++)
+        {
+            xs[i] = points[i].ConcentrationMgPerMl;
+            // Convert m²/s to μm²/s for the on-screen y axis. D is typically
+            // 4-50 μm²/s for synthetic / biological samples and reads more
+            // naturally than 4-50 e-12 m²/s.
+            ys[i] = points[i].DiffusionCoefficientM2PerSecond * DiffusionDisplayScale;
+        }
+        var scatter = _plot.Plot.Add.ScatterPoints(xs, ys);
+        scatter.MarkerSize = (float)(_formattingConfig.MarkerSize * 1.4);
+        scatter.LegendText = "data";
+        if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
+            scatter.MarkerStyle.FillColor = ScottPlot.Color.FromHex(new[] { _formattingConfig.DefaultLineColorHex }).First();
+
+        if (outcome.Success && outcome.Result is not null)
+        {
+            var cMin = points.Min(p => p.ConcentrationMgPerMl);
+            var cMax = points.Max(p => p.ConcentrationMgPerMl);
+            var span = Math.Max(cMax - cMin, 1.0);
+            // Anchor the fit line slightly past 0 mg/mL so the intercept
+            // (D₀) is visible on the plot, and a touch past c_max for symmetry.
+            var c0 = Math.Max(0.0, cMin - span * 0.1);
+            var c1 = cMax + span * 0.1;
+            const int FitSampleCount = 50;
+            var fitX = new double[FitSampleCount];
+            var fitY = new double[FitSampleCount];
+            for (int i = 0; i < FitSampleCount; i++)
+            {
+                fitX[i] = c0 + (c1 - c0) * i / (FitSampleCount - 1);
+                fitY[i] = ConcentrationSeriesAnalyzer.Predict(fitX[i], outcome.Result) * DiffusionDisplayScale;
+            }
+            var line = _plot.Plot.Add.ScatterLine(fitX, fitY);
+            line.LineWidth = (float)Math.Max(_formattingConfig.LineWidth, 2.0);
+            line.LegendText = "linear fit";
+        }
+
+        _plot.Plot.Axes.AutoScale();
+        ApplyPlotAppearance();
+        ApplyLegend(outcome.Success ? 2 : 1);
+        _plot.Refresh();
+    }
+
+    private (List<ConcentrationSeriesPoint> Points,
+             double ReferenceTemperatureCelsius,
+             double ReferenceViscosityMpas,
+             bool MultipleTemperatures,
+             bool MultipleViscosities,
+             int EligibleCount,
+             int MissingConcentration,
+             int MissingFit) BuildConcentrationSeriesPoints()
+    {
+        var points = new List<ConcentrationSeriesPoint>(_datasetItems.Count);
+        var temperatures = new List<double>(_datasetItems.Count);
+        var viscosities = new List<double>(_datasetItems.Count);
+        int missingConc = 0;
+        int missingFit = 0;
+
+        foreach (var item in _datasetItems)
+        {
+            var c = item.Metadata.ConcentrationMgPerMl;
+            if (c is null || !double.IsFinite(c.Value) || c.Value < 0)
+            {
+                missingConc++;
+                continue;
+            }
+
+            var cumulant = CumulantAnalyzer.Analyze(
+                item.Dataset.Correlation,
+                item.Cumulant.FitRangeMinMicroseconds,
+                item.Cumulant.FitRangeMaxMicroseconds);
+            if (!cumulant.Success || cumulant.Result is null)
+            {
+                missingFit++;
+                continue;
+            }
+
+            var size = StokesEinstein.Compute(
+                cumulant.Result.FirstCumulantPerMicrosecond,
+                item.Metadata.TemperatureCelsius,
+                item.Metadata.ViscosityMpas,
+                item.Metadata.RefractiveIndex,
+                item.Metadata.WavelengthNm,
+                item.Metadata.ScatteringAngleDegrees);
+            if (!size.Success || size.DiffusionCoefficientM2PerSecond is null)
+            {
+                missingFit++;
+                continue;
+            }
+
+            points.Add(new ConcentrationSeriesPoint(c.Value, size.DiffusionCoefficientM2PerSecond.Value));
+            if (item.Metadata.TemperatureCelsius is double t) temperatures.Add(t);
+            if (item.Metadata.ViscosityMpas is double eta) viscosities.Add(eta);
+        }
+
+        // Median is robust to a single mistyped sheet; we also flag when
+        // the underlying values are not unanimous so the user can decide
+        // whether the spread is intentional (across runs at very different
+        // temperatures) or a data-entry error.
+        var refT = temperatures.Count > 0 ? Median(temperatures) : double.NaN;
+        var refEta = viscosities.Count > 0 ? Median(viscosities) : double.NaN;
+        var multiT = HasSignificantSpread(temperatures, relativeTolerance: 0.005);
+        var multiEta = HasSignificantSpread(viscosities, relativeTolerance: 0.01);
+
+        return (points, refT, refEta, multiT, multiEta, points.Count, missingConc, missingFit);
+    }
+
+    private static double Median(List<double> values)
+    {
+        var sorted = values.OrderBy(v => v).ToArray();
+        var mid = sorted.Length / 2;
+        return sorted.Length % 2 == 1
+            ? sorted[mid]
+            : 0.5 * (sorted[mid - 1] + sorted[mid]);
+    }
+
+    private static bool HasSignificantSpread(List<double> values, double relativeTolerance)
+    {
+        if (values.Count < 2) return false;
+        var min = values.Min();
+        var max = values.Max();
+        if (min <= 0) return max - min > relativeTolerance;
+        return (max - min) / min > relativeTolerance;
+    }
+
+    private void UpdateConcentrationSeriesDisplay(
+        int eligibleCount,
+        int missingConcentration,
+        int missingFit,
+        bool multipleTemperatures,
+        bool multipleViscosities,
+        ConcentrationSeriesOutcome outcome)
+    {
+        var totalSheets = _datasetItems.Count;
+        ConcentrationSeriesPointCountLabel.Text = totalSheets == 0
+            ? "(0 点)"
+            : $"({eligibleCount}/{totalSheets} 点)";
+
+        if (!outcome.Success || outcome.Result is null)
+        {
+            ResetConcentrationDisplay();
+            var reason = outcome.FailureReason ?? "解析できません";
+            var hints = new List<string>();
+            if (missingConcentration > 0) hints.Add($"濃度未入力 {missingConcentration} 件");
+            if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
+            var detail = hints.Count > 0 ? $"（{string.Join(" / ", hints)}）" : string.Empty;
+            ShowConcentrationStatus($"{reason}{detail}");
+            return;
+        }
+
+        var r = outcome.Result;
+        var d0Display = r.D0M2PerSecond * DiffusionDisplayScale;
+        var d0SeDisplay = r.D0StandardErrorM2PerSecond * DiffusionDisplayScale;
+        ConcentrationD0Text.Text = d0SeDisplay > 0
+            ? $"{d0Display.ToString("0.00", CultureInfo.InvariantCulture)} ± {d0SeDisplay.ToString("0.00", CultureInfo.InvariantCulture)} μm²/s"
+            : $"{d0Display.ToString("0.00", CultureInfo.InvariantCulture)} μm²/s";
+
+        ConcentrationKDText.Text = r.KDStandardErrorMlPerGram > 0
+            ? $"{r.KDmlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} ± {r.KDStandardErrorMlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} mL/g"
+            : $"{r.KDmlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} mL/g";
+
+        ConcentrationDhText.Text =
+            $"{r.HydrodynamicDiameterAtZeroConcentrationNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
+        ConcentrationRSquaredText.Text =
+            r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
+        ConcentrationReferenceText.Text =
+            $"T = {r.ReferenceTemperatureCelsius.ToString("0.#", CultureInfo.InvariantCulture)} °C, η = {r.ReferenceViscosityMpas.ToString("0.000", CultureInfo.InvariantCulture)} mPa·s";
+
+        var warnings = new List<string>();
+        if (missingConcentration > 0) warnings.Add($"濃度未入力 {missingConcentration} 件");
+        if (missingFit > 0) warnings.Add($"キュムラント失敗 {missingFit} 件");
+        if (multipleTemperatures) warnings.Add("シート間で温度が異なります（中央値を使用）");
+        if (multipleViscosities) warnings.Add("シート間で粘度が異なります（中央値を使用）");
+
+        if (warnings.Count > 0)
+            ShowConcentrationStatus(string.Join(" / ", warnings));
+        else
+            HideConcentrationStatus();
+    }
+
+    private void ResetConcentrationDisplay()
+    {
+        ConcentrationD0Text.Text = "—";
+        ConcentrationKDText.Text = "—";
+        ConcentrationDhText.Text = "—";
+        ConcentrationRSquaredText.Text = "—";
+        ConcentrationReferenceText.Text = "—";
+    }
+
+    private void ShowConcentrationStatus(string message)
+    {
+        ConcentrationStatusText.Text = message;
+        ConcentrationStatusText.IsVisible = true;
+    }
+
+    private void HideConcentrationStatus()
+    {
+        ConcentrationStatusText.Text = string.Empty;
+        ConcentrationStatusText.IsVisible = false;
+    }
+
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
     {
         var index = _datasets.IndexOf(dataset);
@@ -2013,7 +2270,8 @@ public partial class MainWindow : Window
     {
         if (mode == DistributionMode.Correlation)
             ApplyLogXTicks(CorrelationAxisMinExponent, CorrelationAxisMaxExponent);
-        else if (mode == DistributionMode.TemperatureRamp)
+        else if (mode == DistributionMode.TemperatureRamp
+                 || mode == DistributionMode.ConcentrationSeries)
             ApplyLinearXTicks();
         else
             ApplyLogXTicks(SizeAxisMinExponent, SizeAxisMaxExponent);
@@ -2272,6 +2530,7 @@ public partial class MainWindow : Window
         "Volume" => DistributionMode.Volume,
         "Correlation" => DistributionMode.Correlation,
         "TemperatureRamp" => DistributionMode.TemperatureRamp,
+        "ConcentrationSeries" => DistributionMode.ConcentrationSeries,
         _ => DistributionMode.Number,
     };
 

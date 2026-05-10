@@ -278,6 +278,7 @@ public partial class MainWindow : Window
 
             _datasetItems.Clear();
             foreach (var ds in _datasets) _datasetItems.Add(new DlsDatasetItem(ds));
+            NormalizeSharedMetadataAcrossItems();
 
             _currentWorkbookPath = filePath;
             DatasetListBox.ItemsSource = null;
@@ -1035,6 +1036,8 @@ public partial class MainWindow : Window
             item.Cumulant.FitRangeMaxMicroseconds = sessionDs.CumulantSettings.FitRangeMaxMicroseconds;
         }
 
+        NormalizeSharedMetadataAcrossItems();
+
         _selectedMode = DistributionModeFromTag(session.SelectedDistributionMode);
         SelectComboBoxByTag(DistributionTypeComboBox, session.SelectedDistributionMode);
         _selectedRunIndex = Math.Max(0, session.SelectedRunIndex);
@@ -1373,40 +1376,110 @@ public partial class MainWindow : Window
         return value.ToString("0.###e+0", CultureInfo.InvariantCulture);
     }
 
-    // Enter で TextBox からフォーカスを外して LostFocus 経路に乗せる。
-    // WPF の Keyboard.ClearFocus + FocusManager.SetFocusedElement は
-    // Avalonia には等価が無いので、Window 自身に Focus() してフォーカスを
-    // TextBox から剥がす方針。
+    // Enter キーで該当 TextBox の LostFocus と等価な確定コミットを直接走らせる。
+    // 旧実装は Window.Focus() で間接的に LostFocus を発火させようとしていたが、
+    // Avalonia 11 の Window は既定で Focusable=false のため機能しなかった。
     private void MetadataTextBox_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter) return;
-        Focus();
+        if (e.Key != Key.Enter || sender is not TextBox tb) return;
+
+        if (tb == MetadataTemperatureTextBox)
+            CommitNumericMetadata(tb, NumericConstraint.AnyFinite,
+                (item, value) => item.Metadata.TemperatureCelsius = value,
+                broadcastToAllSheets: false, rollbackOnFail: true, reformatTextOnSuccess: true);
+        else if (tb == MetadataConcentrationTextBox)
+            CommitNumericMetadata(tb, NumericConstraint.NonNegative,
+                (item, value) => item.Metadata.ConcentrationMgPerMl = value,
+                broadcastToAllSheets: false, rollbackOnFail: true, reformatTextOnSuccess: true);
+        else if (tb == MetadataSolventTextBox)
+            CommitStringMetadata(tb,
+                (item, value) => item.Metadata.Solvent = value, broadcastToAllSheets: true);
+        else if (tb == MetadataRefractiveIndexTextBox)
+            CommitNumericMetadata(tb, NumericConstraint.Positive,
+                (item, value) => item.Metadata.RefractiveIndex = value,
+                broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
+        else if (tb == MetadataViscosityTextBox)
+            CommitNumericMetadata(tb, NumericConstraint.Positive,
+                (item, value) => item.Metadata.ViscosityMpas = value,
+                broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
+        else if (tb == MetadataWavelengthTextBox)
+            CommitNumericMetadata(tb, NumericConstraint.Positive,
+                (item, value) => item.Metadata.WavelengthNm = value,
+                broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
+        else if (tb == MetadataScatteringAngleTextBox)
+            CommitNumericMetadata(tb, NumericConstraint.Positive,
+                (item, value) => item.Metadata.ScatteringAngleDegrees = value,
+                broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
+        else if (tb == CumulantFitMinTextBox || tb == CumulantFitMaxTextBox)
+            CumulantFitRangeTextBox_LostFocus(sender, e);
+
         e.Handled = true;
     }
 
     private void MetadataTemperatureTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => CommitNumericMetadata(MetadataTemperatureTextBox, NumericConstraint.AnyFinite,
-            (item, value) => item.Metadata.TemperatureCelsius = value);
+            (item, value) => item.Metadata.TemperatureCelsius = value,
+            broadcastToAllSheets: false, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     private void MetadataConcentrationTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => CommitNumericMetadata(MetadataConcentrationTextBox, NumericConstraint.NonNegative,
-            (item, value) => item.Metadata.ConcentrationMgPerMl = value);
+            (item, value) => item.Metadata.ConcentrationMgPerMl = value,
+            broadcastToAllSheets: false, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     private void MetadataRefractiveIndexTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => CommitNumericMetadata(MetadataRefractiveIndexTextBox, NumericConstraint.Positive,
-            (item, value) => item.Metadata.RefractiveIndex = value);
+            (item, value) => item.Metadata.RefractiveIndex = value,
+            broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     private void MetadataViscosityTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => CommitNumericMetadata(MetadataViscosityTextBox, NumericConstraint.Positive,
-            (item, value) => item.Metadata.ViscosityMpas = value);
+            (item, value) => item.Metadata.ViscosityMpas = value,
+            broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     private void MetadataWavelengthTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => CommitNumericMetadata(MetadataWavelengthTextBox, NumericConstraint.Positive,
-            (item, value) => item.Metadata.WavelengthNm = value);
+            (item, value) => item.Metadata.WavelengthNm = value,
+            broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     private void MetadataScatteringAngleTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => CommitNumericMetadata(MetadataScatteringAngleTextBox, NumericConstraint.Positive,
-            (item, value) => item.Metadata.ScatteringAngleDegrees = value);
+            (item, value) => item.Metadata.ScatteringAngleDegrees = value,
+            broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
+
+    // タイピング中の即時反映 (中間入力 "1." はサイレント無視、キャレット保持のため再整形なし)
+    private void MetadataTemperatureTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => CommitNumericMetadata(MetadataTemperatureTextBox, NumericConstraint.AnyFinite,
+            (item, value) => item.Metadata.TemperatureCelsius = value,
+            broadcastToAllSheets: false, rollbackOnFail: false, reformatTextOnSuccess: false);
+
+    private void MetadataConcentrationTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => CommitNumericMetadata(MetadataConcentrationTextBox, NumericConstraint.NonNegative,
+            (item, value) => item.Metadata.ConcentrationMgPerMl = value,
+            broadcastToAllSheets: false, rollbackOnFail: false, reformatTextOnSuccess: false);
+
+    private void MetadataSolventTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => CommitStringMetadata(MetadataSolventTextBox,
+            (item, value) => item.Metadata.Solvent = value, broadcastToAllSheets: true);
+
+    private void MetadataRefractiveIndexTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => CommitNumericMetadata(MetadataRefractiveIndexTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.RefractiveIndex = value,
+            broadcastToAllSheets: true, rollbackOnFail: false, reformatTextOnSuccess: false);
+
+    private void MetadataViscosityTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => CommitNumericMetadata(MetadataViscosityTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.ViscosityMpas = value,
+            broadcastToAllSheets: true, rollbackOnFail: false, reformatTextOnSuccess: false);
+
+    private void MetadataWavelengthTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => CommitNumericMetadata(MetadataWavelengthTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.WavelengthNm = value,
+            broadcastToAllSheets: true, rollbackOnFail: false, reformatTextOnSuccess: false);
+
+    private void MetadataScatteringAngleTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => CommitNumericMetadata(MetadataScatteringAngleTextBox, NumericConstraint.Positive,
+            (item, value) => item.Metadata.ScatteringAngleDegrees = value,
+            broadcastToAllSheets: true, rollbackOnFail: false, reformatTextOnSuccess: false);
 
     private void CumulantFitRangeTextBox_LostFocus(object? sender, RoutedEventArgs e)
     {
@@ -1444,39 +1517,95 @@ public partial class MainWindow : Window
         return true;
     }
 
-    private void MetadataSolventTextBox_LostFocus(object? sender, RoutedEventArgs e)
+    // タイピング中の即時反映 (パース失敗はサイレント無視、再整形しない)。
+    // LostFocus / Enter は既存 CumulantFitRangeTextBox_LostFocus がロールバック付きで担当。
+    private void CumulantFitMinTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => SilentTryCommitCumulantBound(CumulantFitMinTextBox,
+            v => _datasetItems[_activeItemIndex].Cumulant.FitRangeMinMicroseconds = v);
+
+    private void CumulantFitMaxTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+        => SilentTryCommitCumulantBound(CumulantFitMaxTextBox,
+            v => _datasetItems[_activeItemIndex].Cumulant.FitRangeMaxMicroseconds = v);
+
+    private void SilentTryCommitCumulantBound(TextBox textBox, Action<double?> apply)
     {
         if (!IsInitialized) return;
         if (_suppressMetadataControlEvents) return;
         if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
 
-        var solvent = (MetadataSolventTextBox.Text ?? string.Empty).Trim();
-        _datasetItems[_activeItemIndex].Metadata.Solvent =
-            string.IsNullOrWhiteSpace(solvent) ? null : solvent;
+        var raw = (textBox.Text ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            apply(null);
+            UpdateCumulantDisplay();
+            return;
+        }
+        if (!TryParsePositiveDouble(raw, out var value)) return;
+
+        apply(value);
+        UpdateCumulantDisplay();
+    }
+
+    private void MetadataSolventTextBox_LostFocus(object? sender, RoutedEventArgs e)
+        => CommitStringMetadata(MetadataSolventTextBox,
+            (item, value) => item.Metadata.Solvent = value, broadcastToAllSheets: true);
+
+    private void CommitStringMetadata(
+        TextBox textBox,
+        Action<DlsDatasetItem, string?> apply,
+        bool broadcastToAllSheets)
+    {
+        if (!IsInitialized) return;
+        if (_suppressMetadataControlEvents) return;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+
+        var trimmed = (textBox.Text ?? string.Empty).Trim();
+        var value = string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+
+        if (broadcastToAllSheets)
+        {
+            for (int i = 0; i < _datasetItems.Count; i++) apply(_datasetItems[i], value);
+        }
+        else
+        {
+            apply(_datasetItems[_activeItemIndex], value);
+        }
+
         UpdateCumulantDisplay();
     }
 
     private enum NumericConstraint { AnyFinite, NonNegative, Positive }
 
-    private void CommitNumericMetadata(
+    // 三段構え (TextChanged / Enter / LostFocus) でこのメソッドが呼ばれる。
+    //  - TextChanged: rollbackOnFail=false, reformatTextOnSuccess=false でキャレットを保ったまま即時反映
+    //  - Enter / LostFocus: rollbackOnFail=true, reformatTextOnSuccess=true で確定的にコミット or ロールバック
+    // broadcastToAllSheets=true は溶液側パラメタ (溶媒・屈折率・粘度・波長・散乱角) で使い、
+    // 全 _datasetItems[i].Metadata に同値を書き込む (シート切替時に Sync が拾うので自然に共通化される)。
+    private bool CommitNumericMetadata(
         TextBox textBox,
         NumericConstraint constraint,
-        Action<DlsDatasetItem, double?> apply)
+        Action<DlsDatasetItem, double?> apply,
+        bool broadcastToAllSheets,
+        bool rollbackOnFail,
+        bool reformatTextOnSuccess)
     {
-        if (!IsInitialized) return;
-        if (_suppressMetadataControlEvents) return;
-        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
+        if (!IsInitialized) return false;
+        if (_suppressMetadataControlEvents) return false;
+        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return false;
 
-        var item = _datasetItems[_activeItemIndex];
         var raw = (textBox.Text ?? string.Empty).Trim();
 
         if (string.IsNullOrWhiteSpace(raw))
         {
-            apply(item, null);
-            _suppressMetadataControlEvents = true;
-            try { textBox.Text = string.Empty; }
-            finally { _suppressMetadataControlEvents = false; }
-            return;
+            ApplyMetadataValue(apply, null, broadcastToAllSheets);
+            if (reformatTextOnSuccess)
+            {
+                _suppressMetadataControlEvents = true;
+                try { textBox.Text = string.Empty; }
+                finally { _suppressMetadataControlEvents = false; }
+            }
+            UpdateCumulantDisplay();
+            return true;
         }
 
         bool ok = constraint switch
@@ -1488,18 +1617,70 @@ public partial class MainWindow : Window
 
         if (!ok)
         {
-            SyncMetadataControlsFromActiveItem();
-            return;
+            if (rollbackOnFail) SyncMetadataControlsFromActiveItem();
+            return false;
         }
 
         TryParseDouble(raw, out var value);
-        apply(item, value);
+        ApplyMetadataValue(apply, value, broadcastToAllSheets);
 
-        _suppressMetadataControlEvents = true;
-        try { textBox.Text = FormatDouble(value); }
-        finally { _suppressMetadataControlEvents = false; }
+        if (reformatTextOnSuccess)
+        {
+            _suppressMetadataControlEvents = true;
+            try { textBox.Text = FormatDouble(value); }
+            finally { _suppressMetadataControlEvents = false; }
+        }
 
         UpdateCumulantDisplay();
+        return true;
+    }
+
+    private void ApplyMetadataValue(
+        Action<DlsDatasetItem, double?> apply, double? value, bool broadcastToAllSheets)
+    {
+        if (broadcastToAllSheets)
+        {
+            for (int i = 0; i < _datasetItems.Count; i++) apply(_datasetItems[i], value);
+        }
+        else
+        {
+            apply(_datasetItems[_activeItemIndex], value);
+        }
+    }
+
+    // ファイル読み込み直後に共通フィールド (溶媒・屈折率・粘度・波長・散乱角) を全シートで揃える。
+    // 「最初に non-null が見つかったシートの値」を伝播させ、なければ既定値を用いる。
+    // .dlsjson 由来は元から全シート同値なので no-op、xlsx 直読みでバラバラだった場合のみ正規化される。
+    private void NormalizeSharedMetadataAcrossItems()
+    {
+        if (_datasetItems.Count == 0) return;
+
+        string? solvent = null;
+        double? refractiveIndex = null;
+        double? viscosity = null;
+        double? wavelength = null;
+        double? scatteringAngle = null;
+
+        foreach (var it in _datasetItems)
+        {
+            solvent ??= it.Metadata.Solvent;
+            refractiveIndex ??= it.Metadata.RefractiveIndex;
+            viscosity ??= it.Metadata.ViscosityMpas;
+            wavelength ??= it.Metadata.WavelengthNm;
+            scatteringAngle ??= it.Metadata.ScatteringAngleDegrees;
+        }
+
+        wavelength ??= DlsDatasetMetadataState.DefaultWavelengthNm;
+        scatteringAngle ??= DlsDatasetMetadataState.DefaultScatteringAngleDegrees;
+
+        foreach (var it in _datasetItems)
+        {
+            it.Metadata.Solvent = solvent;
+            it.Metadata.RefractiveIndex = refractiveIndex;
+            it.Metadata.ViscosityMpas = viscosity;
+            it.Metadata.WavelengthNm = wavelength;
+            it.Metadata.ScatteringAngleDegrees = scatteringAngle;
+        }
     }
 
     private static string FormatNullableDouble(double? value)

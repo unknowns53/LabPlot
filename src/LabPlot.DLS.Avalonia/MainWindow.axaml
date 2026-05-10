@@ -336,6 +336,7 @@
                                                     <TextBlock Text="温度 (°C)" Theme="{DynamicResource FieldLabelStyle}" />
                                                     <TextBox Name="MetadataTemperatureTextBox"
                                                              Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataTemperatureTextBox_TextChanged"
                                                              LostFocus="MetadataTemperatureTextBox_LostFocus"
                                                              KeyDown="MetadataTextBox_KeyDown" />
                                                 </StackPanel>
@@ -343,6 +344,7 @@
                                                     <TextBlock Text="濃度 (mg/mL)" Theme="{DynamicResource FieldLabelStyle}" />
                                                     <TextBox Name="MetadataConcentrationTextBox"
                                                              Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataConcentrationTextBox_TextChanged"
                                                              LostFocus="MetadataConcentrationTextBox_LostFocus"
                                                              KeyDown="MetadataTextBox_KeyDown" />
                                                 </StackPanel>
@@ -352,6 +354,7 @@
                                             <TextBox Name="MetadataSolventTextBox"
                                                      Theme="{DynamicResource InputTextBoxStyle}"
                                                      Margin="0,0,0,10"
+                                                     TextChanged="MetadataSolventTextBox_TextChanged"
                                                      LostFocus="MetadataSolventTextBox_LostFocus"
                                                      KeyDown="MetadataTextBox_KeyDown" />
 
@@ -360,6 +363,7 @@
                                                     <TextBlock Text="屈折率" Theme="{DynamicResource FieldLabelStyle}" />
                                                     <TextBox Name="MetadataRefractiveIndexTextBox"
                                                              Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataRefractiveIndexTextBox_TextChanged"
                                                              LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
                                                              KeyDown="MetadataTextBox_KeyDown" />
                                                 </StackPanel>
@@ -367,6 +371,7 @@
                                                     <TextBlock Text="粘度 (mPa·s)" Theme="{DynamicResource FieldLabelStyle}" />
                                                     <TextBox Name="MetadataViscosityTextBox"
                                                              Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataViscosityTextBox_TextChanged"
                                                              LostFocus="MetadataViscosityTextBox_LostFocus"
                                                              KeyDown="MetadataTextBox_KeyDown" />
                                                 </StackPanel>
@@ -381,6 +386,7 @@
                                                     <TextBlock Text="波長 (nm)" Theme="{DynamicResource FieldLabelStyle}" />
                                                     <TextBox Name="MetadataWavelengthTextBox"
                                                              Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataWavelengthTextBox_TextChanged"
                                                              LostFocus="MetadataWavelengthTextBox_LostFocus"
                                                              KeyDown="MetadataTextBox_KeyDown" />
                                                 </StackPanel>
@@ -388,6 +394,7 @@
                                                     <TextBlock Text="散乱角 (°)" Theme="{DynamicResource FieldLabelStyle}" />
                                                     <TextBox Name="MetadataScatteringAngleTextBox"
                                                              Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataScatteringAngleTextBox_TextChanged"
                                                              LostFocus="MetadataScatteringAngleTextBox_LostFocus"
                                                              KeyDown="MetadataTextBox_KeyDown" />
                                                 </StackPanel>
@@ -423,11 +430,13 @@
                                                 <TextBox Name="CumulantFitMinTextBox"
                                                          Grid.Column="0"
                                                          Theme="{DynamicResource InputTextBoxStyle}"
+                                                         TextChanged="CumulantFitMinTextBox_TextChanged"
                                                          LostFocus="CumulantFitRangeTextBox_LostFocus"
                                                          KeyDown="MetadataTextBox_KeyDown" />
                                                 <TextBox Name="CumulantFitMaxTextBox"
                                                          Grid.Column="2"
                                                          Theme="{DynamicResource InputTextBoxStyle}"
+                                                         TextChanged="CumulantFitMaxTextBox_TextChanged"
                                                          LostFocus="CumulantFitRangeTextBox_LostFocus"
                                                          KeyDown="MetadataTextBox_KeyDown" />
                                             </Grid>

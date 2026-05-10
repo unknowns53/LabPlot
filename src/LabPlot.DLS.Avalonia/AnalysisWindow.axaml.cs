@@ -13,10 +13,12 @@ namespace LabPlot.DLS.Avalonia;
 
 /// <summary>
 /// DLS 解析の Modeless サブウィンドウ。サイドバーに乗せていた 4 解析セクション
-/// (キュムラント / 温度ランプ / 濃度シリーズ / CONTIN) を Tab に集約し、
-/// 親 (MainWindow) は <see cref="IDlsAnalysisHost"/> で読み取り API + 通知 event を提供する。
-/// 軽量な Cumulant / Ramp / Concentration は子側で再計算するが、重い CONTIN は
-/// 親が描画したタイミングで <see cref="OnInversionComputed"/> を介して結果を受け取る passive 戦略。
+/// (キュムラント / 温度ランプ / 濃度シリーズ / CONTIN) と 測定条件 を、本体 MainWindow と
+/// 同型の縦 Expander スタックにまとめる。各 Expander は独立に開閉でき (複数同時展開可・
+/// 全閉じ可)、親 (MainWindow) は <see cref="IDlsAnalysisHost"/> で読み取り API + 通知
+/// event を提供する。軽量な Cumulant / Ramp / Concentration は子側で host event ごとに
+/// 常時再計算するが、重い CONTIN は親が描画したタイミングで <see cref="OnInversionComputed"/>
+/// を介して結果を受け取る passive 戦略。
 /// </summary>
 public sealed partial class AnalysisWindow : Window
 {
@@ -32,10 +34,11 @@ public sealed partial class AnalysisWindow : Window
     private bool _suppressInversionControlEvents;
     private bool _suppressMetadataControlEvents;
 
-    // AvaloniaXamlLoader.Load が実行される最中に TabControl / ComboBox / CheckBox の
-    // 既定値設定で SelectionChanged / Checked が発火し、ハンドラが走る。
-    // x:Name フィールドは Load 完了 *後* に代入されるため、この瞬間に発火するハンドラから
-    // 参照すると NRE。各ハンドラ冒頭で `_initialized` を見て早期 return する。
+    // AvaloniaXamlLoader.Load が実行される最中に ComboBox / CheckBox の既定値設定で
+    // SelectionChanged / Checked が発火し、ハンドラが走る。x:Name フィールドは Load 完了 *後*
+    // に代入されるため、この瞬間に発火するハンドラから参照すると NRE。各ハンドラ冒頭で
+    // `_initialized` を見て早期 return する。Expander の Expanded/Collapsed はバインド
+    // していないので該当しない。
     private bool _initialized;
 
     public AnalysisWindow(IDlsAnalysisHost host)
@@ -55,7 +58,7 @@ public sealed partial class AnalysisWindow : Window
         SyncCumulantControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
         UpdateActiveSheetLabel();
-        RecomputeActiveTab();
+        RecomputeAllSections();
     }
 
     // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
@@ -102,7 +105,7 @@ public sealed partial class AnalysisWindow : Window
         SyncCumulantControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
         UpdateActiveSheetLabel();
-        RecomputeActiveTab();
+        RecomputeAllSections();
     }
 
     private void OnHostActiveItemChanged(object? sender, EventArgs e)
@@ -110,7 +113,7 @@ public sealed partial class AnalysisWindow : Window
         SyncCumulantControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
         UpdateActiveSheetLabel();
-        RecomputeActiveTab();
+        RecomputeAllSections();
     }
 
     private void UpdateActiveSheetLabel()
@@ -127,42 +130,21 @@ public sealed partial class AnalysisWindow : Window
         AnalysisTitleBar.Subtitle = $"アクティブシート: {items[idx].SheetName}";
     }
 
-    private void RecomputeActiveTab()
+    private void RecomputeAllSections()
     {
-        if (AnalysisTabs.SelectedIndex switch
-        {
-            0 => "metadata",
-            1 => "cumulant",
-            2 => "ramp",
-            3 => "concentration",
-            4 => "inversion",
-            _ => null,
-        } is string tab)
-        {
-            switch (tab)
-            {
-                case "metadata":
-                    // 測定条件 Tab は計算なし。SyncMetadataControlsFromActiveItem は
-                    // OnHostActiveItemChanged 経路で既に呼ばれているので追加処理不要。
-                    break;
-                case "cumulant": UpdateCumulantDisplay(); break;
-                case "ramp": UpdateRampDisplay(); break;
-                case "concentration": UpdateConcentrationDisplay(); break;
-                case "inversion":
-                    // CONTIN は passive 戦略: 親が RefreshSizeDistributionInversionPlot を
-                    // 走らせたときに OnInversionComputed で push される。Tab 切替だけでは
-                    // 重い計算は走らせない。最新値が無いときは hint を表示する。
-                    if (InversionAlphaText.Text == "—")
-                        ShowInversionStatus("「グラフとして見る」を押すと計算します");
-                    break;
-            }
-        }
-    }
+        // 各 Expander が独立に開閉可 (本体 MainWindow サイドバーと同方針) なので、
+        // 「アクティブな 1 セクション」ではなく軽量な 3 セクションを毎回まとめて再計算する。
+        // Expander が閉じていてもバックエンドの値だけ更新しておけば、開いた瞬間に最新値が見える。
+        // メタデータ (測定条件) は SyncMetadataControlsFromActiveItem 経由で UI 反映済み。
+        UpdateCumulantDisplay();
+        UpdateRampDisplay();
+        UpdateConcentrationDisplay();
 
-    private void AnalysisTabs_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (!_initialized) return;
-        RecomputeActiveTab();
+        // CONTIN は passive 戦略を維持: 親が RefreshSizeDistributionInversionPlot を
+        // 走らせたときに OnInversionComputed で push される。host event だけでは
+        // 重い計算は走らせない。最新値が無いときは hint を表示する。
+        if (InversionAlphaText.Text == "—")
+            ShowInversionStatus("「グラフとして見る」を押すと計算します");
     }
 
     // ===================================================================

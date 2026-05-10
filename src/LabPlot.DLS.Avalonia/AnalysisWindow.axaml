@@ -15,12 +15,12 @@
         ExtendClientAreaTitleBarHeightHint="-1"
         SystemDecorations="Full">
 
-    <!-- AnalysisWindow: サイドバーから切り出した解析 4 タブ (キュムラント / 温度ランプ /
-         濃度シリーズ / CONTIN) を 1 つにまとめた Modeless サブウィンドウ。Spectrum の
-         CalibrationCurveWindow と異なり ShowDialog ではなく Show(this) で並走起動し、
-         シート切替やメタデータ編集をメインで続けながら解析結果を参照できる。
-         セクション見出しは MainWindow サイドバーの Expander.Header と揃えるため
-         SectionIconPath + SemiBold #0F172A の StackPanel パターンを使用。 -->
+    <!-- AnalysisWindow: サイドバーから切り出した解析 4 セクション (キュムラント / 温度ランプ /
+         濃度シリーズ / CONTIN) + 測定条件 を縦 Expander スタックにまとめた Modeless サブウィンドウ。
+         本体 MainWindow のサイドバーと同じ Border SectionStyle + Expander 構造に揃えてあり、
+         複数セクション同時展開可・全閉じ可。各セクションは独立に開閉、軽量解析 (キュムラント /
+         温度ランプ / 濃度シリーズ) は host event 受信時に常時再計算される。CONTIN は「グラフ
+         として見る」ボタン経由でのみ計算する passive 戦略を維持。 -->
 
     <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
         <Grid RowDefinitions="Auto,*">
@@ -35,428 +35,476 @@
             <!-- ================= BODY ================= -->
             <Grid Grid.Row="1" Margin="14" RowDefinitions="*,Auto">
 
-        <!-- TabControl: 5 Tab -->
-        <TabControl Grid.Row="0"
-                    Name="AnalysisTabs"
-                    SelectionChanged="AnalysisTabs_SelectionChanged"
-                    Background="Transparent"
-                    BorderThickness="0">
-
-            <!-- ==================== Tab 1: Measurement metadata ==================== -->
-            <TabItem Header="測定条件">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <!-- 縦 Expander スタック: 本体 MainWindow サイドバーと同型 -->
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
 
-                        <!-- Section: 環境設定 (温度/濃度/溶媒/屈折率/粘度) -->
+                        <!-- ==================== Section: 測定条件 ==================== -->
                         <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 4,2 L 10,2 M 5,2 L 5,7 L 2,12 L 12,12 L 9,7 L 9,2 M 4,9 L 10,9" />
-                                    <TextBlock Text="環境設定"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
+                            <Expander Name="MetadataExpander" IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Theme="{DynamicResource SectionIconPath}"
+                                              Data="M 4,2 L 10,2 M 5,2 L 5,7 L 2,12 L 12,12 L 9,7 L 9,2 M 4,9 L 10,9" />
+                                        <TextBlock Text="測定条件"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Margin="0,8,0,0">
+
+                                    <!-- Sub-section: 環境設定 (温度/濃度/溶媒/屈折率/粘度) -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 4,2 L 10,2 M 5,2 L 5,7 L 2,12 L 12,12 L 9,7 L 9,2 M 4,9 L 10,9" />
+                                                <TextBlock Text="環境設定"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="温度・濃度はシートごと、溶媒・屈折率・粘度は読み込み済み全シートにまとめて適用します。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
+
+                                            <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="温度 (°C)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataTemperatureTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataTemperatureTextBox_TextChanged"
+                                                             LostFocus="MetadataTemperatureTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="濃度 (mg/mL)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataConcentrationTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataConcentrationTextBox_TextChanged"
+                                                             LostFocus="MetadataConcentrationTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <TextBlock Text="溶媒" Theme="{DynamicResource FieldLabelStyle}" />
+                                            <TextBox Name="MetadataSolventTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Margin="0,0,0,10"
+                                                     TextChanged="MetadataSolventTextBox_TextChanged"
+                                                     LostFocus="MetadataSolventTextBox_LostFocus"
+                                                     KeyDown="MetadataTextBox_KeyDown" />
+
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="屈折率" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataRefractiveIndexTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataRefractiveIndexTextBox_TextChanged"
+                                                             LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="粘度 (mPa·s)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataViscosityTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataViscosityTextBox_TextChanged"
+                                                             LostFocus="MetadataViscosityTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Sub-section: 装置設定 (波長/散乱角) -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 1,7 L 13,7 M 4,5 L 4,9 M 9,5 L 9,9" />
+                                                <TextBlock Text="装置設定"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="波長・散乱角は装置の固定値で、全シート共通として扱います。デフォルトは 633 nm / 173°（Zetasizer 仕様）。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
+
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="波長 (nm)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataWavelengthTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataWavelengthTextBox_TextChanged"
+                                                             LostFocus="MetadataWavelengthTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="散乱角 (°)" Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="MetadataScatteringAngleTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             TextChanged="MetadataScatteringAngleTextBox_TextChanged"
+                                                             LostFocus="MetadataScatteringAngleTextBox_LostFocus"
+                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
-
-                                <TextBlock Text="温度・濃度はシートごと、溶媒・屈折率・粘度は読み込み済み全シートにまとめて適用します。"
-                                           FontSize="11"
-                                           Foreground="#475569"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,10" />
-
-                                <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="温度 (°C)" Theme="{DynamicResource FieldLabelStyle}" />
-                                        <TextBox Name="MetadataTemperatureTextBox"
-                                                 Theme="{DynamicResource InputTextBoxStyle}"
-                                                 TextChanged="MetadataTemperatureTextBox_TextChanged"
-                                                 LostFocus="MetadataTemperatureTextBox_LostFocus"
-                                                 KeyDown="MetadataTextBox_KeyDown" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="濃度 (mg/mL)" Theme="{DynamicResource FieldLabelStyle}" />
-                                        <TextBox Name="MetadataConcentrationTextBox"
-                                                 Theme="{DynamicResource InputTextBoxStyle}"
-                                                 TextChanged="MetadataConcentrationTextBox_TextChanged"
-                                                 LostFocus="MetadataConcentrationTextBox_LostFocus"
-                                                 KeyDown="MetadataTextBox_KeyDown" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <TextBlock Text="溶媒" Theme="{DynamicResource FieldLabelStyle}" />
-                                <TextBox Name="MetadataSolventTextBox"
-                                         Theme="{DynamicResource InputTextBoxStyle}"
-                                         Margin="0,0,0,10"
-                                         TextChanged="MetadataSolventTextBox_TextChanged"
-                                         LostFocus="MetadataSolventTextBox_LostFocus"
-                                         KeyDown="MetadataTextBox_KeyDown" />
-
-                                <Grid ColumnDefinitions="*,8,*">
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="屈折率" Theme="{DynamicResource FieldLabelStyle}" />
-                                        <TextBox Name="MetadataRefractiveIndexTextBox"
-                                                 Theme="{DynamicResource InputTextBoxStyle}"
-                                                 TextChanged="MetadataRefractiveIndexTextBox_TextChanged"
-                                                 LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
-                                                 KeyDown="MetadataTextBox_KeyDown" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="粘度 (mPa·s)" Theme="{DynamicResource FieldLabelStyle}" />
-                                        <TextBox Name="MetadataViscosityTextBox"
-                                                 Theme="{DynamicResource InputTextBoxStyle}"
-                                                 TextChanged="MetadataViscosityTextBox_TextChanged"
-                                                 LostFocus="MetadataViscosityTextBox_LostFocus"
-                                                 KeyDown="MetadataTextBox_KeyDown" />
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
+                            </Expander>
                         </Border>
 
-                        <!-- Section: 装置設定 (波長/散乱角) -->
+                        <!-- ==================== Section: キュムラント ==================== -->
                         <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 1,7 L 13,7 M 4,5 L 4,9 M 9,5 L 9,9" />
-                                    <TextBlock Text="装置設定"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
+                            <Expander Name="CumulantExpander" IsExpanded="True">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Theme="{DynamicResource SectionIconPath}"
+                                              Data="M 2,12 L 5,8 L 8,10 L 12,3" />
+                                        <TextBlock Text="キュムラント"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Margin="0,8,0,0">
+
+                                    <!-- Sub-section: パラメータ -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 3,7 L 13,7 M 3,5 L 3,9 M 13,5 L 13,9 M 8,5 L 8,9" />
+                                                <TextBlock Text="パラメータ"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="自己相関 g₂-1(τ) を 2 次キュムラントで fit する範囲を指定します。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
+
+                                            <TextBlock Text="フィット範囲 (μs)"
+                                                       Theme="{DynamicResource FieldLabelStyle}" />
+                                            <Grid Margin="0,0,0,4" ColumnDefinitions="*,8,*">
+                                                <TextBox Name="CumulantFitMinTextBox"
+                                                         Grid.Column="0"
+                                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                                         TextChanged="CumulantFitMinTextBox_TextChanged"
+                                                         LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                                         KeyDown="AnalysisTextBox_KeyDown" />
+                                                <TextBox Name="CumulantFitMaxTextBox"
+                                                         Grid.Column="2"
+                                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                                         TextChanged="CumulantFitMaxTextBox_TextChanged"
+                                                         LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                                         KeyDown="AnalysisTextBox_KeyDown" />
+                                            </Grid>
+                                            <TextBlock Text="空欄で自動検出 (g₂-1 ≧ 0.1 を保持)"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"
+                                                       Margin="0,0,0,0" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Sub-section: フィット結果 -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 2,12 L 5,8 L 8,10 L 12,3" />
+                                                <TextBlock Text="フィット結果"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="Auto,8,*"
+                                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Z-average 径" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="CumulantZAverageText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="PdI" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="CumulantPdiText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Γ" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="CumulantGammaText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="適用範囲" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="CumulantRangeText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="4" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="CumulantRSquaredText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Name="CumulantStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                            </Grid>
+
+                                            <Button Name="CumulantShowAsGraphButton"
+                                                    Content="グラフとして見る"
+                                                    Theme="{DynamicResource PrimaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="0,12,0,0"
+                                                    ToolTip.Tip="メイングラフを「自己相関 g₂-1」表示に切り替えます"
+                                                    Click="CumulantShowAsGraphButton_Click" />
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
-
-                                <TextBlock Text="波長・散乱角は装置の固定値で、全シート共通として扱います。デフォルトは 633 nm / 173°（Zetasizer 仕様）。"
-                                           FontSize="11"
-                                           Foreground="#475569"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,10" />
-
-                                <Grid ColumnDefinitions="*,8,*">
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="波長 (nm)" Theme="{DynamicResource FieldLabelStyle}" />
-                                        <TextBox Name="MetadataWavelengthTextBox"
-                                                 Theme="{DynamicResource InputTextBoxStyle}"
-                                                 TextChanged="MetadataWavelengthTextBox_TextChanged"
-                                                 LostFocus="MetadataWavelengthTextBox_LostFocus"
-                                                 KeyDown="MetadataTextBox_KeyDown" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="散乱角 (°)" Theme="{DynamicResource FieldLabelStyle}" />
-                                        <TextBox Name="MetadataScatteringAngleTextBox"
-                                                 Theme="{DynamicResource InputTextBoxStyle}"
-                                                 TextChanged="MetadataScatteringAngleTextBox_TextChanged"
-                                                 LostFocus="MetadataScatteringAngleTextBox_LostFocus"
-                                                 KeyDown="MetadataTextBox_KeyDown" />
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
+                            </Expander>
                         </Border>
+
+                        <!-- ==================== Section: 温度ランプ ==================== -->
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <Expander Name="TemperatureRampExpander" IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Theme="{DynamicResource SectionIconPath}"
+                                              Data="M 2,11 C 4,11 5,8 7,7 C 9,6 10,3 12,3" />
+                                        <TextBlock Text="温度ランプ"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Name="TemperatureRampPointCountLabel"
+                                                   Text="(0 点)"
+                                                   FontSize="11"
+                                                   Foreground="#94A3B8"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Margin="0,8,0,0">
+
+                                    <!-- Sub-section: フィット結果 -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 2,11 C 4,11 5,8 7,7 C 9,6 10,3 12,3" />
+                                                <TextBlock Text="フィット結果"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="読み込み済み全シートの温度（測定条件）と Z-average 径から Boltzmann シグモイドを当て、転移点 T_c と転移幅 w を抽出します。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
+
+                                            <Grid ColumnDefinitions="Auto,8,*"
+                                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="T_c (転移点)" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="RampTransitionTemperatureText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="転移幅 w" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="RampTransitionWidthText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="低温プラトー d_low" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="RampLowPlateauText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="高温プラトー d_high" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="RampHighPlateauText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="4" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="RampRSquaredText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Name="RampStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                            </Grid>
+
+                                            <Button Name="TemperatureRampShowAsGraphButton"
+                                                    Content="グラフとして見る"
+                                                    Theme="{DynamicResource PrimaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="0,12,0,0"
+                                                    ToolTip.Tip="メイングラフを「温度ランプ T vs d_h」表示に切り替えます"
+                                                    Click="TemperatureRampShowAsGraphButton_Click" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
+                        <!-- ==================== Section: 濃度シリーズ ==================== -->
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <Expander Name="ConcentrationSeriesExpander" IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Theme="{DynamicResource SectionIconPath}"
+                                              Data="M 2,12 L 13,3 M 5,11 L 5,9 M 9,7 L 9,5" />
+                                        <TextBlock Text="濃度シリーズ"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Name="ConcentrationSeriesPointCountLabel"
+                                                   Text="(0 点)"
+                                                   FontSize="11"
+                                                   Foreground="#94A3B8"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Margin="0,8,0,0">
+
+                                    <!-- Sub-section: フィット結果 -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 2,12 L 13,3 M 5,11 L 5,9 M 9,7 L 9,5" />
+                                                <TextBlock Text="フィット結果"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="読み込み済み全シートの濃度（測定条件）と D を線形回帰し、無限希釈拡散係数 D₀ と拡散ビリアル係数 k_D を抽出します。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
+
+                                            <Grid ColumnDefinitions="Auto,8,*"
+                                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="D₀ (c→0)" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="ConcentrationD0Text" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="k_D" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="ConcentrationKDText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="d_h (c→0)" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="ConcentrationDhText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="ConcentrationRSquaredText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="4" Grid.Column="0" Text="参照条件" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="ConcentrationReferenceText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="11" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Name="ConcentrationStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                            </Grid>
+
+                                            <Button Name="ConcentrationShowAsGraphButton"
+                                                    Content="グラフとして見る"
+                                                    Theme="{DynamicResource PrimaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="0,12,0,0"
+                                                    ToolTip.Tip="メイングラフを「濃度シリーズ c vs D」表示に切り替えます"
+                                                    Click="ConcentrationShowAsGraphButton_Click" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
+                        <!-- ==================== Section: CONTIN ==================== -->
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <Expander Name="InversionExpander" IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Theme="{DynamicResource SectionIconPath}"
+                                              Data="M 2,12 L 4,5 L 6,11 L 8,3 L 10,11 L 12,8" />
+                                        <TextBlock Text="CONTIN"
+                                                   FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel Margin="0,8,0,0">
+
+                                    <!-- Sub-section: パラメータ -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 3,5 L 13,5 M 6,3 L 6,7 M 3,10 L 13,10 M 10,8 L 10,12" />
+                                                <TextBlock Text="パラメータ"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <TextBlock Text="g₂-1(τ) を Tikhonov 正則化付き NNLS で逆ラプラス変換します。重みと α を選んでから「グラフとして見る」を押してください。"
+                                                       FontSize="11"
+                                                       Foreground="#475569"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
+
+                                            <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="重み" />
+                                            <ComboBox Name="InversionWeightComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      SelectionChanged="InversionWeightComboBox_SelectionChanged"
+                                                      Margin="0,0,0,8">
+                                                <ComboBoxItem Content="Intensity (%)" Tag="Intensity" IsSelected="True" />
+                                                <ComboBoxItem Content="Number (%)" Tag="Number" />
+                                                <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                                            </ComboBox>
+
+                                            <CheckBox Name="InversionAlphaAutoCheckBox"
+                                                      Content="α を自動選択 (L-curve)"
+                                                      IsChecked="True"
+                                                      IsCheckedChanged="InversionAlphaAutoCheckBox_IsCheckedChanged"
+                                                      Margin="0,0,0,4" />
+                                            <Grid ColumnDefinitions="Auto,8,*">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="手動 α"
+                                                           Foreground="#475569"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center" />
+                                                <TextBox Name="InversionAlphaTextBox"
+                                                         Grid.Column="2"
+                                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                                         Text="0.01"
+                                                         IsEnabled="False"
+                                                         LostFocus="InversionAlphaTextBox_LostFocus"
+                                                         KeyDown="AnalysisTextBox_KeyDown" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Sub-section: フィット結果 -->
+                                    <Border Theme="{DynamicResource SectionStyle}">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 2,12 L 4,5 L 6,11 L 8,3 L 10,11 L 12,8" />
+                                                <TextBlock Text="フィット結果"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="Auto,8,*"
+                                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="採用 α" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="InversionAlphaText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="InversionRSquaredText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="β" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="InversionBetaText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="自由ビン数" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
+                                                <TextBlock Name="InversionFreeBinText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
+                                                <TextBlock Name="InversionStatusText" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                            </Grid>
+
+                                            <Button Name="InversionShowAsGraphButton"
+                                                    Content="グラフとして見る"
+                                                    Theme="{DynamicResource PrimaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    Margin="0,12,0,0"
+                                                    ToolTip.Tip="メイングラフを「サイズ分布逆変換 (CONTIN-like)」表示に切り替え、現在の重み・α 設定で再計算します"
+                                                    Click="InversionShowAsGraphButton_Click" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
-            </TabItem>
 
-            <!-- ==================== Tab 2: Cumulant ==================== -->
-            <TabItem Header="キュムラント">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,8,0,0">
-
-                        <!-- Section: パラメータ -->
-                        <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 3,7 L 13,7 M 3,5 L 3,9 M 13,5 L 13,9 M 8,5 L 8,9" />
-                                    <TextBlock Text="パラメータ"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-
-                                <TextBlock Text="自己相関 g₂-1(τ) を 2 次キュムラントで fit する範囲を指定します。"
-                                           FontSize="11"
-                                           Foreground="#475569"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,10" />
-
-                                <TextBlock Text="フィット範囲 (μs)"
-                                           Theme="{DynamicResource FieldLabelStyle}" />
-                                <Grid Margin="0,0,0,4" ColumnDefinitions="*,8,*">
-                                    <TextBox Name="CumulantFitMinTextBox"
-                                             Grid.Column="0"
-                                             Theme="{DynamicResource InputTextBoxStyle}"
-                                             TextChanged="CumulantFitMinTextBox_TextChanged"
-                                             LostFocus="CumulantFitRangeTextBox_LostFocus"
-                                             KeyDown="AnalysisTextBox_KeyDown" />
-                                    <TextBox Name="CumulantFitMaxTextBox"
-                                             Grid.Column="2"
-                                             Theme="{DynamicResource InputTextBoxStyle}"
-                                             TextChanged="CumulantFitMaxTextBox_TextChanged"
-                                             LostFocus="CumulantFitRangeTextBox_LostFocus"
-                                             KeyDown="AnalysisTextBox_KeyDown" />
-                                </Grid>
-                                <TextBlock Text="空欄で自動検出 (g₂-1 ≧ 0.1 を保持)"
-                                           FontSize="11"
-                                           Foreground="#94A3B8"
-                                           Margin="0,0,0,0" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Section: フィット結果 -->
-                        <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 2,12 L 5,8 L 8,10 L 12,3" />
-                                    <TextBlock Text="フィット結果"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-
-                                <Grid ColumnDefinitions="Auto,8,*"
-                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Z-average 径" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="CumulantZAverageText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="PdI" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="CumulantPdiText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Γ" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="CumulantGammaText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="適用範囲" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="CumulantRangeText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="CumulantRSquaredText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Name="CumulantStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
-                                </Grid>
-
-                                <Button Name="CumulantShowAsGraphButton"
-                                        Content="グラフとして見る"
-                                        Theme="{DynamicResource PrimaryButtonStyle}"
-                                        HorizontalAlignment="Stretch"
-                                        Margin="0,12,0,0"
-                                        ToolTip.Tip="メイングラフを「自己相関 g₂-1」表示に切り替えます"
-                                        Click="CumulantShowAsGraphButton_Click" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ==================== Tab 3: Temperature ramp ==================== -->
-            <TabItem Header="温度ランプ">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,8,0,0">
-
-                        <!-- Section: フィット結果 -->
-                        <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 2,11 C 4,11 5,8 7,7 C 9,6 10,3 12,3" />
-                                    <TextBlock Text="フィット結果"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Name="TemperatureRampPointCountLabel"
-                                               Text="(0 点)"
-                                               FontSize="11"
-                                               Foreground="#94A3B8"
-                                               VerticalAlignment="Center"
-                                               Margin="8,0,0,0" />
-                                </StackPanel>
-
-                                <TextBlock Text="読み込み済み全シートの温度（測定条件）と Z-average 径から Boltzmann シグモイドを当て、転移点 T_c と転移幅 w を抽出します。"
-                                           FontSize="11"
-                                           Foreground="#475569"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,10" />
-
-                                <Grid ColumnDefinitions="Auto,8,*"
-                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="T_c (転移点)" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="RampTransitionTemperatureText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="転移幅 w" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="RampTransitionWidthText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="低温プラトー d_low" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="RampLowPlateauText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="高温プラトー d_high" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="RampHighPlateauText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="RampRSquaredText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Name="RampStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
-                                </Grid>
-
-                                <Button Name="TemperatureRampShowAsGraphButton"
-                                        Content="グラフとして見る"
-                                        Theme="{DynamicResource PrimaryButtonStyle}"
-                                        HorizontalAlignment="Stretch"
-                                        Margin="0,12,0,0"
-                                        ToolTip.Tip="メイングラフを「温度ランプ T vs d_h」表示に切り替えます"
-                                        Click="TemperatureRampShowAsGraphButton_Click" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ==================== Tab 4: Concentration series ==================== -->
-            <TabItem Header="濃度シリーズ">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,8,0,0">
-
-                        <!-- Section: フィット結果 -->
-                        <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 2,12 L 13,3 M 5,11 L 5,9 M 9,7 L 9,5" />
-                                    <TextBlock Text="フィット結果"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Name="ConcentrationSeriesPointCountLabel"
-                                               Text="(0 点)"
-                                               FontSize="11"
-                                               Foreground="#94A3B8"
-                                               VerticalAlignment="Center"
-                                               Margin="8,0,0,0" />
-                                </StackPanel>
-
-                                <TextBlock Text="読み込み済み全シートの濃度（測定条件）と D を線形回帰し、無限希釈拡散係数 D₀ と拡散ビリアル係数 k_D を抽出します。"
-                                           FontSize="11"
-                                           Foreground="#475569"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,10" />
-
-                                <Grid ColumnDefinitions="Auto,8,*"
-                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="D₀ (c→0)" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="ConcentrationD0Text" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="k_D" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="ConcentrationKDText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="d_h (c→0)" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="ConcentrationDhText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="ConcentrationRSquaredText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="参照条件" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="ConcentrationReferenceText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="11" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Name="ConcentrationStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
-                                </Grid>
-
-                                <Button Name="ConcentrationShowAsGraphButton"
-                                        Content="グラフとして見る"
-                                        Theme="{DynamicResource PrimaryButtonStyle}"
-                                        HorizontalAlignment="Stretch"
-                                        Margin="0,12,0,0"
-                                        ToolTip.Tip="メイングラフを「濃度シリーズ c vs D」表示に切り替えます"
-                                        Click="ConcentrationShowAsGraphButton_Click" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ==================== Tab 5: CONTIN ==================== -->
-            <TabItem Header="CONTIN">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,8,0,0">
-
-                        <!-- Section: パラメータ -->
-                        <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 3,5 L 13,5 M 6,3 L 6,7 M 3,10 L 13,10 M 10,8 L 10,12" />
-                                    <TextBlock Text="パラメータ"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-
-                                <TextBlock Text="g₂-1(τ) を Tikhonov 正則化付き NNLS で逆ラプラス変換します。重みと α を選んでから「グラフとして見る」を押してください。"
-                                           FontSize="11"
-                                           Foreground="#475569"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,10" />
-
-                                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="重み" />
-                                <ComboBox Name="InversionWeightComboBox"
-                                          Theme="{DynamicResource InputComboBoxStyle}"
-                                          SelectionChanged="InversionWeightComboBox_SelectionChanged"
-                                          Margin="0,0,0,8">
-                                    <ComboBoxItem Content="Intensity (%)" Tag="Intensity" IsSelected="True" />
-                                    <ComboBoxItem Content="Number (%)" Tag="Number" />
-                                    <ComboBoxItem Content="Volume (%)" Tag="Volume" />
-                                </ComboBox>
-
-                                <CheckBox Name="InversionAlphaAutoCheckBox"
-                                          Content="α を自動選択 (L-curve)"
-                                          IsChecked="True"
-                                          IsCheckedChanged="InversionAlphaAutoCheckBox_IsCheckedChanged"
-                                          Margin="0,0,0,4" />
-                                <Grid ColumnDefinitions="Auto,8,*">
-                                    <TextBlock Grid.Column="0"
-                                               Text="手動 α"
-                                               Foreground="#475569"
-                                               FontSize="12"
-                                               VerticalAlignment="Center" />
-                                    <TextBox Name="InversionAlphaTextBox"
-                                             Grid.Column="2"
-                                             Theme="{DynamicResource InputTextBoxStyle}"
-                                             Text="0.01"
-                                             IsEnabled="False"
-                                             LostFocus="InversionAlphaTextBox_LostFocus"
-                                             KeyDown="AnalysisTextBox_KeyDown" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Section: フィット結果 -->
-                        <Border Theme="{DynamicResource SectionStyle}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <Path Theme="{DynamicResource SectionIconPath}"
-                                          Data="M 2,12 L 4,5 L 6,11 L 8,3 L 10,11 L 12,8" />
-                                    <TextBlock Text="フィット結果"
-                                               FontWeight="SemiBold" FontSize="13"
-                                               Foreground="#0F172A"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-
-                                <Grid ColumnDefinitions="Auto,8,*"
-                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="採用 α" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="InversionAlphaText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="InversionRSquaredText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="β" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="InversionBetaText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="自由ビン数" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
-                                    <TextBlock Name="InversionFreeBinText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,6" />
-                                    <TextBlock Name="InversionStatusText" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
-                                </Grid>
-
-                                <Button Name="InversionShowAsGraphButton"
-                                        Content="グラフとして見る"
-                                        Theme="{DynamicResource PrimaryButtonStyle}"
-                                        HorizontalAlignment="Stretch"
-                                        Margin="0,12,0,0"
-                                        ToolTip.Tip="メイングラフを「サイズ分布逆変換 (CONTIN-like)」表示に切り替え、現在の重み・α 設定で再計算します"
-                                        Click="InversionShowAsGraphButton_Click" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-        </TabControl>
-
-        <!-- Footer: window-wide status (closed-window hint など) -->
-        <Border Grid.Row="1" Margin="0,8,0,0">
-            <TextBlock Name="WindowStatusText"
-                       Foreground="#475569"
-                       FontSize="11"
-                       Text="" />
-        </Border>
+                <!-- Footer: window-wide status (closed-window hint など) -->
+                <Border Grid.Row="1" Margin="0,8,0,0">
+                    <TextBlock Name="WindowStatusText"
+                               Foreground="#475569"
+                               FontSize="11"
+                               Text="" />
+                </Border>
             </Grid>
         </Grid>
     </Border>

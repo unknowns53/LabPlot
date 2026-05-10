@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
         x:Class="LabPlot.DLS.Avalonia.AnalysisWindow"
         Title="DLS 解析"
         Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
@@ -8,7 +9,11 @@
         Background="#F7F8FA"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"
-        UseLayoutRounding="True">
+        UseLayoutRounding="True"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        SystemDecorations="Full">
 
     <!-- AnalysisWindow: サイドバーから切り出した解析 4 タブ (キュムラント / 温度ランプ /
          濃度シリーズ / CONTIN) を 1 つにまとめた Modeless サブウィンドウ。Spectrum の
@@ -17,23 +22,21 @@
          セクション見出しは MainWindow サイドバーの Expander.Header と揃えるため
          SectionIconPath + SemiBold #0F172A の StackPanel パターンを使用。 -->
 
-    <Grid Margin="14" RowDefinitions="Auto,*,Auto">
+    <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
+        <Grid RowDefinitions="Auto,*">
 
-        <!-- Header: ウィンドウタイトル + アクティブシート表示 -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,10">
-            <TextBlock Text="DLS 解析"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Foreground="#0F172A" />
-            <TextBlock Name="ActiveSheetLabel"
-                       Text="(シート未選択)"
-                       FontSize="12"
-                       Foreground="#64748B"
-                       Margin="0,4,0,0" />
-        </StackPanel>
+            <!-- ================= TITLE BAR ================= -->
+            <controls:CustomTitleBar Grid.Row="0"
+                                     Name="AnalysisTitleBar"
+                                     AppName="DLS 解析"
+                                     Subtitle="(シート未選択)"
+                                     AppIconData="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
 
-        <!-- TabControl: 4 Tab -->
-        <TabControl Grid.Row="1"
+            <!-- ================= BODY ================= -->
+            <Grid Grid.Row="1" Margin="14" RowDefinitions="*,Auto">
+
+        <!-- TabControl: 5 Tab -->
+        <TabControl Grid.Row="0"
                     Name="AnalysisTabs"
                     SelectionChanged="AnalysisTabs_SelectionChanged"
                     Background="Transparent"
@@ -448,11 +451,13 @@
         </TabControl>
 
         <!-- Footer: window-wide status (closed-window hint など) -->
-        <Border Grid.Row="2" Margin="0,8,0,0">
+        <Border Grid.Row="1" Margin="0,8,0,0">
             <TextBlock Name="WindowStatusText"
                        Foreground="#475569"
                        FontSize="11"
                        Text="" />
         </Border>
-    </Grid>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>

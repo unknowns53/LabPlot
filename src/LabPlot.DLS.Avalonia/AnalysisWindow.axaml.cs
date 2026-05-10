@@ -119,12 +119,12 @@ public sealed partial class AnalysisWindow : Window
         var items = _host.DatasetItems;
         if (idx < 0 || idx >= items.Count)
         {
-            ActiveSheetLabel.Text = items.Count == 0
+            AnalysisTitleBar.Subtitle = items.Count == 0
                 ? "(データセット未読み込み)"
                 : "(シート未選択)";
             return;
         }
-        ActiveSheetLabel.Text = $"アクティブシート: {items[idx].SheetName}";
+        AnalysisTitleBar.Subtitle = $"アクティブシート: {items[idx].SheetName}";
     }
 
     private void RecomputeActiveTab()

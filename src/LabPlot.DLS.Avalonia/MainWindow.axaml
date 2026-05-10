@@ -312,7 +312,7 @@
 
                                 <!-- Section: Measurement metadata (active sheet) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -403,469 +403,37 @@
                                     </Expander>
                                 </Border>
 
-                                <!-- Section: Cumulant analysis (active sheet) -->
+                                <!-- Section: Analysis (opens AnalysisWindow with all 4 analyses on tabs) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
                                                       Data="M 1,12 Q 4,12 5,9 Q 7,2 9,9 Q 10,12 13,12" />
-                                                <TextBlock Text="キュムラント解析"
+                                                <TextBlock Text="解析"
                                                            FontWeight="SemiBold"
                                                            FontSize="13"
                                                            Foreground="#0F172A"
                                                            VerticalAlignment="Center" />
-                                                <TextBlock Name="ActiveCumulantLabel"
-                                                           Text="(選択中シート)"
-                                                           FontSize="11"
-                                                           Foreground="#94A3B8"
-                                                           VerticalAlignment="Bottom"
-                                                           Margin="6,0,0,2" />
                                             </StackPanel>
                                         </Expander.Header>
                                         <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="フィット範囲 (μs)"
-                                                       Theme="{DynamicResource FieldLabelStyle}" />
-                                            <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
-                                                <TextBox Name="CumulantFitMinTextBox"
-                                                         Grid.Column="0"
-                                                         Theme="{DynamicResource InputTextBoxStyle}"
-                                                         TextChanged="CumulantFitMinTextBox_TextChanged"
-                                                         LostFocus="CumulantFitRangeTextBox_LostFocus"
-                                                         KeyDown="MetadataTextBox_KeyDown" />
-                                                <TextBox Name="CumulantFitMaxTextBox"
-                                                         Grid.Column="2"
-                                                         Theme="{DynamicResource InputTextBoxStyle}"
-                                                         TextChanged="CumulantFitMaxTextBox_TextChanged"
-                                                         LostFocus="CumulantFitRangeTextBox_LostFocus"
-                                                         KeyDown="MetadataTextBox_KeyDown" />
-                                            </Grid>
-                                            <TextBlock Text="空欄で自動検出 (g₂-1 ≧ 0.1 を保持)"
+                                            <Button Name="OpenAnalysisWindowButton"
+                                                    Content="解析ウィンドウを開く"
+                                                    Theme="{DynamicResource PrimaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    ToolTip.Tip="キュムラント / 温度ランプ / 濃度シリーズ / CONTIN を別ウィンドウの Tab で開きます"
+                                                    Click="OpenAnalysisWindowButton_Click" />
+                                            <TextBlock Text="シート切替やメタデータ編集をしながら参照できます。"
                                                        FontSize="11"
                                                        Foreground="#94A3B8"
-                                                       Margin="0,-6,0,10" />
-
-                                            <Border BorderBrush="#E2E8F0"
-                                                    BorderThickness="0,1,0,0"
-                                                    Padding="0,8,0,0">
-                                                <Grid ColumnDefinitions="Auto,8,*"
-                                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-
-                                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                                               Text="Z-average 径"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="CumulantZAverageText"
-                                                               Grid.Row="0" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="1" Grid.Column="0"
-                                                               Text="PdI"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="CumulantPdiText"
-                                                               Grid.Row="1" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                                               Text="Γ"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="CumulantGammaText"
-                                                               Grid.Row="2" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="3" Grid.Column="0"
-                                                               Text="適用範囲"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="CumulantRangeText"
-                                                               Grid.Row="3" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="4" Grid.Column="0"
-                                                               Text="R²"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="CumulantRSquaredText"
-                                                               Grid.Row="4" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Name="CumulantStatusText"
-                                                               Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
-                                                               Text=""
-                                                               FontSize="11"
-                                                               Foreground="#B45309"
-                                                               TextWrapping="Wrap"
-                                                               Margin="0,4,0,0"
-                                                               IsVisible="False" />
-                                                </Grid>
-                                            </Border>
+                                                       Margin="0,6,0,0"
+                                                       TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Expander>
                                 </Border>
 
-                                <!-- Section: Temperature ramp analysis (Boltzmann fit across all sheets) -->
-                                <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
-                                        <Expander.Header>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Path Theme="{DynamicResource SectionIconPath}"
-                                                      Data="M 1,12 L 5,12 L 7,4 L 9,12 L 13,12" />
-                                                <TextBlock Text="温度ランプ解析"
-                                                           FontWeight="SemiBold"
-                                                           FontSize="13"
-                                                           Foreground="#0F172A"
-                                                           VerticalAlignment="Center" />
-                                                <TextBlock Name="TemperatureRampPointCountLabel"
-                                                           Text="(0 点)"
-                                                           FontSize="11"
-                                                           Foreground="#94A3B8"
-                                                           VerticalAlignment="Bottom"
-                                                           Margin="6,0,0,2" />
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="読み込み済みの全シートの温度（測定条件）と Z-average 径から Boltzmann シグモイドを当てます。「分布の種類」を「温度ランプ」に切り替えるとプロット側にも反映されます。"
-                                                       FontSize="11"
-                                                       Foreground="#475569"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,0,0,8" />
-
-                                            <Border BorderBrush="#E2E8F0"
-                                                    BorderThickness="0,1,0,0"
-                                                    Padding="0,8,0,0">
-                                                <Grid ColumnDefinitions="Auto,8,*"
-                                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-
-                                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                                               Text="T_c (転移点)"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="RampTransitionTemperatureText"
-                                                               Grid.Row="0" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="1" Grid.Column="0"
-                                                               Text="転移幅 w"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="RampTransitionWidthText"
-                                                               Grid.Row="1" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                                               Text="低温プラトー d_low"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="RampLowPlateauText"
-                                                               Grid.Row="2" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="3" Grid.Column="0"
-                                                               Text="高温プラトー d_high"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="RampHighPlateauText"
-                                                               Grid.Row="3" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="4" Grid.Column="0"
-                                                               Text="R²"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="RampRSquaredText"
-                                                               Grid.Row="4" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Name="RampStatusText"
-                                                               Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
-                                                               Text=""
-                                                               FontSize="11"
-                                                               Foreground="#B45309"
-                                                               TextWrapping="Wrap"
-                                                               Margin="0,4,0,0"
-                                                               IsVisible="False" />
-                                                </Grid>
-                                            </Border>
-                                        </StackPanel>
-                                    </Expander>
-                                </Border>
-
-                                <!-- Section: Concentration series analysis (linear D vs c fit) -->
-                                <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
-                                        <Expander.Header>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Path Theme="{DynamicResource SectionIconPath}"
-                                                      Data="M 1,12 L 13,3" />
-                                                <TextBlock Text="濃度シリーズ解析"
-                                                           FontWeight="SemiBold"
-                                                           FontSize="13"
-                                                           Foreground="#0F172A"
-                                                           VerticalAlignment="Center" />
-                                                <TextBlock Name="ConcentrationSeriesPointCountLabel"
-                                                           Text="(0 点)"
-                                                           FontSize="11"
-                                                           Foreground="#94A3B8"
-                                                           VerticalAlignment="Bottom"
-                                                           Margin="6,0,0,2" />
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="読み込み済みの全シートの濃度（測定条件）と D を線形回帰し、無限希釈拡散係数 D₀ と拡散ビリアル係数 k_D を抽出します。「分布の種類」を「濃度シリーズ」に切り替えるとプロット側にも反映されます。"
-                                                       FontSize="11"
-                                                       Foreground="#475569"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,0,0,8" />
-
-                                            <Border BorderBrush="#E2E8F0"
-                                                    BorderThickness="0,1,0,0"
-                                                    Padding="0,8,0,0">
-                                                <Grid ColumnDefinitions="Auto,8,*"
-                                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
-
-                                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                                               Text="D₀ (c→0)"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="ConcentrationD0Text"
-                                                               Grid.Row="0" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="1" Grid.Column="0"
-                                                               Text="k_D"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="ConcentrationKDText"
-                                                               Grid.Row="1" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                                               Text="d_h (c→0)"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="ConcentrationDhText"
-                                                               Grid.Row="2" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="3" Grid.Column="0"
-                                                               Text="R²"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="ConcentrationRSquaredText"
-                                                               Grid.Row="3" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="4" Grid.Column="0"
-                                                               Text="参照条件"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="ConcentrationReferenceText"
-                                                               Grid.Row="4" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="11"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Name="ConcentrationStatusText"
-                                                               Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
-                                                               Text=""
-                                                               FontSize="11"
-                                                               Foreground="#B45309"
-                                                               TextWrapping="Wrap"
-                                                               Margin="0,4,0,0"
-                                                               IsVisible="False" />
-                                                </Grid>
-                                            </Border>
-                                        </StackPanel>
-                                    </Expander>
-                                </Border>
-
-                                <!-- Section: Size distribution inversion (CONTIN-style NNLS) -->
-                                <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
-                                        <Expander.Header>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Path Theme="{DynamicResource SectionIconPath}"
-                                                      Data="M 1,12 L 4,4 L 7,10 L 10,2 L 13,12" />
-                                                <TextBlock Text="サイズ分布逆変換"
-                                                           FontWeight="SemiBold"
-                                                           FontSize="13"
-                                                           Foreground="#0F172A"
-                                                           VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <StackPanel Margin="0,8,0,0">
-                                            <TextBlock Text="自己相関関数 g₂-1(τ) を Tikhonov 正則化付き NNLS で逆ラプラス変換し、連続サイズ分布を再構成します。多峰サンプルでキュムラントの「平均」を超えてピーク構造を見たいときに使ってください。"
-                                                       FontSize="11"
-                                                       Foreground="#475569"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,0,0,8" />
-
-                                            <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="重み" />
-                                            <ComboBox Name="InversionWeightComboBox"
-                                                      Theme="{DynamicResource InputComboBoxStyle}"
-                                                      SelectionChanged="InversionWeightComboBox_SelectionChanged"
-                                                      Margin="0,0,0,8">
-                                                <ComboBoxItem Content="Intensity (%)" Tag="Intensity" IsSelected="True" />
-                                                <ComboBoxItem Content="Number (%)" Tag="Number" />
-                                                <ComboBoxItem Content="Volume (%)" Tag="Volume" />
-                                            </ComboBox>
-
-                                            <CheckBox Name="InversionAlphaAutoCheckBox"
-                                                      Content="α を自動選択 (L-curve)"
-                                                      IsChecked="True"
-                                                      IsCheckedChanged="InversionAlphaAutoCheckBox_IsCheckedChanged"
-                                                      Margin="0,0,0,4" />
-                                            <Grid ColumnDefinitions="Auto,8,*"
-                                                  Margin="0,0,0,8">
-                                                <TextBlock Grid.Column="0"
-                                                           Text="手動 α"
-                                                           Foreground="#475569"
-                                                           FontSize="12"
-                                                           VerticalAlignment="Center" />
-                                                <TextBox Name="InversionAlphaTextBox"
-                                                         Grid.Column="2"
-                                                         Theme="{DynamicResource InputTextBoxStyle}"
-                                                         Text="0.01"
-                                                         IsEnabled="False"
-                                                         LostFocus="InversionAlphaTextBox_LostFocus" />
-                                            </Grid>
-
-                                            <Border BorderBrush="#E2E8F0"
-                                                    BorderThickness="0,1,0,0"
-                                                    Padding="0,8,0,0">
-                                                <Grid ColumnDefinitions="Auto,8,*"
-                                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-
-                                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                                               Text="採用 α"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="InversionAlphaText"
-                                                               Grid.Row="0" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="1" Grid.Column="0"
-                                                               Text="R²"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="InversionRSquaredText"
-                                                               Grid.Row="1" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                                               Text="β"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="InversionBetaText"
-                                                               Grid.Row="2" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Grid.Row="3" Grid.Column="0"
-                                                               Text="自由ビン数"
-                                                               Foreground="#475569"
-                                                               FontSize="12"
-                                                               Margin="0,0,0,4" />
-                                                    <TextBlock Name="InversionFreeBinText"
-                                                               Grid.Row="3" Grid.Column="2"
-                                                               Text="—"
-                                                               FontSize="12"
-                                                               Foreground="#0F172A"
-                                                               Margin="0,0,0,4" />
-
-                                                    <TextBlock Name="InversionStatusText"
-                                                               Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
-                                                               Text=""
-                                                               FontSize="11"
-                                                               Foreground="#B45309"
-                                                               TextWrapping="Wrap"
-                                                               Margin="0,4,0,0"
-                                                               IsVisible="False" />
-                                                </Grid>
-                                            </Border>
-                                        </StackPanel>
-                                    </Expander>
-                                </Border>
-
-                                <!-- Section: Display (distribution / run) -->
+                                                                <!-- Section: Display (distribution / run) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
                                     <Expander IsExpanded="True">
                                         <Expander.Header>
@@ -907,7 +475,7 @@
 
                                 <!-- Section: Axis range -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -928,7 +496,7 @@
 
                                 <!-- Section: Graph labels -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -997,7 +565,9 @@
                                 </Border>
 
                                 <!-- Section: Analysis session -->
-                                <Border Theme="{DynamicResource SectionStyle}">
+                                <Border Theme="{DynamicResource SectionStyle}"
+                                        ToolTip.Tip="解析の状態（データ・線スタイル・測定条件・キュムラント解析・軸範囲・グラフ書式）を .dlsjson に書き出します。読み込み直せば同じ解析をそのまま復元できます。"
+                                        ToolTip.ShowDelay="400">
                                     <Expander IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
@@ -1024,17 +594,14 @@
                                                     HorizontalAlignment="Stretch"
                                                     ToolTip.Tip="解析条件 (.dlsjson) を読み込み (Ctrl+Shift+O)"
                                                     Click="LoadSessionButton_Click" />
-                                            <TextBlock Text="今開いている解析の状態（データ・線スタイル・測定条件・キュムラント解析・軸範囲・グラフ書式）を任意の場所に .dlsjson として保存します。後でこのファイルを読み込めば、同じ解析をそのまま復元できます。"
-                                                       Foreground="#64748B"
-                                                       FontSize="11"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,10,0,0" />
                                         </StackPanel>
                                     </Expander>
                                 </Border>
 
                                 <!-- Section: App preferences -->
-                                <Border Theme="{DynamicResource SectionStyle}">
+                                <Border Theme="{DynamicResource SectionStyle}"
+                                        ToolTip.Tip="ここで設定した既定値は、画面下部の「既定値として保存」を押すと次回起動時の初期状態として永続化されます。"
+                                        ToolTip.ShowDelay="400">
                                     <Expander IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
@@ -1075,12 +642,6 @@
                                                      Theme="{DynamicResource InputTextBoxStyle}"
                                                      Text="0"
                                                      TextChanged="FormatTextBox_TextChanged" />
-
-                                            <TextBlock Text="ここで設定した既定値は、画面下部の「既定値として保存」を押すとグラフ書式と一緒にユーザー設定として保存され、次回起動時に自動で適用されます。"
-                                                       Foreground="#64748B"
-                                                       FontSize="11"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,12,0,0" />
                                         </StackPanel>
                                     </Expander>
                                 </Border>

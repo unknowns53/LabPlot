@@ -14,7 +14,7 @@ namespace LabPlot.DLS.Avalonia;
 /// All seven share the same DistributionTypeComboBox so overlay /
 /// run-switch / per-sheet styling apply uniformly.
 /// </summary>
-internal enum DistributionMode
+public enum DistributionMode
 {
     Number,
     Intensity,

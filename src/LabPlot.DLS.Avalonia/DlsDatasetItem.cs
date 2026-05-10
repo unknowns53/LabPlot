@@ -10,7 +10,7 @@ namespace LabPlot.DLS.Avalonia;
 // 出たため Top-level に昇格。`vm:DlsDatasetItem` などとして XAML から x:DataType で
 // 参照する形は維持する (旧 `vm:MainWindow+DlsDatasetItem` 構文は不要に)。
 
-internal sealed class DlsDatasetStyle
+public sealed class DlsDatasetStyle
 {
     public string? ColorHex { get; set; }
     public string? LegendName { get; set; }
@@ -18,7 +18,7 @@ internal sealed class DlsDatasetStyle
     public double MarkerSize { get; set; } = GraphFormattingConfigBase.DefaultMarkerSize;
 }
 
-internal sealed class DlsDatasetMetadataState
+public sealed class DlsDatasetMetadataState
 {
     public const double DefaultWavelengthNm = 633.0;
     public const double DefaultScatteringAngleDegrees = 173.0;
@@ -32,13 +32,13 @@ internal sealed class DlsDatasetMetadataState
     public double? ScatteringAngleDegrees { get; set; } = DefaultScatteringAngleDegrees;
 }
 
-internal sealed class DlsDatasetCumulantSettings
+public sealed class DlsDatasetCumulantSettings
 {
     public double? FitRangeMinMicroseconds { get; set; }
     public double? FitRangeMaxMicroseconds { get; set; }
 }
 
-internal sealed class DlsDatasetItem : INotifyPropertyChanged
+public sealed class DlsDatasetItem : INotifyPropertyChanged
 {
     public DlsDataset Dataset { get; }
     public DlsDatasetStyle Style { get; } = new();

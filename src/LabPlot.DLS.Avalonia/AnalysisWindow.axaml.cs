@@ -19,7 +19,7 @@ namespace LabPlot.DLS.Avalonia;
 /// 軽量な Cumulant / Ramp / Concentration は子側で再計算するが、重い CONTIN は
 /// 親が描画したタイミングで <see cref="OnInversionComputed"/> を介して結果を受け取る passive 戦略。
 /// </summary>
-internal sealed partial class AnalysisWindow : Window
+public sealed partial class AnalysisWindow : Window
 {
     private readonly IDlsAnalysisHost _host;
 

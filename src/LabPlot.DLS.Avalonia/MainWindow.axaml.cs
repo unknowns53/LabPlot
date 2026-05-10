@@ -41,7 +41,7 @@ namespace LabPlot.DLS.Avalonia;
 /// <see cref="LabPlot.Core.Avalonia.Helpers.LegendDragController"/> として移植済み。
 /// LegendPosition / LegendOffsetX/Y は GraphFormatPanel + ドラッグ操作の双方から制御できる。
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IDlsAnalysisHost
 {
     private static readonly string[] AutoLineColors =
     [
@@ -85,13 +85,8 @@ public partial class MainWindow : Window
     private bool _suppressFormattingEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressMetadataControlEvents;
-    private bool _suppressInversionControlEvents;
-
-    /// <summary>Sub-weight ("Intensity"/"Number"/"Volume") plotted within the inversion mode.</summary>
-    private DistributionMode _inversionWeight = DistributionMode.Intensity;
-    private bool _inversionUseAutoAlpha = true;
-    private double _inversionManualAlpha = 0.01;
     private string? _currentWorkbookPath;
+    private AnalysisWindow? _analysisWindow;
 
     public MainWindow()
     {
@@ -141,7 +136,6 @@ public partial class MainWindow : Window
             ApplyFormattingConfigToControls(_formattingConfig);
             SyncStyleControlsFromActiveItem();
             SyncMetadataControlsFromActiveItem();
-            SyncCumulantControlsFromActiveItem();
             _selectedMode = DistributionModeFromTag(_formattingConfig.DefaultDistributionMode);
             SelectComboBoxByTag(DistributionTypeComboBox, _formattingConfig.DefaultDistributionMode);
             _selectedRunIndex = Math.Max(0, _formattingConfig.DefaultRunIndex);
@@ -292,6 +286,10 @@ public partial class MainWindow : Window
             SetStatus(_datasets.Count == 0
                 ? $"粒径分布シートが見つかりませんでした: {filePath}"
                 : $"{_datasets.Count} シートを読み込みました: {filePath}");
+
+            // Notify AnalysisWindow before SelectionChanged fires so the child
+            // refreshes its result panels with the new dataset list.
+            RaiseAnalysisDataChanged();
 
             if (_datasets.Count > 0) DatasetListBox.SelectedIndex = 0;
             else ClearActiveDatasets();
@@ -1078,10 +1076,12 @@ public partial class MainWindow : Window
             _activeItemIndex = -1;
             SyncStyleControlsFromActiveItem();
             SyncMetadataControlsFromActiveItem();
-            SyncCumulantControlsFromActiveItem();
             UpdateExportButtonState();
             InitializeEmptyPlot();
         }
+
+        RaiseAnalysisDataChanged();
+        RaiseActiveItemChanged();
 
         return Task.CompletedTask;
     }
@@ -1112,12 +1112,12 @@ public partial class MainWindow : Window
         _activeItemIndex = activeItem is null ? -1 : _datasetItems.IndexOf(activeItem);
         SyncStyleControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
-        SyncCumulantControlsFromActiveItem();
 
         UpdateRunCombo();
         UpdateDistributionTypeAvailability();
         UpdateExportButtonState();
         RefreshPlot();
+        RaiseActiveItemChanged();
     }
 
     private void SyncStyleControlsFromActiveItem()
@@ -1249,132 +1249,10 @@ public partial class MainWindow : Window
         finally { _suppressMetadataControlEvents = false; }
     }
 
-    private void SyncCumulantControlsFromActiveItem()
-    {
-        bool hasActive = _activeItemIndex >= 0 && _activeItemIndex < _datasetItems.Count;
-        CumulantFitMinTextBox.IsEnabled = hasActive;
-        CumulantFitMaxTextBox.IsEnabled = hasActive;
-
-        if (!hasActive)
-        {
-            ActiveCumulantLabel.Text = "(選択中シート)";
-            _suppressMetadataControlEvents = true;
-            try
-            {
-                CumulantFitMinTextBox.Text = string.Empty;
-                CumulantFitMaxTextBox.Text = string.Empty;
-            }
-            finally { _suppressMetadataControlEvents = false; }
-            UpdateCumulantDisplay();
-            return;
-        }
-
-        var item = _datasetItems[_activeItemIndex];
-        ActiveCumulantLabel.Text = $"({item.SheetName})";
-
-        _suppressMetadataControlEvents = true;
-        try
-        {
-            CumulantFitMinTextBox.Text = FormatNullableDouble(item.Cumulant.FitRangeMinMicroseconds);
-            CumulantFitMaxTextBox.Text = FormatNullableDouble(item.Cumulant.FitRangeMaxMicroseconds);
-        }
-        finally { _suppressMetadataControlEvents = false; }
-
-        UpdateCumulantDisplay();
-    }
-
-    private void UpdateCumulantDisplay()
-    {
-        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count)
-        {
-            ResetCumulantDisplay();
-            return;
-        }
-
-        var item = _datasetItems[_activeItemIndex];
-        var correlation = item.Dataset.Correlation;
-
-        if (correlation is null)
-        {
-            ResetCumulantDisplay();
-            ShowCumulantStatus("自己相関データがありません");
-            return;
-        }
-
-        var outcome = CumulantAnalyzer.Analyze(
-            correlation,
-            item.Cumulant.FitRangeMinMicroseconds,
-            item.Cumulant.FitRangeMaxMicroseconds);
-
-        if (!outcome.Success || outcome.Result is null)
-        {
-            ResetCumulantDisplay();
-            ShowCumulantStatus(outcome.FailureReason ?? "fit に失敗しました");
-            return;
-        }
-
-        var result = outcome.Result;
-        CumulantGammaText.Text = $"{FormatScientific(result.FirstCumulantPerMicrosecond)} μs⁻¹";
-        CumulantPdiText.Text = result.PolydispersityIndex.ToString("0.000",
-            CultureInfo.InvariantCulture);
-        CumulantRSquaredText.Text = result.RSquared.ToString("0.0000",
-            CultureInfo.InvariantCulture);
-        CumulantRangeText.Text =
-            $"{FormatDouble(result.AppliedRangeMinMicroseconds)} 〜 "
-            + $"{FormatDouble(result.AppliedRangeMaxMicroseconds)} μs"
-            + $" ({result.PointCount} 点)";
-
-        var sizeOutcome = StokesEinstein.Compute(
-            result.FirstCumulantPerMicrosecond,
-            item.Metadata.TemperatureCelsius,
-            item.Metadata.ViscosityMpas,
-            item.Metadata.RefractiveIndex,
-            item.Metadata.WavelengthNm,
-            item.Metadata.ScatteringAngleDegrees);
-
-        if (sizeOutcome.Success && sizeOutcome.HydrodynamicDiameterNm.HasValue)
-        {
-            CumulantZAverageText.Text =
-                $"{sizeOutcome.HydrodynamicDiameterNm.Value.ToString("0.0", CultureInfo.InvariantCulture)} nm";
-            HideCumulantStatus();
-        }
-        else
-        {
-            CumulantZAverageText.Text = "—";
-            var missing = string.Join("・", sizeOutcome.MissingFields);
-            ShowCumulantStatus(string.IsNullOrEmpty(missing)
-                ? "粒径計算に必要なメタデータが不足しています"
-                : $"{missing} が未入力で粒径計算できません");
-        }
-    }
-
-    private void ResetCumulantDisplay()
-    {
-        CumulantZAverageText.Text = "—";
-        CumulantPdiText.Text = "—";
-        CumulantGammaText.Text = "—";
-        CumulantRangeText.Text = "—";
-        CumulantRSquaredText.Text = "—";
-        HideCumulantStatus();
-    }
-
-    private void ShowCumulantStatus(string message)
-    {
-        CumulantStatusText.Text = message;
-        CumulantStatusText.IsVisible = true;
-    }
-
-    private void HideCumulantStatus()
-    {
-        CumulantStatusText.Text = string.Empty;
-        CumulantStatusText.IsVisible = false;
-    }
-
-    private static string FormatScientific(double value)
-    {
-        if (!double.IsFinite(value)) return "—";
-        return value.ToString("0.###e+0", CultureInfo.InvariantCulture);
-    }
+    // Cumulant 解析の結果テキスト + フィット範囲 TextBox は AnalysisWindow へ移管済み。
+    // 旧 SyncCumulantControlsFromActiveItem / UpdateCumulantDisplay / Reset / Show/Hide
+    // / FormatScientific / Cumulant TextBox handler 群はそちら (AnalysisWindow.axaml.cs)
+    // を参照。
 
     // Enter キーで該当 TextBox の LostFocus と等価な確定コミットを直接走らせる。
     // 旧実装は Window.Focus() で間接的に LostFocus を発火させようとしていたが、
@@ -1410,8 +1288,6 @@ public partial class MainWindow : Window
             CommitNumericMetadata(tb, NumericConstraint.Positive,
                 (item, value) => item.Metadata.ScatteringAngleDegrees = value,
                 broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
-        else if (tb == CumulantFitMinTextBox || tb == CumulantFitMaxTextBox)
-            CumulantFitRangeTextBox_LostFocus(sender, e);
 
         e.Handled = true;
     }
@@ -1481,70 +1357,7 @@ public partial class MainWindow : Window
             (item, value) => item.Metadata.ScatteringAngleDegrees = value,
             broadcastToAllSheets: true, rollbackOnFail: false, reformatTextOnSuccess: false);
 
-    private void CumulantFitRangeTextBox_LostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (!IsInitialized) return;
-        if (_suppressMetadataControlEvents) return;
-        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
-
-        var item = _datasetItems[_activeItemIndex];
-        bool reverted = false;
-        if (!TryCommitCumulantBound(CumulantFitMinTextBox,
-                value => item.Cumulant.FitRangeMinMicroseconds = value))
-            reverted = true;
-        if (!TryCommitCumulantBound(CumulantFitMaxTextBox,
-                value => item.Cumulant.FitRangeMaxMicroseconds = value))
-            reverted = true;
-
-        if (reverted) SyncCumulantControlsFromActiveItem();
-        else UpdateCumulantDisplay();
-    }
-
-    private bool TryCommitCumulantBound(TextBox textBox, Action<double?> apply)
-    {
-        var raw = (textBox.Text ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            apply(null);
-            return true;
-        }
-        if (!TryParsePositiveDouble(raw, out var value)) return false;
-
-        apply(value);
-        _suppressMetadataControlEvents = true;
-        try { textBox.Text = FormatDouble(value); }
-        finally { _suppressMetadataControlEvents = false; }
-        return true;
-    }
-
-    // タイピング中の即時反映 (パース失敗はサイレント無視、再整形しない)。
-    // LostFocus / Enter は既存 CumulantFitRangeTextBox_LostFocus がロールバック付きで担当。
-    private void CumulantFitMinTextBox_TextChanged(object? sender, TextChangedEventArgs e)
-        => SilentTryCommitCumulantBound(CumulantFitMinTextBox,
-            v => _datasetItems[_activeItemIndex].Cumulant.FitRangeMinMicroseconds = v);
-
-    private void CumulantFitMaxTextBox_TextChanged(object? sender, TextChangedEventArgs e)
-        => SilentTryCommitCumulantBound(CumulantFitMaxTextBox,
-            v => _datasetItems[_activeItemIndex].Cumulant.FitRangeMaxMicroseconds = v);
-
-    private void SilentTryCommitCumulantBound(TextBox textBox, Action<double?> apply)
-    {
-        if (!IsInitialized) return;
-        if (_suppressMetadataControlEvents) return;
-        if (_activeItemIndex < 0 || _activeItemIndex >= _datasetItems.Count) return;
-
-        var raw = (textBox.Text ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            apply(null);
-            UpdateCumulantDisplay();
-            return;
-        }
-        if (!TryParsePositiveDouble(raw, out var value)) return;
-
-        apply(value);
-        UpdateCumulantDisplay();
-    }
+    // Cumulant フィット範囲 TextBox handler 群は AnalysisWindow.axaml.cs へ移管済み。
 
     private void MetadataSolventTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => CommitStringMetadata(MetadataSolventTextBox,
@@ -1571,7 +1384,7 @@ public partial class MainWindow : Window
             apply(_datasetItems[_activeItemIndex], value);
         }
 
-        UpdateCumulantDisplay();
+        RaiseAnalysisDataChanged();
     }
 
     private enum NumericConstraint { AnyFinite, NonNegative, Positive }
@@ -1604,7 +1417,7 @@ public partial class MainWindow : Window
                 try { textBox.Text = string.Empty; }
                 finally { _suppressMetadataControlEvents = false; }
             }
-            UpdateCumulantDisplay();
+            RaiseAnalysisDataChanged();
             return true;
         }
 
@@ -1631,7 +1444,7 @@ public partial class MainWindow : Window
             finally { _suppressMetadataControlEvents = false; }
         }
 
-        UpdateCumulantDisplay();
+        RaiseAnalysisDataChanged();
         return true;
     }
 
@@ -1775,9 +1588,9 @@ public partial class MainWindow : Window
         _activeItemIndex = -1;
         SyncStyleControlsFromActiveItem();
         SyncMetadataControlsFromActiveItem();
-        SyncCumulantControlsFromActiveItem();
         UpdateExportButtonState();
         InitializeEmptyPlot();
+        RaiseActiveItemChanged();
     }
 
     private void UpdateDistributionTypeAvailability()
@@ -1975,7 +1788,10 @@ public partial class MainWindow : Window
 
         var (points, eligibleCount, missingTemp, missingFit) = BuildTemperatureRampPoints();
         var outcome = TemperatureRampAnalyzer.Analyze(points);
-        UpdateTemperatureRampDisplay(eligibleCount, missingTemp, missingFit, outcome);
+        // Result text is rendered by AnalysisWindow via AnalysisDataChanged;
+        // here we only build the plot. eligibleCount / missingTemp / missingFit
+        // are intentionally unused on the parent side now.
+        _ = (eligibleCount, missingTemp, missingFit);
 
         _plot.Plot.Title(GetGraphTitle(BuildTitle()));
         _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
@@ -2075,70 +1891,7 @@ public partial class MainWindow : Window
         return (points, points.Count, missingTemp, missingFit);
     }
 
-    private void UpdateTemperatureRampDisplay(int eligibleCount, int missingTemp, int missingFit, TemperatureRampOutcome outcome)
-    {
-        var totalSheets = _datasetItems.Count;
-        TemperatureRampPointCountLabel.Text = totalSheets == 0
-            ? "(0 点)"
-            : $"({eligibleCount}/{totalSheets} 点)";
-
-        if (!outcome.Success || outcome.Result is null)
-        {
-            ResetRampDisplay();
-            var reason = outcome.FailureReason ?? "解析できません";
-            var hints = new List<string>();
-            if (missingTemp > 0) hints.Add($"温度未入力 {missingTemp} 件");
-            if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
-            var detail = hints.Count > 0 ? $"（{string.Join(" / ", hints)}）" : string.Empty;
-            ShowRampStatus($"{reason}{detail}");
-            return;
-        }
-
-        var r = outcome.Result;
-        RampTransitionTemperatureText.Text =
-            $"{r.TransitionTemperatureCelsius.ToString("0.00", CultureInfo.InvariantCulture)} °C";
-        RampTransitionWidthText.Text =
-            $"{r.TransitionWidthCelsius.ToString("0.00", CultureInfo.InvariantCulture)} °C";
-        RampLowPlateauText.Text =
-            $"{r.LowPlateauNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
-        RampHighPlateauText.Text =
-            $"{r.HighPlateauNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
-        RampRSquaredText.Text =
-            r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
-
-        if (missingTemp > 0 || missingFit > 0)
-        {
-            var hints = new List<string>();
-            if (missingTemp > 0) hints.Add($"温度未入力 {missingTemp} 件");
-            if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
-            ShowRampStatus($"残り {string.Join(" / ", hints)} は除外しました");
-        }
-        else
-        {
-            HideRampStatus();
-        }
-    }
-
-    private void ResetRampDisplay()
-    {
-        RampTransitionTemperatureText.Text = "—";
-        RampTransitionWidthText.Text = "—";
-        RampLowPlateauText.Text = "—";
-        RampHighPlateauText.Text = "—";
-        RampRSquaredText.Text = "—";
-    }
-
-    private void ShowRampStatus(string message)
-    {
-        RampStatusText.Text = message;
-        RampStatusText.IsVisible = true;
-    }
-
-    private void HideRampStatus()
-    {
-        RampStatusText.Text = string.Empty;
-        RampStatusText.IsVisible = false;
-    }
+    // 温度ランプ結果テキストは AnalysisWindow へ移管済み (UpdateRampDisplay)。
 
     // ---------- Concentration series (D vs c linear fit across loaded sheets) ----------
 
@@ -2170,8 +1923,9 @@ public partial class MainWindow : Window
                 points, refTemperatureCelsius, refViscosityMpas);
         }
 
-        UpdateConcentrationSeriesDisplay(
-            eligibleCount, missingConc, missingFit, multiTemperature, multiViscosity, outcome);
+        // Result text is rendered by AnalysisWindow via AnalysisDataChanged;
+        // here we only build the plot.
+        _ = (eligibleCount, missingConc, missingFit, multiTemperature, multiViscosity);
 
         _plot.Plot.Title(GetGraphTitle(BuildTitle()));
         _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
@@ -2314,81 +2068,7 @@ public partial class MainWindow : Window
         return (max - min) / min > relativeTolerance;
     }
 
-    private void UpdateConcentrationSeriesDisplay(
-        int eligibleCount,
-        int missingConcentration,
-        int missingFit,
-        bool multipleTemperatures,
-        bool multipleViscosities,
-        ConcentrationSeriesOutcome outcome)
-    {
-        var totalSheets = _datasetItems.Count;
-        ConcentrationSeriesPointCountLabel.Text = totalSheets == 0
-            ? "(0 点)"
-            : $"({eligibleCount}/{totalSheets} 点)";
-
-        if (!outcome.Success || outcome.Result is null)
-        {
-            ResetConcentrationDisplay();
-            var reason = outcome.FailureReason ?? "解析できません";
-            var hints = new List<string>();
-            if (missingConcentration > 0) hints.Add($"濃度未入力 {missingConcentration} 件");
-            if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
-            var detail = hints.Count > 0 ? $"（{string.Join(" / ", hints)}）" : string.Empty;
-            ShowConcentrationStatus($"{reason}{detail}");
-            return;
-        }
-
-        var r = outcome.Result;
-        var d0Display = r.D0M2PerSecond * DiffusionDisplayScale;
-        var d0SeDisplay = r.D0StandardErrorM2PerSecond * DiffusionDisplayScale;
-        ConcentrationD0Text.Text = d0SeDisplay > 0
-            ? $"{d0Display.ToString("0.00", CultureInfo.InvariantCulture)} ± {d0SeDisplay.ToString("0.00", CultureInfo.InvariantCulture)} μm²/s"
-            : $"{d0Display.ToString("0.00", CultureInfo.InvariantCulture)} μm²/s";
-
-        ConcentrationKDText.Text = r.KDStandardErrorMlPerGram > 0
-            ? $"{r.KDmlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} ± {r.KDStandardErrorMlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} mL/g"
-            : $"{r.KDmlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} mL/g";
-
-        ConcentrationDhText.Text =
-            $"{r.HydrodynamicDiameterAtZeroConcentrationNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
-        ConcentrationRSquaredText.Text =
-            r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
-        ConcentrationReferenceText.Text =
-            $"T = {r.ReferenceTemperatureCelsius.ToString("0.#", CultureInfo.InvariantCulture)} °C, η = {r.ReferenceViscosityMpas.ToString("0.000", CultureInfo.InvariantCulture)} mPa·s";
-
-        var warnings = new List<string>();
-        if (missingConcentration > 0) warnings.Add($"濃度未入力 {missingConcentration} 件");
-        if (missingFit > 0) warnings.Add($"キュムラント失敗 {missingFit} 件");
-        if (multipleTemperatures) warnings.Add("シート間で温度が異なります（中央値を使用）");
-        if (multipleViscosities) warnings.Add("シート間で粘度が異なります（中央値を使用）");
-
-        if (warnings.Count > 0)
-            ShowConcentrationStatus(string.Join(" / ", warnings));
-        else
-            HideConcentrationStatus();
-    }
-
-    private void ResetConcentrationDisplay()
-    {
-        ConcentrationD0Text.Text = "—";
-        ConcentrationKDText.Text = "—";
-        ConcentrationDhText.Text = "—";
-        ConcentrationRSquaredText.Text = "—";
-        ConcentrationReferenceText.Text = "—";
-    }
-
-    private void ShowConcentrationStatus(string message)
-    {
-        ConcentrationStatusText.Text = message;
-        ConcentrationStatusText.IsVisible = true;
-    }
-
-    private void HideConcentrationStatus()
-    {
-        ConcentrationStatusText.Text = string.Empty;
-        ConcentrationStatusText.IsVisible = false;
-    }
+    // 濃度シリーズ結果テキストは AnalysisWindow へ移管済み (UpdateConcentrationDisplay)。
 
     // ---------- Size distribution inversion (CONTIN-style NNLS per sheet) ----------
 
@@ -2399,8 +2079,8 @@ public partial class MainWindow : Window
         if (_selectedDatasets.Count == 0)
         {
             InitializeEmptyPlot();
-            ResetInversionDisplay();
-            ShowInversionStatus("シートを選択してください");
+            _analysisWindow?.OnInversionComputed(
+                null, null, 0, 0, new HashSet<string>(), _selectedDatasets);
             return;
         }
 
@@ -2410,7 +2090,8 @@ public partial class MainWindow : Window
         for (int i = 0; i < _datasetItems.Count; i++)
             _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
 
-        var weightLabel = _inversionWeight switch
+        var inversionWeight = _analysisWindow?.InversionWeight ?? DistributionMode.Intensity;
+        var weightLabel = inversionWeight switch
         {
             DistributionMode.Number => DefaultLabels.NumberYLabel,
             DistributionMode.Volume => DefaultLabels.VolumeYLabel,
@@ -2444,7 +2125,7 @@ public partial class MainWindow : Window
         // 60-bin grid; acceptable for the typical 1-3 selected sheets but
         // a future improvement is to cache per (sheet, alpha) and run on
         // a background thread.
-        var options = BuildInversionOptions();
+        var options = _analysisWindow?.BuildInversionOptions() ?? new SizeDistributionInverterOptions();
         for (int datasetIdx = 0; datasetIdx < _selectedDatasets.Count; datasetIdx++)
         {
             var dataset = _selectedDatasets[datasetIdx];
@@ -2481,7 +2162,7 @@ public partial class MainWindow : Window
             for (int i = 0; i < bins.Count; i++)
             {
                 xs[i] = Math.Log10(Math.Max(bins[i].DiameterNm, 1e-6));
-                ys[i] = _inversionWeight switch
+                ys[i] = inversionWeight switch
                 {
                     DistributionMode.Number => bins[i].NumberWeight,
                     DistributionMode.Volume => bins[i].VolumeWeight,
@@ -2505,7 +2186,8 @@ public partial class MainWindow : Window
             seriesCount++;
         }
 
-        UpdateInversionDisplay(activeOutcome, activeItem, failedCount, missingMetaCount, failureReasons);
+        _analysisWindow?.OnInversionComputed(
+            activeOutcome, activeItem, failedCount, missingMetaCount, failureReasons, _selectedDatasets);
 
         if (seriesCount == 0)
         {
@@ -2522,136 +2204,16 @@ public partial class MainWindow : Window
         _plot.Refresh();
     }
 
-    private SizeDistributionInverterOptions BuildInversionOptions()
-    {
-        if (_inversionUseAutoAlpha)
-            return new SizeDistributionInverterOptions();
-
-        var manual = _inversionManualAlpha;
-        if (!double.IsFinite(manual) || manual <= 0) manual = 0.01;
-        return new SizeDistributionInverterOptions
-        {
-            RegularizationAlpha = manual,
-        };
-    }
-
     private DlsDatasetItem? FindItemForDataset(DlsDataset dataset)
     {
         var idx = _datasets.IndexOf(dataset);
         return idx >= 0 && idx < _datasetItems.Count ? _datasetItems[idx] : null;
     }
 
-    private void UpdateInversionDisplay(
-        SizeDistributionInversionOutcome? outcome,
-        DlsDatasetItem? activeItem,
-        int failedCount,
-        int missingMetaCount,
-        HashSet<string> failureReasons)
-    {
-        if (outcome is null || activeItem is null)
-        {
-            ResetInversionDisplay();
-            ShowInversionStatus("解析対象のシートが見つかりません");
-            return;
-        }
-
-        if (!outcome.Success || outcome.Result is null)
-        {
-            ResetInversionDisplay();
-            if (outcome.MissingFields.Count > 0)
-                ShowInversionStatus("測定条件を入力してください: " + string.Join(" / ", outcome.MissingFields));
-            else
-                ShowInversionStatus(outcome.FailureReason ?? "解析できません");
-            return;
-        }
-
-        var r = outcome.Result;
-        InversionAlphaText.Text = r.RegularizationAlpha.ToString("0.####E+0", CultureInfo.InvariantCulture);
-        InversionRSquaredText.Text = r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
-        InversionBetaText.Text = r.Beta.ToString("0.000", CultureInfo.InvariantCulture);
-        InversionFreeBinText.Text = $"{r.FreeBinCount} / {r.Bins.Count}";
-
-        var hints = new List<string>();
-        if (_selectedDatasets.Count > 1)
-            hints.Add($"先頭シート ({_selectedDatasets[0].SheetName}) の値を表示");
-        if (failedCount > 0) hints.Add($"逆変換失敗 {failedCount} 件");
-        if (missingMetaCount > 0) hints.Add($"測定条件不足 {missingMetaCount} 件");
-        if (failureReasons.Count > 0)
-            hints.Add(string.Join(" / ", failureReasons));
-
-        if (hints.Count > 0)
-            ShowInversionStatus(string.Join(" / ", hints));
-        else
-            HideInversionStatus();
-    }
-
-    private void ResetInversionDisplay()
-    {
-        InversionAlphaText.Text = "—";
-        InversionRSquaredText.Text = "—";
-        InversionBetaText.Text = "—";
-        InversionFreeBinText.Text = "—";
-    }
-
-    private void ShowInversionStatus(string message)
-    {
-        InversionStatusText.Text = message;
-        InversionStatusText.IsVisible = true;
-    }
-
-    private void HideInversionStatus()
-    {
-        InversionStatusText.Text = string.Empty;
-        InversionStatusText.IsVisible = false;
-    }
-
-    private void InversionWeightComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressInversionControlEvents) return;
-        if (sender is not ComboBox cb || cb.SelectedItem is not ComboBoxItem item) return;
-        var tag = item.Tag as string;
-        _inversionWeight = tag switch
-        {
-            "Number" => DistributionMode.Number,
-            "Volume" => DistributionMode.Volume,
-            _ => DistributionMode.Intensity,
-        };
-        if (_selectedMode == DistributionMode.SizeDistributionInversion)
-            RefreshPlot();
-    }
-
-    private void InversionAlphaAutoCheckBox_IsCheckedChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_suppressInversionControlEvents) return;
-        _inversionUseAutoAlpha = InversionAlphaAutoCheckBox.IsChecked == true;
-        InversionAlphaTextBox.IsEnabled = !_inversionUseAutoAlpha;
-        if (_selectedMode == DistributionMode.SizeDistributionInversion)
-            RefreshPlot();
-    }
-
-    private void InversionAlphaTextBox_LostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (_suppressInversionControlEvents) return;
-        if (double.TryParse(InversionAlphaTextBox.Text, NumberStyles.Float,
-                CultureInfo.InvariantCulture, out var parsed)
-            && double.IsFinite(parsed) && parsed > 0)
-        {
-            _inversionManualAlpha = parsed;
-        }
-        else
-        {
-            // Snap back to the last valid value so the field never sits in
-            // a state the inverter would reject.
-            _suppressInversionControlEvents = true;
-            try
-            {
-                InversionAlphaTextBox.Text = _inversionManualAlpha.ToString("0.####", CultureInfo.InvariantCulture);
-            }
-            finally { _suppressInversionControlEvents = false; }
-        }
-        if (!_inversionUseAutoAlpha && _selectedMode == DistributionMode.SizeDistributionInversion)
-            RefreshPlot();
-    }
+    // CONTIN 結果テキスト (UpdateInversionDisplay) と入力 UI handler (InversionWeightComboBox_*
+    // / InversionAlphaAutoCheckBox_* / InversionAlphaTextBox_*) と BuildInversionOptions
+    // は AnalysisWindow へ移管済み。親は子から InversionWeight / BuildInversionOptions を
+    // pull し、計算結果は OnInversionComputed で push する。
 
     private void ApplyDatasetColor(ScottPlot.Plottables.Scatter scatter, DlsDataset dataset)
     {
@@ -3015,6 +2577,46 @@ public partial class MainWindow : Window
     // 旧ネスト型 (DlsDatasetStyle / DlsDatasetMetadataState / DlsDatasetCumulantSettings /
     // DlsDatasetItem) は AnalysisWindow からも触る必要が出たため
     // src/LabPlot.DLS.Avalonia/DlsDatasetItem.cs に Top-level として切り出した。
+
+    // ---------- IDlsAnalysisHost (consumed by AnalysisWindow) ----------
+
+    public IReadOnlyList<DlsDatasetItem> DatasetItems => _datasetItems;
+    public IReadOnlyList<DlsDataset> SelectedDatasets => _selectedDatasets;
+    public int ActiveItemIndex => _activeItemIndex;
+    public DistributionMode SelectedMode => _selectedMode;
+
+    public event EventHandler? AnalysisDataChanged;
+    public event EventHandler? ActiveItemChanged;
+
+    private void RaiseAnalysisDataChanged() => AnalysisDataChanged?.Invoke(this, EventArgs.Empty);
+    private void RaiseActiveItemChanged() => ActiveItemChanged?.Invoke(this, EventArgs.Empty);
+
+    public void RequestPlotRefresh() => RefreshPlot();
+
+    public void RequestShowAsGraph(DistributionMode mode)
+    {
+        _selectedMode = mode;
+        SelectComboBoxByTag(DistributionTypeComboBox, mode.ToString());
+        UpdateRunCombo();
+        RefreshPlot();
+    }
+
+    private void OpenAnalysisWindowButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_analysisWindow is null)
+        {
+            _analysisWindow = new AnalysisWindow(this);
+            _analysisWindow.Closed += (_, _) => _analysisWindow = null;
+        }
+        if (!_analysisWindow.IsVisible) _analysisWindow.Show(this);
+        _analysisWindow.Activate();
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        _analysisWindow?.Close();
+        base.OnClosing(e);
+    }
 
     private string GetGraphTitle(string defaultTitle)
     {

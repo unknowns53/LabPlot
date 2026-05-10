@@ -10,7 +10,7 @@ namespace LabPlot.DLS.Avalonia;
 /// と要求する経路を提供する。将来 DlsAnalysisContext (POCO) に置き換えやすいよう、
 /// 親 MainWindow が partial で実装する形を取る。
 /// </summary>
-internal interface IDlsAnalysisHost
+public interface IDlsAnalysisHost
 {
     IReadOnlyList<DlsDatasetItem> DatasetItems { get; }
     IReadOnlyList<DlsDataset> SelectedDatasets { get; }

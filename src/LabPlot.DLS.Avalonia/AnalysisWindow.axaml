@@ -1,0 +1,292 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LabPlot.DLS.Avalonia.AnalysisWindow"
+        Title="DLS 解析"
+        Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
+        Height="640" Width="540" MinHeight="480" MinWidth="440"
+        WindowStartupLocation="CenterOwner"
+        Background="#F7F8FA"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True">
+
+    <!-- AnalysisWindow: サイドバーから切り出した解析 4 タブ (キュムラント / 温度ランプ /
+         濃度シリーズ / CONTIN) を 1 つにまとめた Modeless サブウィンドウ。Spectrum の
+         CalibrationCurveWindow と異なり ShowDialog ではなく Show(this) で並走起動し、
+         シート切替やメタデータ編集をメインで続けながら解析結果を参照できる。 -->
+
+    <Grid Margin="14" RowDefinitions="Auto,*,Auto">
+
+        <!-- Header: ウィンドウタイトル + アクティブシート表示 -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="DLS 解析"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="#0F172A" />
+            <TextBlock Name="ActiveSheetLabel"
+                       Text="(シート未選択)"
+                       FontSize="12"
+                       Foreground="#64748B"
+                       Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- TabControl: 4 Tab -->
+        <TabControl Grid.Row="1"
+                    Name="AnalysisTabs"
+                    SelectionChanged="AnalysisTabs_SelectionChanged"
+                    Background="Transparent"
+                    BorderThickness="0">
+
+            <!-- ==================== Tab 1: Cumulant ==================== -->
+            <TabItem Header="キュムラント">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <TextBlock Text="選択中シートの自己相関 g₂-1(τ) を 2 次キュムラントで fit し、Z-average 径と多分散指数を返します。"
+                                   FontSize="11"
+                                   Foreground="#475569"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10" />
+
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <StackPanel>
+                                <TextBlock Text="フィット範囲 (μs)"
+                                           Theme="{DynamicResource FieldLabelStyle}" />
+                                <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                                    <TextBox Name="CumulantFitMinTextBox"
+                                             Grid.Column="0"
+                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                             TextChanged="CumulantFitMinTextBox_TextChanged"
+                                             LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                             KeyDown="AnalysisTextBox_KeyDown" />
+                                    <TextBox Name="CumulantFitMaxTextBox"
+                                             Grid.Column="2"
+                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                             TextChanged="CumulantFitMaxTextBox_TextChanged"
+                                             LostFocus="CumulantFitRangeTextBox_LostFocus"
+                                             KeyDown="AnalysisTextBox_KeyDown" />
+                                </Grid>
+                                <TextBlock Text="空欄で自動検出 (g₂-1 ≧ 0.1 を保持)"
+                                           FontSize="11"
+                                           Foreground="#94A3B8"
+                                           Margin="0,-6,0,10" />
+
+                                <Border BorderBrush="#E2E8F0"
+                                        BorderThickness="0,1,0,0"
+                                        Padding="0,8,0,0">
+                                    <Grid ColumnDefinitions="Auto,8,*"
+                                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Z-average 径" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="CumulantZAverageText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="PdI" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="CumulantPdiText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Γ" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="CumulantGammaText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="適用範囲" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="CumulantRangeText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="CumulantRSquaredText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Name="CumulantStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                    </Grid>
+                                </Border>
+
+                                <Button Name="CumulantShowAsGraphButton"
+                                        Content="グラフとして見る"
+                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Margin="0,12,0,0"
+                                        ToolTip.Tip="メイングラフを「自己相関 g₂-1」表示に切り替えます"
+                                        Click="CumulantShowAsGraphButton_Click" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Tab 2: Temperature ramp ==================== -->
+            <TabItem Header="温度ランプ">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <TextBlock Text="読み込み済みの全シートの温度（測定条件）と Z-average 径から Boltzmann シグモイドを当て、転移点 T_c と転移幅 w を抽出します。"
+                                   FontSize="11"
+                                   Foreground="#475569"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10" />
+
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <StackPanel>
+                                <TextBlock Name="TemperatureRampPointCountLabel"
+                                           Text="(0 点)"
+                                           FontSize="11"
+                                           Foreground="#94A3B8"
+                                           Margin="0,0,0,8" />
+
+                                <Border BorderBrush="#E2E8F0"
+                                        BorderThickness="0,1,0,0"
+                                        Padding="0,8,0,0">
+                                    <Grid ColumnDefinitions="Auto,8,*"
+                                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="T_c (転移点)" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="RampTransitionTemperatureText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="転移幅 w" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="RampTransitionWidthText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="低温プラトー d_low" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="RampLowPlateauText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="高温プラトー d_high" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="RampHighPlateauText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="RampRSquaredText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Name="RampStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                    </Grid>
+                                </Border>
+
+                                <Button Name="TemperatureRampShowAsGraphButton"
+                                        Content="グラフとして見る"
+                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Margin="0,12,0,0"
+                                        ToolTip.Tip="メイングラフを「温度ランプ T vs d_h」表示に切り替えます"
+                                        Click="TemperatureRampShowAsGraphButton_Click" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Tab 3: Concentration series ==================== -->
+            <TabItem Header="濃度シリーズ">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <TextBlock Text="読み込み済みの全シートの濃度（測定条件）と D を線形回帰し、無限希釈拡散係数 D₀ と拡散ビリアル係数 k_D を抽出します。"
+                                   FontSize="11"
+                                   Foreground="#475569"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10" />
+
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <StackPanel>
+                                <TextBlock Name="ConcentrationSeriesPointCountLabel"
+                                           Text="(0 点)"
+                                           FontSize="11"
+                                           Foreground="#94A3B8"
+                                           Margin="0,0,0,8" />
+
+                                <Border BorderBrush="#E2E8F0"
+                                        BorderThickness="0,1,0,0"
+                                        Padding="0,8,0,0">
+                                    <Grid ColumnDefinitions="Auto,8,*"
+                                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="D₀ (c→0)" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="ConcentrationD0Text" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="k_D" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="ConcentrationKDText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="d_h (c→0)" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="ConcentrationDhText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="ConcentrationRSquaredText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="参照条件" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="ConcentrationReferenceText" Grid.Row="4" Grid.Column="2" Text="—" FontSize="11" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Name="ConcentrationStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                    </Grid>
+                                </Border>
+
+                                <Button Name="ConcentrationShowAsGraphButton"
+                                        Content="グラフとして見る"
+                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Margin="0,12,0,0"
+                                        ToolTip.Tip="メイングラフを「濃度シリーズ c vs D」表示に切り替えます"
+                                        Click="ConcentrationShowAsGraphButton_Click" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Tab 4: CONTIN ==================== -->
+            <TabItem Header="CONTIN">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <TextBlock Text="自己相関関数 g₂-1(τ) を Tikhonov 正則化付き NNLS で逆ラプラス変換し、連続サイズ分布を再構成します。多峰サンプルでキュムラントの平均を超えてピーク構造を見たいときに使ってください。"
+                                   FontSize="11"
+                                   Foreground="#475569"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10" />
+
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <StackPanel>
+                                <TextBlock Theme="{DynamicResource FieldLabelStyle}" Text="重み" />
+                                <ComboBox Name="InversionWeightComboBox"
+                                          Theme="{DynamicResource InputComboBoxStyle}"
+                                          SelectionChanged="InversionWeightComboBox_SelectionChanged"
+                                          Margin="0,0,0,8">
+                                    <ComboBoxItem Content="Intensity (%)" Tag="Intensity" IsSelected="True" />
+                                    <ComboBoxItem Content="Number (%)" Tag="Number" />
+                                    <ComboBoxItem Content="Volume (%)" Tag="Volume" />
+                                </ComboBox>
+
+                                <CheckBox Name="InversionAlphaAutoCheckBox"
+                                          Content="α を自動選択 (L-curve)"
+                                          IsChecked="True"
+                                          IsCheckedChanged="InversionAlphaAutoCheckBox_IsCheckedChanged"
+                                          Margin="0,0,0,4" />
+                                <Grid ColumnDefinitions="Auto,8,*"
+                                      Margin="0,0,0,8">
+                                    <TextBlock Grid.Column="0"
+                                               Text="手動 α"
+                                               Foreground="#475569"
+                                               FontSize="12"
+                                               VerticalAlignment="Center" />
+                                    <TextBox Name="InversionAlphaTextBox"
+                                             Grid.Column="2"
+                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                             Text="0.01"
+                                             IsEnabled="False"
+                                             LostFocus="InversionAlphaTextBox_LostFocus"
+                                             KeyDown="AnalysisTextBox_KeyDown" />
+                                </Grid>
+
+                                <Border BorderBrush="#E2E8F0"
+                                        BorderThickness="0,1,0,0"
+                                        Padding="0,8,0,0">
+                                    <Grid ColumnDefinitions="Auto,8,*"
+                                          RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="採用 α" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="InversionAlphaText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="R²" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="InversionRSquaredText" Grid.Row="1" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="β" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="InversionBetaText" Grid.Row="2" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="自由ビン数" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                                        <TextBlock Name="InversionFreeBinText" Grid.Row="3" Grid.Column="2" Text="—" FontSize="12" Foreground="#0F172A" Margin="0,0,0,4" />
+                                        <TextBlock Name="InversionStatusText" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
+                                    </Grid>
+                                </Border>
+
+                                <Button Name="InversionShowAsGraphButton"
+                                        Content="グラフとして見る"
+                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                        HorizontalAlignment="Stretch"
+                                        Margin="0,12,0,0"
+                                        ToolTip.Tip="メイングラフを「サイズ分布逆変換 (CONTIN-like)」表示に切り替え、現在の重み・α 設定で再計算します"
+                                        Click="InversionShowAsGraphButton_Click" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Footer: window-wide status (closed-window hint など) -->
+        <Border Grid.Row="2" Margin="0,8,0,0">
+            <TextBlock Name="WindowStatusText"
+                       Foreground="#475569"
+                       FontSize="11"
+                       Text="" />
+        </Border>
+    </Grid>
+</Window>

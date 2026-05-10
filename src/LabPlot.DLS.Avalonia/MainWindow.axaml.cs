@@ -3012,72 +3012,9 @@ public partial class MainWindow : Window
             : new DataSeries(dist.SizeBinsNm, dist.Runs, dist.ActiveRunIndex);
     }
 
-    // DLS code-behind が ListBox の DataTemplate / 内部状態で参照する VM。
-    // WPF 版は private nested クラスだったが、Avalonia の AXAML が
-    // CompiledBinding に格上げできるよう internal に昇格して
-    // x:DataType で参照可能にする。
-    internal sealed class DlsDatasetStyle
-    {
-        public string? ColorHex { get; set; }
-        public string? LegendName { get; set; }
-        public double LineWidth { get; set; } = GraphFormattingConfigBase.DefaultLineWidth;
-        public double MarkerSize { get; set; } = GraphFormattingConfigBase.DefaultMarkerSize;
-    }
-
-    internal sealed class DlsDatasetMetadataState
-    {
-        public const double DefaultWavelengthNm = 633.0;
-        public const double DefaultScatteringAngleDegrees = 173.0;
-
-        public double? TemperatureCelsius { get; set; }
-        public string? Solvent { get; set; }
-        public double? ConcentrationMgPerMl { get; set; }
-        public double? RefractiveIndex { get; set; }
-        public double? ViscosityMpas { get; set; }
-        public double? WavelengthNm { get; set; } = DefaultWavelengthNm;
-        public double? ScatteringAngleDegrees { get; set; } = DefaultScatteringAngleDegrees;
-    }
-
-    internal sealed class DlsDatasetCumulantSettings
-    {
-        public double? FitRangeMinMicroseconds { get; set; }
-        public double? FitRangeMaxMicroseconds { get; set; }
-    }
-
-    internal sealed class DlsDatasetItem : INotifyPropertyChanged
-    {
-        public DlsDataset Dataset { get; }
-        public DlsDatasetStyle Style { get; } = new();
-        public DlsDatasetMetadataState Metadata { get; } = new();
-        public DlsDatasetCumulantSettings Cumulant { get; } = new();
-        public string SheetName => Dataset.SheetName;
-
-        private SolidColorBrush _colorBrush = new(Colors.Gray);
-        public SolidColorBrush ColorBrush
-        {
-            get => _colorBrush;
-            set
-            {
-                if (_colorBrush.Color == value.Color) return;
-                _colorBrush = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public DlsDatasetItem(DlsDataset dataset)
-        {
-            Dataset = dataset;
-            Metadata.TemperatureCelsius = dataset.Metadata.TemperatureCelsius;
-            Metadata.Solvent = dataset.Metadata.Solvent;
-            Metadata.ConcentrationMgPerMl = dataset.Metadata.ConcentrationMgPerMl;
-            Metadata.RefractiveIndex = dataset.Metadata.RefractiveIndex;
-            Metadata.ViscosityMpas = dataset.Metadata.ViscosityMpas;
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-    }
+    // 旧ネスト型 (DlsDatasetStyle / DlsDatasetMetadataState / DlsDatasetCumulantSettings /
+    // DlsDatasetItem) は AnalysisWindow からも触る必要が出たため
+    // src/LabPlot.DLS.Avalonia/DlsDatasetItem.cs に Top-level として切り出した。
 
     private string GetGraphTitle(string defaultTitle)
     {

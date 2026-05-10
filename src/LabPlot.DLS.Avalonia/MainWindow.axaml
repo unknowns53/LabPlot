@@ -102,7 +102,7 @@
                                                              Padding="0"
                                                              DragDrop.AllowDrop="True">
                                                         <ListBox.ItemTemplate>
-                                                            <DataTemplate x:DataType="vm:MainWindow+DlsDatasetItem">
+                                                            <DataTemplate x:DataType="vm:DlsDatasetItem">
                                                                 <Grid ColumnDefinitions="Auto,*">
                                                                     <Border Grid.Column="0"
                                                                             Width="14" Height="14"

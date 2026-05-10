@@ -5,7 +5,6 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Markup.Xaml;
 using DlsAnalyzer.Core;
 using LabPlot.Core.Avalonia.Helpers;
 using static LabPlot.Core.Avalonia.FormatHelpers;
@@ -33,10 +32,17 @@ public sealed partial class AnalysisWindow : Window
     private bool _suppressInversionControlEvents;
     private bool _suppressMetadataControlEvents;
 
+    // AvaloniaXamlLoader.Load が実行される最中に TabControl / ComboBox / CheckBox の
+    // 既定値設定で SelectionChanged / Checked が発火し、ハンドラが走る。
+    // x:Name フィールドは Load 完了 *後* に代入されるため、この瞬間に発火するハンドラから
+    // 参照すると NRE。各ハンドラ冒頭で `_initialized` を見て早期 return する。
+    private bool _initialized;
+
     public AnalysisWindow(IDlsAnalysisHost host)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         InitializeComponent();
+        _initialized = true;
 
         // 子 Window は Application 経由のスタイル自動適用が走らないので明示適用。
         // Spectrum CalibrationCurveWindow と同方針。
@@ -51,7 +57,8 @@ public sealed partial class AnalysisWindow : Window
         RecomputeActiveTab();
     }
 
-    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+    // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
+    // 自動生成するので手動定義しない（Phase 7 Batch 6 で発覚した null フィールド NRE 対策）。
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
@@ -144,7 +151,11 @@ public sealed partial class AnalysisWindow : Window
         }
     }
 
-    private void AnalysisTabs_SelectionChanged(object? sender, SelectionChangedEventArgs e) => RecomputeActiveTab();
+    private void AnalysisTabs_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_initialized) return;
+        RecomputeActiveTab();
+    }
 
     // ===================================================================
     // Tab 1: Cumulant (active sheet, lightweight, recompute on every event)
@@ -680,7 +691,7 @@ public sealed partial class AnalysisWindow : Window
 
     private void InversionWeightComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_suppressInversionControlEvents) return;
+        if (!_initialized || _suppressInversionControlEvents) return;
         if (sender is not ComboBox cb || cb.SelectedItem is not ComboBoxItem item) return;
         var tag = item.Tag as string;
         _inversionWeight = tag switch
@@ -695,7 +706,7 @@ public sealed partial class AnalysisWindow : Window
 
     private void InversionAlphaAutoCheckBox_IsCheckedChanged(object? sender, RoutedEventArgs e)
     {
-        if (_suppressInversionControlEvents) return;
+        if (!_initialized || _suppressInversionControlEvents) return;
         _inversionUseAutoAlpha = InversionAlphaAutoCheckBox.IsChecked == true;
         InversionAlphaTextBox.IsEnabled = !_inversionUseAutoAlpha;
         if (_host.SelectedMode == DistributionMode.SizeDistributionInversion)

@@ -23,6 +23,13 @@ public interface IDlsAnalysisHost
     /// <summary>子の「グラフとして見る」ボタン押下時。親側 DistributionTypeComboBox を切替 + RefreshPlot。</summary>
     void RequestShowAsGraph(DistributionMode mode);
 
+    /// <summary>
+    /// 子で測定条件 (Metadata) が編集されたときに呼ぶ。親が <see cref="AnalysisDataChanged"/> を fire し、
+    /// 自身の他 Tab (温度ランプ / 濃度シリーズ等) も含めて再計算が走る。
+    /// 親グラフの自動 refresh は伴わない（既存サイドバー時代の挙動と一致）。
+    /// </summary>
+    void RequestAnalysisDataChanged();
+
     /// <summary>xlsx 読み込み / セッション復元 / メタデータ変更 / dataset 並び替え時に raise。子は現在 Tab を再計算する。</summary>
     event EventHandler AnalysisDataChanged;
 

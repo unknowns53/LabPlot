@@ -39,7 +39,120 @@
                     Background="Transparent"
                     BorderThickness="0">
 
-            <!-- ==================== Tab 1: Cumulant ==================== -->
+            <!-- ==================== Tab 1: Measurement metadata ==================== -->
+            <TabItem Header="測定条件">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,8,0,0">
+
+                        <!-- Section: 環境設定 (温度/濃度/溶媒/屈折率/粘度) -->
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Path Theme="{DynamicResource SectionIconPath}"
+                                          Data="M 4,2 L 10,2 M 5,2 L 5,7 L 2,12 L 12,12 L 9,7 L 9,2 M 4,9 L 10,9" />
+                                    <TextBlock Text="環境設定"
+                                               FontWeight="SemiBold" FontSize="13"
+                                               Foreground="#0F172A"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <TextBlock Text="温度・濃度はシートごと、溶媒・屈折率・粘度は読み込み済み全シートにまとめて適用します。"
+                                           FontSize="11"
+                                           Foreground="#475569"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <Grid Margin="0,0,0,10" ColumnDefinitions="*,8,*">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="温度 (°C)" Theme="{DynamicResource FieldLabelStyle}" />
+                                        <TextBox Name="MetadataTemperatureTextBox"
+                                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                                 TextChanged="MetadataTemperatureTextBox_TextChanged"
+                                                 LostFocus="MetadataTemperatureTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="濃度 (mg/mL)" Theme="{DynamicResource FieldLabelStyle}" />
+                                        <TextBox Name="MetadataConcentrationTextBox"
+                                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                                 TextChanged="MetadataConcentrationTextBox_TextChanged"
+                                                 LostFocus="MetadataConcentrationTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="溶媒" Theme="{DynamicResource FieldLabelStyle}" />
+                                <TextBox Name="MetadataSolventTextBox"
+                                         Theme="{DynamicResource InputTextBoxStyle}"
+                                         Margin="0,0,0,10"
+                                         TextChanged="MetadataSolventTextBox_TextChanged"
+                                         LostFocus="MetadataSolventTextBox_LostFocus"
+                                         KeyDown="MetadataTextBox_KeyDown" />
+
+                                <Grid ColumnDefinitions="*,8,*">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="屈折率" Theme="{DynamicResource FieldLabelStyle}" />
+                                        <TextBox Name="MetadataRefractiveIndexTextBox"
+                                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                                 TextChanged="MetadataRefractiveIndexTextBox_TextChanged"
+                                                 LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="粘度 (mPa·s)" Theme="{DynamicResource FieldLabelStyle}" />
+                                        <TextBox Name="MetadataViscosityTextBox"
+                                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                                 TextChanged="MetadataViscosityTextBox_TextChanged"
+                                                 LostFocus="MetadataViscosityTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Section: 装置設定 (波長/散乱角) -->
+                        <Border Theme="{DynamicResource SectionStyle}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <Path Theme="{DynamicResource SectionIconPath}"
+                                          Data="M 1,7 L 13,7 M 4,5 L 4,9 M 9,5 L 9,9" />
+                                    <TextBlock Text="装置設定"
+                                               FontWeight="SemiBold" FontSize="13"
+                                               Foreground="#0F172A"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <TextBlock Text="波長・散乱角は装置の固定値で、全シート共通として扱います。デフォルトは 633 nm / 173°（Zetasizer 仕様）。"
+                                           FontSize="11"
+                                           Foreground="#475569"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,10" />
+
+                                <Grid ColumnDefinitions="*,8,*">
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="波長 (nm)" Theme="{DynamicResource FieldLabelStyle}" />
+                                        <TextBox Name="MetadataWavelengthTextBox"
+                                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                                 TextChanged="MetadataWavelengthTextBox_TextChanged"
+                                                 LostFocus="MetadataWavelengthTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="散乱角 (°)" Theme="{DynamicResource FieldLabelStyle}" />
+                                        <TextBox Name="MetadataScatteringAngleTextBox"
+                                                 Theme="{DynamicResource InputTextBoxStyle}"
+                                                 TextChanged="MetadataScatteringAngleTextBox_TextChanged"
+                                                 LostFocus="MetadataScatteringAngleTextBox_LostFocus"
+                                                 KeyDown="MetadataTextBox_KeyDown" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Tab 2: Cumulant ==================== -->
             <TabItem Header="キュムラント">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
@@ -125,7 +238,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ==================== Tab 2: Temperature ramp ==================== -->
+            <!-- ==================== Tab 3: Temperature ramp ==================== -->
             <TabItem Header="温度ランプ">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
@@ -182,7 +295,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ==================== Tab 3: Concentration series ==================== -->
+            <!-- ==================== Tab 4: Concentration series ==================== -->
             <TabItem Header="濃度シリーズ">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
@@ -239,7 +352,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- ==================== Tab 4: CONTIN ==================== -->
+            <!-- ==================== Tab 5: CONTIN ==================== -->
             <TabItem Header="CONTIN">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">

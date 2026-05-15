@@ -122,6 +122,7 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
         var dataType = header.TryGetValue("DATA TYPE", out var dt) && dt.Length > 0 ? dt : null;
         var firstX = TryParseHeaderDouble(header, "FIRSTX");
         var lastX = TryParseHeaderDouble(header, "LASTX");
+        var declaredPointCount = TryParseHeaderInt(header, "NPOINTS");
 
         return new SpectrumDataset
         {
@@ -131,6 +132,7 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
             RawDataType = dataType,
             RawFirstX = firstX,
             RawLastX = lastX,
+            DeclaredPointCount = declaredPointCount,
             XLabel = DefaultLabels.ApplySourceOverride(AxisLabelMapper.MapX(xUnits)),
             YLabel = DefaultLabels.ApplySourceOverride(AxisLabelMapper.MapY(yUnits)),
             Title = title,
@@ -189,6 +191,31 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
         }
 
         return TryParseLooseDouble(raw, out var value) ? value : null;
+    }
+
+    private static int? TryParseHeaderInt(IReadOnlyDictionary<string, string> header, string key)
+    {
+        if (!header.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        // NPOINTS is always an integer in JASCO exports, but the file could
+        // have been hand-edited or post-processed and end up with a decimal
+        // separator. Route through TryParseLooseDouble so a "4001.0" still
+        // parses cleanly, then narrow to int.
+        if (!TryParseLooseDouble(raw, out var d) || !double.IsFinite(d))
+        {
+            return null;
+        }
+
+        var rounded = Math.Round(d);
+        if (rounded < 0 || rounded > int.MaxValue)
+        {
+            return null;
+        }
+
+        return (int)rounded;
     }
 
     private static bool TryParseDataRow(string line, out SpectrumDataPoint point)

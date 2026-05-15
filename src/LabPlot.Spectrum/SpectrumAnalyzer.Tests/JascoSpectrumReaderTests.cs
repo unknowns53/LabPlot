@@ -123,6 +123,53 @@ public sealed class JascoSpectrumReaderTests
     }
 
     [Fact]
+    public void Parse_FlagsPointCountMismatchWhenNpointsExceedsRows()
+    {
+        // NPOINTS=10 was declared but only 3 numeric rows follow — usually
+        // a truncated download or a hand-edited paste. The parser must
+        // expose the discrepancy so the UI can surface a warning.
+        const string sample = """
+            TITLE	demo
+            XUNITS	NANOMETERS
+            YUNITS	ABSORBANCE
+            FIRSTX	200
+            LASTX	800
+            NPOINTS	10
+            XYDATA
+            200	0.10
+            500	0.85
+            800	0.05
+
+            """;
+
+        var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), null);
+
+        Assert.Equal(10, dataset.DeclaredPointCount);
+        Assert.Equal(3, dataset.Points.Count);
+        Assert.True(dataset.HasPointCountMismatch);
+    }
+
+    [Fact]
+    public void Parse_DoesNotFlagMismatchWhenNpointsMatches()
+    {
+        const string sample = """
+            XUNITS	NANOMETERS
+            YUNITS	ABSORBANCE
+            NPOINTS	3
+            XYDATA
+            200	0.10
+            500	0.85
+            800	0.05
+
+            """;
+
+        var dataset = new JascoSpectrumReader().Parse(new StringReader(sample), null);
+
+        Assert.Equal(3, dataset.DeclaredPointCount);
+        Assert.False(dataset.HasPointCountMismatch);
+    }
+
+    [Fact]
     public void Parse_ThrowsWhenMissingXyDataMarker()
     {
         const string sample = """

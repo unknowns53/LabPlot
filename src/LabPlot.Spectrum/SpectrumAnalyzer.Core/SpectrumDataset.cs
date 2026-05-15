@@ -32,6 +32,27 @@ public sealed class SpectrumDataset
     public double? RawLastX { get; init; }
 
     /// <summary>
+    /// Sample count declared in the source file's header (NPOINTS for JASCO
+    /// exports). Comparing this to <see cref="Points"/>.Count lets callers
+    /// detect truncated downloads or files concatenated by hand — neither
+    /// of which the parser can fail on its own (the trailing blank line is
+    /// what terminates the data block, not the header count).
+    /// </summary>
+    public int? DeclaredPointCount { get; init; }
+
+    /// <summary>
+    /// True when the header declared a point count but the actual number
+    /// of parsed data rows is smaller. A larger actual count is allowed
+    /// because some JASCO exports omit the trailing samples from NPOINTS
+    /// when they store an offset / baseline header.
+    /// </summary>
+    public bool HasPointCountMismatch =>
+        DeclaredPointCount is int declared
+        && declared > 0
+        && Points.Count > 0
+        && declared > Points.Count;
+
+    /// <summary>
     /// Free-form key/value pairs recovered from the source file's footer
     /// (e.g. JASCO's `[測定情報]` and `[付属品情報]` sections). Keys are kept
     /// in their original language so that callers don't need to know an

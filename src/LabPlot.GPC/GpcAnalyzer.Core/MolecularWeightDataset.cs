@@ -27,6 +27,33 @@ public sealed class MolecularWeightDataset
 
     public int FilteredOutPointCount => Math.Max(0, SourcePointCount - Points.Count);
 
+    /// <summary>
+    /// Number of source retention-time points whose calibration result
+    /// overflowed past Math.Pow(10, logM) → Infinity. These rows are
+    /// dropped from the dataset (they cannot be plotted on a log MW axis)
+    /// but counting them lets the UI surface a "your data goes outside the
+    /// calibration window" warning instead of silently discarding peaks.
+    /// </summary>
+    public int OverflowedPointCount { get; init; }
+
+    /// <summary>
+    /// Number of adjacent retention-time-sorted pairs where the calibration
+    /// polynomial's logM moved against the dominant direction. Non-zero
+    /// values indicate the chromatogram contains points outside the
+    /// retention-time window the cubic fit was originally trained on, so MW
+    /// assignment for those points is extrapolation rather than calibration.
+    /// </summary>
+    public int CalibrationDirectionReversalCount { get; init; }
+
+    /// <summary>
+    /// True when at least one warning condition was hit during conversion
+    /// (overflow, calibration direction reversal). Used to decorate the UI
+    /// rather than to abort processing — the data still gets plotted on
+    /// whatever portion of the trace is well-behaved.
+    /// </summary>
+    public bool HasCalibrationWarnings =>
+        OverflowedPointCount > 0 || CalibrationDirectionReversalCount > 0;
+
     public IReadOnlyList<MolecularWeightDataPoint> Points { get; init; } = Array.Empty<MolecularWeightDataPoint>();
 
     public double[] LogMolecularWeightValues =>

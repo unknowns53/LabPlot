@@ -24,7 +24,8 @@ public sealed class MolecularWeightConverter
                 "Maximum molecular weight must be finite and greater than the minimum.");
         }
 
-        var sourcePoints = CreateSourcePoints(dataset.Points, curve);
+        var (sourcePoints, overflowedCount, directionReversalCount) =
+            CreateSourcePoints(dataset.Points, curve);
         var signalPoints = CreateSignalPoints(sourcePoints, minMolecularWeight, maxMolecularWeight);
         var points = yMode switch
         {
@@ -50,6 +51,8 @@ public sealed class MolecularWeightConverter
             MinMolecularWeight = minMolecularWeight,
             MaxMolecularWeight = maxMolecularWeight,
             SourcePointCount = dataset.Points.Count,
+            OverflowedPointCount = overflowedCount,
+            CalibrationDirectionReversalCount = directionReversalCount,
             YLabel = yMode == MolecularWeightYMode.DifferentialWeightFraction ? "dw/dlogM" : dataset.YLabel,
             YMode = yMode,
             Statistics = dataset.MolecularWeightStatistics ?? CalculateStatistics(signalPoints),
@@ -57,23 +60,97 @@ public sealed class MolecularWeightConverter
         };
     }
 
-    private static MolecularWeightDataPoint[] CreateSourcePoints(IReadOnlyList<GpcDataPoint> points, CalibrationCurve curve)
+    private static (MolecularWeightDataPoint[] SourcePoints, int OverflowedCount, int DirectionReversalCount) CreateSourcePoints(
+        IReadOnlyList<GpcDataPoint> points,
+        CalibrationCurve curve)
     {
         var sourcePoints = new MolecularWeightDataPoint[points.Count];
+        var overflowedCount = 0;
         for (var i = 0; i < points.Count; i++)
         {
             var point = points[i];
             var logMolecularWeight = curve.CalculateLogMolecularWeight(point.X);
+            double molecularWeight;
+            if (!double.IsFinite(logMolecularWeight))
+            {
+                molecularWeight = double.NaN;
+                overflowedCount++;
+            }
+            else
+            {
+                molecularWeight = Math.Pow(10, logMolecularWeight);
+                if (!double.IsFinite(molecularWeight))
+                {
+                    // Math.Pow(10, x) blows up to Infinity around x ~= 309; that
+                    // would otherwise propagate through area sums and corrupt
+                    // every downstream statistic. Coerce to NaN so the point
+                    // gets filtered out cleanly and surface the count.
+                    molecularWeight = double.NaN;
+                    overflowedCount++;
+                }
+            }
+
             sourcePoints[i] = new MolecularWeightDataPoint
             {
                 RetentionTime = point.X,
-                MolecularWeight = Math.Pow(10, logMolecularWeight),
+                MolecularWeight = molecularWeight,
                 LogMolecularWeight = logMolecularWeight,
                 Signal = point.Y,
             };
         }
 
-        return sourcePoints;
+        var directionReversalCount = CountCalibrationDirectionReversals(sourcePoints);
+        return (sourcePoints, overflowedCount, directionReversalCount);
+    }
+
+    /// <summary>
+    /// Walks the source points in retention-time order and counts adjacent
+    /// pairs whose logM derivative sign disagrees with the dominant direction
+    /// established by the first finite step. For a well-behaved GPC trace
+    /// every step should move logM the same way; reversals usually mean some
+    /// data points landed in the extrapolation tail of the cubic fit.
+    /// </summary>
+    private static int CountCalibrationDirectionReversals(IReadOnlyList<MolecularWeightDataPoint> sourcePoints)
+    {
+        var ordered = sourcePoints
+            .Where(p => double.IsFinite(p.RetentionTime) && double.IsFinite(p.LogMolecularWeight))
+            .OrderBy(static p => p.RetentionTime)
+            .ToArray();
+        if (ordered.Length < 2)
+        {
+            return 0;
+        }
+
+        var reversals = 0;
+        int? expectedSign = null;
+        for (var i = 1; i < ordered.Length; i++)
+        {
+            var dt = ordered[i].RetentionTime - ordered[i - 1].RetentionTime;
+            if (dt <= 0)
+            {
+                continue;
+            }
+
+            var dLogM = ordered[i].LogMolecularWeight - ordered[i - 1].LogMolecularWeight;
+            if (Math.Abs(dLogM) < 1e-12)
+            {
+                continue;
+            }
+
+            var sign = Math.Sign(dLogM);
+            if (expectedSign is null)
+            {
+                expectedSign = sign;
+                continue;
+            }
+
+            if (sign != expectedSign)
+            {
+                reversals++;
+            }
+        }
+
+        return reversals;
     }
 
     private static MolecularWeightStatistics? CalculateStatistics(IReadOnlyList<MolecularWeightDataPoint> points)

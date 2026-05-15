@@ -179,6 +179,105 @@ public sealed class CalibrationCurveTests
     }
 
     [Fact]
+    public void MolecularWeightConverter_FlagsCalibrationDirectionReversal()
+    {
+        // Calibration logM = t² - 4t + 8 produces a parabola whose logM
+        // values across t ∈ {0..4} are [8, 5, 4, 5, 8]. The dominant
+        // direction over the first finite step is decreasing, so the two
+        // ascending halves on the right (2→3 and 3→4) count as reversals
+        // — exactly the case where chromatogram data has wandered into the
+        // cubic's extrapolation tail.
+        var dataset = new GpcDataset
+        {
+            Points = new[]
+            {
+                new GpcDataPoint { X = 0, Y = 1 },
+                new GpcDataPoint { X = 1, Y = 1 },
+                new GpcDataPoint { X = 2, Y = 1 },
+                new GpcDataPoint { X = 3, Y = 1 },
+                new GpcDataPoint { X = 4, Y = 1 },
+            },
+        };
+        var curve = new CalibrationCurve
+        {
+            Solvent = "Test",
+            Detector = "A",
+            Coefficients = new CalibrationCurveCoefficients
+            {
+                A = 0,
+                B = 1,
+                C = -4,
+                D = 8,
+            },
+        };
+
+        var converted = new MolecularWeightConverter().Convert(dataset, curve);
+
+        Assert.Equal(0, converted.OverflowedPointCount);
+        Assert.Equal(2, converted.CalibrationDirectionReversalCount);
+        Assert.True(converted.HasCalibrationWarnings);
+    }
+
+    [Fact]
+    public void MolecularWeightConverter_FlagsMathPowOverflowWithoutCrashing()
+    {
+        // Calibration logM = 100·t. At t=1 logM=100 (M=1e100, still finite);
+        // at t=4 logM=400, which Math.Pow(10, 400) overflows to Infinity.
+        // The converter should coerce the overflow to NaN so the point gets
+        // filtered out cleanly, surface the count, and keep going on the
+        // remaining well-behaved point.
+        var dataset = new GpcDataset
+        {
+            Points = new[]
+            {
+                new GpcDataPoint { X = 1, Y = 1 },
+                new GpcDataPoint { X = 4, Y = 1 },
+            },
+        };
+        var curve = new CalibrationCurve
+        {
+            Solvent = "Test",
+            Detector = "A",
+            Coefficients = new CalibrationCurveCoefficients
+            {
+                A = 0,
+                B = 0,
+                C = 100,
+                D = 0,
+            },
+        };
+
+        var converted = new MolecularWeightConverter().Convert(
+            dataset,
+            curve,
+            MolecularWeightYMode.Signal,
+            minMolecularWeight: 1,
+            maxMolecularWeight: double.MaxValue);
+
+        Assert.Equal(1, converted.OverflowedPointCount);
+        Assert.Single(converted.Points);
+        Assert.True(converted.HasCalibrationWarnings);
+    }
+
+    [Fact]
+    public void CalibrationCurveCoefficients_OverflowingLogMReturnsNaN()
+    {
+        var coefficients = new CalibrationCurveCoefficients
+        {
+            A = 0,
+            B = 0,
+            C = 100,
+            D = 0,
+        };
+
+        // logM(4) = 400 → Math.Pow(10, 400) = Infinity; the wrapper coerces
+        // to NaN so downstream IsFinite filtering rejects the row.
+        var molecularWeight = coefficients.CalculateMolecularWeight(4);
+
+        Assert.True(double.IsNaN(molecularWeight));
+    }
+
+    [Fact]
     public void MolecularWeightConverter_UsesDataFileStatisticsWhenPresent()
     {
         var dataset = new GpcDataset

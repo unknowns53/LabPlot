@@ -2452,6 +2452,42 @@ public partial class MainWindow : Window
         SetStatisticsLine(FormatRepresentativeStatistics(updated));
     }
 
+    // v1.3 Batch J: 単一データセット表示時の Mn / Mw / Đ + 代表ピーク名を Tab 区切りで
+    // クリップボードへコピーする。重ね描き時は MultiStatisticsScroll 側の各行 chip から
+    // 個別 SelectableTextBlock 経由でコピーできるので、ここでは単一表示パスのみ対応。
+    private async void CopyStatisticsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var peakLabel = string.IsNullOrWhiteSpace(StatisticsPeakLabel.Text) ? "(代表ピーク)" : StatisticsPeakLabel.Text;
+        var lines = new[]
+        {
+            $"ピーク\t{peakLabel}",
+            $"Mn\t{MnChipValue.Text}",
+            $"Mw\t{MwChipValue.Text}",
+            $"Ð\t{DispersityChipValue.Text}",
+        };
+        await CopyResultLinesAsync("分子量統計", lines);
+    }
+
+    private async Task CopyResultLinesAsync(string label, string[] lines)
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                Toast?.Show("クリップボードを利用できません", StatusSeverity.Error);
+                return;
+            }
+            var text = string.Join('\n', lines);
+            await clipboard.SetTextAsync(text);
+            Toast?.Show($"{label}をコピーしました", StatusSeverity.Success);
+        }
+        catch (Exception)
+        {
+            Toast?.Show("コピーに失敗しました", StatusSeverity.Error);
+        }
+    }
+
     private MolecularWeightStatistics? ApplyStoredSelectedPeak(MolecularWeightStatistics? stats, int datasetIndex)
     {
         if (stats is null || stats.Peaks.Count == 0) return stats;

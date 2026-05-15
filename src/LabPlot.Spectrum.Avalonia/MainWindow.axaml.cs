@@ -3362,6 +3362,7 @@ public partial class MainWindow : Window
         {
             CloudPointResultTextBlock.Text = string.Empty;
             CloudPointResultTextBlock.IsVisible = false;
+            CopyCloudPointResultButton.IsVisible = false;
         }
     }
 
@@ -3810,6 +3811,7 @@ public partial class MainWindow : Window
     {
         CloudPointResultTextBlock.IsVisible = false;
         CloudPointResultTextBlock.Text = string.Empty;
+        CopyCloudPointResultButton.IsVisible = false;
 
         if (_spectrumPlot is null
             || ShowCloudPointCheckBox.IsChecked != true
@@ -3936,6 +3938,35 @@ public partial class MainWindow : Window
 
         CloudPointResultTextBlock.Text = string.Join(Environment.NewLine, lines);
         CloudPointResultTextBlock.IsVisible = true;
+        // v1.3 Batch J: 結果が出ているときだけ「結果コピー」を有効にする。
+        CopyCloudPointResultButton.IsVisible = true;
+    }
+
+    // v1.3 Batch J: Cloud Point の Tc / k / R² ブロックをそのままクリップボードへ。
+    // 複数行 (Tc / 遷移幅 / R² / ヒステリシス) を改行付きで丸ごとコピーする。
+    private async void CopyCloudPointResultButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var text = CloudPointResultTextBlock.Text ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            Toast?.Show("コピーできる結果がありません", StatusSeverity.Warning);
+            return;
+        }
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                Toast?.Show("クリップボードを利用できません", StatusSeverity.Error);
+                return;
+            }
+            await clipboard.SetTextAsync(text);
+            Toast?.Show("曇点解析結果をコピーしました", StatusSeverity.Success);
+        }
+        catch (Exception)
+        {
+            Toast?.Show("コピーに失敗しました", StatusSeverity.Error);
+        }
     }
 
     private static double[] ConvertTransmittancePredictionToDisplay(

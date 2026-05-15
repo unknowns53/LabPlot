@@ -883,6 +883,16 @@
                                                                Margin="0,8,0,0"
                                                                TextWrapping="Wrap"
                                                                IsVisible="False" />
+                                                    <!-- v1.3 Batch J: Tc / k / R² 等の Cloud Point 結果を
+                                                         全文クリップボードにコピーする補助ボタン。 -->
+                                                    <Button x:Name="CopyCloudPointResultButton"
+                                                            Content="結果コピー"
+                                                            Theme="{DynamicResource SecondaryButtonStyle}"
+                                                            HorizontalAlignment="Left"
+                                                            Margin="0,8,0,0"
+                                                            ToolTip.Tip="Tc / k / R² などの曇点結果をクリップボードへコピー"
+                                                            IsVisible="False"
+                                                            Click="CopyCloudPointResultButton_Click" />
                                                 </StackPanel>
                                             </Expander>
 

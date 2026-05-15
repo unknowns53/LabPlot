@@ -911,6 +911,16 @@
                                               MinWidth="160"
                                               Theme="{DynamicResource InputComboBoxStyle}"
                                               SelectionChanged="RepresentativePeakComboBox_SelectionChanged" />
+                                    <!-- v1.3 Batch J: 単一データセット時の Mn / Mw / Đ を
+                                         Tab 区切りでクリップボードへ。重ね描き時は各行の chip から
+                                         個別 SelectableTextBlock 経由でコピー可能なので、ここでは
+                                         単一表示時の一括コピーだけ提供する。 -->
+                                    <Button Name="CopyStatisticsButton"
+                                            Content="結果コピー"
+                                            Theme="{DynamicResource SecondaryButtonStyle}"
+                                            Margin="10,0,0,0"
+                                            ToolTip.Tip="Mn / Mw / Đ を Tab 区切りでクリップボードへコピー"
+                                            Click="CopyStatisticsButton_Click" />
                                 </StackPanel>
                             </Grid>
                             <!-- 重ね書き（複数データセット）時の表示。

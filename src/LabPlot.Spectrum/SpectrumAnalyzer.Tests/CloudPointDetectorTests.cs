@@ -288,6 +288,94 @@ public sealed class CloudPointDetectorTests
     }
 
     [Fact]
+    public void Detect_AmplitudeGate_SuppressesFlatTrace()
+    {
+        // Flat trace at T=50 % across the sweep — no transition. With the
+        // amplitude gate enabled (≥ 5 %T required) the detector returns an
+        // empty result before any per-method work runs.
+        var points = new List<SpectrumDataPoint>();
+        for (var x = 25.0; x <= 45.0001; x += 0.5)
+        {
+            points.Add(new SpectrumDataPoint { X = x, Y = 50.0 });
+        }
+
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+        var config = new CloudPointDetectionConfig
+        {
+            Method = CloudPointMethod.Midpoint,
+            MinimumTransitionAmplitudePercent = 5.0,
+        };
+
+        var result = CloudPointDetector.Detect(dataset, config);
+
+        Assert.False(result.HasResult);
+    }
+
+    [Fact]
+    public void Detect_AmplitudeGate_AllowsRealTransitionWhenContrastIsSmaller()
+    {
+        // Same descending sigmoid (amplitude ~90 %T) — amplitude gate of
+        // 30 %T is well below the actual span, so detection still runs.
+        var points = SampleBoltzmann(25, 45, 0.25, 5.0, 95.0, 33.5, 1.5);
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+        var config = new CloudPointDetectionConfig
+        {
+            Method = CloudPointMethod.Midpoint,
+            TransmittanceThresholdPercent = 50.0,
+            MinimumTransitionAmplitudePercent = 30.0,
+        };
+
+        var result = CloudPointDetector.Detect(dataset, config);
+
+        Assert.True(result.HasResult);
+        Assert.InRange(result.TemperatureCelsius, 32.5, 34.5);
+    }
+
+    [Fact]
+    public void Detect_PlateauContrastGate_SuppressesNoisyFlatTrace()
+    {
+        // Random ±2 %T noise around 50 % — no real transition, but the
+        // amplitude gate alone might pass on a wide-range noise burst. The
+        // plateau-contrast gate checks the edge averages instead, which
+        // stays near 50 % in expectation and fails the 10 %T threshold.
+        var rng = new Random(7);
+        var points = new List<SpectrumDataPoint>();
+        for (var x = 25.0; x <= 45.0001; x += 0.5)
+        {
+            points.Add(new SpectrumDataPoint { X = x, Y = 50.0 + (rng.NextDouble() - 0.5) * 4.0 });
+        }
+
+        var dataset = MakeTemperatureScan(points, firstX: 25, lastX: 45);
+        var config = new CloudPointDetectionConfig
+        {
+            Method = CloudPointMethod.Midpoint,
+            MinimumPlateauContrastPercent = 10.0,
+        };
+
+        var result = CloudPointDetector.Detect(dataset, config);
+
+        Assert.False(result.HasResult);
+    }
+
+    [Fact]
+    public void Detect_DefaultConfig_DoesNotApplyAnyNoiseGate()
+    {
+        // Default config has both gates at 0, so even a 3 %T microtransition
+        // produces a result. Pinning this behaviour ensures the new gates
+        // are opt-in and cannot regress existing analyses.
+        var points = SampleLinear(30, 51.5, 50, 48.5, 21);
+        var dataset = MakeTemperatureScan(points, firstX: 30, lastX: 50);
+
+        var result = CloudPointDetector.Detect(dataset, new CloudPointDetectionConfig
+        {
+            Method = CloudPointMethod.Midpoint,
+            TransmittanceThresholdPercent = 50.0,
+        });
+
+        Assert.True(result.HasResult);
+    }
+
+    [Fact]
     public void Detect_NonTemperatureScan_ReturnsEmpty()
     {
         var dataset = new SpectrumDataset

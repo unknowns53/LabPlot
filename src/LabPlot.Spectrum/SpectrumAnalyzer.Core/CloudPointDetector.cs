@@ -62,6 +62,28 @@ public sealed record CloudPointDetectionConfig
     /// smoothing.
     /// </summary>
     public int SmoothingWindow { get; init; } = 3;
+
+    /// <summary>
+    /// Minimum overall amplitude (max Y − min Y, percent transmittance) the
+    /// curve must show before any cloud-point detection runs. Use this as a
+    /// screening gate for batch experiments where most traces are flat /
+    /// failed and you only want detector hits on the ones that actually
+    /// transitioned. A value &lt;= 0 disables the gate (default), which
+    /// keeps the previous behaviour intact for traces with weak but real
+    /// transitions.
+    /// </summary>
+    public double MinimumTransitionAmplitudePercent { get; init; } = 0.0;
+
+    /// <summary>
+    /// Minimum contrast (transmittance %) between the average of the
+    /// first and last edge samples. A non-zero value suppresses results
+    /// on traces whose pre- and post-transition plateaus failed to
+    /// diverge — typically meaning either no transition or a transition
+    /// whose magnitude sits inside the noise band. Default 0 disables the
+    /// gate. Tuned for PNIPAM-style LCST sweeps where a real transition
+    /// produces &gt; 30 % plateau separation.
+    /// </summary>
+    public double MinimumPlateauContrastPercent { get; init; } = 0.0;
 }
 
 /// <summary>
@@ -174,6 +196,23 @@ public static class CloudPointDetector
             return CloudPointResult.Empty(config.Method, direction);
         }
 
+        // Noise-rejection gates (both off by default). When the user has
+        // batch-screening data where most traces are flat / failed
+        // experiments, these guards short-circuit the per-method detection
+        // so the UI surfaces nothing instead of an arbitrarily-located
+        // "Tc" generated from baseline drift.
+        if (config.MinimumTransitionAmplitudePercent > 0
+            && !PassesAmplitudeGate(ts, config.MinimumTransitionAmplitudePercent))
+        {
+            return CloudPointResult.Empty(config.Method, direction);
+        }
+
+        if (config.MinimumPlateauContrastPercent > 0
+            && !PassesPlateauContrastGate(ts, config.MinimumPlateauContrastPercent))
+        {
+            return CloudPointResult.Empty(config.Method, direction);
+        }
+
         return config.Method switch
         {
             CloudPointMethod.Midpoint => DetectByMidpoint(xs, ts, config, direction),
@@ -182,6 +221,43 @@ public static class CloudPointDetector
             CloudPointMethod.SigmoidFit => DetectBySigmoidFit(xs, ts, config, direction),
             _ => CloudPointResult.Empty(config.Method, direction),
         };
+    }
+
+    /// <summary>
+    /// True when (max − min) of the finite samples meets or exceeds the
+    /// configured minimum amplitude. Used as a coarse "did anything
+    /// happen?" gate before any per-method detection runs.
+    /// </summary>
+    private static bool PassesAmplitudeGate(double[] ts, double minimum)
+    {
+        var minT = double.PositiveInfinity;
+        var maxT = double.NegativeInfinity;
+        for (var i = 0; i < ts.Length; i++)
+        {
+            if (!double.IsFinite(ts[i])) continue;
+            if (ts[i] < minT) minT = ts[i];
+            if (ts[i] > maxT) maxT = ts[i];
+        }
+
+        if (!double.IsFinite(minT) || !double.IsFinite(maxT)) return false;
+        return (maxT - minT) >= minimum;
+    }
+
+    /// <summary>
+    /// True when the contrast between the average of the leading and
+    /// trailing edge samples meets the configured minimum. Trims to
+    /// max(2, n/5, 5) on each end so very short scans still get a
+    /// meaningful average.
+    /// </summary>
+    private static bool PassesPlateauContrastGate(double[] ts, double minimum)
+    {
+        var edge = Math.Max(2, Math.Min(ts.Length / 5, 5));
+        if (edge * 2 > ts.Length) return false;
+
+        var leftMean = Mean(ts, 0, edge);
+        var rightMean = Mean(ts, ts.Length - edge, edge);
+        if (!double.IsFinite(leftMean) || !double.IsFinite(rightMean)) return false;
+        return Math.Abs(leftMean - rightMean) >= minimum;
     }
 
     private static CloudPointResult DetectByMidpoint(

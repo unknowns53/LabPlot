@@ -1,0 +1,98 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        x:Class="LabPlot.Core.Avalonia.KeyboardShortcutsWindow"
+        Title="キーボードショートカット"
+        Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
+        Width="520" SizeToContent="Height"
+        MinHeight="320" MaxHeight="720"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#F7F8FA"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        SystemDecorations="Full">
+
+    <!-- v1.3 UI ブラッシュアップ Batch D: F1 で開くショートカット一覧。
+         呼び出し側 (DLS / GPC / Spectrum / CalibrationCurve など) から
+         `KeyboardShortcutsWindow.ShowFor(owner, AppKind.Dls)` で開く。
+         ESC で閉じる。 -->
+
+    <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
+        <Grid RowDefinitions="Auto,*">
+
+            <controls:CustomTitleBar Grid.Row="0"
+                                     Name="ShortcutTitleBar"
+                                     AppName="キーボードショートカット"
+                                     Subtitle=""
+                                     AppIconData="M 2,4 L 16,4 L 16,12 L 2,12 Z M 4,7 L 5,7 M 7,7 L 8,7 M 10,7 L 11,7 M 13,7 L 14,7 M 4,10 L 14,10" />
+
+            <Grid Grid.Row="1" Margin="20,14,20,18" RowDefinitions="*,Auto">
+
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+                    <ItemsControl Name="ShortcutGroups">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Theme="{DynamicResource SectionStyle}" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding GroupName}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"
+                                                   Foreground="#0F172A"
+                                                   Margin="0,0,0,10" />
+                                        <ItemsControl ItemsSource="{Binding Entries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnDefinitions="170,*" Margin="0,0,0,6">
+                                                        <Border Grid.Column="0"
+                                                                Background="#F1F5F9"
+                                                                BorderBrush="#CBD5E1"
+                                                                BorderThickness="1"
+                                                                CornerRadius="4"
+                                                                Padding="8,3"
+                                                                HorizontalAlignment="Left"
+                                                                Margin="0,0,12,0">
+                                                            <TextBlock Text="{Binding KeyCombo}"
+                                                                       FontFamily="Consolas, Cascadia Mono, monospace"
+                                                                       FontSize="12"
+                                                                       Foreground="#1E293B" />
+                                                        </Border>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Description}"
+                                                                   Foreground="#334155"
+                                                                   FontSize="13"
+                                                                   VerticalAlignment="Center"
+                                                                   TextWrapping="Wrap" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Border Grid.Row="1" Margin="0,8,0,0">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Text="ESC で閉じる"
+                                   Foreground="#94A3B8"
+                                   FontSize="11"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1"
+                                Name="CloseButton"
+                                Content="閉じる"
+                                Theme="{DynamicResource PrimaryButtonStyle}"
+                                Click="CloseButton_Click" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

@@ -188,6 +188,13 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             e.Handled = true;
             return;
         }
+        else if (e.Key == Key.F1)
+        {
+            // v1.3 Batch D: F1 で共通のショートカット一覧を Modal で開く。
+            global::LabPlot.Core.Avalonia.KeyboardShortcutsWindow.ShowFor(this, global::LabPlot.Core.Avalonia.AppKind.Dls);
+            e.Handled = true;
+            return;
+        }
         base.OnKeyDown(e);
     }
 

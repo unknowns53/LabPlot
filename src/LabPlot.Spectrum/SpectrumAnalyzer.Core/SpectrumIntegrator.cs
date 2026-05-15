@@ -117,7 +117,25 @@ public static class SpectrumIntegrator
 
         if (first < 0 || last < first)
         {
-            return null;
+            // No raw samples fell strictly inside the region — typical
+            // for narrow regions sandwiched between two consecutive
+            // dataset points. The trapezoidal area is still well-defined
+            // from the two linearly-interpolated boundary values, so
+            // return a two-point grid with PointCount=0 marking "no raw
+            // samples". Integrate / BuildBaselineCurve then proceed on
+            // gridX.Length >= 2 rather than requiring raw data inside.
+            var yMinInterp = InterpolateY(xs, ys, region.XMin);
+            var yMaxInterp = InterpolateY(xs, ys, region.XMax);
+            if (yMinInterp is null || yMaxInterp is null)
+            {
+                return null;
+            }
+            return (
+                new[] { region.XMin, region.XMax },
+                new[] { yMinInterp.Value, yMaxInterp.Value },
+                yMinInterp.Value,
+                yMaxInterp.Value,
+                0);
         }
 
         var yAtMin = InterpolateY(xs, ys, region.XMin) ?? ys[first];

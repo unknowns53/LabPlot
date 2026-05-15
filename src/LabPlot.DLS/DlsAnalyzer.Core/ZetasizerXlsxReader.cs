@@ -89,11 +89,26 @@ public sealed class ZetasizerXlsxReader : IDlsDataReader
             else if (headers[pair.XIndex].Kind == DlsColumnKind.TimeAxis &&
                      headers[pair.YIndex].Kind == DlsColumnKind.CorrelationG2Minus1)
             {
+                // Normalize the time axis to microseconds. Zetasizer xlsx
+                // defaults to μs ("Time (μs)") but some firmware exports
+                // report seconds ("Time (s)") instead. CumulantAnalyzer
+                // and SizeDistributionInverter assume μs throughout, so
+                // a silent s-axis would shift Γ and the recovered size
+                // by six orders of magnitude.
+                var rawHeader = headers[pair.XIndex].Raw;
+                var scaleToMicroseconds = ResolveTimeScaleToMicroseconds(rawHeader);
+                IReadOnlyList<double> normalizedXs = xs;
+                if (scaleToMicroseconds != 1.0)
+                {
+                    var scaled = new double[xs.Count];
+                    for (int i = 0; i < xs.Count; i++) scaled[i] = xs[i] * scaleToMicroseconds;
+                    normalizedXs = scaled;
+                }
                 if (correlationTimes is null)
                 {
-                    correlationTimes = xs;
+                    correlationTimes = normalizedXs;
                 }
-                else if (!AxisMatches(correlationTimes, xs))
+                else if (!AxisMatches(correlationTimes, normalizedXs))
                 {
                     continue;
                 }
@@ -170,6 +185,27 @@ public sealed class ZetasizerXlsxReader : IDlsDataReader
         if (cell.IsEmpty()) return null;
         if (cell.TryGetValue<double>(out var num) && double.IsFinite(num)) return num;
         return null;
+    }
+
+    private static double ResolveTimeScaleToMicroseconds(string headerRaw)
+    {
+        if (string.IsNullOrWhiteSpace(headerRaw)) return 1.0;
+        // Check seconds variants first — "(s)" alone is unambiguous but
+        // would also match "(ms)" / "(μs)" / "(us)" if substring tested
+        // naively, so anchor on (s) bounded by parentheses or word break.
+        if (HasUnitToken(headerRaw, "s") || HasUnitToken(headerRaw, "sec") || HasUnitToken(headerRaw, "seconds"))
+            return 1e6;
+        if (HasUnitToken(headerRaw, "ms") || HasUnitToken(headerRaw, "msec"))
+            return 1e3;
+        // Default: microseconds (Zetasizer's standard export).
+        return 1.0;
+    }
+
+    private static bool HasUnitToken(string headerRaw, string token)
+    {
+        // Match the unit only when wrapped in parentheses, e.g. "Time (s)".
+        var needle = "(" + token + ")";
+        return headerRaw.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool AxisMatches(IReadOnlyList<double> reference, IReadOnlyList<double> candidate)

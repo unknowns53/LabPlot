@@ -125,17 +125,45 @@ public static class CumulantAnalyzer
         // tight and let the auto-rule decide the other side.
         bool autoMin = !minMicroseconds.HasValue;
         bool autoMax = !maxMicroseconds.HasValue;
+        bool useContiguous = autoMin || autoMax;
+
+        // When the auto-threshold drives at least one bound, walk τ in
+        // ascending order and stop at the FIRST sample that falls below the
+        // threshold. The previous "drop any individual point below
+        // threshold" rule kept post-noise recoveries — a single g=0.05 dip
+        // followed by g=0.15 at the next τ would have re-included the
+        // later point, which usually represents random correlator noise
+        // around the baseline rather than a genuine second decay. The
+        // contiguous-window behaviour mirrors what an operator does by
+        // hand when picking the fit range visually.
+        var ordered = new int[taus.Count];
+        for (int i = 0; i < taus.Count; i++) ordered[i] = i;
+        Array.Sort(ordered, (a, b) => taus[a].CompareTo(taus[b]));
 
         var keptTaus = new List<double>(taus.Count);
         var keptYs = new List<double>(taus.Count);
-        for (int i = 0; i < taus.Count; i++)
+        bool started = false;
+        foreach (var idx in ordered)
         {
-            var tau = taus[i];
-            var g = ys[i];
+            var tau = taus[idx];
+            var g = ys[idx];
             if (!autoMin && tau < minMicroseconds!.Value) continue;
             if (!autoMax && tau > maxMicroseconds!.Value) continue;
-            if (autoMin && g < autoThreshold) continue;
-            if (autoMax && g < autoThreshold) continue;
+
+            if (useContiguous)
+            {
+                var aboveThreshold = g >= autoThreshold;
+                if (!started)
+                {
+                    if (!aboveThreshold) continue;
+                    started = true;
+                }
+                else if (!aboveThreshold)
+                {
+                    break;
+                }
+            }
+
             keptTaus.Add(tau);
             keptYs.Add(Math.Log(g));
         }

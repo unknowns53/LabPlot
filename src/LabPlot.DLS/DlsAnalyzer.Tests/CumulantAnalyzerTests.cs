@@ -138,6 +138,35 @@ public class CumulantAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_MixedRange_StopsAtFirstNoiseFallthrough()
+    {
+        // Manual lower bound + auto upper bound: τ ≥ 4 is pinned, but the
+        // auto threshold should stop the window at the first sample that
+        // drops below the threshold rather than re-including the post-dip
+        // recovery at τ=256. The previous (auto-per-point) rule kept both
+        // sides of the dip, which let baseline correlator noise leak into
+        // the fit window.
+        var times = new[] { 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0 };
+        var values = new[] { 0.9, 0.8, 0.65, 0.45, 0.25, 0.12, 0.11, 0.05, 0.15 };
+
+        var corr = new CorrelationFunction
+        {
+            TimesMicroseconds = times,
+            Runs = new[] { (IReadOnlyList<double>)values },
+            ActiveRunIndex = 0,
+        };
+
+        var outcome = CumulantAnalyzer.Analyze(corr, minMicroseconds: 4);
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        // τ ≥ 4 で有効 5 点 (4, 8, 16, 32, 64) を contiguous で採用、
+        // 0.05 < threshold で stop、0.15 は拾わない。
+        Assert.Equal(5, outcome.Result!.PointCount);
+        Assert.Equal(4.0, outcome.Result.AppliedRangeMinMicroseconds);
+        Assert.Equal(64.0, outcome.Result.AppliedRangeMaxMicroseconds);
+    }
+
+    [Fact]
     public void Analyze_NegativeGrowth_Fails()
     {
         // Constant or growing g₂-1 cannot represent a real decay.

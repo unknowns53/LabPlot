@@ -171,8 +171,43 @@ public static class CumulantAnalyzer
         if (keptTaus.Count < MinimumPointCount)
             return CumulantOutcome.Fail($"有効な点数が不足しています（{keptTaus.Count}/{MinimumPointCount} 点）");
 
-        if (!TrySolveQuadratic(keptTaus, keptYs, out var a0, out var a1, out var a2))
+        // Centre and scale τ before forming the 3×3 normal equations.
+        // Raw τ values in the same correlation run can span six decades
+        // (μs ↔ s on Zetasizer log-spaced correlators), which makes
+        // sx² and sx⁴ disagree by ~10¹⁶ and pushes Cramer's rule past its
+        // floating-point limit even though the system is well-conditioned
+        // analytically. After fitting in the scaled coordinate we undo
+        // the transform on the coefficients so γ / μ₂ remain in raw τ
+        // (microsecond) units — that conversion is what TryRescaleSolution
+        // does.
+        double tauMean = 0;
+        for (int i = 0; i < keptTaus.Count; i++) tauMean += keptTaus[i];
+        tauMean /= keptTaus.Count;
+
+        double tauScale = 0;
+        for (int i = 0; i < keptTaus.Count; i++)
+        {
+            var d = Math.Abs(keptTaus[i] - tauMean);
+            if (d > tauScale) tauScale = d;
+        }
+        if (!double.IsFinite(tauScale) || tauScale <= 0)
+            return CumulantOutcome.Fail("τ が縮退しています (スケール 0)");
+
+        var scaledTaus = new double[keptTaus.Count];
+        for (int i = 0; i < keptTaus.Count; i++)
+            scaledTaus[i] = (keptTaus[i] - tauMean) / tauScale;
+
+        if (!TrySolveQuadratic(scaledTaus, keptYs, out var a0s, out var a1s, out var a2s))
             return CumulantOutcome.Fail("係数行列が特異で fit できません");
+
+        // Unscale the coefficients: y = a₀̃ + a₁̃ τ̃ + a₂̃ τ̃² with
+        // τ̃ = (τ − τ_mean) / τ_scale rewrites to
+        //   a₂ = a₂̃ / τ_scale²
+        //   a₁ = a₁̃ / τ_scale − 2 a₂ τ_mean
+        //   a₀ = a₀̃ − τ_mean · a₁ − a₂ τ_mean²
+        var a2 = a2s / (tauScale * tauScale);
+        var a1 = a1s / tauScale - 2.0 * a2 * tauMean;
+        var a0 = a0s - tauMean * a1 - a2 * tauMean * tauMean;
 
         // a₁ = -2Γ → Γ = -a₁/2; a₂ = μ₂ directly.
         var gamma = -a1 / 2.0;

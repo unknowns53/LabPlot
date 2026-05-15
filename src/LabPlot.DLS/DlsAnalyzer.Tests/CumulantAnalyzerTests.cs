@@ -167,6 +167,30 @@ public class CumulantAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_WideTauRange_RemainsNumericallyStable()
+    {
+        // τ spans six decades (1 μs → 1e6 μs) with correspondingly tiny
+        // decay constants. Raw normal equations accumulate sx⁴ ~ 1e24,
+        // which would lose precision under Cramer's rule even though the
+        // system is well-conditioned analytically. After centring and
+        // scaling τ inside the analyzer, Γ and μ₂ should still come out
+        // within a couple of percent of truth.
+        const double gamma = 1e-6;     // μs⁻¹
+        const double mu2 = 5e-13;       // μs⁻²
+        var corr = SyntheticDecay(gamma, mu2, tauStart: 1.0, tauEnd: 1_000_000.0, pointCount: 128);
+
+        var outcome = CumulantAnalyzer.Analyze(corr,
+            minMicroseconds: 1, maxMicroseconds: 1_000_000);
+
+        Assert.True(outcome.Success, outcome.FailureReason);
+        Assert.InRange(outcome.Result!.FirstCumulantPerMicrosecond,
+            gamma * 0.98, gamma * 1.02);
+        Assert.InRange(outcome.Result.SecondCumulantPerMicrosecondSquared,
+            mu2 * 0.9, mu2 * 1.1);
+        Assert.True(outcome.Result.RSquared > 0.999);
+    }
+
+    [Fact]
     public void Analyze_NegativeGrowth_Fails()
     {
         // Constant or growing g₂-1 cannot represent a real decay.

@@ -60,6 +60,18 @@ public sealed partial class AnalysisWindow : Window
         SyncMetadataControlsFromActiveItem();
         UpdateActiveSheetLabel();
         RecomputeAllSections();
+
+        // v1.3 Batch F: 5 セクションの Expander 展開状態を JSON から復元する。
+        // 失敗時は XAML の初期値 (Metadata / Cumulant 開、その他閉) のままで続行する。
+        LoadExpanderState();
+        Closing += OnWindowClosing;
+    }
+
+    private void OnWindowClosing(object? sender, global::Avalonia.Controls.WindowClosingEventArgs e)
+    {
+        // v1.3 Batch F: Closed の時点では x:Name フィールド経由のアクセスが不安定 (子ツリーが
+        // 既に detach 済み) なので、IsExpanded スナップショットは Closing で取る。
+        SaveExpanderState();
     }
 
     // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
@@ -70,6 +82,67 @@ public sealed partial class AnalysisWindow : Window
         _host.AnalysisDataChanged -= OnHostAnalysisDataChanged;
         _host.ActiveItemChanged -= OnHostActiveItemChanged;
         Closed -= OnWindowClosed;
+        Closing -= OnWindowClosing;
+    }
+
+    // ---------- v1.3 Batch F: Expander 展開状態の永続化 ----------
+
+    private static string ExpanderStateFilePath
+    {
+        get
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            return System.IO.Path.Combine(appData, "LabPlot", "dls-analysis-window.json");
+        }
+    }
+
+    private sealed record ExpanderStateSnapshot(
+        bool Metadata,
+        bool Cumulant,
+        bool TemperatureRamp,
+        bool ConcentrationSeries,
+        bool Inversion);
+
+    private void LoadExpanderState()
+    {
+        try
+        {
+            var path = ExpanderStateFilePath;
+            if (!System.IO.File.Exists(path)) return;
+            var json = System.IO.File.ReadAllText(path);
+            var snap = System.Text.Json.JsonSerializer.Deserialize<ExpanderStateSnapshot>(json);
+            if (snap is null) return;
+            MetadataExpander.IsExpanded = snap.Metadata;
+            CumulantExpander.IsExpanded = snap.Cumulant;
+            TemperatureRampExpander.IsExpanded = snap.TemperatureRamp;
+            ConcentrationSeriesExpander.IsExpanded = snap.ConcentrationSeries;
+            InversionExpander.IsExpanded = snap.Inversion;
+        }
+        catch
+        {
+            // 永続化失敗は致命的でない (XAML 既定値で続行できる)。
+        }
+    }
+
+    private void SaveExpanderState()
+    {
+        try
+        {
+            var snap = new ExpanderStateSnapshot(
+                Metadata: MetadataExpander.IsExpanded,
+                Cumulant: CumulantExpander.IsExpanded,
+                TemperatureRamp: TemperatureRampExpander.IsExpanded,
+                ConcentrationSeries: ConcentrationSeriesExpander.IsExpanded,
+                Inversion: InversionExpander.IsExpanded);
+            var path = ExpanderStateFilePath;
+            var dir = System.IO.Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(snap));
+        }
+        catch
+        {
+            // ignore — 永続化失敗は致命的でない。
+        }
     }
 
     // ---------- Pull API for parent (CONTIN settings) ----------

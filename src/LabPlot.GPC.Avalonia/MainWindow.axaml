@@ -777,6 +777,8 @@
                             </Border>
                             <controls:ErrorBanner Name="ErrorBanner" />
                             <controls:BusyOverlay Name="BusyOverlay" />
+                            <!-- v1.3 Batch B: 瞬間 OK 系フィードバック用のトーストホスト。 -->
+                            <controls:ToastHost Name="Toast" />
                         </Grid>
                     </Border>
 

@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Core.Avalonia.Controls.ToastHost"
+             HorizontalAlignment="Center"
+             VerticalAlignment="Bottom"
+             Margin="0,0,0,28"
+             IsHitTestVisible="False"
+             Opacity="0"
+             IsVisible="False">
+    <!-- v1.3 UI ブラッシュアップ Batch B: 画面下中央に 2 秒で消える瞬間フィードバック用トースト。
+         「保存しました」「既定値を保存しました」「クリップボードへコピーしました」など
+         確定操作の Success 系メッセージを画面遷移なしで通知する。severity に応じて
+         先頭 14 px アイコンと前景色が切り替わる (StatusBar と同設計)。 -->
+    <Border Name="ToastBorder"
+            Background="#0F172A"
+            BorderBrush="#1E293B"
+            BorderThickness="1"
+            CornerRadius="999"
+            Padding="14,8"
+            BoxShadow="0 6 16 0 #260F172A">
+        <Border.RenderTransform>
+            <TranslateTransform Y="8" />
+        </Border.RenderTransform>
+        <Border.Transitions>
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.18" />
+            </Transitions>
+        </Border.Transitions>
+        <StackPanel Orientation="Horizontal">
+            <Path Name="IconPath"
+                  Width="14" Height="14"
+                  Stretch="None"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round"
+                  VerticalAlignment="Center"
+                  Margin="0,0,8,0"
+                  Stroke="#86EFAC"
+                  StrokeThickness="2"
+                  Data="M 2,7 L 6,11 L 12,3" />
+            <TextBlock Name="MessageTextBlock"
+                       Foreground="#F8FAFC"
+                       FontSize="13"
+                       FontWeight="Medium"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+    </Border>
+</UserControl>

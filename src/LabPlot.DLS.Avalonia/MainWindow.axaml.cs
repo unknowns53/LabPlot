@@ -645,12 +645,14 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 if (saveFormat == GraphSaveFormat.Svg)
                 {
                     GraphSaveHelpers.SaveGraphSvg(_plot.Plot, fileName, width, height);
-                    SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})");
+                    SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})", StatusSeverity.Success);
+                    Toast?.Show("SVG を保存しました", StatusSeverity.Success);
                 }
                 else
                 {
                     GraphSaveHelpers.SaveGraphPng(_plot.Plot, fileName, width, height, GraphSaveHelpers.ExportDpi);
-                    SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {GraphSaveHelpers.ExportDpi} dpi)");
+                    SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {GraphSaveHelpers.ExportDpi} dpi)", StatusSeverity.Success);
+                    Toast?.Show("PNG を保存しました", StatusSeverity.Success);
                 }
                 HideError();
             }
@@ -709,7 +711,8 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 : new DlsXlsxAnalysisExporter();
             exporter.Export(data, fileName);
             HideError();
-            SetStatus($"解析結果を保存しました: {fileName}");
+            SetStatus($"解析結果を保存しました: {fileName}", StatusSeverity.Success);
+            Toast?.Show("データを保存しました", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -862,7 +865,8 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             var session = BuildSession();
             new AnalysisSessionStore<DlsAnalysisSession>().Save(session, path);
             HideError();
-            SetStatus($"解析条件を保存しました: {path}");
+            SetStatus($"解析条件を保存しました: {path}", StatusSeverity.Success);
+            Toast?.Show("解析条件を保存しました", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -2236,6 +2240,9 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         _formattingConfig = CaptureFormattingConfigFromControls();
         UpdatePlotHostAspectRatio();
         RefreshPlot();
+
+        // v1.3 Batch B: 瞬間 OK 系の Success フィードバックを Toast で軽く出す。
+        Toast?.Show("既定値に戻しました", StatusSeverity.Success);
     }
 
     private void SaveDefaultFormattingButton_Click(object? sender, RoutedEventArgs e)
@@ -2245,7 +2252,8 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             _formattingDefaults = CaptureFormattingConfigFromControls();
             SaveFormattingDefaults();
             HideError();
-            SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}");
+            SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}", StatusSeverity.Success);
+            Toast?.Show("既定値を更新しました", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

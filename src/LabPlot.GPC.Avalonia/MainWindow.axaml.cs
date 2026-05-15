@@ -752,6 +752,9 @@ public partial class MainWindow : Window
         RefreshDatasetEntries();
         UpdatePlotHostAspectRatio();
         PlotCurrentDataset();
+
+        // v1.3 Batch B: 瞬間 OK 系フィードバックを Toast で軽く出す。
+        Toast?.Show("既定値に戻しました", StatusSeverity.Success);
     }
 
     private void SaveDefaultFormattingButton_Click(object? sender, RoutedEventArgs e)
@@ -761,7 +764,8 @@ public partial class MainWindow : Window
             _formattingDefaults = CaptureFormattingConfigFromControls();
             _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
             SaveFormattingDefaults();
-            SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}", false);
+            SetStatus($"書式の既定値を保存しました: {FormattingConfigPath}", StatusSeverity.Success);
+            Toast?.Show("既定値を更新しました", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -819,7 +823,8 @@ public partial class MainWindow : Window
                 ? new CsvAnalysisExporter()
                 : new XlsxAnalysisExporter();
             exporter.Export(data, fileName);
-            SetStatus($"解析結果を保存しました: {fileName}", false);
+            SetStatus($"解析結果を保存しました: {fileName}", StatusSeverity.Success);
+            Toast?.Show("データを保存しました", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -926,7 +931,8 @@ public partial class MainWindow : Window
         {
             var session = BuildAnalysisSession();
             new AnalysisSessionStore<GpcAnalysisSession>().Save(session, path);
-            SetStatus($"解析条件を保存しました: {path}", false);
+            SetStatus($"解析条件を保存しました: {path}", StatusSeverity.Success);
+            Toast?.Show("解析条件を保存しました", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -1310,12 +1316,14 @@ public partial class MainWindow : Window
                 if (saveFormat == GraphSaveFormat.Svg)
                 {
                     GraphSaveHelpers.SaveGraphSvg(_chromatogramPlot.Plot, fileName, width, height);
-                    SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})", false);
+                    SetStatus($"グラフをSVGで保存しました: {fileName} ({width:N0} x {height:N0})", StatusSeverity.Success);
+                    Toast?.Show("SVG を保存しました", StatusSeverity.Success);
                     return;
                 }
 
                 GraphSaveHelpers.SaveGraphPng(_chromatogramPlot.Plot, fileName, width, height, GraphSaveHelpers.ExportDpi);
-                SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {GraphSaveHelpers.ExportDpi} dpi)", false);
+                SetStatus($"グラフをPNGで保存しました: {fileName} ({width:N0} x {height:N0} px, {GraphSaveHelpers.ExportDpi} dpi)", StatusSeverity.Success);
+                Toast?.Show("PNG を保存しました", StatusSeverity.Success);
             }
             finally
             {

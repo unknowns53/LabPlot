@@ -719,6 +719,9 @@
                             </Border>
                             <controls:ErrorBanner Name="ErrorBanner" />
                             <controls:BusyOverlay Name="BusyOverlay" />
+                            <!-- v1.3 Batch B: 「保存しました」「既定値を更新しました」など瞬間 OK 系の
+                                 フィードバックを 2 秒で消える浮遊バナーで通知する。 -->
+                            <controls:ToastHost Name="Toast" />
                         </Grid>
                     </Border>
 

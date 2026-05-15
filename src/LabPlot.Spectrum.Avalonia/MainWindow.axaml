@@ -1373,6 +1373,8 @@
                             </Border>
                             <controls:ErrorBanner x:Name="ErrorBanner" />
                             <controls:BusyOverlay x:Name="BusyOverlay" />
+                            <!-- v1.3 Batch B: 瞬間 OK 系フィードバック用のトーストホスト。 -->
+                            <controls:ToastHost x:Name="Toast" />
                         </Grid>
                     </Border>
 

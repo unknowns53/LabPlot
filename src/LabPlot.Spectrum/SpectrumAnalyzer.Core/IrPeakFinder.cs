@@ -319,20 +319,32 @@ public static class IrPeakFinder
             if (ys[j] > ys[index]) return false;
         }
 
-        // Reject perfectly flat regions (every neighbour equal): they are not
-        // peaks in any meaningful sense.
-        var anyLess = false;
-        for (var j = lo; j <= hi; j++)
+        // Flat-top plateau collapse: only the leftmost element of an
+        // equal-valued plateau gets reported as a peak. Require at least
+        // one strictly-less neighbour on the LEFT side; plateau interior
+        // and right-edge points fall through to false even though their
+        // window technically contains a strictly-less neighbour.
+        for (var j = lo; j < index; j++)
         {
-            if (j == index) continue;
             if (double.IsFinite(ys[j]) && ys[j] < ys[index])
             {
-                anyLess = true;
-                break;
+                return true;
             }
         }
 
-        return anyLess;
+        // Boundary case: index sits at the very left of the trace (or
+        // every left-side neighbour is equal). Accept only if a
+        // strictly-less neighbour exists on the right, otherwise the
+        // window is genuinely flat and not a peak.
+        if (lo == index)
+        {
+            for (var j = index + 1; j <= hi; j++)
+            {
+                if (double.IsFinite(ys[j]) && ys[j] < ys[index]) return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

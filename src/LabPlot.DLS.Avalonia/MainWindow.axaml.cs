@@ -2289,8 +2289,18 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         DefaultOutputDirectoryTextBox.Text = path;
     }
 
-    private void ResetGraphSettingsButton_Click(object? sender, RoutedEventArgs e)
+    private async void ResetGraphSettingsButton_Click(object? sender, RoutedEventArgs e)
     {
+        // v1.3 Batch I: 破壊的操作なので確認ダイアログを挟む。誤クリックで書式が
+        // 全部飛ぶ事故を防ぐ。
+        var confirmed = await ConfirmDialog.ShowAsync(
+            this,
+            title: "既定値に戻す",
+            message: "現在のグラフ書式・線スタイル・軸範囲を、保存されている既定値に戻します。よろしいですか?",
+            confirmLabel: "戻す",
+            isDestructive: true);
+        if (!confirmed) return;
+
         TitleTextBox.Text = string.Empty;
         XLabelTextBox.Text = string.Empty;
         YLabelTextBox.Text = string.Empty;

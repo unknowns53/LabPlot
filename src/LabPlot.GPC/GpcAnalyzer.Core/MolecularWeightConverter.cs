@@ -12,14 +12,16 @@ public sealed class MolecularWeightConverter
         double minMolecularWeight = DefaultMinMolecularWeight,
         double maxMolecularWeight = DefaultMaxMolecularWeight)
     {
-        if (minMolecularWeight <= 0)
+        if (!double.IsFinite(minMolecularWeight) || minMolecularWeight <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(minMolecularWeight), "Minimum molecular weight must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(minMolecularWeight),
+                "Minimum molecular weight must be finite and positive.");
         }
 
-        if (maxMolecularWeight <= minMolecularWeight)
+        if (!double.IsFinite(maxMolecularWeight) || maxMolecularWeight <= minMolecularWeight)
         {
-            throw new ArgumentOutOfRangeException(nameof(maxMolecularWeight), "Maximum molecular weight must be greater than the minimum.");
+            throw new ArgumentOutOfRangeException(nameof(maxMolecularWeight),
+                "Maximum molecular weight must be finite and greater than the minimum.");
         }
 
         var sourcePoints = CreateSourcePoints(dataset.Points, curve);
@@ -76,23 +78,47 @@ public sealed class MolecularWeightConverter
 
     private static MolecularWeightStatistics? CalculateStatistics(IReadOnlyList<MolecularWeightDataPoint> points)
     {
+        // For non-uniform chromatogram sampling we weight by w_i = S(t_i)·dt_i
+        // so Mn = Σ(S·dt) / Σ((S·dt)/M) and Mw = Σ((S·dt)·M) / Σ(S·dt)
+        // approximate the area-element-weighted moments. When dt is constant
+        // (uniform sampling) the dt factor cancels and the result matches the
+        // previous signal-only implementation.
+        var ordered = points
+            .Where(static p => double.IsFinite(p.MolecularWeight)
+                                && p.MolecularWeight > 0
+                                && double.IsFinite(p.Signal)
+                                && p.Signal > 0
+                                && double.IsFinite(p.RetentionTime))
+            .OrderBy(static p => p.RetentionTime)
+            .ToArray();
+        if (ordered.Length < 2)
+        {
+            return null;
+        }
+
+        var dts = new double[ordered.Length];
+        for (var i = 0; i < ordered.Length; i++)
+        {
+            var left = i > 0 ? ordered[i - 1].RetentionTime : ordered[i].RetentionTime;
+            var right = i < ordered.Length - 1
+                ? ordered[i + 1].RetentionTime
+                : ordered[i].RetentionTime;
+            dts[i] = 0.5 * (right - left);
+        }
+
         var totalWeight = 0.0;
         var mnDenominator = 0.0;
         var mwNumerator = 0.0;
-        for (var i = 0; i < points.Count; i++)
+        for (var i = 0; i < ordered.Length; i++)
         {
-            var point = points[i];
-            if (!double.IsFinite(point.MolecularWeight)
-                || point.MolecularWeight <= 0
-                || !double.IsFinite(point.Signal)
-                || point.Signal <= 0)
+            var areaElement = ordered[i].Signal * Math.Abs(dts[i]);
+            if (!double.IsFinite(areaElement) || areaElement <= 0)
             {
                 continue;
             }
-
-            totalWeight += point.Signal;
-            mnDenominator += point.Signal / point.MolecularWeight;
-            mwNumerator += point.Signal * point.MolecularWeight;
+            totalWeight += areaElement;
+            mnDenominator += areaElement / ordered[i].MolecularWeight;
+            mwNumerator += areaElement * ordered[i].MolecularWeight;
         }
 
         if (!double.IsFinite(totalWeight) || totalWeight <= double.Epsilon)

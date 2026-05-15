@@ -352,11 +352,12 @@ public static class IrPeakFinder
         }
 
         // Symmetric form: assumes near-uniform spacing. JASCO IR scans use a
-        // constant DELTAX, so this is exact.
+        // constant DELTAX, so this is exact. Keep the signed direction of
+        // the X axis when averaging — Math.Abs would flip the apex for
+        // wavenumber-descending input (the standard IR convention) and
+        // place the apex on the wrong side of x1.
         var offset = 0.5 * (y0 - y2) / denom;
-        var dxLeft = x1 - x0;
-        var dxRight = x2 - x1;
-        var dx = (Math.Abs(dxLeft) + Math.Abs(dxRight)) / 2.0;
+        var dx = (x2 - x0) / 2.0;
         var apexX = x1 + offset * dx;
         var apexY = y1 - 0.25 * (y0 - y2) * offset;
         if (!double.IsFinite(apexX) || !double.IsFinite(apexY))

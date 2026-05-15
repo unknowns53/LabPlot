@@ -206,6 +206,15 @@ public sealed record CalibrationResult
     /// is finite.</summary>
     public bool HasFit => N >= 2 && double.IsFinite(Slope);
 
+    /// <summary>
+    /// True when at least one accepted point's signal sits outside the
+    /// practical Beer-Lambert linear range — either negative (cuvette /
+    /// blank misalignment) or above ~2 absorbance units (detector
+    /// saturation, deviation from linearity). The fit still runs on
+    /// the raw values; this is purely a UI advisory flag.
+    /// </summary>
+    public bool AnySignalOutOfBeerLambertRange { get; init; }
+
     public static CalibrationResult Empty(
         CalibrationQuantificationMode quantificationMode,
         CalibrationFitMode fitMode,

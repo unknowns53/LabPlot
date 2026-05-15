@@ -122,6 +122,29 @@ public static class CalibrationFitter
             ? slope / pathLengthCm
             : double.NaN;
 
+        // Flag Beer-Lambert linear-range violations on absorbance fits.
+        // Practical UV-Vis spectrophotometers stay linear up to ~A=2; below
+        // ~-0.05 the reading is a blank / cuvette misalignment artefact.
+        // Integration-area fits don't have a universal threshold so the
+        // flag is only meaningful for SingleWavelength quantification.
+        var anySignalOutOfRange = false;
+        if (quantificationMode == CalibrationQuantificationMode.SingleWavelength)
+        {
+            for (var i = 0; i < inputs.Count; i++)
+            {
+                var input = inputs[i];
+                if (input.IsExcluded) continue;
+                if (input.ConcentrationMolar is not double c
+                    || !double.IsFinite(c) || c < 0) continue;
+                if (!double.IsFinite(input.Signal)) continue;
+                if (input.Signal < -0.05 || input.Signal > 2.0)
+                {
+                    anySignalOutOfRange = true;
+                    break;
+                }
+            }
+        }
+
         return new CalibrationResult
         {
             FitMode = fitMode,
@@ -133,6 +156,7 @@ public static class CalibrationFitter
             PathLengthCm = pathLengthCm,
             EpsilonPerCmPerMolar = epsilon,
             Points = points,
+            AnySignalOutOfBeerLambertRange = anySignalOutOfRange,
         };
     }
 

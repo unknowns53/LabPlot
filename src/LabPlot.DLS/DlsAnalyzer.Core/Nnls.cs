@@ -70,6 +70,7 @@ public static class Nnls
 
         int outerIter = 0;
         int innerIter = 0;
+        bool kktSatisfied = false;
 
         while (outerIter < outerCap)
         {
@@ -100,7 +101,15 @@ public static class Nnls
                 if (inP[j]) continue;
                 if (w[j] > maxW) { maxW = w[j]; t = j; }
             }
-            if (t < 0) break;
+            if (t < 0)
+            {
+                // KKT satisfied: no active variable would lower the
+                // residual if released. Distinct from outer-cap exit
+                // (cap edge that previously misreported KKT termination
+                // at outerIter == outerCap as non-converged).
+                kktSatisfied = true;
+                break;
+            }
 
             inP[t] = true;
 
@@ -195,7 +204,10 @@ public static class Nnls
 
         return new Outcome
         {
-            Converged = outerIter < outerCap,
+            // KKT-satisfied exit is convergence regardless of how close
+            // outerIter sits to outerCap. The old `outerIter < outerCap`
+            // check misreported a KKT-on-the-last-iteration as failure.
+            Converged = kktSatisfied,
             X = x,
             OuterIterations = outerIter,
             InnerIterations = innerIter,

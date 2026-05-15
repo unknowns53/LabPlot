@@ -65,6 +65,11 @@ public static class TemperatureRampAnalyzer
     public const int MaxIterations = 200;
     public const double ConvergenceTolerance = 1e-9;
     public const double MinimumTransitionWidth = 1e-3;
+    /// <summary>
+    /// Minimum spread of the input temperature axis (°C). Anything tighter
+    /// leaves the Boltzmann sigmoid massively under-determined.
+    /// </summary>
+    public const double MinimumTemperatureSpanCelsius = 1.0;
 
     public static TemperatureRampOutcome Analyze(IReadOnlyList<TemperatureRampPoint>? points)
     {
@@ -88,8 +93,9 @@ public static class TemperatureRampAnalyzer
         // 25 °C): the fit becomes ill-conditioned and T_c is meaningless.
         var tMin = filtered[0].TemperatureCelsius;
         var tMax = filtered[^1].TemperatureCelsius;
-        if (tMax - tMin < MinimumTransitionWidth)
-            return TemperatureRampOutcome.Fail("温度範囲が狭すぎます（少なくとも 1 °C のスパンが必要）");
+        if (tMax - tMin < MinimumTemperatureSpanCelsius)
+            return TemperatureRampOutcome.Fail(
+                $"温度範囲が狭すぎます（少なくとも {MinimumTemperatureSpanCelsius} °C のスパンが必要）");
 
         var ts = new double[filtered.Count];
         var ys = new double[filtered.Count];
@@ -119,8 +125,12 @@ public static class TemperatureRampAnalyzer
             }
         }
         var span = tMax - tMin;
+        // Initial width always positive — the plateau parameters carry
+        // the sign of the ramp via (d_low > d_high) for cooling-driven
+        // transitions. Letting wInit go negative duplicates the curve
+        // symmetry f(d_low, d_high, w) ≡ f(d_high, d_low, -w) and
+        // confuses the meaning of returned LowPlateauNm / HighPlateauNm.
         var wInit = span / 10.0;
-        if (dHigh0 < dLow0) wInit = -wInit;
 
         var parameters = new[] { dLow0, dHigh0, tcInit, wInit };
         var residuals = new double[ts.Length];
@@ -132,6 +142,7 @@ public static class TemperatureRampAnalyzer
 
         int acceptedIterations = 0;
         int convergedSteps = 0;
+        bool dampingExhausted = false;
         for (int iter = 0; iter < MaxIterations; iter++)
         {
             ComputeJacobian(ts, parameters, jacobian);
@@ -146,7 +157,7 @@ public static class TemperatureRampAnalyzer
             if (!Solve4x4(jtj, jtr, out var delta))
             {
                 lambda *= 10.0;
-                if (lambda > 1e12) break;
+                if (lambda > 1e12) { dampingExhausted = true; break; }
                 continue;
             }
 
@@ -181,9 +192,16 @@ public static class TemperatureRampAnalyzer
             else
             {
                 lambda *= 10.0;
-                if (lambda > 1e12) break;
+                if (lambda > 1e12) { dampingExhausted = true; break; }
             }
         }
+
+        // Bailed out via damping runaway with no usable progress: the
+        // initial guess gave up before a meaningful descent. Distinct
+        // from acceptedIterations==0 because here we did try multiple
+        // steps but none reduced the residual.
+        if (dampingExhausted && acceptedIterations < 2)
+            return TemperatureRampOutcome.Fail("LM が damping exhaustion で打ち切られました");
 
         if (!parameters.All(double.IsFinite))
             return TemperatureRampOutcome.Fail("fit が発散しました");
@@ -221,6 +239,12 @@ public static class TemperatureRampAnalyzer
         var amplitude = Math.Abs(dHigh - dLow);
         if (amplitude < 0.25 * dataStdDev)
             return TemperatureRampOutcome.Fail("d の変化量がノイズスケール以下で Boltzmann fit が非同定です");
+
+        // T_c outside the measured span (tolerated up to one span beyond
+        // each end) means the sigmoid was pinned to a near-asymptote and
+        // the recovered T_c is essentially an extrapolation artefact.
+        if (!double.IsFinite(tc) || tc < tMin - span || tc > tMax + span)
+            return TemperatureRampOutcome.Fail("T_c が測定範囲から離れすぎています");
 
         var rSquared = 1.0 - cost / ssTot;
         if (!double.IsFinite(rSquared) || rSquared < 0)

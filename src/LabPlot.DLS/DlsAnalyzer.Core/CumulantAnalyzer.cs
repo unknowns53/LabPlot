@@ -20,6 +20,13 @@ public sealed record CumulantResult
     public required double AppliedRangeMinMicroseconds { get; init; }
     public required double AppliedRangeMaxMicroseconds { get; init; }
     public required int PointCount { get; init; }
+    /// <summary>
+    /// True when the fitted μ₂ came out negative. PdI is clamped to
+    /// max(μ₂, 0) / Γ² for display, but the negative-μ₂ signal itself
+    /// flags low fit quality (noisy data, wrong τ window, monomer
+    /// contamination). UI can surface this as a warning badge.
+    /// </summary>
+    public bool Mu2WasNegative { get; init; }
 }
 
 /// <summary>
@@ -72,6 +79,20 @@ public static class CumulantAnalyzer
     {
         if (correlation is null)
             return CumulantOutcome.Fail("自己相関データがありません");
+
+        // Public API: gate NaN / Infinity on the τ window and threshold
+        // before they reach the comparison logic. NaN comparisons always
+        // return false, which would silently disable the corresponding
+        // bound and slide into the auto-threshold path with no diagnostic.
+        if (minMicroseconds.HasValue && !double.IsFinite(minMicroseconds.Value))
+            return CumulantOutcome.Fail("τ 下限が不正です (NaN/Inf)");
+        if (maxMicroseconds.HasValue && !double.IsFinite(maxMicroseconds.Value))
+            return CumulantOutcome.Fail("τ 上限が不正です (NaN/Inf)");
+        if (minMicroseconds.HasValue && maxMicroseconds.HasValue
+            && minMicroseconds.Value >= maxMicroseconds.Value)
+            return CumulantOutcome.Fail("τ 下限が τ 上限以上です");
+        if (!double.IsFinite(autoThreshold))
+            return CumulantOutcome.Fail("自動 threshold が不正です (NaN/Inf)");
 
         var times = correlation.TimesMicroseconds;
         var values = correlation.ActiveRun;
@@ -175,6 +196,7 @@ public static class CumulantAnalyzer
             AppliedRangeMinMicroseconds = rangeMin,
             AppliedRangeMaxMicroseconds = rangeMax,
             PointCount = keptTaus.Count,
+            Mu2WasNegative = mu2 < 0,
         });
     }
 

@@ -265,6 +265,15 @@ internal static class AxisLabelMapper
 
         if (normalized.StartsWith("Temperature", StringComparison.OrdinalIgnoreCase))
         {
+            // Distinguish Kelvin exports from Celsius — collapsing both
+            // to "Temperature / °C" would silently mis-label a K trace
+            // and downstream temperature ramps would interpret K values
+            // as Celsius (a 273 K offset on every point).
+            if (normalized.Contains("[K]", StringComparison.OrdinalIgnoreCase)
+                || normalized.IndexOf("Kelvin", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return "Temperature / K";
+            }
             return "Temperature / °C";
         }
 

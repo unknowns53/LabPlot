@@ -29,6 +29,16 @@ public static class SpectrumQuantifier
             return double.NaN;
         }
 
+        // Refuse to interpolate "absorbance at wavelength_nm" on an X axis
+        // that is not actually a wavelength scan. CanDisplay(Absorbance)
+        // only guarantees the Y axis can be expressed as absorbance, so
+        // IR cm⁻¹ traces or LCST temperature scans would otherwise pass
+        // through unfiltered and silently mis-interpret X.
+        if (!dataset.IsWavelengthScan)
+        {
+            return double.NaN;
+        }
+
         if (!SpectrumYAxisConverter.CanDisplay(dataset, YAxisDisplayMode.Absorbance))
         {
             return double.NaN;

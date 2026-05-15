@@ -220,12 +220,16 @@ public static class SizeDistributionInverter
         var thetaRad = scatteringAngleDegrees!.Value * Math.PI / 180.0;
         var q = (4.0 * Math.PI * refractiveIndex!.Value / lambdaMeter) * Math.Sin(thetaRad / 2.0);
         var qSquared = q * q;
+        if (!double.IsFinite(qSquared) || qSquared <= 0)
+            return SizeDistributionInversionOutcome.Fail("散乱ベクトル q が非物理的です（光学条件を確認してください）");
         for (int j = 0; j < n; j++)
         {
             var dMeter = diameters[j] * 1e-9;
             var dDiff = BoltzmannJoulePerKelvin * tKelvin / (3.0 * Math.PI * etaPa * dMeter);
             // Γ in s⁻¹ then converted to μs⁻¹ to match the τ axis.
             gammas[j] = dDiff * qSquared * 1e-6;
+            if (!double.IsFinite(gammas[j]) || gammas[j] <= 0)
+                return SizeDistributionInversionOutcome.Fail("Γ グリッドの計算が破綻しました（粒径グリッド・粘度・温度を確認してください）");
         }
 
         // ---- kernel K[i,j] = exp(-Γ_j τ_i) -------------------------------

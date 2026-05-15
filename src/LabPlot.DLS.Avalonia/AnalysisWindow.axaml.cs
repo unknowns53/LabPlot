@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using DlsAnalyzer.Core;
+using LabPlot.Core.Avalonia.Controls;
 using LabPlot.Core.Avalonia.Helpers;
 using static LabPlot.Core.Avalonia.FormatHelpers;
 
@@ -727,6 +728,84 @@ public sealed partial class AnalysisWindow : Window
 
     private void InversionShowAsGraphButton_Click(object? sender, RoutedEventArgs e)
         => _host.RequestShowAsGraph(DistributionMode.SizeDistributionInversion);
+
+    // ===================================================================
+    // v1.3 Batch C: 各セクションの「結果コピー」ボタン
+    // 表示中の TextBlock.Text をそのまま読み取って Tab 区切りに組み立てて
+    // クリップボードへ流し込む。失敗 (clipboard 取得不可 / SetTextAsync 例外)
+    // 時は Toast で Error severity を出す。
+    // ===================================================================
+
+    private async void CumulantCopyButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var lines = new[]
+        {
+            $"Z-average 径\t{CumulantZAverageText.Text}",
+            $"PdI\t{CumulantPdiText.Text}",
+            $"Γ\t{CumulantGammaText.Text}",
+            $"適用範囲\t{CumulantRangeText.Text}",
+            $"R²\t{CumulantRSquaredText.Text}",
+        };
+        await CopyAnalysisResultAsync("キュムラント", lines);
+    }
+
+    private async void TemperatureRampCopyButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var lines = new[]
+        {
+            $"T_c (転移点)\t{RampTransitionTemperatureText.Text}",
+            $"転移幅 w\t{RampTransitionWidthText.Text}",
+            $"低温プラトー d_low\t{RampLowPlateauText.Text}",
+            $"高温プラトー d_high\t{RampHighPlateauText.Text}",
+            $"R²\t{RampRSquaredText.Text}",
+        };
+        await CopyAnalysisResultAsync("温度ランプ", lines);
+    }
+
+    private async void ConcentrationCopyButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var lines = new[]
+        {
+            $"D₀ (c→0)\t{ConcentrationD0Text.Text}",
+            $"k_D\t{ConcentrationKDText.Text}",
+            $"d_h (c→0)\t{ConcentrationDhText.Text}",
+            $"R²\t{ConcentrationRSquaredText.Text}",
+            $"参照条件\t{ConcentrationReferenceText.Text}",
+        };
+        await CopyAnalysisResultAsync("濃度シリーズ", lines);
+    }
+
+    private async void InversionCopyButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var lines = new[]
+        {
+            $"採用 α\t{InversionAlphaText.Text}",
+            $"R²\t{InversionRSquaredText.Text}",
+            $"β\t{InversionBetaText.Text}",
+            $"自由ビン数\t{InversionFreeBinText.Text}",
+        };
+        await CopyAnalysisResultAsync("CONTIN", lines);
+    }
+
+    private async System.Threading.Tasks.Task CopyAnalysisResultAsync(string label, string[] lines)
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                Toast?.Show("クリップボードを利用できません", StatusSeverity.Error);
+                return;
+            }
+            var text = string.Join('\n', lines);
+            await clipboard.SetTextAsync(text);
+            Toast?.Show($"{label}結果をコピーしました", StatusSeverity.Success);
+        }
+        catch (Exception)
+        {
+            Toast?.Show("コピーに失敗しました", StatusSeverity.Error);
+        }
+    }
 
     // ---------- Local format helpers ----------
 

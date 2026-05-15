@@ -245,13 +245,23 @@
                                                 <TextBlock Name="CumulantStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
                                             </Grid>
 
-                                            <Button Name="CumulantShowAsGraphButton"
-                                                    Content="グラフとして見る"
-                                                    Theme="{DynamicResource PrimaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    Margin="0,12,0,0"
-                                                    ToolTip.Tip="メイングラフを「自己相関 g₂-1」表示に切り替えます"
-                                                    Click="CumulantShowAsGraphButton_Click" />
+                                            <!-- v1.3 Batch C: グラフ表示と結果コピーを 2 列で並べる。
+                                                 コピーは Tab 区切りで Z-average / PdI / Γ / R² / 範囲を出力する。 -->
+                                            <Grid Margin="0,12,0,0" ColumnDefinitions="*,8,Auto">
+                                                <Button Grid.Column="0"
+                                                        Name="CumulantShowAsGraphButton"
+                                                        Content="グラフとして見る"
+                                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                                        HorizontalAlignment="Stretch"
+                                                        ToolTip.Tip="メイングラフを「自己相関 g₂-1」表示に切り替えます"
+                                                        Click="CumulantShowAsGraphButton_Click" />
+                                                <Button Grid.Column="2"
+                                                        Name="CumulantCopyButton"
+                                                        Content="結果コピー"
+                                                        Theme="{DynamicResource SecondaryButtonStyle}"
+                                                        ToolTip.Tip="フィット結果を Tab 区切りでクリップボードへコピー"
+                                                        Click="CumulantCopyButton_Click" />
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -312,13 +322,21 @@
                                                 <TextBlock Name="RampStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
                                             </Grid>
 
-                                            <Button Name="TemperatureRampShowAsGraphButton"
-                                                    Content="グラフとして見る"
-                                                    Theme="{DynamicResource PrimaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    Margin="0,12,0,0"
-                                                    ToolTip.Tip="メイングラフを「温度ランプ T vs d_h」表示に切り替えます"
-                                                    Click="TemperatureRampShowAsGraphButton_Click" />
+                                            <Grid Margin="0,12,0,0" ColumnDefinitions="*,8,Auto">
+                                                <Button Grid.Column="0"
+                                                        Name="TemperatureRampShowAsGraphButton"
+                                                        Content="グラフとして見る"
+                                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                                        HorizontalAlignment="Stretch"
+                                                        ToolTip.Tip="メイングラフを「温度ランプ T vs d_h」表示に切り替えます"
+                                                        Click="TemperatureRampShowAsGraphButton_Click" />
+                                                <Button Grid.Column="2"
+                                                        Name="TemperatureRampCopyButton"
+                                                        Content="結果コピー"
+                                                        Theme="{DynamicResource SecondaryButtonStyle}"
+                                                        ToolTip.Tip="転移点・転移幅・プラトーを Tab 区切りでクリップボードへコピー"
+                                                        Click="TemperatureRampCopyButton_Click" />
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -379,13 +397,21 @@
                                                 <TextBlock Name="ConcentrationStatusText" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
                                             </Grid>
 
-                                            <Button Name="ConcentrationShowAsGraphButton"
-                                                    Content="グラフとして見る"
-                                                    Theme="{DynamicResource PrimaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    Margin="0,12,0,0"
-                                                    ToolTip.Tip="メイングラフを「濃度シリーズ c vs D」表示に切り替えます"
-                                                    Click="ConcentrationShowAsGraphButton_Click" />
+                                            <Grid Margin="0,12,0,0" ColumnDefinitions="*,8,Auto">
+                                                <Button Grid.Column="0"
+                                                        Name="ConcentrationShowAsGraphButton"
+                                                        Content="グラフとして見る"
+                                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                                        HorizontalAlignment="Stretch"
+                                                        ToolTip.Tip="メイングラフを「濃度シリーズ c vs D」表示に切り替えます"
+                                                        Click="ConcentrationShowAsGraphButton_Click" />
+                                                <Button Grid.Column="2"
+                                                        Name="ConcentrationCopyButton"
+                                                        Content="結果コピー"
+                                                        Theme="{DynamicResource SecondaryButtonStyle}"
+                                                        ToolTip.Tip="D₀ / k_D / d_h を Tab 区切りでクリップボードへコピー"
+                                                        Click="ConcentrationCopyButton_Click" />
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -482,13 +508,21 @@
                                                 <TextBlock Name="InversionStatusText" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Text="" FontSize="11" Foreground="#B45309" TextWrapping="Wrap" Margin="0,4,0,0" IsVisible="False" />
                                             </Grid>
 
-                                            <Button Name="InversionShowAsGraphButton"
-                                                    Content="グラフとして見る"
-                                                    Theme="{DynamicResource PrimaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    Margin="0,12,0,0"
-                                                    ToolTip.Tip="メイングラフを「サイズ分布逆変換 (CONTIN-like)」表示に切り替え、現在の重み・α 設定で再計算します"
-                                                    Click="InversionShowAsGraphButton_Click" />
+                                            <Grid Margin="0,12,0,0" ColumnDefinitions="*,8,Auto">
+                                                <Button Grid.Column="0"
+                                                        Name="InversionShowAsGraphButton"
+                                                        Content="グラフとして見る"
+                                                        Theme="{DynamicResource PrimaryButtonStyle}"
+                                                        HorizontalAlignment="Stretch"
+                                                        ToolTip.Tip="メイングラフを「サイズ分布逆変換 (CONTIN-like)」表示に切り替え、現在の重み・α 設定で再計算します"
+                                                        Click="InversionShowAsGraphButton_Click" />
+                                                <Button Grid.Column="2"
+                                                        Name="InversionCopyButton"
+                                                        Content="結果コピー"
+                                                        Theme="{DynamicResource SecondaryButtonStyle}"
+                                                        ToolTip.Tip="採用 α / R² / β / 自由ビン数を Tab 区切りでクリップボードへコピー"
+                                                        Click="InversionCopyButton_Click" />
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -505,6 +539,9 @@
                                FontSize="11"
                                Text="" />
                 </Border>
+                <!-- v1.3 Batch C: 結果コピー成功フィードバック用のトーストを AnalysisWindow にも置く。
+                     親 MainWindow の Toast とは独立に動かし、AnalysisWindow 内で完結させる。 -->
+                <controls:ToastHost Grid.Row="0" Grid.RowSpan="2" Name="Toast" />
             </Grid>
         </Grid>
     </Border>

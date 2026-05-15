@@ -36,6 +36,7 @@ packages/
 !**/samples/**
 !**/screenshots/
 !**/screenshots/**
+!**/Images/**
 # Avalonia AvaloniaResource (アプリアイコン等の埋め込みアセット) も追跡対象
 !**/Assets/
 !**/Assets/**
@@ -48,3 +49,6 @@ Thumbs.db
 **/今後の課題.md
 **/作業メモ.md
 **/要件定義.md
+
+# Codex CLI review session artifacts (Markdown/JSON streams)
+.reviews/

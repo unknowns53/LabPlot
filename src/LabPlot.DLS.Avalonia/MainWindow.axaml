@@ -69,6 +69,18 @@
                                                     HorizontalAlignment="Stretch"
                                                     ToolTip.Tip="Zetasizer の xlsx データを開く (Ctrl+O)"
                                                     Click="OpenButton_Click" />
+                                            <!-- v1.3 Batch E: 最近開いたファイル (MRU)。直近 5 件まで永続化し、
+                                                 選択するとそのまま ImportWorkbookAsync に渡す。 -->
+                                            <TextBlock Text="最近開いた"
+                                                       Theme="{DynamicResource FieldLabelStyle}"
+                                                       Margin="0,10,0,4" />
+                                            <ComboBox Name="RecentFilesComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      HorizontalAlignment="Stretch"
+                                                      PlaceholderText="(履歴なし)"
+                                                      IsEnabled="False"
+                                                      SelectionChanged="RecentFilesComboBox_SelectionChanged"
+                                                      ToolTip.Tip="直近に開いた xlsx (最大 5 件) を選んで再読み込みします" />
                                         </StackPanel>
                                     </Expander>
                                 </Border>

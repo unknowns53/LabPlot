@@ -148,6 +148,9 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             // v1.3 Batch A: 初期メッセージは Info severity で出す。XAML 上の Text= 初期値が
             // StatusBar 化で消えたため、起動完了時点で明示的にセットする。
             SetStatus("DLS xlsx を開いてください。", StatusSeverity.Info);
+
+            // v1.3 Batch E: 最近開いた一覧を ComboBox に流す。
+            RefreshRecentFilesUi();
         }
         catch (Exception ex)
         {
@@ -240,6 +243,52 @@ public partial class MainWindow : Window, IDlsAnalysisHost
 
     private void OpenButton_Click(object? sender, RoutedEventArgs e) => _ = OpenWorkbookAsync();
 
+    // v1.3 Batch E: 最近開いたファイル MRU。RecentFilesStore に永続化、UI から再 open する。
+    private const string RecentFilesAppKey = "dls";
+    private bool _suppressRecentFilesEvents;
+
+    private void RefreshRecentFilesUi()
+    {
+        if (RecentFilesComboBox is null) return;
+        var entries = RecentFilesStore.Load(RecentFilesAppKey);
+        _suppressRecentFilesEvents = true;
+        try
+        {
+            RecentFilesComboBox.ItemsSource = entries.Select(BuildRecentFilesEntry).ToArray();
+            RecentFilesComboBox.SelectedIndex = -1;
+            RecentFilesComboBox.IsEnabled = entries.Count > 0;
+            RecentFilesComboBox.PlaceholderText = entries.Count > 0 ? "選択して再読み込み" : "(履歴なし)";
+        }
+        finally
+        {
+            _suppressRecentFilesEvents = false;
+        }
+    }
+
+    private static ComboBoxItem BuildRecentFilesEntry(string path)
+    {
+        var item = new ComboBoxItem
+        {
+            Content = Path.GetFileName(path),
+            Tag = path,
+        };
+        ToolTip.SetTip(item, path);
+        return item;
+    }
+
+    private void RecentFilesComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressRecentFilesEvents) return;
+        if (RecentFilesComboBox.SelectedItem is not ComboBoxItem item) return;
+        var path = item.Tag as string;
+        if (string.IsNullOrWhiteSpace(path)) return;
+        // 同じファイルを連続選択しても明示的にもう一度開けるよう、選択をクリアする。
+        _ = ImportWorkbookAsync(path);
+        _suppressRecentFilesEvents = true;
+        try { RecentFilesComboBox.SelectedIndex = -1; }
+        finally { _suppressRecentFilesEvents = false; }
+    }
+
     private async Task OpenWorkbookAsync()
     {
         var sp = StorageProvider;
@@ -288,6 +337,10 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             DatasetListBox.ItemsSource = null;
             DatasetListBox.ItemsSource = _datasetItems;
             UpdateDatasetListPlaceholder();
+
+            // v1.3 Batch E: 読み込み成功時のみ MRU に追加して ComboBox を更新する。
+            RecentFilesStore.Add(RecentFilesAppKey, filePath);
+            RefreshRecentFilesUi();
             DatasetCountText.Text = _datasets.Count == 0
                 ? "粒径分布シートが見つかりませんでした"
                 : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(filePath)}）";

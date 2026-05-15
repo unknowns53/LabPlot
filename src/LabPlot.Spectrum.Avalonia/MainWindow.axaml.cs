@@ -176,6 +176,50 @@ public partial class MainWindow : Window
         // v1.3 Batch A: XAML から StatusTextBlock の Text= 初期値を剥がしたので、
         // OnOpened で明示的に Info severity の初期メッセージを立てる。
         SetStatus("JASCO TXT を開いてください。", StatusSeverity.Info);
+
+        // v1.3 Batch E: 最近開いた一覧を ComboBox に流す。
+        RefreshRecentFilesUi();
+    }
+
+    // v1.3 Batch E: 最近開いたファイル MRU。
+    private const string RecentFilesAppKey = "spectrum";
+    private bool _suppressRecentFilesEvents;
+
+    private void RefreshRecentFilesUi()
+    {
+        if (RecentFilesComboBox is null) return;
+        var entries = RecentFilesStore.Load(RecentFilesAppKey);
+        _suppressRecentFilesEvents = true;
+        try
+        {
+            RecentFilesComboBox.ItemsSource = entries.Select(BuildRecentFilesEntry).ToArray();
+            RecentFilesComboBox.SelectedIndex = -1;
+            RecentFilesComboBox.IsEnabled = entries.Count > 0;
+            RecentFilesComboBox.PlaceholderText = entries.Count > 0 ? "選択して再読み込み" : "(履歴なし)";
+        }
+        finally
+        {
+            _suppressRecentFilesEvents = false;
+        }
+    }
+
+    private static ComboBoxItem BuildRecentFilesEntry(string path)
+    {
+        var item = new ComboBoxItem { Content = Path.GetFileName(path), Tag = path };
+        ToolTip.SetTip(item, path);
+        return item;
+    }
+
+    private void RecentFilesComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressRecentFilesEvents) return;
+        if (RecentFilesComboBox.SelectedItem is not ComboBoxItem item) return;
+        var path = item.Tag as string;
+        if (string.IsNullOrWhiteSpace(path)) return;
+        _ = ImportSpectrumFilesAsync(new[] { path });
+        _suppressRecentFilesEvents = true;
+        try { RecentFilesComboBox.SelectedIndex = -1; }
+        finally { _suppressRecentFilesEvents = false; }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -721,6 +765,13 @@ public partial class MainWindow : Window
                 ? $"{pointCount:N0} 点のデータを読み込みました。"
                 : $"{datasets.Length:N0} ファイル / {pointCount:N0} 点のデータを読み込みました。";
             SetStatus(status, false);
+
+            // v1.3 Batch E: 読み込み成功時のみ MRU に追加する。
+            foreach (var fileName in fileNames.Reverse())
+            {
+                RecentFilesStore.Add(RecentFilesAppKey, fileName);
+            }
+            RefreshRecentFilesUi();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {

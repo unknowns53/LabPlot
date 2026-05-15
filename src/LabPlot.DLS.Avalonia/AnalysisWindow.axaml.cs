@@ -302,9 +302,14 @@ public sealed partial class AnalysisWindow : Window
         }
 
         var r = outcome.Result;
-        CumulantGammaText.Text = $"{FormatScientific(r.FirstCumulantPerMicrosecond)} μs⁻¹";
-        CumulantPdiText.Text = r.PolydispersityIndex.ToString("0.000", CultureInfo.InvariantCulture);
-        CumulantRSquaredText.Text = r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
+        // v1.3 Batch K: 数値結果は ease-out cubic で 200 ms 補間。Γ は科学表記、PdI / R² は固定桁、
+        // Range は数値補間に向かない範囲表現なので即時セット。
+        NumberCountUp.Animate(CumulantGammaText, r.FirstCumulantPerMicrosecond,
+            v => $"{FormatScientific(v)} μs⁻¹");
+        NumberCountUp.Animate(CumulantPdiText, r.PolydispersityIndex,
+            v => v.ToString("0.000", CultureInfo.InvariantCulture));
+        NumberCountUp.Animate(CumulantRSquaredText, r.RSquared,
+            v => v.ToString("0.0000", CultureInfo.InvariantCulture));
         CumulantRangeText.Text =
             $"{FormatDouble(r.AppliedRangeMinMicroseconds)} 〜 {FormatDouble(r.AppliedRangeMaxMicroseconds)} μs ({r.PointCount} 点)";
 
@@ -318,12 +323,13 @@ public sealed partial class AnalysisWindow : Window
 
         if (size.Success && size.HydrodynamicDiameterNm.HasValue)
         {
-            CumulantZAverageText.Text = $"{size.HydrodynamicDiameterNm.Value.ToString("0.0", CultureInfo.InvariantCulture)} nm";
+            NumberCountUp.Animate(CumulantZAverageText, size.HydrodynamicDiameterNm.Value,
+                v => $"{v.ToString("0.0", CultureInfo.InvariantCulture)} nm");
             HideCumulantStatus();
         }
         else
         {
-            CumulantZAverageText.Text = "—";
+            NumberCountUp.Cancel(CumulantZAverageText, "—");
             var missing = string.Join("・", size.MissingFields);
             ShowCumulantStatus(string.IsNullOrEmpty(missing)
                 ? "粒径計算に必要なメタデータが不足しています"
@@ -333,11 +339,12 @@ public sealed partial class AnalysisWindow : Window
 
     private void ResetCumulantDisplay()
     {
-        CumulantZAverageText.Text = "—";
-        CumulantPdiText.Text = "—";
-        CumulantGammaText.Text = "—";
-        CumulantRangeText.Text = "—";
-        CumulantRSquaredText.Text = "—";
+        // v1.3 Batch K: 残ったアニメを止めてプレースホルダに固定する。
+        NumberCountUp.Cancel(CumulantZAverageText, "—");
+        NumberCountUp.Cancel(CumulantPdiText, "—");
+        NumberCountUp.Cancel(CumulantGammaText, "—");
+        NumberCountUp.Cancel(CumulantRangeText, "—");
+        NumberCountUp.Cancel(CumulantRSquaredText, "—");
         HideCumulantStatus();
     }
 
@@ -471,11 +478,17 @@ public sealed partial class AnalysisWindow : Window
         }
 
         var r = outcome.Result;
-        RampTransitionTemperatureText.Text = $"{r.TransitionTemperatureCelsius.ToString("0.00", CultureInfo.InvariantCulture)} °C";
-        RampTransitionWidthText.Text = $"{r.TransitionWidthCelsius.ToString("0.00", CultureInfo.InvariantCulture)} °C";
-        RampLowPlateauText.Text = $"{r.LowPlateauNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
-        RampHighPlateauText.Text = $"{r.HighPlateauNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
-        RampRSquaredText.Text = r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
+        // v1.3 Batch K: 数値結果は ease-out cubic で補間表示。
+        NumberCountUp.Animate(RampTransitionTemperatureText, r.TransitionTemperatureCelsius,
+            v => $"{v.ToString("0.00", CultureInfo.InvariantCulture)} °C");
+        NumberCountUp.Animate(RampTransitionWidthText, r.TransitionWidthCelsius,
+            v => $"{v.ToString("0.00", CultureInfo.InvariantCulture)} °C");
+        NumberCountUp.Animate(RampLowPlateauText, r.LowPlateauNm,
+            v => $"{v.ToString("0.0", CultureInfo.InvariantCulture)} nm");
+        NumberCountUp.Animate(RampHighPlateauText, r.HighPlateauNm,
+            v => $"{v.ToString("0.0", CultureInfo.InvariantCulture)} nm");
+        NumberCountUp.Animate(RampRSquaredText, r.RSquared,
+            v => v.ToString("0.0000", CultureInfo.InvariantCulture));
 
         if (missingTemp > 0 || missingFit > 0)
         {
@@ -524,11 +537,11 @@ public sealed partial class AnalysisWindow : Window
 
     private void ResetRampDisplay()
     {
-        RampTransitionTemperatureText.Text = "—";
-        RampTransitionWidthText.Text = "—";
-        RampLowPlateauText.Text = "—";
-        RampHighPlateauText.Text = "—";
-        RampRSquaredText.Text = "—";
+        NumberCountUp.Cancel(RampTransitionTemperatureText, "—");
+        NumberCountUp.Cancel(RampTransitionWidthText, "—");
+        NumberCountUp.Cancel(RampLowPlateauText, "—");
+        NumberCountUp.Cancel(RampHighPlateauText, "—");
+        NumberCountUp.Cancel(RampRSquaredText, "—");
     }
 
     private void ShowRampStatus(string message)
@@ -589,16 +602,24 @@ public sealed partial class AnalysisWindow : Window
         var r = outcome.Result;
         var d0Display = r.D0M2PerSecond * DiffusionDisplayScale;
         var d0SeDisplay = r.D0StandardErrorM2PerSecond * DiffusionDisplayScale;
-        ConcentrationD0Text.Text = d0SeDisplay > 0
-            ? $"{d0Display.ToString("0.00", CultureInfo.InvariantCulture)} ± {d0SeDisplay.ToString("0.00", CultureInfo.InvariantCulture)} μm²/s"
-            : $"{d0Display.ToString("0.00", CultureInfo.InvariantCulture)} μm²/s";
+        // v1.3 Batch K: SE が付くフィールドは補間中も同じ SE 文字列を後置する formatter で
+        // アニメ対象を中央値だけに絞る。SE 自体は変化頻度が低いので静止表示で十分。
+        var d0SeSuffix = d0SeDisplay > 0
+            ? $" ± {d0SeDisplay.ToString("0.00", CultureInfo.InvariantCulture)}"
+            : string.Empty;
+        NumberCountUp.Animate(ConcentrationD0Text, d0Display,
+            v => $"{v.ToString("0.00", CultureInfo.InvariantCulture)}{d0SeSuffix} μm²/s");
 
-        ConcentrationKDText.Text = r.KDStandardErrorMlPerGram > 0
-            ? $"{r.KDmlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} ± {r.KDStandardErrorMlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} mL/g"
-            : $"{r.KDmlPerGram.ToString("0.00", CultureInfo.InvariantCulture)} mL/g";
+        var kDSeSuffix = r.KDStandardErrorMlPerGram > 0
+            ? $" ± {r.KDStandardErrorMlPerGram.ToString("0.00", CultureInfo.InvariantCulture)}"
+            : string.Empty;
+        NumberCountUp.Animate(ConcentrationKDText, r.KDmlPerGram,
+            v => $"{v.ToString("0.00", CultureInfo.InvariantCulture)}{kDSeSuffix} mL/g");
 
-        ConcentrationDhText.Text = $"{r.HydrodynamicDiameterAtZeroConcentrationNm.ToString("0.0", CultureInfo.InvariantCulture)} nm";
-        ConcentrationRSquaredText.Text = r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
+        NumberCountUp.Animate(ConcentrationDhText, r.HydrodynamicDiameterAtZeroConcentrationNm,
+            v => $"{v.ToString("0.0", CultureInfo.InvariantCulture)} nm");
+        NumberCountUp.Animate(ConcentrationRSquaredText, r.RSquared,
+            v => v.ToString("0.0000", CultureInfo.InvariantCulture));
         ConcentrationReferenceText.Text =
             $"T = {r.ReferenceTemperatureCelsius.ToString("0.#", CultureInfo.InvariantCulture)} °C, η = {r.ReferenceViscosityMpas.ToString("0.000", CultureInfo.InvariantCulture)} mPa·s";
 
@@ -681,10 +702,10 @@ public sealed partial class AnalysisWindow : Window
 
     private void ResetConcentrationDisplay()
     {
-        ConcentrationD0Text.Text = "—";
-        ConcentrationKDText.Text = "—";
-        ConcentrationDhText.Text = "—";
-        ConcentrationRSquaredText.Text = "—";
+        NumberCountUp.Cancel(ConcentrationD0Text, "—");
+        NumberCountUp.Cancel(ConcentrationKDText, "—");
+        NumberCountUp.Cancel(ConcentrationDhText, "—");
+        NumberCountUp.Cancel(ConcentrationRSquaredText, "—");
         ConcentrationReferenceText.Text = "—";
     }
 
@@ -733,10 +754,17 @@ public sealed partial class AnalysisWindow : Window
         }
 
         var r = outcome.Result;
-        InversionAlphaText.Text = r.RegularizationAlpha.ToString("0.####E+0", CultureInfo.InvariantCulture);
-        InversionRSquaredText.Text = r.RSquared.ToString("0.0000", CultureInfo.InvariantCulture);
-        InversionBetaText.Text = r.Beta.ToString("0.000", CultureInfo.InvariantCulture);
-        InversionFreeBinText.Text = $"{r.FreeBinCount} / {r.Bins.Count}";
+        // v1.3 Batch K: CONTIN 結果も補間。α は科学表記、R²/β は固定桁。
+        // FreeBin は分子だけ補間 (分母 = ビン総数は静止) して "k / N" 形式に組み立てる。
+        NumberCountUp.Animate(InversionAlphaText, r.RegularizationAlpha,
+            v => v.ToString("0.####E+0", CultureInfo.InvariantCulture));
+        NumberCountUp.Animate(InversionRSquaredText, r.RSquared,
+            v => v.ToString("0.0000", CultureInfo.InvariantCulture));
+        NumberCountUp.Animate(InversionBetaText, r.Beta,
+            v => v.ToString("0.000", CultureInfo.InvariantCulture));
+        var totalBins = r.Bins.Count;
+        NumberCountUp.Animate(InversionFreeBinText, r.FreeBinCount,
+            v => $"{Math.Round(v).ToString("0", CultureInfo.InvariantCulture)} / {totalBins}");
 
         var hints = new List<string>();
         if (selectedDatasets.Count > 1)
@@ -753,10 +781,10 @@ public sealed partial class AnalysisWindow : Window
 
     private void ResetInversionDisplay()
     {
-        InversionAlphaText.Text = "—";
-        InversionRSquaredText.Text = "—";
-        InversionBetaText.Text = "—";
-        InversionFreeBinText.Text = "—";
+        NumberCountUp.Cancel(InversionAlphaText, "—");
+        NumberCountUp.Cancel(InversionRSquaredText, "—");
+        NumberCountUp.Cancel(InversionBetaText, "—");
+        NumberCountUp.Cancel(InversionFreeBinText, "—");
     }
 
     private void ShowInversionStatus(string message)

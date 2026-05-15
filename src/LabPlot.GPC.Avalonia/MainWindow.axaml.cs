@@ -2085,9 +2085,11 @@ public partial class MainWindow : Window
             StatisticsPeakLabel.IsVisible = true;
         }
 
-        MnChipValue.Text = match.Groups["mn"].Value;
-        MwChipValue.Text = match.Groups["mw"].Value;
-        DispersityChipValue.Text = match.Groups["pdi"].Value;
+        // v1.3 Batch K: chip 値はカウントアップアニメで補間表示。数値 parse できない
+        // 場合 ("-" など) は NumberCountUp 側でアニメをスキップして即時表示する。
+        ApplyChipValueAnimated(MnChipValue, match.Groups["mn"].Value);
+        ApplyChipValueAnimated(MwChipValue, match.Groups["mw"].Value);
+        ApplyChipValueAnimated(DispersityChipValue, match.Groups["pdi"].Value);
 
         if (match.Groups["src"].Success)
         {
@@ -2523,13 +2525,34 @@ public partial class MainWindow : Window
     private static string FormatStatistic(double? value)
     {
         if (!value.HasValue || !double.IsFinite(value.Value)) return "-";
-        var absoluteValue = Math.Abs(value.Value);
+        return FormatChipValue(value.Value);
+    }
+
+    // v1.3 Batch K: NumberCountUp で中間フレームを描くときに使う formatter。
+    // FormatStatistic と桁数 / 表記の規約を完全に揃えてある (0.### or 0.###E+0)。
+    private static string FormatChipValue(double value)
+    {
+        var absoluteValue = Math.Abs(value);
         if (absoluteValue <= double.Epsilon) return "0";
         if (absoluteValue is >= 0.01 and < 10000)
         {
-            return value.Value.ToString("0.###", CultureInfo.InvariantCulture);
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
         }
-        return value.Value.ToString("0.###E+0", CultureInfo.InvariantCulture);
+        return value.ToString("0.###E+0", CultureInfo.InvariantCulture);
+    }
+
+    private static void ApplyChipValueAnimated(TextBlock target, string newText)
+    {
+        if (double.TryParse(newText, NumberStyles.Float, CultureInfo.InvariantCulture, out var toValue)
+            && double.IsFinite(toValue))
+        {
+            NumberCountUp.Animate(target, toValue, FormatChipValue);
+        }
+        else
+        {
+            // "-" / 空文字 / 単位付きで parse 不能なら、補間せず即時表示にする。
+            NumberCountUp.Cancel(target, newText);
+        }
     }
 
     private void SetMolecularWeightLogTicks()

@@ -914,10 +914,9 @@
                         </Panel>
                     </Border>
 
+                    <!-- v1.3 Batch A: 共通 StatusBar control に置換。severity でアイコンと前景色を切替。 -->
                     <Grid Grid.Row="3" Margin="0,10,0,0">
-                        <TextBlock Name="StatusTextBlock"
-                                   Text="CSVまたはLabSolutions TXTを開いてください。"
-                                   Foreground="#475569" />
+                        <controls:StatusBar Name="StatusBar" />
                     </Grid>
                 </Grid>
             </Grid>

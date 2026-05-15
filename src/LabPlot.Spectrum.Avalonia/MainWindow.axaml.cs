@@ -19,6 +19,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using LabPlot.Core;
+using LabPlot.Core.Avalonia.Controls;
 using LabPlot.Core.Avalonia.Helpers;
 using ScottPlot.Avalonia;
 using SpectrumAnalyzer.Core;
@@ -171,6 +172,10 @@ public partial class MainWindow : Window
     private void OnOpened(object? sender, EventArgs e)
     {
         Dispatcher.UIThread.Post(InitializePlotControl, DispatcherPriority.Background);
+
+        // v1.3 Batch A: XAML から StatusTextBlock の Text= 初期値を剥がしたので、
+        // OnOpened で明示的に Info severity の初期メッセージを立てる。
+        SetStatus("JASCO TXT を開いてください。", StatusSeverity.Info);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -1534,11 +1539,18 @@ public partial class MainWindow : Window
 
     private void SetStatus(string message, bool isError)
     {
-        StatusTextBlock.Text = message;
-        StatusTextBlock.Foreground = isError
-            ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26))
-            : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+        StatusBar?.SetStatus(message, isError ? StatusSeverity.Error : StatusSeverity.Info);
         if (!isError)
+        {
+            ErrorBanner.Hide();
+        }
+    }
+
+    // v1.3 Batch A: 4 段階 severity を明示したい呼び出し向け。Success / Warning を分けて出すために併設。
+    private void SetStatus(string message, StatusSeverity severity)
+    {
+        StatusBar?.SetStatus(message, severity);
+        if (severity != StatusSeverity.Error)
         {
             ErrorBanner.Hide();
         }

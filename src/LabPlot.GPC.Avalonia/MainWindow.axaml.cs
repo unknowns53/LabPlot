@@ -22,6 +22,7 @@ using Avalonia.VisualTree;
 using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using GpcAnalyzer.Core;
 using LabPlot.Core;
+using LabPlot.Core.Avalonia.Controls;
 using LabPlot.Core.Avalonia.Helpers;
 using ScottPlot.Avalonia;
 using static LabPlot.Core.PlotAppearance;
@@ -183,6 +184,10 @@ public partial class MainWindow : Window
             InitializePlotControl();
             TryLoadDefaultCalibration();
         }, DispatcherPriority.Background);
+
+        // v1.3 Batch A: XAML から StatusTextBlock の Text= 初期値を剥がしたので、
+        // OnOpened で明示的に Info severity の初期メッセージを立てる。
+        SetStatus("CSVまたはLabSolutions TXTを開いてください。", StatusSeverity.Info);
     }
 
     // WPF の InputBindings 群を OnKeyDown 1 メソッドに集約。
@@ -2578,11 +2583,18 @@ public partial class MainWindow : Window
 
     private void SetStatus(string message, bool isError = false)
     {
-        StatusTextBlock.Text = message;
-        StatusTextBlock.Foreground = isError
-            ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
-            : new SolidColorBrush(Color.FromRgb(71, 85, 105));
+        StatusBar?.SetStatus(message, isError ? StatusSeverity.Error : StatusSeverity.Info);
         if (!isError)
+        {
+            ErrorBanner.Hide();
+        }
+    }
+
+    // v1.3 Batch A: 4 段階 severity を明示したい呼び出し向け。Success / Warning を分けて出すために併設。
+    private void SetStatus(string message, StatusSeverity severity)
+    {
+        StatusBar?.SetStatus(message, severity);
+        if (severity != StatusSeverity.Error)
         {
             ErrorBanner.Hide();
         }

@@ -1376,10 +1376,9 @@
                         </Grid>
                     </Border>
 
+                    <!-- v1.3 Batch A: 共通 StatusBar control に置換。severity でアイコンと前景色を切替。 -->
                     <Border Grid.Row="2" Margin="0,10,0,0" Background="Transparent">
-                        <TextBlock x:Name="StatusTextBlock"
-                                   Text="JASCO TXT を開いてください。"
-                                   Foreground="#475569" />
+                        <controls:StatusBar x:Name="StatusBar" />
                     </Border>
                 </Grid>
             </Grid>

@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="LabPlot.Core.Avalonia.Controls.StatusBar"
+             HorizontalAlignment="Stretch"
+             VerticalAlignment="Center">
+    <!-- v1.3 UI ブラッシュアップ Batch A: 各 MainWindow / CalibrationCurveWindow の
+         単純 TextBlock ベースの StatusTextBlock を統一的な StatusBar control に置き換える。
+         severity に応じて先頭の 14px アイコン (✓ / ⚠ / × / ℹ) と前景色を切り替える。
+         None severity ではアイコンを完全に hit-test 不可で折り畳んで純テキスト表示。 -->
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Path Name="IconPath"
+              Width="14" Height="14"
+              Stretch="None"
+              StrokeLineCap="Round"
+              StrokeJoin="Round"
+              VerticalAlignment="Center"
+              Margin="0,0,8,0"
+              IsVisible="False" />
+        <TextBlock Name="MessageTextBlock"
+                   VerticalAlignment="Center"
+                   Foreground="#475569"
+                   TextWrapping="Wrap" />
+    </StackPanel>
+</UserControl>

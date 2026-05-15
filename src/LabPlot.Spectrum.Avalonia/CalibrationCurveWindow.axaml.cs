@@ -13,6 +13,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using LabPlot.Core.Avalonia.Controls;
 using LabPlot.Core.Avalonia.Helpers;
 using ScottPlot;
 using SpectrumAnalyzer.Core;
@@ -209,11 +210,11 @@ public partial class CalibrationCurveWindow : Window
 
         if (!isSingleWavelength && _availableRegions.Count == 0)
         {
-            StatusTextBlock.Text = "積分領域が定義されていません。書式パネルの『積分』で領域を追加してください。";
+            StatusBar.SetStatus("積分領域が定義されていません。書式パネルの『積分』で領域を追加してください。", StatusSeverity.Warning);
         }
-        else if ((StatusTextBlock.Text ?? string.Empty).StartsWith("積分領域が定義"))
+        else if (StatusBar.Message.StartsWith("積分領域が定義", StringComparison.Ordinal))
         {
-            StatusTextBlock.Text = string.Empty;
+            StatusBar.Clear();
         }
     }
 
@@ -341,7 +342,7 @@ public partial class CalibrationCurveWindow : Window
 
         if (!_lastResult.HasFit)
         {
-            StatusTextBlock.Text = "フィットがまだ確定していないため出力できません（濃度を 2 件以上入力してください）。";
+            StatusBar.SetStatus("フィットがまだ確定していないため出力できません（濃度を 2 件以上入力してください）。", StatusSeverity.Warning);
             return;
         }
 
@@ -400,13 +401,11 @@ public partial class CalibrationCurveWindow : Window
                 export.WriteXlsx(path);
             }
 
-            StatusTextBlock.Foreground = ResolveBrush("SuccessForegroundBrush", new global::Avalonia.Media.Color(0xFF, 0x06, 0x5F, 0x46));
-            StatusTextBlock.Text = $"保存しました: {path}";
+            StatusBar.SetStatus($"保存しました: {path}", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            StatusTextBlock.Foreground = ResolveBrush("ErrorForegroundBrush", new global::Avalonia.Media.Color(0xFF, 0x7F, 0x1D, 0x1D));
-            StatusTextBlock.Text = $"保存に失敗しました: {ex.Message}";
+            StatusBar.SetStatus($"保存に失敗しました: {ex.Message}", StatusSeverity.Error);
         }
     }
 
@@ -584,17 +583,8 @@ public partial class CalibrationCurveWindow : Window
 
         ResultSummaryTextBlock.Text = string.Join("\n", lines);
 
-        StatusTextBlock.Foreground = ResolveBrush("WarningForegroundBrush", new global::Avalonia.Media.Color(0xFF, 0x92, 0x40, 0x0E));
-        StatusTextBlock.Text = string.Empty;
-    }
-
-    private IBrush ResolveBrush(string resourceKey, global::Avalonia.Media.Color fallback)
-    {
-        if (this.TryFindResource(resourceKey, out var resource) && resource is IBrush brush)
-        {
-            return brush;
-        }
-        return new SolidColorBrush(fallback);
+        // Recalculate 成功時はステータス行をクリア (再計算の前段で表示していた警告を消す)。
+        StatusBar.Clear();
     }
 
     private static string FormatScientific(double value)

@@ -17,6 +17,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using DlsAnalyzer.Core;
 using LabPlot.Core;
+using LabPlot.Core.Avalonia.Controls;
 using LabPlot.Core.Avalonia.Helpers;
 using ScottPlot.Avalonia;
 using static LabPlot.Core.PlotAppearance;
@@ -143,6 +144,10 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             PlotPlaceholderSkeleton.IsVisible = false;
             InitializeEmptyPlot();
             UpdatePlotHostAspectRatio();
+
+            // v1.3 Batch A: 初期メッセージは Info severity で出す。XAML 上の Text= 初期値が
+            // StatusBar 化で消えたため、起動完了時点で明示的にセットする。
+            SetStatus("DLS xlsx を開いてください。", StatusSeverity.Info);
         }
         catch (Exception ex)
         {
@@ -2384,12 +2389,16 @@ public partial class MainWindow : Window, IDlsAnalysisHost
 
     private void SetStatus(string message, bool isError = false)
     {
-        if (StatusTextBlock is null) return;
-        StatusTextBlock.Text = message;
-        StatusTextBlock.Foreground = isError
-            ? new SolidColorBrush(Color.FromRgb(0xB9, 0x1C, 0x1C))
-            : new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+        StatusBar?.SetStatus(message, isError ? StatusSeverity.Error : StatusSeverity.Info);
         if (!isError) ErrorBanner.Hide();
+    }
+
+    // v1.3 Batch A: 4 段階 severity を明示したい呼び出し向け。Success (保存完了)
+    // や Warning (外挿警告等) は新 API を直接使う。
+    private void SetStatus(string message, StatusSeverity severity)
+    {
+        StatusBar?.SetStatus(message, severity);
+        if (severity != StatusSeverity.Error) ErrorBanner.Hide();
     }
 
     private sealed record DataSeries(

@@ -176,6 +176,44 @@ public sealed class LambdaMaxFinderTests
     }
 
     [Fact]
+    public void Find_MinimumProminence_DropsShoulderRipple()
+    {
+        // Tall Gaussian at 280 nm with a small shoulder bump at 305 nm whose
+        // absolute height is ~0.18 (above MinimumAbsorbance) but whose
+        // prominence — height above the local valley between it and the
+        // 280 nm peak — is well below 0.1. Default config (prominence 0)
+        // reports both peaks; turning prominence on culls the shoulder.
+        var points = new List<SpectrumDataPoint>();
+        for (var x = 200.0; x <= 400.0001; x += 1.0)
+        {
+            var main = 0.9 * Math.Exp(-Math.Pow(x - 280, 2) / (2 * 64));
+            var shoulder = 0.05 * Math.Exp(-Math.Pow(x - 305, 2) / (2 * 4));
+            points.Add(new SpectrumDataPoint { X = x, Y = main + shoulder });
+        }
+
+        var dataset = MakeWavelengthScan(points);
+
+        var defaultPeaks = LambdaMaxFinder.Find(dataset, new LambdaMaxFinderConfig
+        {
+            MinimumAbsorbance = 0.05,
+            Window = 3,
+            MaxPeaks = 5,
+        });
+        Assert.True(defaultPeaks.Count >= 2);
+
+        var prominencePeaks = LambdaMaxFinder.Find(dataset, new LambdaMaxFinderConfig
+        {
+            MinimumAbsorbance = 0.05,
+            MinimumProminence = 0.1,
+            Window = 3,
+            MaxPeaks = 5,
+        });
+
+        Assert.Single(prominencePeaks);
+        Assert.InRange(prominencePeaks[0].WavelengthNm, 279.5, 280.5);
+    }
+
+    [Fact]
     public void Result_HasResult_TrueForFiniteValues()
     {
         var ok = new LambdaMaxResult { WavelengthNm = 280, AbsorbanceValue = 0.5, SampleIndex = 100 };

@@ -13,6 +13,19 @@ public sealed record LambdaMaxFinderConfig
     public double MinimumAbsorbance { get; init; } = 0.01;
 
     /// <summary>
+    /// Minimum prominence (in absorbance units) a candidate must clear.
+    /// Prominence is the candidate's height above the highest valley reached
+    /// while walking outward in either direction until a strictly higher
+    /// point is encountered (or the data ends) — the same definition
+    /// <c>scipy.signal.find_peaks</c> uses. Filters out shoulder ripples on
+    /// a sloped baseline and the mini-bumps that flank a true peak. Default
+    /// is 0 (disabled) so existing UV-Vis workflows keep their current
+    /// behaviour; the IR finder uses a non-zero default because IR spectra
+    /// have many more closely-spaced bumps.
+    /// </summary>
+    public double MinimumProminence { get; init; } = 0.0;
+
+    /// <summary>
     /// Minimum half-window (in data points) used when validating a local
     /// maximum: the candidate must be the largest value within <c>±Window</c>
     /// neighbours. Larger values reject narrow noise spikes.
@@ -205,6 +218,7 @@ public static class LambdaMaxFinder
 
         var window = Math.Max(1, config.Window);
         var minAbs = config.MinimumAbsorbance;
+        var minProm = config.MinimumProminence;
         var lo = double.IsFinite(config.WavelengthMinNm) ? config.WavelengthMinNm : double.NegativeInfinity;
         var hi = double.IsFinite(config.WavelengthMaxNm) ? config.WavelengthMaxNm : double.PositiveInfinity;
 
@@ -215,6 +229,16 @@ public static class LambdaMaxFinder
             var y = ys[i];
             if (!double.IsFinite(y) || y < minAbs) continue;
             if (!IsLocalMaximum(ys, i, window)) continue;
+
+            // Prominence filter: optional in UV-Vis (default off) because
+            // most absorbance scans only have a handful of broad peaks, but
+            // when enabled it removes shoulders / ripples next to a stronger
+            // peak — the false positives that pile up around outliers.
+            if (double.IsFinite(minProm) && minProm > 0)
+            {
+                var prominence = ComputeProminence(ys, i);
+                if (!double.IsFinite(prominence) || prominence < minProm) continue;
+            }
 
             var (interpX, interpY) = ParabolicInterpolate(
                 xs[i - 1], ys[i - 1],
@@ -242,6 +266,42 @@ public static class LambdaMaxFinder
         }
 
         return peaks;
+    }
+
+    /// <summary>
+    /// Classic <c>scipy.signal.find_peaks</c> prominence: walk outward from
+    /// <paramref name="index"/> in each direction until a strictly higher
+    /// sample is encountered (or the data ends), tracking the lowest sample
+    /// passed along the way. The peak's prominence is its height above the
+    /// higher of the two outer minima — the "shorter" base. Returns NaN
+    /// when the candidate sits on a flat plateau wider than the trace or
+    /// the input is degenerate.
+    /// </summary>
+    private static double ComputeProminence(double[] ys, int index)
+    {
+        var peakY = ys[index];
+        if (!double.IsFinite(peakY)) return double.NaN;
+
+        var leftMin = peakY;
+        for (var j = index - 1; j >= 0; j--)
+        {
+            var y = ys[j];
+            if (!double.IsFinite(y)) continue;
+            if (y > peakY) break;
+            if (y < leftMin) leftMin = y;
+        }
+
+        var rightMin = peakY;
+        for (var j = index + 1; j < ys.Length; j++)
+        {
+            var y = ys[j];
+            if (!double.IsFinite(y)) continue;
+            if (y > peakY) break;
+            if (y < rightMin) rightMin = y;
+        }
+
+        var baseLine = Math.Max(leftMin, rightMin);
+        return peakY - baseLine;
     }
 
     private static bool IsLocalMaximum(double[] ys, int index, int window)

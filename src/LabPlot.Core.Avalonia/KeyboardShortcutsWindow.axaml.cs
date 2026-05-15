@@ -38,6 +38,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
         AppKind.Gpc => "GPC Analyzer",
         AppKind.Spectrum => "UV-Vis Analyzer",
         AppKind.Calibration => "Beer-Lambert 検量線エディタ",
+        AppKind.Portal => "Analysis portal",
         _ => string.Empty,
     };
 
@@ -159,6 +160,19 @@ public sealed partial class KeyboardShortcutsWindow : Window
                 new ShortcutEntry("F1", "このヘルプ"),
             }),
         },
+        AppKind.Portal => new[]
+        {
+            new ShortcutGroup("アプリ起動", new[]
+            {
+                new ShortcutEntry("Ctrl + 1", "GPC Analyzer を開く"),
+                new ShortcutEntry("Ctrl + 2", "UV-Vis Analyzer を開く"),
+                new ShortcutEntry("Ctrl + 3", "DLS Analyzer を開く"),
+            }),
+            new ShortcutGroup("一般", new[]
+            {
+                new ShortcutEntry("F1", "このヘルプ"),
+            }),
+        },
         _ => System.Array.Empty<ShortcutGroup>(),
     };
 
@@ -173,4 +187,5 @@ public enum AppKind
     Gpc,
     Spectrum,
     Calibration,
+    Portal,
 }

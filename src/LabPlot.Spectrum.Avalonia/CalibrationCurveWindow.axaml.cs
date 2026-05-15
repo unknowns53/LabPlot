@@ -335,6 +335,24 @@ public partial class CalibrationCurveWindow : Window
         Close(false);
     }
 
+    // v1.3 Batch G: 検量線エディタにも F1 (ショートカット一覧) / Esc (キャンセル) を入れる。
+    protected override void OnKeyDown(global::Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Key == global::Avalonia.Input.Key.F1)
+        {
+            global::LabPlot.Core.Avalonia.KeyboardShortcutsWindow.ShowFor(this, global::LabPlot.Core.Avalonia.AppKind.Calibration);
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == global::Avalonia.Input.Key.Escape)
+        {
+            Close(false);
+            e.Handled = true;
+            return;
+        }
+        base.OnKeyDown(e);
+    }
+
     private async void ExportButton_Click(object? sender, RoutedEventArgs e)
     {
         FlushConfigFromEditors();

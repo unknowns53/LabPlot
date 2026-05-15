@@ -74,6 +74,24 @@ public sealed partial class AnalysisWindow : Window
         SaveExpanderState();
     }
 
+    // v1.3 Batch G: AnalysisWindow にも F1 (ショートカット一覧) / Esc (閉じる) を入れる。
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.F1)
+        {
+            global::LabPlot.Core.Avalonia.KeyboardShortcutsWindow.ShowFor(this, global::LabPlot.Core.Avalonia.AppKind.Dls);
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+            return;
+        }
+        base.OnKeyDown(e);
+    }
+
     // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を
     // 自動生成するので手動定義しない（Phase 7 Batch 6 で発覚した null フィールド NRE 対策）。
 

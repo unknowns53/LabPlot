@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
@@ -68,6 +69,29 @@ public partial class PortalWindow : Window
 
     private void OpenDls_Click(object? sender, RoutedEventArgs e)
         => OpenSingleton<LabPlot.DLS.Avalonia.MainWindow>();
+
+    // v1.3 Batch G: Portal にもキーボードショートカットを入れる。
+    // Ctrl+1 = GPC、Ctrl+2 = UV-Vis、Ctrl+3 = DLS、F1 = ショートカット一覧、Esc = 終了。
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        if (ctrl)
+        {
+            switch (e.Key)
+            {
+                case Key.D1: OpenSingleton<LabPlot.GPC.Avalonia.MainWindow>(); e.Handled = true; return;
+                case Key.D2: OpenSingleton<LabPlot.Spectrum.Avalonia.MainWindow>(); e.Handled = true; return;
+                case Key.D3: OpenSingleton<LabPlot.DLS.Avalonia.MainWindow>(); e.Handled = true; return;
+            }
+        }
+        if (e.Key == Key.F1)
+        {
+            global::LabPlot.Core.Avalonia.KeyboardShortcutsWindow.ShowFor(this, global::LabPlot.Core.Avalonia.AppKind.Portal);
+            e.Handled = true;
+            return;
+        }
+        base.OnKeyDown(e);
+    }
 
     /// <summary>
     /// Avalonia には標準 MessageBox が無いので、軽量な情報ダイアログを Window で代替する。

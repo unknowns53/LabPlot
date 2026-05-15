@@ -650,6 +650,13 @@ public partial class MainWindow : Window
                 RecentFilesStore.Add(RecentFilesAppKey, fileName);
             }
             RefreshRecentFilesUi();
+
+            // v1.3 Batch H: タイトルバー Subtitle と Window Title にファイル名を反映。
+            // 複数選択時は "n ファイル (一番上の名前)" のような表現に。
+            var primaryName = Path.GetFileName(fileNames[0]);
+            var subtitle = fileNames.Length == 1 ? primaryName : $"{primaryName} 他 {fileNames.Length - 1} 件";
+            if (MainTitleBar is not null) MainTitleBar.Subtitle = subtitle;
+            Title = $"GPC Analyzer — {subtitle}";
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {

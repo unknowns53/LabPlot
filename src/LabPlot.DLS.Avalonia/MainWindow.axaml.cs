@@ -341,6 +341,11 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             // v1.3 Batch E: 読み込み成功時のみ MRU に追加して ComboBox を更新する。
             RecentFilesStore.Add(RecentFilesAppKey, filePath);
             RefreshRecentFilesUi();
+
+            // v1.3 Batch H: タイトルバー Subtitle と Window Title にファイル名を反映。
+            var fileNameOnly = Path.GetFileName(filePath);
+            if (MainTitleBar is not null) MainTitleBar.Subtitle = fileNameOnly;
+            Title = $"DLS Analyzer — {fileNameOnly}";
             DatasetCountText.Text = _datasets.Count == 0
                 ? "粒径分布シートが見つかりませんでした"
                 : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(filePath)}）";

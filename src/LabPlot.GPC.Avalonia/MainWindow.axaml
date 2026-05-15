@@ -32,6 +32,7 @@
 
             <!-- ================= TITLE BAR ================= -->
             <controls:CustomTitleBar Grid.Row="0"
+                                     Name="MainTitleBar"
                                      AppName="GPC Analyzer"
                                      Subtitle="Chromatogram visualizer"
                                      AppIconData="M 2,16 L 6,16 L 8,11 L 10,3 L 12,11 L 14,16 L 18,16" />

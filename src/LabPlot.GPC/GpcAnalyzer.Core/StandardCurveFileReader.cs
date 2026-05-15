@@ -37,7 +37,21 @@ public sealed class StandardCurveFileReader
 
         foreach (var solventEntry in rawCurves)
         {
-            if (string.IsNullOrWhiteSpace(solventEntry.Key) || solventEntry.Value.Count == 0)
+            if (string.IsNullOrWhiteSpace(solventEntry.Key))
+            {
+                continue;
+            }
+
+            // A `"DMF": null` entry would deserialize to a null value here;
+            // surface it as a malformed-file error rather than dereferencing
+            // through to a NullReferenceException downstream.
+            if (solventEntry.Value is null)
+            {
+                throw new InvalidDataException(
+                    $"Calibration curve entry for solvent '{solventEntry.Key}' is null.");
+            }
+
+            if (solventEntry.Value.Count == 0)
             {
                 continue;
             }
@@ -48,6 +62,12 @@ public sealed class StandardCurveFileReader
                 if (string.IsNullOrWhiteSpace(detectorEntry.Key))
                 {
                     continue;
+                }
+
+                if (detectorEntry.Value is null)
+                {
+                    throw new InvalidDataException(
+                        $"Calibration coefficients for solvent '{solventEntry.Key}', detector '{detectorEntry.Key}' are null.");
                 }
 
                 detectorCurves[detectorEntry.Key] = new CalibrationCurve

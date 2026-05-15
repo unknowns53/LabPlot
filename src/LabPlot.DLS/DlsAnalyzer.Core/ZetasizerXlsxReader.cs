@@ -66,7 +66,19 @@ public sealed class ZetasizerXlsxReader : IDlsDataReader
 
             if (headers[pair.XIndex].Kind == DlsColumnKind.SizeAxis)
             {
-                sizeBins ??= xs;
+                // The shared X axis is captured from the first run. A later
+                // run whose X column lost rows to empty cells / "---" would
+                // emit a shorter ys than sizeBins and silently mis-align
+                // with the bin labels downstream. Reject runs that disagree
+                // on length or values so Runs stay rectangular.
+                if (sizeBins is null)
+                {
+                    sizeBins = xs;
+                }
+                else if (!AxisMatches(sizeBins, xs))
+                {
+                    continue;
+                }
                 switch (headers[pair.YIndex].Kind)
                 {
                     case DlsColumnKind.NumberPercent: numberRuns.Add(ys); break;
@@ -77,7 +89,14 @@ public sealed class ZetasizerXlsxReader : IDlsDataReader
             else if (headers[pair.XIndex].Kind == DlsColumnKind.TimeAxis &&
                      headers[pair.YIndex].Kind == DlsColumnKind.CorrelationG2Minus1)
             {
-                correlationTimes ??= xs;
+                if (correlationTimes is null)
+                {
+                    correlationTimes = xs;
+                }
+                else if (!AxisMatches(correlationTimes, xs))
+                {
+                    continue;
+                }
                 correlationRuns.Add(ys);
             }
         }
@@ -151,5 +170,19 @@ public sealed class ZetasizerXlsxReader : IDlsDataReader
         if (cell.IsEmpty()) return null;
         if (cell.TryGetValue<double>(out var num) && double.IsFinite(num)) return num;
         return null;
+    }
+
+    private static bool AxisMatches(IReadOnlyList<double> reference, IReadOnlyList<double> candidate)
+    {
+        if (reference.Count != candidate.Count) return false;
+        for (int i = 0; i < reference.Count; i++)
+        {
+            var r = reference[i];
+            var c = candidate[i];
+            if (r == 0.0 && c == 0.0) continue;
+            var tol = Math.Max(1e-9 * Math.Max(Math.Abs(r), Math.Abs(c)), 1e-12);
+            if (Math.Abs(r - c) > tol) return false;
+        }
+        return true;
     }
 }

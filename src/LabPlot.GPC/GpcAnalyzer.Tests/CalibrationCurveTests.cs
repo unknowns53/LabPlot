@@ -131,8 +131,15 @@ public sealed class CalibrationCurveTests
     }
 
     [Fact]
-    public void MolecularWeightConverter_CalculatesDwdLogMAfterSortingRetentionTimeDescending()
+    public void MolecularWeightConverter_CalculatesDwdLogMWithAreaWeightedBins()
     {
+        // X = retention time, Y = signal. Calibration is logM = -X + 6
+        // so the three points map to (X=2, Y=1, M=10000), (X=3, Y=2, M=1000),
+        // (X=4, Y=3, M=100). Sorted ascending by retention time, the half-
+        // interval dt is [0.5, 1, 0.5] and totalArea = 1·0.5 + 2·1 + 3·0.5 = 4.
+        // |dlogM| at every interior point equals 1 (constant logM step), so
+        // the per-bin dw/dlogM equals dw_i = signal_i · dt_i / totalArea.
+        // Output is sorted ascending by molecular weight.
         var dataset = new GpcDataset
         {
             Points = new[]
@@ -162,11 +169,13 @@ public sealed class CalibrationCurveTests
 
         Assert.Equal("dw/dlogM", converted.YLabel);
         Assert.Equal(MolecularWeightYMode.DifferentialWeightFraction, converted.YMode);
-        Assert.Equal(2, converted.Points.Count);
+        Assert.Equal(3, converted.Points.Count);
         Assert.Equal(100, converted.Points[0].MolecularWeight, 5);
-        Assert.Equal(2.0 / 6.0, converted.Points[0].Signal, 5);
+        Assert.Equal(0.375, converted.Points[0].Signal, 5);
         Assert.Equal(1000, converted.Points[1].MolecularWeight, 5);
-        Assert.Equal(1.0 / 6.0, converted.Points[1].Signal, 5);
+        Assert.Equal(0.5, converted.Points[1].Signal, 5);
+        Assert.Equal(10000, converted.Points[2].MolecularWeight, 5);
+        Assert.Equal(0.125, converted.Points[2].Signal, 5);
     }
 
     [Fact]

@@ -154,14 +154,26 @@ public static class CumulantAnalyzer
         }
         var rSquared = ssTot > 0 ? 1.0 - ssRes / ssTot : 1.0;
 
+        // keptTaus retains the input ordering of correlation.TimesMicroseconds
+        // — Zetasizer xlsx exports are τ-ascending in practice but the type
+        // contract does not guarantee it. Compute min/max explicitly so the
+        // reported range stays correct regardless of source ordering.
+        double rangeMin = keptTaus[0], rangeMax = keptTaus[0];
+        for (int i = 1; i < keptTaus.Count; i++)
+        {
+            var t = keptTaus[i];
+            if (t < rangeMin) rangeMin = t;
+            if (t > rangeMax) rangeMax = t;
+        }
+
         return CumulantOutcome.Ok(new CumulantResult
         {
             FirstCumulantPerMicrosecond = gamma,
             SecondCumulantPerMicrosecondSquared = mu2,
             PolydispersityIndex = pdi,
             RSquared = rSquared,
-            AppliedRangeMinMicroseconds = keptTaus[0],
-            AppliedRangeMaxMicroseconds = keptTaus[keptTaus.Count - 1],
+            AppliedRangeMinMicroseconds = rangeMin,
+            AppliedRangeMaxMicroseconds = rangeMax,
             PointCount = keptTaus.Count,
         });
     }

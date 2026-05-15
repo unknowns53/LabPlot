@@ -188,22 +188,26 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
             return null;
         }
 
-        return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : null;
+        return TryParseLooseDouble(raw, out var value) ? value : null;
     }
 
     private static bool TryParseDataRow(string line, out SpectrumDataPoint point)
     {
-        var fields = line.Split(FieldSeparators, StringSplitOptions.RemoveEmptyEntries);
+        // Auto-detect the separator per row instead of splitting on both tab
+        // and comma at once. The shared "{tab, comma}" approach corrupts
+        // decimal-comma exports such as "0,5\t1,234" by breaking the values
+        // at the decimal point. TXT exports use tab, CSV exports use comma,
+        // so picking whichever is present in the row keeps both happy.
+        var separator = line.IndexOf('\t') >= 0 ? '\t' : ',';
+        var fields = line.Split(separator, StringSplitOptions.RemoveEmptyEntries);
         if (fields.Length < 2)
         {
             point = default;
             return false;
         }
 
-        if (!double.TryParse(fields[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x)
-            || !double.TryParse(fields[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+        if (!TryParseLooseDouble(fields[0], out var x)
+            || !TryParseLooseDouble(fields[1], out var y))
         {
             point = default;
             return false;
@@ -211,6 +215,36 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
 
         point = new SpectrumDataPoint { X = x, Y = y };
         return true;
+    }
+
+    // double.TryParse("NaN", ...) succeeds, so a downstream IsFinite gate
+    // is required to keep NaN / ±Infinity out of the dataset. We also fall
+    // back to a "comma → dot" swap so European-style decimal commas
+    // ("0,5") parse correctly under InvariantCulture without dragging in
+    // AllowThousands (which would silently strip commas from "0,00833").
+    private static bool TryParseLooseDouble(string? text, out double value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            && double.IsFinite(value))
+        {
+            return true;
+        }
+
+        if (text.IndexOf(',') >= 0 && text.IndexOf('.') < 0)
+        {
+            var swapped = text.Replace(',', '.');
+            if (double.TryParse(swapped, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                && double.IsFinite(value))
+            {
+                return true;
+            }
+        }
+
+        value = 0;
+        return false;
     }
 }
 

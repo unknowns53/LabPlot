@@ -145,45 +145,83 @@ public sealed class MolecularWeightConverter
         double minMolecularWeight,
         double maxMolecularWeight)
     {
-        var totalWeight = 0.0;
-        for (var i = 0; i < sourcePoints.Count; i++)
+        // dw/dlogM is the differential weight fraction with respect to logM.
+        // Properly defined as dw_i / |dlogM_i| where dw_i = S(t_i)·|dt_i| / A
+        // (S = detector signal, A = total chromatogram area). The previous
+        // implementation used raw signal divided by |dlogM| between adjacent
+        // raw points, which (a) dropped the dt area element so non-uniform
+        // retention-time sampling skewed the distribution shape, and (b)
+        // attributed the next point's signal to the current point's MW —
+        // a one-bin alignment offset.
+        //
+        // The new implementation sorts ascending by retention time, uses a
+        // half-interval dt at each point (with endpoint half-widths), and
+        // central-difference dlogM. Each output bin keeps its own MW/RT.
+        var validPoints = sourcePoints
+            .Where(p => double.IsFinite(p.RetentionTime)
+                        && double.IsFinite(p.MolecularWeight)
+                        && p.MolecularWeight > 0
+                        && double.IsFinite(p.LogMolecularWeight)
+                        && double.IsFinite(p.Signal))
+            .OrderBy(static p => p.RetentionTime)
+            .ToArray();
+
+        if (validPoints.Length < 2)
         {
-            totalWeight += sourcePoints[i].Signal;
+            return Array.Empty<MolecularWeightDataPoint>();
         }
 
-        if (!double.IsFinite(totalWeight) || Math.Abs(totalWeight) <= double.Epsilon)
+        var dts = new double[validPoints.Length];
+        for (var i = 0; i < validPoints.Length; i++)
         {
-            throw new InvalidDataException("Cannot calculate dw/dlogM because the total signal is zero.");
+            var left = i > 0 ? validPoints[i - 1].RetentionTime : validPoints[i].RetentionTime;
+            var right = i < validPoints.Length - 1
+                ? validPoints[i + 1].RetentionTime
+                : validPoints[i].RetentionTime;
+            dts[i] = 0.5 * (right - left);
         }
 
-        var orderedSourcePoints = sourcePoints.ToArray();
-        Array.Sort(
-            orderedSourcePoints,
-            static (left, right) => right.RetentionTime.CompareTo(left.RetentionTime));
-
-        var points = new List<MolecularWeightDataPoint>(Math.Max(0, orderedSourcePoints.Length - 1));
-        for (var i = 0; i < orderedSourcePoints.Length - 1; i++)
+        var totalArea = 0.0;
+        for (var i = 0; i < validPoints.Length; i++)
         {
-            var current = orderedSourcePoints[i];
-            var next = orderedSourcePoints[i + 1];
-            if (!IsMolecularWeightInRange(current, minMolecularWeight, maxMolecularWeight))
+            totalArea += validPoints[i].Signal * Math.Abs(dts[i]);
+        }
+
+        if (!double.IsFinite(totalArea) || Math.Abs(totalArea) <= double.Epsilon)
+        {
+            throw new InvalidDataException("Cannot calculate dw/dlogM because the total signal area is zero.");
+        }
+
+        var points = new List<MolecularWeightDataPoint>(validPoints.Length);
+        for (var i = 0; i < validPoints.Length; i++)
+        {
+            var p = validPoints[i];
+            if (!IsMolecularWeightInRange(p, minMolecularWeight, maxMolecularWeight))
             {
                 continue;
             }
 
-            if (!double.IsFinite(next.MolecularWeight) || next.MolecularWeight <= 0)
+            double dLogM;
+            if (i == 0)
+            {
+                dLogM = validPoints[1].LogMolecularWeight - p.LogMolecularWeight;
+            }
+            else if (i == validPoints.Length - 1)
+            {
+                dLogM = p.LogMolecularWeight - validPoints[i - 1].LogMolecularWeight;
+            }
+            else
+            {
+                dLogM = 0.5 * (validPoints[i + 1].LogMolecularWeight - validPoints[i - 1].LogMolecularWeight);
+            }
+
+            if (!double.IsFinite(dLogM) || Math.Abs(dLogM) <= double.Epsilon)
             {
                 continue;
             }
 
-            var dw = next.Signal / totalWeight;
-            var dLogM = next.LogMolecularWeight - current.LogMolecularWeight;
-            if (!double.IsFinite(dw) || !double.IsFinite(dLogM) || Math.Abs(dLogM) <= double.Epsilon)
-            {
-                continue;
-            }
-
-            var value = dw / dLogM;
+            var dw = p.Signal * Math.Abs(dts[i]) / totalArea;
+            var value = dw / Math.Abs(dLogM);
             if (!double.IsFinite(value))
             {
                 continue;
@@ -191,9 +229,9 @@ public sealed class MolecularWeightConverter
 
             points.Add(new MolecularWeightDataPoint
             {
-                RetentionTime = current.RetentionTime,
-                MolecularWeight = current.MolecularWeight,
-                LogMolecularWeight = current.LogMolecularWeight,
+                RetentionTime = p.RetentionTime,
+                MolecularWeight = p.MolecularWeight,
+                LogMolecularWeight = p.LogMolecularWeight,
                 Signal = value,
             });
         }

@@ -204,10 +204,25 @@ public static class TemperatureRampAnalyzer
             var dy = ys[i] - meanY;
             ssTot += dy * dy;
         }
-        var rSquared = ssTot > 0 ? 1.0 - cost / ssTot : 1.0;
 
-        // Reject obviously degenerate fits: |d_high - d_low| comparable
-        // to the noise scale, or T_c well outside the measured range.
+        // Reject obviously degenerate fits before computing R²:
+        // (a) flat diameter series — any T_c / w is consistent with the
+        //     data so the recovered transition is meaningless.
+        // (b) fits where the LM loop never accepted a step — the
+        //     "parameters" remain the data-derived initial guesses.
+        // (c) recovered plateau amplitude below the data variability,
+        //     which leaves T_c and w under-determined.
+        if (ssTot <= 0)
+            return TemperatureRampOutcome.Fail("d_h が平坦で Boltzmann fit が非同定です");
+        if (acceptedIterations == 0)
+            return TemperatureRampOutcome.Fail("LM が収束しませんでした");
+
+        var dataStdDev = Math.Sqrt(ssTot / Math.Max(ys.Length - 1, 1));
+        var amplitude = Math.Abs(dHigh - dLow);
+        if (amplitude < 0.25 * dataStdDev)
+            return TemperatureRampOutcome.Fail("d の変化量がノイズスケール以下で Boltzmann fit が非同定です");
+
+        var rSquared = 1.0 - cost / ssTot;
         if (!double.IsFinite(rSquared) || rSquared < 0)
             return TemperatureRampOutcome.Fail("fit の品質が低すぎます");
 

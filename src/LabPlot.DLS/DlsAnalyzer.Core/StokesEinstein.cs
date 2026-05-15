@@ -114,8 +114,9 @@ public static class StokesEinstein
         => value.HasValue && double.IsFinite(value.Value) && value.Value > 0;
 
     private static bool IsValidAngle(double? value)
-        // 0° gives sin(0) = 0 → q² = 0 → divide by zero. 360° wraps but
-        // a Zetasizer-realistic value is in (0, 180]. Allow the full
-        // (0, 360) range and let downstream sin() handle it.
-        => value.HasValue && double.IsFinite(value.Value) && value.Value > 0 && value.Value < 360;
+        // 0° gives sin(0) = 0 → q² = 0 → divide by zero. Scattering
+        // angles are physically defined on (0, 180] in DLS optics; in
+        // (180, 360) sin(θ/2) decreases back through zero, which gives
+        // a mathematically valid but physically wrong q. Reject those.
+        => value.HasValue && double.IsFinite(value.Value) && value.Value > 0 && value.Value <= 180;
 }

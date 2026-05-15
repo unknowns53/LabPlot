@@ -160,24 +160,28 @@ public static class ConcentrationSeriesAnalyzer
 
         // Standard errors from the residual variance (Bevington 6.13–6.15).
         // Two parameters fit, so the unbiased residual variance uses n - 2.
-        double slopeSE = 0, interceptSE = 0;
+        double slopeSE = 0, interceptSE = 0, sigma2 = 0;
         if (n > 2)
         {
-            var sigma2 = ssRes / (n - 2);
+            sigma2 = ssRes / (n - 2);
             slopeSE = Math.Sqrt(sigma2 / sxx);
             interceptSE = Math.Sqrt(sigma2 * (1.0 / n + meanX * meanX / sxx));
         }
 
         var kD = slope / intercept;
         // Propagate (slope, intercept) uncertainties to k_D = slope/intercept
-        // assuming uncorrelated parameters: σ_kD² ≈ (σ_b/a)² + (b/a²)² σ_a².
-        // OLS slope and intercept are correlated in general, but the
-        // approximation suffices for the "± uncertainty" hint shown in the UI.
-        var kDSE = Math.Abs(kD) > 0 && intercept > 0
-            ? Math.Sqrt(
-                  (slopeSE / intercept) * (slopeSE / intercept)
-                + (slope / (intercept * intercept)) * (slope / (intercept * intercept)) * interceptSE * interceptSE)
-            : 0.0;
+        // using the full OLS covariance — slope and intercept are correlated
+        // when meanX ≠ 0:
+        //     Cov(a, b) = -meanX · σ² / sxx
+        //     Var(k_D) = Var(b)/a² + b²·Var(a)/a⁴ - 2·b·Cov(a, b)/a³
+        // Intercept is guaranteed positive above (D₀ ≤ 0 returns Fail), and
+        // slope can legitimately be zero (D independent of c) — the σ_b/a
+        // term still contributes a non-degenerate uncertainty in that case.
+        var covAB = -meanX * sigma2 / sxx;
+        var kDVar = (slopeSE * slopeSE) / (intercept * intercept)
+                    + (slope * slope) * (interceptSE * interceptSE) / Math.Pow(intercept, 4)
+                    - (2.0 * slope * covAB) / Math.Pow(intercept, 3);
+        var kDSE = kDVar > 0 ? Math.Sqrt(kDVar) : 0.0;
 
         // Stokes–Einstein at the reference (T, η) gives the d_h that
         // matches D₀, i.e. the diameter free from inter-particle drag.

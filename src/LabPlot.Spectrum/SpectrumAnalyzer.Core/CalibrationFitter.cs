@@ -59,8 +59,12 @@ public static class CalibrationFitter
                 continue;
             }
 
+            // Reject negative concentrations from the regression: physically
+            // impossible (a calibration standard cannot have negative c) and
+            // they corrupt the fit if the UI accepts a typed-in "-0.5".
             if (input.ConcentrationMolar is not double c
                 || !double.IsFinite(c)
+                || c < 0
                 || !double.IsFinite(input.Signal))
             {
                 continue;

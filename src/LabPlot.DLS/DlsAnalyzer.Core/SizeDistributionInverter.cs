@@ -121,8 +121,11 @@ public static class SizeDistributionInverter
         if (scatteringAngleDegrees is null
             || !double.IsFinite(scatteringAngleDegrees.Value)
             || scatteringAngleDegrees.Value <= 0
-            || scatteringAngleDegrees.Value >= 360)
+            || scatteringAngleDegrees.Value > 180)
         {
+            // Physical DLS scattering angles are in (0, 180]. Values above
+            // 180° pass sin(θ/2) > 0 mathematically but represent unreachable
+            // geometry; reject them in line with StokesEinstein.IsValidAngle.
             missing.Add("散乱角");
         }
         if (missing.Count > 0)
@@ -139,31 +142,47 @@ public static class SizeDistributionInverter
 
         if (opts.BinCount < 4)
             return SizeDistributionInversionOutcome.Fail("ビン数が不足しています");
-        if (!(opts.MinDiameterNm > 0) || !(opts.MaxDiameterNm > opts.MinDiameterNm))
+        if (!(opts.MinDiameterNm > 0) || !(opts.MaxDiameterNm > opts.MinDiameterNm)
+            || !double.IsFinite(opts.MinDiameterNm) || !double.IsFinite(opts.MaxDiameterNm))
             return SizeDistributionInversionOutcome.Fail("粒径グリッドが不正です");
 
+        // Validate auto-α sweep bounds before LogSpace consumes them so a
+        // NaN/Inf or non-positive range cannot propagate into the NNLS solve.
+        if (opts.RegularizationAlpha is null)
+        {
+            if (!double.IsFinite(opts.AutoAlphaMin) || !double.IsFinite(opts.AutoAlphaMax)
+                || !(opts.AutoAlphaMin > 0) || !(opts.AutoAlphaMax > opts.AutoAlphaMin))
+                return SizeDistributionInversionOutcome.Fail("自動α範囲が不正です");
+        }
+
         // ---- collect (τ, g₂-1) pairs and estimate β -----------------------
-        var taus = new List<double>(pairCount);
-        var g2m1 = new List<double>(pairCount);
+        // Sort the (τ, g₂-1) pairs by τ ascending so the "smallest-τ" β
+        // estimator always sees the actual smallest-τ samples regardless
+        // of input ordering. The CorrelationFunction type contract does
+        // not guarantee τ-ascending data — only the Zetasizer xlsx export
+        // happens to emit it that way — so an upstream reader change
+        // could otherwise silently break β recovery.
+        var pairs = new List<(double Tau, double G)>(pairCount);
         for (int i = 0; i < pairCount; i++)
         {
             var tau = times[i];
             var g = values[i];
             if (!double.IsFinite(tau) || tau <= 0) continue;
             if (!double.IsFinite(g)) continue;
-            taus.Add(tau);
-            g2m1.Add(g);
+            pairs.Add((tau, g));
         }
-        if (taus.Count < 8)
+        if (pairs.Count < 8)
             return SizeDistributionInversionOutcome.Fail("自己相関の有効点数が不足しています");
+
+        pairs.Sort(static (a, b) => a.Tau.CompareTo(b.Tau));
 
         // β ≈ peak of g₂-1, taken as the median of the few smallest-τ
         // samples. Real Zetasizer traces are noisy at τ=0 so a single
         // sample would over- or under-shoot; the median across a small
         // window is robust against either outlier.
-        var betaSampleCount = Math.Clamp(opts.BetaEstimationSampleCount, 1, taus.Count);
+        var betaSampleCount = Math.Clamp(opts.BetaEstimationSampleCount, 1, pairs.Count);
         var earlySamples = new List<double>(betaSampleCount);
-        for (int i = 0; i < betaSampleCount; i++) earlySamples.Add(g2m1[i]);
+        for (int i = 0; i < betaSampleCount; i++) earlySamples.Add(pairs[i].G);
         earlySamples.Sort();
         var beta = earlySamples[earlySamples.Count / 2];
         if (!double.IsFinite(beta) || beta <= 0)
@@ -172,11 +191,11 @@ public static class SizeDistributionInverter
         // y = |g₁(τ)| = √(max(g₂-1, 0) / β); samples whose g₂-1 falls below
         // the noise floor get dropped because the sqrt would amplify
         // baseline noise.
-        var yValues = new List<double>(taus.Count);
-        var yTaus = new List<double>(taus.Count);
-        for (int i = 0; i < taus.Count; i++)
+        var yValues = new List<double>(pairs.Count);
+        var yTaus = new List<double>(pairs.Count);
+        for (int i = 0; i < pairs.Count; i++)
         {
-            var g = g2m1[i];
+            var g = pairs[i].G;
             if (g < opts.SignalThreshold) continue;
             var ratio = g / beta;
             if (ratio <= 0) continue;
@@ -184,7 +203,7 @@ public static class SizeDistributionInverter
             // the smallest-τ sample marginally overshoots the median β.
             ratio = Math.Min(ratio, 1.0 + 1e-3);
             yValues.Add(Math.Sqrt(Math.Max(0, ratio)));
-            yTaus.Add(taus[i]);
+            yTaus.Add(pairs[i].Tau);
         }
         if (yValues.Count < 8)
             return SizeDistributionInversionOutcome.Fail("シグナル点数が不足しています");
@@ -255,27 +274,48 @@ public static class SizeDistributionInverter
         var residuals = new double[alphaCandidates.Length];
         var roughnesses = new double[alphaCandidates.Length];
         var outerIterations = new int[alphaCandidates.Length];
+        var convergedFlags = new bool[alphaCandidates.Length];
 
         for (int c = 0; c < alphaCandidates.Length; c++)
         {
             var alpha = alphaCandidates[c];
-            var (sol, residSq, roughSq, outerCount) = SolveTikhonovNnls(kernel, yValues, lOperator, alpha);
+            var (sol, residSq, roughSq, outerCount, converged) = SolveTikhonovNnls(kernel, yValues, lOperator, alpha);
             solutions[c] = sol;
             residuals[c] = residSq;
             roughnesses[c] = roughSq;
             outerIterations[c] = outerCount;
+            convergedFlags[c] = converged;
             residualLogs[c] = Math.Log(Math.Max(residSq, 1e-30));
             roughnessLogs[c] = Math.Log(Math.Max(roughSq, 1e-30));
         }
 
+        // Restrict the L-curve picker to candidates whose NNLS sub-solve
+        // actually converged. A non-converged subproblem still emits a
+        // finite ResidualSquared (the partial solution at bailout), so
+        // ignoring Converged would silently elevate failed fits.
+        var convergedIndices = new List<int>(alphaCandidates.Length);
+        for (int c = 0; c < alphaCandidates.Length; c++)
+            if (convergedFlags[c]) convergedIndices.Add(c);
+
+        if (convergedIndices.Count == 0)
+            return SizeDistributionInversionOutcome.Fail("NNLS が収束しませんでした（全 α 候補）");
+
         int chosenIndex;
-        if (alphaCandidates.Length == 1)
+        if (convergedIndices.Count == 1)
         {
-            chosenIndex = 0;
+            chosenIndex = convergedIndices[0];
         }
         else
         {
-            chosenIndex = PickLCurveCorner(residualLogs, roughnessLogs);
+            var subResLogs = new double[convergedIndices.Count];
+            var subRoughLogs = new double[convergedIndices.Count];
+            for (int k = 0; k < convergedIndices.Count; k++)
+            {
+                subResLogs[k] = residualLogs[convergedIndices[k]];
+                subRoughLogs[k] = roughnessLogs[convergedIndices[k]];
+            }
+            var subChosen = PickLCurveCorner(subResLogs, subRoughLogs);
+            chosenIndex = convergedIndices[subChosen];
         }
 
         bestAlpha = alphaCandidates[chosenIndex];
@@ -349,7 +389,7 @@ public static class SizeDistributionInverter
     /// regularisation rows below K and feeding the augmented system to
     /// <see cref="Nnls"/>.
     /// </summary>
-    private static (double[] Solution, double ResidualSquared, double RoughnessSquared, int OuterIterations)
+    private static (double[] Solution, double ResidualSquared, double RoughnessSquared, int OuterIterations, bool Converged)
         SolveTikhonovNnls(double[,] kernel, IReadOnlyList<double> y, double[,] lOperator, double alpha)
     {
         int m = kernel.GetLength(0);
@@ -386,7 +426,10 @@ public static class SizeDistributionInverter
             for (int j = 0; j < n; j++) sum += lOperator[i, j] * nnlsOut.X[j];
             roughSq += sum * sum;
         }
-        return (nnlsOut.X, residSq, roughSq, nnlsOut.OuterIterations);
+        // Propagate NNLS convergence: the caller filters non-converged
+        // candidates out of the L-curve corner picker so a singular
+        // sub-solve never silently graduates to a published distribution.
+        return (nnlsOut.X, residSq, roughSq, nnlsOut.OuterIterations, nnlsOut.Converged);
     }
 
     /// <summary>

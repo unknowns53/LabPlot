@@ -623,7 +623,30 @@ public sealed class CsvGpcDataReader : IGpcDataReader
             return false;
         }
 
-        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out value);
+        // AllowThousands silently strips the comma from European-style
+        // decimals — "0,00833" is read as "833" because the comma is
+        // treated as a thousands separator under InvariantCulture. We use
+        // strict NumberStyles.Float (dot decimal only) first, then fall
+        // back to a "comma → dot" swap when the source uses decimal commas.
+        // double.TryParse("NaN", ...) succeeds, so an IsFinite gate is
+        // required to keep NaN / ±Infinity out of the chromatogram.
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            && double.IsFinite(value))
+        {
+            return true;
+        }
+
+        if (text.IndexOf(',') >= 0 && text.IndexOf('.') < 0)
+        {
+            var swapped = text.Replace(',', '.');
+            if (double.TryParse(swapped, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                && double.IsFinite(value))
+            {
+                return true;
+            }
+        }
+
+        value = 0;
+        return false;
     }
 }

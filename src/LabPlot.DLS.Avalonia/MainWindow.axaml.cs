@@ -2408,8 +2408,17 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         _analysisWindow.Activate();
     }
 
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        // 直近セッションのウィンドウサイズ・位置を復元 (画面外フォールバックは Store 側で処理)。
+        WindowStateStore.ApplyTo(this, RecentFilesAppKey);
+    }
+
     protected override void OnClosing(WindowClosingEventArgs e)
     {
+        // ウィンドウを閉じる直前に Maximized / Normal サイズと位置を保存。
+        WindowStateStore.PersistFrom(this, RecentFilesAppKey);
         _analysisWindow?.Close();
         base.OnClosing(e);
     }

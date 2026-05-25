@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -8,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using LabPlot.Core.Avalonia.Helpers;
 
 namespace LabPlot.Shell.Avalonia;
 
@@ -25,6 +27,8 @@ namespace LabPlot.Shell.Avalonia;
 /// </summary>
 public partial class PortalWindow : Window
 {
+    private const string WindowStateAppKey = "portal";
+
     private Border? _chromeRoot;
     private IDisposable? _windowStateSubscription;
 
@@ -32,6 +36,20 @@ public partial class PortalWindow : Window
     {
         InitializeComponent();
         _chromeRoot = this.FindControl<Border>("ChromeRoot");
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        // 直近セッションのウィンドウサイズ・位置を復元する。Portal もリサイズ可能なので
+        // 利用者の作業環境 (ウルトラワイド / サブモニタ) を毎起動で破壊しないように。
+        WindowStateStore.ApplyTo(this, WindowStateAppKey);
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        WindowStateStore.PersistFrom(this, WindowStateAppKey);
+        base.OnClosing(e);
     }
 
     // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を

@@ -247,6 +247,19 @@ public partial class MainWindow : Window
     }
 
     // WPF の InputBindings 群を OnKeyDown 1 メソッドに集約。
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        // 直近セッションのウィンドウサイズ・位置を復元する。
+        WindowStateStore.ApplyTo(this, RecentFilesAppKey);
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        WindowStateStore.PersistFrom(this, RecentFilesAppKey);
+        base.OnClosing(e);
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);

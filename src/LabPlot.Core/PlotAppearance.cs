@@ -29,6 +29,34 @@ public static class PlotAppearance
     public const float MinorTickLengthBase = 4f;
 
     /// <summary>
+    /// Grid line color used by <see cref="ApplyGrid"/> when the grid is
+    /// visible. Replaces ScottPlot's stock light-grey grid (#CCCCCC) with
+    /// a softer slate-grey (#E5E7EB) that matches the LabPlot sidebar
+    /// border so the gridlines no longer compete visually with the data.
+    /// </summary>
+    public const string DefaultGridColorHex = "#E5E7EB";
+
+    /// <summary>
+    /// Legend background color used by <see cref="ApplyLegend"/>. White
+    /// with full opacity reads cleanly over the white plot background
+    /// while staying distinct via the outline.
+    /// </summary>
+    public const string DefaultLegendBackgroundColorHex = "#FFFFFF";
+
+    /// <summary>
+    /// Legend outline color used by <see cref="ApplyLegend"/>. Matches
+    /// the LabPlot sidebar border (#CBD5E1) so the legend frame feels
+    /// like part of the surrounding chrome instead of a stock ScottPlot
+    /// black border.
+    /// </summary>
+    public const string DefaultLegendOutlineColorHex = "#CBD5E1";
+
+    /// <summary>
+    /// Legend outline width in pixels at scale = 1.
+    /// </summary>
+    public const float DefaultLegendOutlineWidth = 1f;
+
+    /// <summary>
     /// Default multiplier applied to ScottPlot's
     /// <c>NumericAutomatic.TickDensity</c> when no config value is supplied.
     /// The shipping value lives on <see cref="GraphFormattingConfigBase.DefaultTickDensity"/>;
@@ -247,13 +275,25 @@ public static class PlotAppearance
 
     /// <summary>
     /// Toggles ScottPlot's grid on or off according to
-    /// <see cref="GraphFormattingConfigBase.ShowGrid"/>.
+    /// <see cref="GraphFormattingConfigBase.ShowGrid"/>. When the grid is
+    /// visible, the major / minor grid line color is overridden from
+    /// ScottPlot's stock #CCCCCC to <see cref="DefaultGridColorHex"/> so
+    /// the gridlines blend into the LabPlot chrome and do not compete
+    /// with the data curves. Reads <c>plot.Grid.XAxisStyle</c> /
+    /// <c>YAxisStyle</c> introduced in ScottPlot 5; falls back gracefully
+    /// when those style objects are not present at runtime.
     /// </summary>
     public static void ApplyGrid(ScottPlot.Plot plot, GraphFormattingConfigBase config)
     {
         if (config.ShowGrid)
         {
             plot.ShowGrid();
+
+            var gridColor = ColorFromHex(DefaultGridColorHex, DefaultGridColorHex);
+            plot.Grid.XAxisStyle.MajorLineStyle.Color = gridColor;
+            plot.Grid.XAxisStyle.MinorLineStyle.Color = gridColor.WithAlpha(0.6);
+            plot.Grid.YAxisStyle.MajorLineStyle.Color = gridColor;
+            plot.Grid.YAxisStyle.MinorLineStyle.Color = gridColor.WithAlpha(0.6);
         }
         else
         {
@@ -329,7 +369,29 @@ public static class PlotAppearance
                 config.LegendPosition,
                 config.LegendOffsetX,
                 config.LegendOffsetY);
+
+            ApplyLegendChrome(plot);
         }
+    }
+
+    /// <summary>
+    /// Repaints the legend background and outline so it reads as part of
+    /// the LabPlot UI chrome rather than ScottPlot's stock grey-fill /
+    /// black-outline. Background is solid white, outline matches the
+    /// sidebar border (<see cref="DefaultLegendOutlineColorHex"/>) at
+    /// <see cref="DefaultLegendOutlineWidth"/> px. Touches
+    /// <c>BackgroundFillStyle</c> and <c>OutlineStyle</c> directly because
+    /// ScottPlot 5 does not expose shortcut <c>BackgroundColor</c> /
+    /// <c>OutlineColor</c> properties on <c>Legend</c>.
+    /// </summary>
+    public static void ApplyLegendChrome(ScottPlot.Plot plot)
+    {
+        var background = ColorFromHex(DefaultLegendBackgroundColorHex, DefaultLegendBackgroundColorHex);
+        var outline = ColorFromHex(DefaultLegendOutlineColorHex, DefaultLegendOutlineColorHex);
+
+        plot.Legend.BackgroundFillStyle.Color = background;
+        plot.Legend.OutlineStyle.Color = outline;
+        plot.Legend.OutlineStyle.Width = DefaultLegendOutlineWidth;
     }
 
     /// <summary>

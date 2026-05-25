@@ -5,7 +5,7 @@
         x:Class="LabPlot.GPC.Avalonia.MainWindow"
         Title="GPC Analyzer"
         Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
-        Height="860" MinHeight="660" Width="1240" MinWidth="960"
+        Height="860" MinHeight="660" Width="1280" MinWidth="960"
         Background="#F7F8FA"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"

@@ -79,7 +79,7 @@
                                                              Theme="{DynamicResource InputTextBoxStyle}"
                                                              TextChanged="MetadataTemperatureTextBox_TextChanged"
                                                              LostFocus="MetadataTemperatureTextBox_LostFocus"
-                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                             KeyDown="MetadataInput_KeyDown" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2">
                                                     <TextBlock Text="濃度 (mg/mL)" Theme="{DynamicResource FieldLabelStyle}" />
@@ -87,17 +87,21 @@
                                                              Theme="{DynamicResource InputTextBoxStyle}"
                                                              TextChanged="MetadataConcentrationTextBox_TextChanged"
                                                              LostFocus="MetadataConcentrationTextBox_LostFocus"
-                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                             KeyDown="MetadataInput_KeyDown" />
                                                 </StackPanel>
                                             </Grid>
 
                                             <TextBlock Text="溶媒" Theme="{DynamicResource FieldLabelStyle}" />
-                                            <TextBox Name="MetadataSolventTextBox"
-                                                     Theme="{DynamicResource InputTextBoxStyle}"
-                                                     Margin="0,0,0,10"
-                                                     TextChanged="MetadataSolventTextBox_TextChanged"
-                                                     LostFocus="MetadataSolventTextBox_LostFocus"
-                                                     KeyDown="MetadataTextBox_KeyDown" />
+                                            <AutoCompleteBox Name="MetadataSolventAutoComplete"
+                                                             Theme="{DynamicResource InputAutoCompleteBoxStyle}"
+                                                             Watermark="例: Water"
+                                                             MinimumPrefixLength="0"
+                                                             FilterMode="Contains"
+                                                             Margin="0,0,0,10"
+                                                             TextChanged="MetadataSolventAutoComplete_TextChanged"
+                                                             LostFocus="MetadataSolventAutoComplete_LostFocus"
+                                                             KeyDown="MetadataInput_KeyDown"
+                                                             SelectionChanged="MetadataSolventAutoComplete_SelectionChanged" />
 
                                             <Grid ColumnDefinitions="*,8,*">
                                                 <StackPanel Grid.Column="0">
@@ -106,7 +110,7 @@
                                                              Theme="{DynamicResource InputTextBoxStyle}"
                                                              TextChanged="MetadataRefractiveIndexTextBox_TextChanged"
                                                              LostFocus="MetadataRefractiveIndexTextBox_LostFocus"
-                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                             KeyDown="MetadataInput_KeyDown" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2">
                                                     <TextBlock Text="粘度 (mPa·s)" Theme="{DynamicResource FieldLabelStyle}" />
@@ -114,7 +118,7 @@
                                                              Theme="{DynamicResource InputTextBoxStyle}"
                                                              TextChanged="MetadataViscosityTextBox_TextChanged"
                                                              LostFocus="MetadataViscosityTextBox_LostFocus"
-                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                             KeyDown="MetadataInput_KeyDown" />
                                                 </StackPanel>
                                             </Grid>
                                         </StackPanel>
@@ -145,7 +149,7 @@
                                                              Theme="{DynamicResource InputTextBoxStyle}"
                                                              TextChanged="MetadataWavelengthTextBox_TextChanged"
                                                              LostFocus="MetadataWavelengthTextBox_LostFocus"
-                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                             KeyDown="MetadataInput_KeyDown" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2">
                                                     <TextBlock Text="散乱角 (°)" Theme="{DynamicResource FieldLabelStyle}" />
@@ -153,7 +157,7 @@
                                                              Theme="{DynamicResource InputTextBoxStyle}"
                                                              TextChanged="MetadataScatteringAngleTextBox_TextChanged"
                                                              LostFocus="MetadataScatteringAngleTextBox_LostFocus"
-                                                             KeyDown="MetadataTextBox_KeyDown" />
+                                                             KeyDown="MetadataInput_KeyDown" />
                                                 </StackPanel>
                                             </Grid>
                                         </StackPanel>

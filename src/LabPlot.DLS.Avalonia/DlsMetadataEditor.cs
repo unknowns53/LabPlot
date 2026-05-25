@@ -1,15 +1,21 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using DlsAnalyzer.Core;
 using static LabPlot.Core.Avalonia.FormatHelpers;
 
 namespace LabPlot.DLS.Avalonia;
 
 /// <summary>
-/// AnalysisWindow から測定条件 (Metadata) 7 TextBox の Commit / Sync ロジックを切り出した
+/// AnalysisWindow から測定条件 (Metadata) 7 入力の Commit / Sync ロジックを切り出した
 /// 編集コントローラ。AnalysisWindow.axaml の TextChanged / LostFocus / KeyDown ハンドラは
 /// 本クラスに 1 行委譲するだけになり、入力規則 (AnyFinite / NonNegative / Positive) と
 /// 三段構え (TextChanged サイレント / Enter・LostFocus 確定) のロジックは全て本クラスに集約。
+///
+/// 溶媒名のみ <see cref="AutoCompleteBox"/> でプリセット選択を受ける。focus-aware Sync
+/// (PR #1 の echo 防止) は AutoCompleteBox 内部 <c>PART_TextBox</c> も含めて判定するため、
+/// callback の型を <see cref="Control"/> に格上げしてある。
 ///
 /// suppression フラグ <c>_suppressMetadataControlEvents</c> は AnalysisWindow 内で Cumulant
 /// 側 (<c>SilentTryCommitCumulantBound</c> 等) と共有しているため、本クラスは AnalysisWindow
@@ -19,13 +25,13 @@ namespace LabPlot.DLS.Avalonia;
 internal sealed class DlsMetadataEditor
 {
     private readonly IDlsAnalysisHost _host;
-    private readonly Func<TextBox?> _focusedTextBoxProvider;
+    private readonly Func<Control?> _focusedInputProvider;
     private readonly Func<bool> _isSuppressed;
     private readonly Action<bool> _setSuppressed;
 
     private readonly TextBox _temperature;
     private readonly TextBox _concentration;
-    private readonly TextBox _solvent;
+    private readonly AutoCompleteBox _solvent;
     private readonly TextBox _refractiveIndex;
     private readonly TextBox _viscosity;
     private readonly TextBox _wavelength;
@@ -33,15 +39,15 @@ internal sealed class DlsMetadataEditor
 
     public DlsMetadataEditor(
         IDlsAnalysisHost host,
-        Func<TextBox?> focusedTextBoxProvider,
+        Func<Control?> focusedInputProvider,
         Func<bool> isSuppressed,
         Action<bool> setSuppressed,
-        TextBox temperature, TextBox concentration, TextBox solvent,
+        TextBox temperature, TextBox concentration, AutoCompleteBox solvent,
         TextBox refractiveIndex, TextBox viscosity,
         TextBox wavelength, TextBox scatteringAngle)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
-        _focusedTextBoxProvider = focusedTextBoxProvider ?? throw new ArgumentNullException(nameof(focusedTextBoxProvider));
+        _focusedInputProvider = focusedInputProvider ?? throw new ArgumentNullException(nameof(focusedInputProvider));
         _isSuppressed = isSuppressed ?? throw new ArgumentNullException(nameof(isSuppressed));
         _setSuppressed = setSuppressed ?? throw new ArgumentNullException(nameof(setSuppressed));
         _temperature = temperature;
@@ -66,7 +72,7 @@ internal sealed class DlsMetadataEditor
             broadcastToAllSheets: false, rollbackOnFail: false, reformatTextOnSuccess: false);
 
     public void OnSolventChanged()
-        => CommitString(_solvent, (item, v) => item.Metadata.Solvent = v, broadcastToAllSheets: true);
+        => CommitSolventString();
 
     public void OnRefractiveIndexChanged()
         => CommitNumeric(_refractiveIndex, NumericConstraint.Positive,
@@ -101,7 +107,7 @@ internal sealed class DlsMetadataEditor
             broadcastToAllSheets: false, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     public void OnSolventCommit()
-        => CommitString(_solvent, (item, v) => item.Metadata.Solvent = v, broadcastToAllSheets: true);
+        => CommitSolventString();
 
     public void OnRefractiveIndexCommit()
         => CommitNumeric(_refractiveIndex, NumericConstraint.Positive,
@@ -124,7 +130,7 @@ internal sealed class DlsMetadataEditor
             broadcastToAllSheets: true, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     /// <summary>Enter キーで sender に応じた確定コミットへ振り分ける。</summary>
-    public bool OnEnterPressed(TextBox sender)
+    public bool OnEnterPressed(Control sender)
     {
         if (sender == _temperature) OnTemperatureCommit();
         else if (sender == _concentration) OnConcentrationCommit();
@@ -137,11 +143,31 @@ internal sealed class DlsMetadataEditor
         return true;
     }
 
-    // ===== 全 TextBox 同期 (アクティブシート切替・xlsx 読み込み・セッション復元時) =====
+    /// <summary>
+    /// 屈折率・粘度のテキストを外部 (プリセット選択) から差し替えて commit する。
+    /// プリセット選択時は AutoCompleteBox 側に focus があり、屈折率・粘度 TextBox は
+    /// non-focused なので強制 update で書いてから OnRefractiveIndexCommit /
+    /// OnViscosityCommit を直接呼び broadcast を起動する。
+    /// </summary>
+    public void ApplyOpticalParametersFromPreset(double refractiveIndex, double viscosityMpas)
+    {
+        _setSuppressed(true);
+        try
+        {
+            _refractiveIndex.Text = FormatDouble(refractiveIndex);
+            _viscosity.Text = FormatDouble(viscosityMpas);
+        }
+        finally { _setSuppressed(false); }
+
+        OnRefractiveIndexCommit();
+        OnViscosityCommit();
+    }
+
+    // ===== 全 input 同期 (アクティブシート切替・xlsx 読み込み・セッション復元時) =====
 
     /// <summary>
-    /// アクティブシートの metadata で 7 TextBox を塗り直す。
-    /// <paramref name="preserveFocusedTextBox"/>=true のときは打鍵中 TextBox を skip
+    /// アクティブシートの metadata で 7 入力を塗り直す。
+    /// <paramref name="preserveFocusedTextBox"/>=true のときは打鍵中 input を skip
     /// して、入力途中の "25." が "25" に書き戻される echo ループを防ぐ。
     /// シート切替・初期化は false (強制 update) で呼ぶ。
     /// </summary>
@@ -159,7 +185,7 @@ internal sealed class DlsMetadataEditor
         _wavelength.IsEnabled = hasActive;
         _scatteringAngle.IsEnabled = hasActive;
 
-        var skip = preserveFocusedTextBox ? _focusedTextBoxProvider() : null;
+        var skip = preserveFocusedTextBox ? _focusedInputProvider() : null;
 
         _setSuppressed(true);
         try
@@ -168,7 +194,7 @@ internal sealed class DlsMetadataEditor
             {
                 SetTextSkippingFocused(_temperature, string.Empty, skip);
                 SetTextSkippingFocused(_concentration, string.Empty, skip);
-                SetTextSkippingFocused(_solvent, string.Empty, skip);
+                SetSolventTextSkippingFocused(string.Empty, skip);
                 SetTextSkippingFocused(_refractiveIndex, string.Empty, skip);
                 SetTextSkippingFocused(_viscosity, string.Empty, skip);
                 SetTextSkippingFocused(_wavelength, string.Empty, skip);
@@ -179,7 +205,7 @@ internal sealed class DlsMetadataEditor
             var metadata = items[idx].Metadata;
             SetTextSkippingFocused(_temperature, FormatNullableDouble(metadata.TemperatureCelsius), skip);
             SetTextSkippingFocused(_concentration, FormatNullableDouble(metadata.ConcentrationMgPerMl), skip);
-            SetTextSkippingFocused(_solvent, metadata.Solvent ?? string.Empty, skip);
+            SetSolventTextSkippingFocused(metadata.Solvent ?? string.Empty, skip);
             SetTextSkippingFocused(_refractiveIndex, FormatNullableDouble(metadata.RefractiveIndex), skip);
             SetTextSkippingFocused(_viscosity, FormatNullableDouble(metadata.ViscosityMpas), skip);
             SetTextSkippingFocused(_wavelength, FormatNullableDouble(metadata.WavelengthNm), skip);
@@ -188,38 +214,53 @@ internal sealed class DlsMetadataEditor
         finally { _setSuppressed(false); }
     }
 
-    private static void SetTextSkippingFocused(TextBox textBox, string newText, TextBox? skip)
+    private static void SetTextSkippingFocused(TextBox textBox, string newText, Control? skip)
     {
         if (ReferenceEquals(textBox, skip)) return;
         textBox.Text = newText;
+    }
+
+    /// <summary>
+    /// AutoCompleteBox の Text を更新するが、内部 <c>PART_TextBox</c> が focus を持って
+    /// いるとき (= ユーザーが溶媒名を打鍵中) は skip する。Avalonia の AutoCompleteBox
+    /// は外側 (AutoCompleteBox 自体) ではなくテンプレ内 TextBox が focus を取るので、
+    /// <see cref="Visual.GetVisualDescendants"/> を辿って判定する。
+    /// </summary>
+    private void SetSolventTextSkippingFocused(string newText, Control? skip)
+    {
+        if (skip is not null && IsControlInsideSolventBox(skip)) return;
+        _solvent.Text = newText;
+    }
+
+    private bool IsControlInsideSolventBox(Control candidate)
+    {
+        if (ReferenceEquals(candidate, _solvent)) return true;
+        foreach (var v in candidate.GetVisualAncestors())
+        {
+            if (ReferenceEquals(v, _solvent)) return true;
+        }
+        return false;
     }
 
     // ===== 内部ロジック: 三段構え Commit =====
 
     private enum NumericConstraint { AnyFinite, NonNegative, Positive }
 
-    private void CommitString(
-        TextBox textBox,
-        Action<DlsDatasetItem, string?> apply,
-        bool broadcastToAllSheets)
+    private void CommitSolventString()
     {
         if (_isSuppressed()) return;
         var idx = _host.ActiveItemIndex;
         var items = _host.DatasetItems;
         if (idx < 0 || idx >= items.Count) return;
 
-        var trimmed = (textBox.Text ?? string.Empty).Trim();
+        var trimmed = (_solvent.Text ?? string.Empty).Trim();
         var value = string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
 
-        if (broadcastToAllSheets)
+        // 溶媒名は全シート共通フィールド (broadcastToAllSheets: true 相当)
+        for (int i = 0; i < items.Count; i++)
         {
-            for (int i = 0; i < items.Count; i++) apply(items[i], value);
+            items[i].Metadata.Solvent = value;
         }
-        else
-        {
-            apply(items[idx], value);
-        }
-
         _host.RequestAnalysisDataChanged();
     }
 

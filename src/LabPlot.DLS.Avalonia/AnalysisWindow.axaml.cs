@@ -79,12 +79,16 @@ public sealed partial class AnalysisWindow : Window
 
         _metadataEditor = new DlsMetadataEditor(
             _host,
-            focusedTextBoxProvider: GetFocusedTextBox,
+            focusedInputProvider: GetFocusedMetadataInput,
             isSuppressed: () => _suppressMetadataControlEvents,
             setSuppressed: v => _suppressMetadataControlEvents = v,
-            MetadataTemperatureTextBox, MetadataConcentrationTextBox, MetadataSolventTextBox,
+            MetadataTemperatureTextBox, MetadataConcentrationTextBox, MetadataSolventAutoComplete,
             MetadataRefractiveIndexTextBox, MetadataViscosityTextBox,
             MetadataWavelengthTextBox, MetadataScatteringAngleTextBox);
+
+        // 溶媒プリセット候補を AutoCompleteBox に流し込む。組み込み 9 種 + ユーザー追加分。
+        // ItemsSource は SolventPreset.ToString() = Name で filter される。
+        MetadataSolventAutoComplete.ItemsSource = SolventPresetStore.LoadAll();
 
         // 子 Window は Application 経由のスタイル自動適用が走らないので明示適用。
         // Spectrum CalibrationCurveWindow と同方針。
@@ -910,6 +914,12 @@ public sealed partial class AnalysisWindow : Window
     private TextBox? GetFocusedTextBox()
         => FocusManager?.GetFocusedElement() as TextBox;
 
+    // Metadata 7 入力 (溶媒は AutoCompleteBox、他は TextBox) の echo 防止用に、
+    // 型を絞らず Control? で返す。DlsMetadataEditor 側で AutoCompleteBox 内部 PART_TextBox の
+    // ascendant 判定までやって skip 対象に含める。
+    private Control? GetFocusedMetadataInput()
+        => FocusManager?.GetFocusedElement() as Control;
+
     // Cumulant fit TextBox 2 個の Sync 専用。Metadata 7 TextBox 側は DlsMetadataEditor 内に
     // 同型の private static として持つので、Cumulant が main に統合される将来まで両所有のまま。
     private static void SetTextSkippingFocused(TextBox textBox, string newText, TextBox? skip)
@@ -921,17 +931,17 @@ public sealed partial class AnalysisWindow : Window
     // ===== Metadata 7 TextBox のハンドラ =====
     // 実体は DlsMetadataEditor に集約。AXAML が参照する固定名のメソッドだけ 1 行委譲で残す。
 
-    private void MetadataTextBox_KeyDown(object? sender, KeyEventArgs e)
+    private void MetadataInput_KeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || sender is not TextBox tb) return;
-        if (_metadataEditor.OnEnterPressed(tb)) e.Handled = true;
+        if (e.Key != Key.Enter || sender is not Control ctl) return;
+        if (_metadataEditor.OnEnterPressed(ctl)) e.Handled = true;
     }
 
     private void MetadataTemperatureTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => _metadataEditor.OnTemperatureCommit();
     private void MetadataConcentrationTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => _metadataEditor.OnConcentrationCommit();
-    private void MetadataSolventTextBox_LostFocus(object? sender, RoutedEventArgs e)
+    private void MetadataSolventAutoComplete_LostFocus(object? sender, RoutedEventArgs e)
         => _metadataEditor.OnSolventCommit();
     private void MetadataRefractiveIndexTextBox_LostFocus(object? sender, RoutedEventArgs e)
         => _metadataEditor.OnRefractiveIndexCommit();
@@ -946,7 +956,7 @@ public sealed partial class AnalysisWindow : Window
         => _metadataEditor.OnTemperatureChanged();
     private void MetadataConcentrationTextBox_TextChanged(object? sender, TextChangedEventArgs e)
         => _metadataEditor.OnConcentrationChanged();
-    private void MetadataSolventTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    private void MetadataSolventAutoComplete_TextChanged(object? sender, TextChangedEventArgs e)
         => _metadataEditor.OnSolventChanged();
     private void MetadataRefractiveIndexTextBox_TextChanged(object? sender, TextChangedEventArgs e)
         => _metadataEditor.OnRefractiveIndexChanged();
@@ -956,4 +966,16 @@ public sealed partial class AnalysisWindow : Window
         => _metadataEditor.OnWavelengthChanged();
     private void MetadataScatteringAngleTextBox_TextChanged(object? sender, TextChangedEventArgs e)
         => _metadataEditor.OnScatteringAngleChanged();
+
+    /// <summary>
+    /// AutoCompleteBox から SolventPreset が選択されたら、屈折率・粘度を即時自動入力
+    /// (全シート broadcast)。free-form 入力 (候補にない名前) はここに飛んでこないので
+    /// 既存値を尊重したまま溶媒名だけ更新される。
+    /// </summary>
+    private void MetadataSolventAutoComplete_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_initialized) return;
+        if (MetadataSolventAutoComplete.SelectedItem is not SolventPreset preset) return;
+        _metadataEditor.ApplyOpticalParametersFromPreset(preset.RefractiveIndex, preset.ViscosityMpas);
+    }
 }

@@ -92,16 +92,32 @@
                                             </Grid>
 
                                             <TextBlock Text="溶媒" Theme="{DynamicResource FieldLabelStyle}" />
-                                            <AutoCompleteBox Name="MetadataSolventAutoComplete"
-                                                             Theme="{DynamicResource InputAutoCompleteBoxStyle}"
-                                                             Watermark="例: Water"
-                                                             MinimumPrefixLength="0"
-                                                             FilterMode="Contains"
-                                                             Margin="0,0,0,10"
-                                                             TextChanged="MetadataSolventAutoComplete_TextChanged"
-                                                             LostFocus="MetadataSolventAutoComplete_LostFocus"
-                                                             KeyDown="MetadataInput_KeyDown"
-                                                             SelectionChanged="MetadataSolventAutoComplete_SelectionChanged" />
+                                            <Grid ColumnDefinitions="*,4,Auto,4,Auto" Margin="0,0,0,10">
+                                                <AutoCompleteBox Grid.Column="0"
+                                                                 Name="MetadataSolventAutoComplete"
+                                                                 Theme="{DynamicResource InputAutoCompleteBoxStyle}"
+                                                                 Watermark="例: Water"
+                                                                 MinimumPrefixLength="0"
+                                                                 FilterMode="Contains"
+                                                                 TextChanged="MetadataSolventAutoComplete_TextChanged"
+                                                                 LostFocus="MetadataSolventAutoComplete_LostFocus"
+                                                                 KeyDown="MetadataInput_KeyDown"
+                                                                 SelectionChanged="MetadataSolventAutoComplete_SelectionChanged" />
+                                                <Button Grid.Column="2"
+                                                        Name="SolventPresetSaveCurrentButton"
+                                                        Content="＋"
+                                                        Theme="{DynamicResource SecondaryButtonStyle}"
+                                                        ToolTip.Tip="現在の溶媒名・屈折率・粘度をプリセットに保存"
+                                                        Click="SolventPresetSaveCurrentButton_Click"
+                                                        MinWidth="32" />
+                                                <Button Grid.Column="4"
+                                                        Name="SolventPresetManageButton"
+                                                        Content="⚙"
+                                                        Theme="{DynamicResource SecondaryButtonStyle}"
+                                                        ToolTip.Tip="プリセット管理 (ユーザー追加分の削除)"
+                                                        Click="SolventPresetManageButton_Click"
+                                                        MinWidth="32" />
+                                            </Grid>
 
                                             <Grid ColumnDefinitions="*,8,*">
                                                 <StackPanel Grid.Column="0">

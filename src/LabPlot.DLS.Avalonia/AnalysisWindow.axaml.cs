@@ -978,4 +978,85 @@ public sealed partial class AnalysisWindow : Window
         if (MetadataSolventAutoComplete.SelectedItem is not SolventPreset preset) return;
         _metadataEditor.ApplyOpticalParametersFromPreset(preset.RefractiveIndex, preset.ViscosityMpas);
     }
+
+    /// <summary>
+    /// [＋] ボタン: 現在の溶媒名・屈折率・粘度をユーザー追加プリセットとして保存。
+    /// 名前空、組み込み名と衝突、屈折率・粘度が空/非有限 → Toast で警告して何もしない。
+    /// 成功時は AutoCompleteBox の ItemsSource を再ロードして候補に出すように。
+    /// </summary>
+    private void SolventPresetSaveCurrentButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+
+        var name = (MetadataSolventAutoComplete.Text ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            Toast?.Show("溶媒名を入力してから保存してください。", StatusSeverity.Warning);
+            return;
+        }
+
+        if (SolventPresetStore.BuiltInPresets.Any(p =>
+                string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Toast?.Show($"「{name}」は組み込みプリセットです。", StatusSeverity.Warning);
+            return;
+        }
+
+        if (!TryParsePositiveDouble(MetadataRefractiveIndexTextBox.Text, out var refractiveIndex))
+        {
+            Toast?.Show("屈折率に正の数値を入れてから保存してください。", StatusSeverity.Warning);
+            return;
+        }
+
+        if (!TryParsePositiveDouble(MetadataViscosityTextBox.Text, out var viscosity))
+        {
+            Toast?.Show("粘度に正の数値を入れてから保存してください。", StatusSeverity.Warning);
+            return;
+        }
+
+        var preset = new SolventPreset(name, refractiveIndex, viscosity, IsBuiltIn: false);
+        if (SolventPresetStore.AddUser(preset))
+        {
+            RefreshSolventPresetSource(reselectName: name);
+            Toast?.Show($"「{name}」をプリセットに保存しました。", StatusSeverity.Success);
+        }
+    }
+
+    /// <summary>
+    /// [⚙] ボタン: 管理ダイアログをモーダル表示し、戻ってきたら AutoCompleteBox の
+    /// ItemsSource を再ロード (ユーザーが削除した分を反映)。
+    /// </summary>
+    private async void SolventPresetManageButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+        var dialog = new SolventPresetManagerDialog();
+        await dialog.ShowDialog(this);
+        RefreshSolventPresetSource();
+    }
+
+    /// <summary>
+    /// AutoCompleteBox の候補を再読み込みする。<paramref name="reselectName"/> が
+    /// 渡されたら同名のプリセットを SelectedItem にして見せる (保存直後の確認用)。
+    /// SelectionChanged の echo を避けるため _suppressMetadataControlEvents で囲む。
+    /// </summary>
+    private void RefreshSolventPresetSource(string? reselectName = null)
+    {
+        var presets = SolventPresetStore.LoadAll();
+        _suppressMetadataControlEvents = true;
+        try
+        {
+            MetadataSolventAutoComplete.ItemsSource = presets;
+            if (!string.IsNullOrWhiteSpace(reselectName))
+            {
+                var match = presets.FirstOrDefault(p =>
+                    string.Equals(p.Name, reselectName, StringComparison.OrdinalIgnoreCase));
+                if (match is not null)
+                {
+                    MetadataSolventAutoComplete.SelectedItem = match;
+                    MetadataSolventAutoComplete.Text = match.Name;
+                }
+            }
+        }
+        finally { _suppressMetadataControlEvents = false; }
+    }
 }

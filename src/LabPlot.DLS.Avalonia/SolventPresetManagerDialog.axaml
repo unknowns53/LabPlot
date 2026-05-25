@@ -1,0 +1,98 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        xmlns:vm="using:LabPlot.DLS.Avalonia"
+        x:Class="LabPlot.DLS.Avalonia.SolventPresetManagerDialog"
+        x:DataType="vm:SolventPresetManagerDialog"
+        x:CompileBindings="True"
+        Title="溶媒プリセット管理"
+        Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
+        Height="480" Width="460" MinHeight="360" MinWidth="380"
+        WindowStartupLocation="CenterOwner"
+        Background="#F7F8FA"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        SystemDecorations="Full">
+
+    <!-- 溶媒プリセット管理ダイアログ。組み込み 9 種は表示するが削除ボタンは無効。
+         ユーザー追加分のみ削除可能。「現在の値を保存」ボタンは AnalysisWindow 側
+         (AutoCompleteBox 隣の [+] ボタン) に置いているので、本ダイアログは一覧 +
+         削除に専念する。 -->
+
+    <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <controls:CustomTitleBar Grid.Row="0"
+                                     Name="DialogTitleBar"
+                                     AppName="溶媒プリセット"
+                                     Subtitle="管理"
+                                     AppIconData="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
+
+            <Grid Grid.Row="1" Margin="16,12,16,0" RowDefinitions="Auto,*">
+                <TextBlock Grid.Row="0"
+                           Margin="0,0,0,8"
+                           Text="組み込みプリセットは削除できません。ユーザー追加分のみ削除ボタンが有効になります。"
+                           TextWrapping="Wrap"
+                           Foreground="#475569" />
+
+                <Border Grid.Row="1"
+                        Theme="{DynamicResource SectionStyle}"
+                        Padding="4">
+                    <ListBox Name="PresetListBox"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             SelectionMode="Single">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="vm:SolventPresetRowVm">
+                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="6,4">
+                                    <StackPanel Grid.Column="0" Orientation="Vertical">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#0F172A" />
+                                            <Border Background="#E2E8F0"
+                                                    CornerRadius="3"
+                                                    Padding="6,1"
+                                                    VerticalAlignment="Center"
+                                                    IsVisible="{Binding IsBuiltIn}">
+                                                <TextBlock Text="組み込み"
+                                                           FontSize="10"
+                                                           Foreground="#475569" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Detail}"
+                                                   FontSize="11"
+                                                   Foreground="#64748B"
+                                                   Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2"
+                                            Content="削除"
+                                            Theme="{DynamicResource SecondaryButtonStyle}"
+                                            IsEnabled="{Binding CanRemove}"
+                                            Tag="{Binding Name}"
+                                            Click="DeleteButton_Click"
+                                            MinWidth="56" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="2" Padding="16,12,16,16">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Spacing="8">
+                    <Button Content="閉じる"
+                            Theme="{DynamicResource PrimaryButtonStyle}"
+                            Click="CloseButton_Click"
+                            MinWidth="84" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

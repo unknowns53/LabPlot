@@ -53,7 +53,8 @@ public sealed partial class SolventPresetManagerDialog : Window
 
 /// <summary>
 /// ListBox 行 1 つの表示用 view model。Detail 文字列を pre-format して
-/// DataTemplate の binding を単純化する。
+/// DataTemplate の binding を単純化する。温度テーブル化に伴い、Detail は
+/// 「N 点 (T_min〜T_max °C)」形式で温度範囲を表示する。
 /// </summary>
 internal sealed class SolventPresetRowVm
 {
@@ -62,15 +63,31 @@ internal sealed class SolventPresetRowVm
     public SolventPresetRowVm(SolventPreset preset)
     {
         _preset = preset;
-        Detail = string.Format(
-            CultureInfo.InvariantCulture,
-            "n = {0:0.###}    η = {1:0.###} mPa·s",
-            preset.RefractiveIndex,
-            preset.ViscosityMpas);
+        Detail = FormatDetail(preset);
     }
 
     public string Name => _preset.Name;
     public string Detail { get; }
     public bool IsBuiltIn => _preset.IsBuiltIn;
     public bool CanRemove => !_preset.IsBuiltIn;
+
+    private static string FormatDetail(SolventPreset preset)
+    {
+        var pts = preset.Points;
+        if (pts.Count == 0) return "(温度点なし)";
+        if (pts.Count == 1)
+        {
+            var p = pts[0];
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "1 点: {0:0.#}°C  n = {1:0.###}  η = {2:0.###} mPa·s",
+                p.TemperatureCelsius, p.RefractiveIndex, p.ViscosityMpas);
+        }
+        var tMin = pts[0].TemperatureCelsius;
+        var tMax = pts[^1].TemperatureCelsius;
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0} 点  {1:0.#} 〜 {2:0.#} °C",
+            pts.Count, tMin, tMax);
+    }
 }

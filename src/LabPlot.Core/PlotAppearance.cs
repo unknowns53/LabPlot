@@ -142,7 +142,53 @@ public static class PlotAppearance
         ApplyTickDensity(plot, config.TickDensity);
         ApplyTitleStyle(plot, config);
         ApplyAxisLabelStyle(plot, config);
+        ApplyAxisLabelPadding(plot, config, scale);
         ApplyBackground(plot, config);
+    }
+
+    /// <summary>
+    /// Widens the gap between tick labels and axis titles so the axis
+    /// title does not crowd the numbers at larger font sizes. ScottPlot 5
+    /// ships a default <c>PaddingBetweenTickAndAxisLabels</c> of
+    /// <c>(5, 3)</c> px which reads tight on the Y axis once the user
+    /// pushes FontSize past ~14 pt. We scale the gap from FontSize so the
+    /// proportion stays consistent across sizes, using a larger
+    /// coefficient on Y (horizontal clearance between rotated title and
+    /// tick-label digits) than on X (vertical clearance between title
+    /// baseline and tick-label top, which already sits below the
+    /// descender). Default-floor stays close to ScottPlot's stock values
+    /// so small fonts keep their compact look.
+    /// <list type="bullet">
+    /// <item>Y gap = max(5, FontSize × 0.55 + 2) × scale — FontSize 10 →
+    /// 7.5 px, 20 → 13 px, 28 → 17.4 px.</item>
+    /// <item>X gap = max(3, FontSize × 0.20 + 1) × scale — FontSize 10 →
+    /// 3 px, 20 → 5 px, 28 → 6.6 px.</item>
+    /// </list>
+    /// Only the horizontal component is consulted by ScottPlot's Y-axis
+    /// layout (the panel is rotated -90); only the vertical component is
+    /// consulted by the X-axis layout. We always write the 4-argument
+    /// <c>PixelPadding</c> constructor because the 2-argument overload's
+    /// argument order is undocumented in the public XML docs.
+    /// </summary>
+    public static void ApplyAxisLabelPadding(ScottPlot.Plot plot, GraphFormattingConfigBase config, float scale = 1f)
+    {
+        float fontSize = (float)config.FontSize * scale;
+        float yGap = MathF.Max(5f * scale, fontSize * 0.55f + 2f * scale);
+        float xGap = MathF.Max(3f * scale, fontSize * 0.20f + 1f * scale);
+        float minor = 3f * scale;
+
+        // ScottPlot 5 only exposes PaddingBetweenTickAndAxisLabels on the
+        // concrete AxisBase / YAxisBase / XAxisBase classes, not on the
+        // IYAxis / IXAxis interfaces returned by plot.Axes.{Left,Bottom},
+        // so cast through the concrete base before assigning.
+        if (plot.Axes.Left is ScottPlot.AxisPanels.YAxisBase yLeft)
+        {
+            yLeft.PaddingBetweenTickAndAxisLabels = new ScottPlot.PixelPadding(yGap, yGap, minor, minor);
+        }
+        if (plot.Axes.Bottom is ScottPlot.AxisPanels.XAxisBase xBottom)
+        {
+            xBottom.PaddingBetweenTickAndAxisLabels = new ScottPlot.PixelPadding(minor, minor, xGap, xGap);
+        }
     }
 
     /// <summary>

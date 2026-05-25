@@ -37,6 +37,18 @@ internal sealed class DlsMetadataEditor
     private readonly TextBox _wavelength;
     private readonly TextBox _scatteringAngle;
 
+    // 最後にプリセット選択で適用した SolventPreset を覚えておき、温度を後から変えたら
+    // 自動で再補間して屈折率・粘度を上書きする (鷹栖くん 2026-05-25 仕様変更)。手動で
+    // 屈折率 / 粘度の TextBox を編集したら自動再補間モードを抜ける (lock 解除)。
+    // null なら自動再補間を行わない (free-form 入力 or 手動編集後)。
+    private SolventPreset? _lastAppliedPreset;
+
+    /// <summary>
+    /// 温度変更による自動再補間が補間範囲外で端値クランプを返したときに発火する。
+    /// AnalysisWindow が Toast 通知の表示にだけ使う。引数は warning メッセージ。
+    /// </summary>
+    public event Action<string>? AutoReinterpolationWarning;
+
     public DlsMetadataEditor(
         IDlsAnalysisHost host,
         Func<Control?> focusedInputProvider,
@@ -97,9 +109,17 @@ internal sealed class DlsMetadataEditor
     // ===== LostFocus / Enter: 確定コミット (rollbackOnFail=true / reformatTextOnSuccess=true) =====
 
     public void OnTemperatureCommit()
-        => CommitNumeric(_temperature, NumericConstraint.AnyFinite,
+    {
+        var ok = CommitNumeric(_temperature, NumericConstraint.AnyFinite,
             (item, v) => item.Metadata.TemperatureCelsius = v,
             broadcastToAllSheets: false, rollbackOnFail: true, reformatTextOnSuccess: true);
+        if (ok)
+        {
+            // 温度確定が成功 (空入力含む) したら、保存中の SolventPreset を新しい温度で
+            // 再補間して屈折率・粘度を上書き。lock は維持 (続けて温度を弄っても追従する)。
+            TryReapplyPresetForCurrentTemperature();
+        }
+    }
 
     public void OnConcentrationCommit()
         => CommitNumeric(_concentration, NumericConstraint.NonNegative,
@@ -169,6 +189,50 @@ internal sealed class DlsMetadataEditor
         finally { _setSuppressed(false); }
 
         _host.RequestAnalysisDataChanged();
+    }
+
+    /// <summary>
+    /// 最後にプリセット選択経由で適用された <see cref="SolventPreset"/> を記憶する。
+    /// 以後温度が変わるたびに <see cref="OnTemperatureCommit"/> が同プリセットを
+    /// 再補間して屈折率・粘度を上書きする。手動編集で <see cref="ClearAppliedPreset"/>
+    /// が呼ばれるとこの記憶は破棄される。
+    /// </summary>
+    public void RememberAppliedPreset(SolventPreset preset)
+    {
+        _lastAppliedPreset = preset;
+    }
+
+    /// <summary>
+    /// 自動再補間モードを抜けて手動編集モードに戻る。屈折率 / 粘度を手で書いた直後と
+    /// AnalysisWindow が「明示的に解除したい」と判断したときに使う。
+    /// </summary>
+    public void ClearAppliedPreset()
+    {
+        _lastAppliedPreset = null;
+    }
+
+    /// <summary>
+    /// <see cref="OnTemperatureCommit"/> の末尾で呼ばれる helper。最後に適用された
+    /// SolventPreset があるなら、現在温度で再補間して屈折率・粘度を上書きする。
+    /// 補間範囲外なら <see cref="AutoReinterpolationWarning"/> 経由で AnalysisWindow に
+    /// Toast 用メッセージを渡す。
+    /// </summary>
+    private void TryReapplyPresetForCurrentTemperature()
+    {
+        if (_lastAppliedPreset is null) return;
+        var raw = (_temperature.Text ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(raw)) return;
+        if (!TryParseDouble(raw, out var t) || !double.IsFinite(t)) return;
+
+        var (n, eta) = SolventPresetStore.Interpolate(_lastAppliedPreset, t, out var outOfRange);
+        if (!double.IsFinite(n) || !double.IsFinite(eta)) return;
+
+        ApplyOpticalParametersFromPreset(n, eta);
+        if (outOfRange)
+        {
+            AutoReinterpolationWarning?.Invoke(
+                $"「{_lastAppliedPreset.Name}」のプリセット温度範囲外なので端値を使用しました。");
+        }
     }
 
     // ===== 全 input 同期 (アクティブシート切替・xlsx 読み込み・セッション復元時) =====
@@ -284,6 +348,14 @@ internal sealed class DlsMetadataEditor
         var idx = _host.ActiveItemIndex;
         var items = _host.DatasetItems;
         if (idx < 0 || idx >= items.Count) return false;
+
+        // 屈折率 / 粘度をユーザーが手で編集したら自動再補間モードを抜ける (lock 解除)。
+        // ApplyOpticalParametersFromPreset から呼ばれる経路は _setSuppressed(true) で囲まれて
+        // いて関数冒頭で早期 return するため、ここに来るのは純粋なユーザー入力経路だけ。
+        if (ReferenceEquals(textBox, _refractiveIndex) || ReferenceEquals(textBox, _viscosity))
+        {
+            _lastAppliedPreset = null;
+        }
 
         var raw = (textBox.Text ?? string.Empty).Trim();
 

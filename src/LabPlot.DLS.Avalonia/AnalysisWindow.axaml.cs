@@ -94,6 +94,9 @@ public sealed partial class AnalysisWindow : Window
         // Spectrum CalibrationCurveWindow と同方針。
         WindowAppearance.ApplyDefaults(this);
 
+        // 温度変更で自動再補間が走ったときの out-of-range warning を Toast にブリッジ。
+        _metadataEditor.AutoReinterpolationWarning += msg => Toast?.Show(msg, StatusSeverity.Warning);
+
         _host.AnalysisDataChanged += OnHostAnalysisDataChanged;
         _host.ActiveItemChanged += OnHostActiveItemChanged;
         Closed += OnWindowClosed;
@@ -971,8 +974,10 @@ public sealed partial class AnalysisWindow : Window
     /// AutoCompleteBox から SolventPreset が選択されたら、現在温度 (MetadataTemperatureTextBox)
     /// で温度テーブルを線形補間して屈折率・粘度を即時自動入力 (全シート broadcast)。
     /// 温度未入力時は 25 deg C 既定で補間。プリセットの温度範囲外は端値クランプして
-    /// warning toast を出す。free-form 入力 (候補にない名前) はここに飛んでこないので
-    /// 既存値を尊重したまま溶媒名だけ更新される。
+    /// warning toast を出す。選択したプリセットは <c>DlsMetadataEditor</c> に記憶させて、
+    /// 以後温度を変えるたびに自動で再補間が走るようにする (鷹栖くん 2026-05-25 仕様変更)。
+    /// free-form 入力 (候補にない名前) はここに飛んでこないので既存値を尊重したまま
+    /// 溶媒名だけ更新される。
     /// </summary>
     private void MetadataSolventAutoComplete_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -985,6 +990,7 @@ public sealed partial class AnalysisWindow : Window
         if (!double.IsFinite(n) || !double.IsFinite(eta)) return;
 
         _metadataEditor.ApplyOpticalParametersFromPreset(n, eta);
+        _metadataEditor.RememberAppliedPreset(preset);
 
         if (outOfRange)
         {

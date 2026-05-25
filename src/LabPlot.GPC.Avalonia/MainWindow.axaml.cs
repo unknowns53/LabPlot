@@ -3218,10 +3218,7 @@ public partial class MainWindow : Window
     private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
     {
         if (_suppressStyleControlEvents) return;
-        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count) return;
-
-        var style = _datasetStyles[_activeIndex];
-        style.ColorHex = LineColorPicker.HexValue;
+        if (!ApplyDatasetStyle(style => style.ColorHex = LineColorPicker.HexValue)) return;
 
         RefreshDatasetEntries();
         SchedulePlotCurrentDataset();
@@ -3230,21 +3227,19 @@ public partial class MainWindow : Window
     private void LegendNameTextBox_TextChanged(object? sender, TextChangedEventArgs e)
     {
         if (_suppressStyleControlEvents) return;
-        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count) return;
 
-        var legendName = LegendNameTextBox.Text?.Trim() ?? string.Empty;
-        _datasetStyles[_activeIndex].LegendName = string.IsNullOrWhiteSpace(legendName) ? null : legendName;
+        DatasetStyleCommit.CommitLegendName(LegendNameTextBox, value =>
+            ApplyDatasetStyle(style => style.LegendName = value));
         SchedulePlotCurrentDataset();
     }
 
     private void LineWidthTextBox_TextChanged(object? sender, TextChangedEventArgs e)
     {
         if (_suppressStyleControlEvents) return;
-        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count) return;
 
-        if (TryParsePositiveDouble(LineWidthTextBox.Text, out var width))
+        if (DatasetStyleCommit.TryCommitPositiveDouble(LineWidthTextBox, value =>
+                ApplyDatasetStyle(style => style.LineWidth = value)))
         {
-            _datasetStyles[_activeIndex].LineWidth = width;
             SchedulePlotCurrentDataset();
         }
     }
@@ -3252,13 +3247,24 @@ public partial class MainWindow : Window
     private void MarkerSizeTextBox_TextChanged(object? sender, TextChangedEventArgs e)
     {
         if (_suppressStyleControlEvents) return;
-        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count) return;
 
-        if (TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var size))
+        if (DatasetStyleCommit.TryCommitNonNegativeDouble(MarkerSizeTextBox, value =>
+                ApplyDatasetStyle(style => style.MarkerSize = value)))
         {
-            _datasetStyles[_activeIndex].MarkerSize = size;
             SchedulePlotCurrentDataset();
         }
+    }
+
+    /// <summary>
+    /// active dataset の Style を mutate する共通ラッパ。Spectrum 側の同名 helper
+    /// と揃えて 4 ハンドラの active-index ガード重複を排除。戻り値の bool は
+    /// 「実際に mutate したか」(LineColor の RefreshDatasetEntries 抑止用に必要)。
+    /// </summary>
+    private bool ApplyDatasetStyle(Action<DatasetStyle> mutate)
+    {
+        if (_activeIndex < 0 || _activeIndex >= _datasetStyles.Count) return false;
+        mutate(_datasetStyles[_activeIndex]);
+        return true;
     }
 
     private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e)

@@ -2082,8 +2082,8 @@ public partial class MainWindow : Window
     {
         if (_suppressStyleControlEvents) return;
 
-        var name = LegendNameTextBox.Text?.Trim() ?? string.Empty;
-        ApplyDatasetStyle(style => style.LegendName = string.IsNullOrWhiteSpace(name) ? null : name);
+        DatasetStyleCommit.CommitLegendName(LegendNameTextBox, value =>
+            ApplyDatasetStyle(style => style.LegendName = value));
         RefreshDatasetEntries();
         SchedulePlotCurrentDataset();
     }
@@ -2092,9 +2092,9 @@ public partial class MainWindow : Window
     {
         if (_suppressStyleControlEvents) return;
 
-        if (TryParsePositiveDouble(LineWidthTextBox.Text, out var width))
+        if (DatasetStyleCommit.TryCommitPositiveDouble(LineWidthTextBox, value =>
+                ApplyDatasetStyle(style => style.LineWidth = value)))
         {
-            ApplyDatasetStyle(style => style.LineWidth = width);
             SchedulePlotCurrentDataset();
         }
     }
@@ -2103,9 +2103,9 @@ public partial class MainWindow : Window
     {
         if (_suppressStyleControlEvents) return;
 
-        if (TryParseNonNegativeDouble(MarkerSizeTextBox.Text, out var size))
+        if (DatasetStyleCommit.TryCommitNonNegativeDouble(MarkerSizeTextBox, value =>
+                ApplyDatasetStyle(style => style.MarkerSize = value)))
         {
-            ApplyDatasetStyle(style => style.MarkerSize = size);
             SchedulePlotCurrentDataset();
         }
     }

@@ -300,6 +300,17 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         _ = ImportWorkbookAsync(path);
     }
 
+    // 履歴 ComboBox の右クリックメニュー → 「履歴をクリア」。RecentFilesStore.Clear で永続化
+    // ファイルを消し、UI を空状態に戻す。確認ダイアログは省略 (履歴は復元可能性が低くないし、
+    // 普通に「開く」で再構築できる)。代わりに Toast で「クリアした」を必ず通知する。
+    private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
+    {
+        RecentFilesStore.Clear(RecentFilesAppKey);
+        _lastLoadedFilePath = null;
+        RefreshRecentFilesUi();
+        SetStatus("最近開いたファイルの履歴をクリアしました。", StatusSeverity.Info);
+    }
+
     private async Task OpenWorkbookAsync()
     {
         var sp = StorageProvider;

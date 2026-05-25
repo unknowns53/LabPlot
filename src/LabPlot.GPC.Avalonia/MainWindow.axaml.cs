@@ -246,6 +246,15 @@ public partial class MainWindow : Window
         _ = ImportCsvFilesAsync(new[] { path });
     }
 
+    // 履歴 ComboBox の右クリックメニュー → 「履歴をクリア」。
+    private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
+    {
+        RecentFilesStore.Clear(RecentFilesAppKey);
+        _lastLoadedFilePath = null;
+        RefreshRecentFilesUi();
+        SetStatus("最近開いたファイルの履歴をクリアしました。", StatusSeverity.Info);
+    }
+
     // WPF の InputBindings 群を OnKeyDown 1 メソッドに集約。
     protected override void OnOpened(EventArgs e)
     {

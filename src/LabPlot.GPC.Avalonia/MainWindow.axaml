@@ -93,7 +93,14 @@
                                                       PlaceholderText="(履歴なし)"
                                                       IsEnabled="False"
                                                       SelectionChanged="RecentFilesComboBox_SelectionChanged"
-                                                      ToolTip.Tip="直近に開いたファイル (最大 5 件) を選んで再読み込みします" />
+                                                      ToolTip.Tip="直近に開いたファイル (最大 5 件) を選んで再読み込みします。右クリックで履歴をクリア。">
+                                                <ComboBox.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="履歴をクリア"
+                                                                  Click="ClearRecentFilesMenuItem_Click" />
+                                                    </ContextMenu>
+                                                </ComboBox.ContextMenu>
+                                            </ComboBox>
                                         </StackPanel>
                                     </Expander>
                                 </Border>

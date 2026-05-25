@@ -10,6 +10,7 @@ publish/
 *.suo
 *.userosscache
 *.sln.docstates
+*.lscache
 
 # Test results
 TestResults/

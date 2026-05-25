@@ -219,8 +219,11 @@ public sealed partial class AnalysisWindow : Window
 
     private void OnHostAnalysisDataChanged(object? sender, EventArgs e)
     {
-        SyncCumulantControlsFromActiveItem();
-        SyncMetadataControlsFromActiveItem();
+        // 自分の TextBox 編集が RequestAnalysisDataChanged を呼んで本ハンドラに戻る経路で、
+        // 入力途中の TextBox を reformat 書き戻しで上書きしないよう preserveFocusedTextBox=true。
+        // シート切替 (OnHostActiveItemChanged) は強制 update なのでデフォルト false のまま。
+        SyncCumulantControlsFromActiveItem(preserveFocusedTextBox: true);
+        SyncMetadataControlsFromActiveItem(preserveFocusedTextBox: true);
         UpdateActiveSheetLabel();
         RecomputeAllSections();
     }
@@ -268,7 +271,7 @@ public sealed partial class AnalysisWindow : Window
     // Tab 1: Cumulant (active sheet, lightweight, recompute on every event)
     // ===================================================================
 
-    private void SyncCumulantControlsFromActiveItem()
+    private void SyncCumulantControlsFromActiveItem(bool preserveFocusedTextBox = false)
     {
         var idx = _host.ActiveItemIndex;
         var items = _host.DatasetItems;
@@ -276,19 +279,23 @@ public sealed partial class AnalysisWindow : Window
         CumulantFitMinTextBox.IsEnabled = hasActive;
         CumulantFitMaxTextBox.IsEnabled = hasActive;
 
+        // RequestAnalysisDataChanged ループで自分自身の打鍵中 TextBox を上書きしないためのガード。
+        // シート切替 (preserveFocusedTextBox=false) では強制的に最新値で塗り直す。
+        var skip = preserveFocusedTextBox ? GetFocusedTextBox() : null;
+
         _suppressMetadataControlEvents = true;
         try
         {
             if (!hasActive)
             {
-                CumulantFitMinTextBox.Text = string.Empty;
-                CumulantFitMaxTextBox.Text = string.Empty;
+                SetTextSkippingFocused(CumulantFitMinTextBox, string.Empty, skip);
+                SetTextSkippingFocused(CumulantFitMaxTextBox, string.Empty, skip);
             }
             else
             {
                 var c = items[idx].Cumulant;
-                CumulantFitMinTextBox.Text = FormatNullableDouble(c.FitRangeMinMicroseconds);
-                CumulantFitMaxTextBox.Text = FormatNullableDouble(c.FitRangeMaxMicroseconds);
+                SetTextSkippingFocused(CumulantFitMinTextBox, FormatNullableDouble(c.FitRangeMinMicroseconds), skip);
+                SetTextSkippingFocused(CumulantFitMaxTextBox, FormatNullableDouble(c.FitRangeMaxMicroseconds), skip);
             }
         }
         finally { _suppressMetadataControlEvents = false; }
@@ -883,7 +890,7 @@ public sealed partial class AnalysisWindow : Window
     //    全 _host.DatasetItems[i].Metadata に同値を書き込む
     //  - broadcastToAllSheets=false: 温度 / 濃度はアクティブシートのみ更新
 
-    private void SyncMetadataControlsFromActiveItem()
+    private void SyncMetadataControlsFromActiveItem(bool preserveFocusedTextBox = false)
     {
         if (!_initialized) return;
 
@@ -899,31 +906,46 @@ public sealed partial class AnalysisWindow : Window
         MetadataWavelengthTextBox.IsEnabled = hasActive;
         MetadataScatteringAngleTextBox.IsEnabled = hasActive;
 
+        // 自分の打鍵で発火した RequestAnalysisDataChanged → OnHostAnalysisDataChanged →
+        // 本関数 への echo ループで、入力途中の "25." が FormatNullableDouble(25.0)="25" に
+        // 書き戻されて「.」が消える現象を防ぐ。シート切替 (preserveFocusedTextBox=false)
+        // は、切替後の値で見せる方が混乱が少ないので強制 update を維持する。
+        var skip = preserveFocusedTextBox ? GetFocusedTextBox() : null;
+
         _suppressMetadataControlEvents = true;
         try
         {
             if (!hasActive)
             {
-                MetadataTemperatureTextBox.Text = string.Empty;
-                MetadataConcentrationTextBox.Text = string.Empty;
-                MetadataSolventTextBox.Text = string.Empty;
-                MetadataRefractiveIndexTextBox.Text = string.Empty;
-                MetadataViscosityTextBox.Text = string.Empty;
-                MetadataWavelengthTextBox.Text = string.Empty;
-                MetadataScatteringAngleTextBox.Text = string.Empty;
+                SetTextSkippingFocused(MetadataTemperatureTextBox, string.Empty, skip);
+                SetTextSkippingFocused(MetadataConcentrationTextBox, string.Empty, skip);
+                SetTextSkippingFocused(MetadataSolventTextBox, string.Empty, skip);
+                SetTextSkippingFocused(MetadataRefractiveIndexTextBox, string.Empty, skip);
+                SetTextSkippingFocused(MetadataViscosityTextBox, string.Empty, skip);
+                SetTextSkippingFocused(MetadataWavelengthTextBox, string.Empty, skip);
+                SetTextSkippingFocused(MetadataScatteringAngleTextBox, string.Empty, skip);
                 return;
             }
 
             var metadata = items[idx].Metadata;
-            MetadataTemperatureTextBox.Text = FormatNullableDouble(metadata.TemperatureCelsius);
-            MetadataConcentrationTextBox.Text = FormatNullableDouble(metadata.ConcentrationMgPerMl);
-            MetadataSolventTextBox.Text = metadata.Solvent ?? string.Empty;
-            MetadataRefractiveIndexTextBox.Text = FormatNullableDouble(metadata.RefractiveIndex);
-            MetadataViscosityTextBox.Text = FormatNullableDouble(metadata.ViscosityMpas);
-            MetadataWavelengthTextBox.Text = FormatNullableDouble(metadata.WavelengthNm);
-            MetadataScatteringAngleTextBox.Text = FormatNullableDouble(metadata.ScatteringAngleDegrees);
+            SetTextSkippingFocused(MetadataTemperatureTextBox, FormatNullableDouble(metadata.TemperatureCelsius), skip);
+            SetTextSkippingFocused(MetadataConcentrationTextBox, FormatNullableDouble(metadata.ConcentrationMgPerMl), skip);
+            SetTextSkippingFocused(MetadataSolventTextBox, metadata.Solvent ?? string.Empty, skip);
+            SetTextSkippingFocused(MetadataRefractiveIndexTextBox, FormatNullableDouble(metadata.RefractiveIndex), skip);
+            SetTextSkippingFocused(MetadataViscosityTextBox, FormatNullableDouble(metadata.ViscosityMpas), skip);
+            SetTextSkippingFocused(MetadataWavelengthTextBox, FormatNullableDouble(metadata.WavelengthNm), skip);
+            SetTextSkippingFocused(MetadataScatteringAngleTextBox, FormatNullableDouble(metadata.ScatteringAngleDegrees), skip);
         }
         finally { _suppressMetadataControlEvents = false; }
+    }
+
+    private TextBox? GetFocusedTextBox()
+        => FocusManager?.GetFocusedElement() as TextBox;
+
+    private static void SetTextSkippingFocused(TextBox textBox, string newText, TextBox? skip)
+    {
+        if (ReferenceEquals(textBox, skip)) return;
+        textBox.Text = newText;
     }
 
     // Enter キーで該当 TextBox の LostFocus と等価な確定コミットを直接走らせる。

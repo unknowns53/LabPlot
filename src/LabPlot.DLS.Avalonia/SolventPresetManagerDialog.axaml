@@ -7,7 +7,7 @@
         x:CompileBindings="True"
         Title="溶媒プリセット管理"
         Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
-        Height="580" Width="500" MinHeight="440" MinWidth="420"
+        Height="520" Width="780" MinHeight="380" MinWidth="640"
         WindowStartupLocation="CenterOwner"
         Background="#F7F8FA"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
@@ -18,10 +18,10 @@
         ExtendClientAreaTitleBarHeightHint="-1"
         SystemDecorations="Full">
 
-    <!-- 溶媒プリセット管理ダイアログ (二段構成)。
-         上段: プリセット一覧 (組み込み + ユーザー)。各行に「全削除」ボタン (ユーザー分のみ有効)
-         下段: 上段で選択中のプリセットが持つ温度点 (T, n, η) の一覧。各行に「点削除」ボタン
-               (ユーザー分のみ有効)。組み込みプリセットの温度点は閲覧のみ。
+    <!-- 溶媒プリセット管理ダイアログ (左右 2 ペイン構成)。
+         左: プリセット一覧 (組み込み + ユーザー)。各行に「全削除」ボタン (ユーザー分のみ有効)
+         右: 左で選択中のプリセットが持つ温度点 (T, n, η) の一覧。各行に「点削除」ボタン
+             (ユーザー分のみ有効)。組み込みプリセットの温度点は閲覧のみ。
          追加 (新規温度点の保存) は AnalysisWindow 側の [+] ボタンに任せる方が体感が良いので
          本ダイアログには「追加」UI は置かない。 -->
 
@@ -34,15 +34,16 @@
                                      Subtitle="管理"
                                      AppIconData="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
 
-            <Grid Grid.Row="1" Margin="16,12,16,0" RowDefinitions="Auto,2*,8,Auto,3*">
+            <Grid Grid.Row="1" Margin="16,12,16,0"
+                  ColumnDefinitions="*,12,1.3*" RowDefinitions="Auto,*">
 
-                <TextBlock Grid.Row="0"
+                <TextBlock Grid.Row="0" Grid.Column="0"
                            Margin="0,0,0,6"
                            Text="プリセット一覧"
                            FontWeight="SemiBold"
                            Foreground="#0F172A" />
 
-                <Border Grid.Row="1"
+                <Border Grid.Row="1" Grid.Column="0"
                         Theme="{DynamicResource SectionStyle}"
                         Padding="4">
                     <ListBox Name="PresetListBox"
@@ -86,14 +87,14 @@
                     </ListBox>
                 </Border>
 
-                <TextBlock Grid.Row="3"
+                <TextBlock Grid.Row="0" Grid.Column="2"
                            Margin="0,0,0,6"
                            Name="PointsHeaderText"
                            Text="温度点 (プリセットを選択してください)"
                            FontWeight="SemiBold"
                            Foreground="#0F172A" />
 
-                <Border Grid.Row="4"
+                <Border Grid.Row="1" Grid.Column="2"
                         Theme="{DynamicResource SectionStyle}"
                         Padding="4">
                     <ListBox Name="PresetPointsListBox"

@@ -6,6 +6,78 @@ distribution is the Avalonia portal (`LabPlot.Avalonia`); the WPF portal
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
+## [1.3.1] - 2026-05-25
+
+Maintenance follow-up to v1.3.0 focused on usability rather than new
+analysis. Adds a temperature-aware DLS solvent preset system, closes
+four constantly-felt UX gaps (window state persisted across sessions,
+recent-files selection no longer collapses to placeholder, invalid
+numeric input now explains itself, recent-files history is clearable
+from the UI), and lands a cross-module refactor sweep that removes
+~640 lines of GPC duplication without changing any analysis behavior.
+
+### Added
+
+- **DLS solvent preset system**: the metadata "Solvent" field is now an
+  AutoCompleteBox carrying nine built-in presets (Water, MeOH, EtOH,
+  DMF, DMSO, THF, Toluene, CHCl₃, Acetone) with per-temperature
+  refractive-index and viscosity tables at 5 / 15 / 25 / 35 / 45 °C,
+  applied via linear interpolation against the current temperature.
+  Temperature changes auto-reinterpolate until the user manually
+  overrides n or η. User presets are stored under
+  `%APPDATA%/LabPlot/dls-solvent-presets.json`, managed through a
+  side-by-side dialog (preset list ↔ per-temperature points), and
+  saved via an inline `[+]` button.
+- **Window size / position / maximized state are persisted per app**
+  across the Portal and the three module main windows under
+  `%APPDATA%/LabPlot/window-{appKey}.json`. Off-screen positions (e.g.
+  after disconnecting a sub-monitor) fall back to `CenterScreen`.
+- **Invalid numeric input is surfaced as a toast** in the DLS metadata
+  editor on LostFocus / Enter commit, naming the field, the constraint
+  (positive / non-negative / numeric), and echoing the offending text.
+- **Recent-files history clear** is now reachable from the UI: right-click
+  the recent-files ComboBox in any of the three modules.
+
+### Changed
+
+- **Recent-files ComboBox keeps the selected file name visible** after
+  a load completes, instead of collapsing back to the placeholder.
+- **Tick-label to axis-title gap** scales with font size so large fonts
+  no longer crowd the axis title against the tick labels.
+- **Plot chrome polish**: softer grid color, restyled legend chrome,
+  unified default window width across modules.
+
+### Refactor (internal)
+
+- Extracted `DlsSessionMapper`, `GpcSessionMapper`, `SpectrumSessionMapper`
+  so per-dataset save/load lives in one place per module.
+- Extracted `DlsMetadataEditor` to own the three-stage TextBox commit
+  for DLS metadata with delayed-TextChanged-echo suppression.
+- Consolidated `FormatNullableDouble` / `TryParseDouble` / `Clone`
+  helpers across modules.
+- Split GPC plot rendering into `MainWindow.Plot.cs` partial (−634
+  lines from `MainWindow.axaml.cs`).
+- Shared `Style TextBox` commit pattern between GPC and Spectrum.
+- Extracted `AnalysisSectionView` to dedupe the four DLS analysis
+  result panes.
+
+### Fixed
+
+- **Solvent preset auto-fill regression** where typing a name that
+  matched a preset only updated viscosity but not refractive index.
+- **Solvent preset temperature follow-up** where auto-reinterpolation
+  appeared to fire only on the first character of the new temperature.
+  Root cause was Avalonia's delayed TextChanged echo after programmatic
+  `Text = ` writes; the fix rounds metadata to match displayed text and
+  detects the echo by parsed-value equality against current metadata.
+- **Solvent preset manager dialog layout** was awkwardly stacked
+  vertically and is now laid out as side-by-side panes.
+
+### Misc
+
+- Removed a stray personal-name reference from several source comments
+  and TODO markers; attributions now use neutral wording.
+
 ## [1.3.0] - 2026-05-25
 
 Follow-up to the v1.2.0 Avalonia mainline. This release lands a wide

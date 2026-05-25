@@ -189,18 +189,34 @@ internal sealed class DlsMetadataEditor
     /// </summary>
     public void ApplyOpticalParametersFromPreset(double refractiveIndex, double viscosityMpas)
     {
+        // Avalonia TextBox の TextChanged は同期発火と思いきや、Text= 直後の suppress block を
+        // 抜けたあと「遅延 echo」として TextChanged を再発火するケースが実機で観測された。
+        // この echo を CommitNumeric が拾うと、(a) FormatDouble("0.###") で 3 桁に丸められた
+        // 文字列を parse し直して metadata.RefractiveIndex を 1.3346 → 1.335 に縮小し、
+        // (b) _manualOpticalOverride を true に立てて、以降の温度変更で TryReapply が
+        // skip するようになる ―― 「1 文字目だけ追従、以降止まる」症状の真因。
+        //
+        // 対策として、metadata 側に書く値も「表示用に丸めた値を parse し直したもの」に揃え、
+        // 遅延 echo が parse して書き戻しても metadata と完全に同じ double にする。これで
+        // CommitNumeric 内の「parse 値 == metadata」echo 判定で skip でき、override が
+        // 立たない。
+        var textN = FormatDouble(refractiveIndex);
+        var textEta = FormatDouble(viscosityMpas);
+        var metaN = TryParseDouble(textN, out var rn) ? rn : refractiveIndex;
+        var metaEta = TryParseDouble(textEta, out var re) ? re : viscosityMpas;
+
         _setSuppressed(true);
         try
         {
             var items = _host.DatasetItems;
             for (int i = 0; i < items.Count; i++)
             {
-                items[i].Metadata.RefractiveIndex = refractiveIndex;
-                items[i].Metadata.ViscosityMpas = viscosityMpas;
+                items[i].Metadata.RefractiveIndex = metaN;
+                items[i].Metadata.ViscosityMpas = metaEta;
             }
 
-            _refractiveIndex.Text = FormatDouble(refractiveIndex);
-            _viscosity.Text = FormatDouble(viscosityMpas);
+            _refractiveIndex.Text = textN;
+            _viscosity.Text = textEta;
         }
         finally { _setSuppressed(false); }
 
@@ -401,13 +417,25 @@ internal sealed class DlsMetadataEditor
         var items = _host.DatasetItems;
         if (idx < 0 || idx >= items.Count) return false;
 
-        // 屈折率 / 粘度をユーザーが手で編集したら自動再補間モードを抜ける (lock 解除)。
-        // ApplyOpticalParametersFromPreset から呼ばれる経路は _setSuppressed(true) で囲まれて
-        // いて関数冒頭で早期 return するため、ここに来るのは純粋なユーザー入力経路だけ。
-        // _lastAppliedPreset は cache 用に残し、override フラグを立てて再補間だけ止める
-        // (溶媒名を再度プリセット名に書き直したら adopt 経路で override が解除される)。
+        // 屈折率 / 粘度の場合、Apply が書いた text の遅延 TextChanged echo を弾く。
+        // Apply は metadata と text を「FormatDouble("0.###") で丸めた値同士で完全一致」
+        // するように書いているので、TextChanged で parse した値が現在の metadata と
+        // 完全一致するなら、ユーザー入力ではなく echo (= 何も変えていない) と見なす。
+        // この場合は override も立てず metadata 書き戻しもしない。本当のユーザー編集
+        // (= text が異なる数値) なら parse 値 != metadata になるので、override が立って
+        // 通常の編集経路に進む。
         if (ReferenceEquals(textBox, _refractiveIndex) || ReferenceEquals(textBox, _viscosity))
         {
+            var currentMeta = ReferenceEquals(textBox, _refractiveIndex)
+                ? items[idx].Metadata.RefractiveIndex
+                : items[idx].Metadata.ViscosityMpas;
+            var rawForEcho = (textBox.Text ?? string.Empty).Trim();
+            if (currentMeta.HasValue
+                && TryParseDouble(rawForEcho, out var parsedForEcho)
+                && parsedForEcho == currentMeta.Value)
+            {
+                return false;
+            }
             _manualOpticalOverride = true;
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
@@ -37,6 +38,12 @@ internal sealed class DlsMetadataEditor
     private readonly TextBox _wavelength;
     private readonly TextBox _scatteringAngle;
 
+    // 2026-05-25: 不正入力時の Toast 通知用フック。Sync しているときや TextChanged 中の中間
+    // parse 失敗 (rollbackOnFail=false 経路) では発火させず、LostFocus / Enter で確定した
+    // ときの parse 失敗にだけメッセージを出す。AnalysisWindow が ToastHost を渡す想定。
+    private readonly Action<string>? _invalidInputCallback;
+    private readonly Dictionary<TextBox, string> _fieldLabels;
+
     // 溶媒名が一致した最後のプリセットを覚えておく (toast suppression と将来の
     // 高速 lookup 用の cache)。温度確定時の再補間判定そのものは _solvent.Text からの
     // re-lookup を主経路にしているので、このフィールドが何らかの理由で null に戻されても
@@ -63,7 +70,8 @@ internal sealed class DlsMetadataEditor
         Action<bool> setSuppressed,
         TextBox temperature, TextBox concentration, AutoCompleteBox solvent,
         TextBox refractiveIndex, TextBox viscosity,
-        TextBox wavelength, TextBox scatteringAngle)
+        TextBox wavelength, TextBox scatteringAngle,
+        Action<string>? invalidInputCallback = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _focusedInputProvider = focusedInputProvider ?? throw new ArgumentNullException(nameof(focusedInputProvider));
@@ -76,6 +84,16 @@ internal sealed class DlsMetadataEditor
         _viscosity = viscosity;
         _wavelength = wavelength;
         _scatteringAngle = scatteringAngle;
+        _invalidInputCallback = invalidInputCallback;
+        _fieldLabels = new Dictionary<TextBox, string>
+        {
+            [_temperature] = "温度",
+            [_concentration] = "濃度",
+            [_refractiveIndex] = "屈折率",
+            [_viscosity] = "粘度",
+            [_wavelength] = "波長",
+            [_scatteringAngle] = "散乱角",
+        };
     }
 
     // ===== TextChanged: 中間入力サイレント (rollbackOnFail=false / reformatTextOnSuccess=false) =====
@@ -463,7 +481,13 @@ internal sealed class DlsMetadataEditor
 
         if (!ok)
         {
-            if (rollbackOnFail) Sync(preserveFocusedTextBox: false);
+            if (rollbackOnFail)
+            {
+                // LostFocus / Enter で確定したのに parse に失敗した時だけ、利用者に理由を Toast で
+                // 伝える。TextChanged 中の中間状態 (rollbackOnFail=false) は通知しない。
+                NotifyInvalidInput(textBox, constraint, raw);
+                Sync(preserveFocusedTextBox: false);
+            }
             return false;
         }
 
@@ -479,6 +503,23 @@ internal sealed class DlsMetadataEditor
 
         _host.RequestAnalysisDataChanged();
         return true;
+    }
+
+    private void NotifyInvalidInput(TextBox textBox, NumericConstraint constraint, string raw)
+    {
+        if (_invalidInputCallback is null) return;
+        var label = _fieldLabels.TryGetValue(textBox, out var l) ? l : "値";
+        var constraintText = constraint switch
+        {
+            NumericConstraint.Positive => "正の数値",
+            NumericConstraint.NonNegative => "0 以上の数値",
+            _ => "数値",
+        };
+        var trimmed = raw.Length > 16 ? raw.Substring(0, 16) + "…" : raw;
+        var message = string.IsNullOrEmpty(trimmed)
+            ? $"「{label}」は {constraintText} を入力してください。"
+            : $"「{label}」は {constraintText} を入力してください (入力: '{trimmed}')";
+        _invalidInputCallback(message);
     }
 
     private void ApplyValue(

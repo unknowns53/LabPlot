@@ -84,7 +84,9 @@ public sealed partial class AnalysisWindow : Window
             setSuppressed: v => _suppressMetadataControlEvents = v,
             MetadataTemperatureTextBox, MetadataConcentrationTextBox, MetadataSolventAutoComplete,
             MetadataRefractiveIndexTextBox, MetadataViscosityTextBox,
-            MetadataWavelengthTextBox, MetadataScatteringAngleTextBox);
+            MetadataWavelengthTextBox, MetadataScatteringAngleTextBox,
+            // 不正入力 (LostFocus / Enter で確定時の parse 失敗) を Toast (warning 色 / 3 秒) で通知。
+            invalidInputCallback: msg => Toast?.Show(msg, StatusSeverity.Warning, 3000));
 
         // 溶媒プリセット候補を AutoCompleteBox に流し込む。組み込み 9 種 + ユーザー追加分。
         // ItemsSource は SolventPreset.ToString() = Name で filter される。

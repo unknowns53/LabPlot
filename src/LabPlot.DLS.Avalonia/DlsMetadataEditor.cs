@@ -37,13 +37,18 @@ internal sealed class DlsMetadataEditor
     private readonly TextBox _wavelength;
     private readonly TextBox _scatteringAngle;
 
-    // 溶媒名がプリセット名と一致したら記憶し、温度を後から変えたら自動で再補間して
-    // 屈折率・粘度を上書きする (2026-05-25 仕様変更)。手動で屈折率 / 粘度の TextBox を
-    // 編集したら自動再補間モードを抜ける (lock 解除)。null なら自動再補間を行わない
-    // (free-form 入力 or 手動編集後)。AutoCompleteBox の SelectionChanged は再選択や
-    // typed-match では発火しないケースがあるので、TextChanged 経路で AdoptPreset を
-    // 走らせて判定する方が確実。
+    // 溶媒名が一致した最後のプリセットを覚えておく (toast suppression と将来の
+    // 高速 lookup 用の cache)。温度確定時の再補間判定そのものは _solvent.Text からの
+    // re-lookup を主経路にしているので、このフィールドが何らかの理由で null に戻されても
+    // TryReapply 内で復元される (1 キーストロークごとに Sync 経由で AutoCompleteBox 内部
+    // 状態が更新されると、ここの cache が失われるケースが実機で確認されたので、cache
+    // ではなく毎回 TryFind する方針)。
     private SolventPreset? _lastAppliedPreset;
+
+    // 手動で屈折率 / 粘度を編集したら true に立てる。true の間は温度変更による自動再補間を
+    // 抑制する (ユーザーの手入力値を尊重)。溶媒名がプリセットと一致 (adopt) した瞬間に
+    // false に戻して自動再補間モードを復帰させる。
+    private bool _manualOpticalOverride;
 
     /// <summary>
     /// 温度変更による自動再補間が補間範囲外で端値クランプを返したときに発火する。
@@ -203,15 +208,26 @@ internal sealed class DlsMetadataEditor
     }
 
     /// <summary>
-    /// 温度や溶媒名の確定後に呼ばれる helper。最後に適用された SolventPreset があるなら、
-    /// 現在温度で再補間して屈折率・粘度を上書きする。温度未入力時は 25 deg C 既定。
-    /// <paramref name="fireOutOfRangeWarning"/> = true のときだけ補間範囲外で
+    /// 温度や溶媒名の確定後に呼ばれる helper。手動 override が無く、溶媒名がプリセット名と
+    /// 一致しているなら、現在温度で再補間して屈折率・粘度を上書きする。温度未入力時は
+    /// 25 deg C 既定。<paramref name="fireOutOfRangeWarning"/> = true のときだけ補間範囲外で
     /// <see cref="AutoReinterpolationWarning"/> 経由で AnalysisWindow に Toast 用
     /// メッセージを渡す (TextChanged 連打中の toast 連発を避ける目的)。
+    ///
+    /// preset 解決は _lastAppliedPreset の cache に頼らず毎回 _solvent.Text から TryFind
+    /// する。理由: 1 キーストロークごとに走る host.RequestAnalysisDataChanged → Sync 経路で
+    /// AutoCompleteBox 内部状態が触られて _lastAppliedPreset が間接的に null に戻される
+    /// ケースが実機で観測された (「最初の 1 文字だけ追従、以降動かない」症状)。cache に
+    /// 依存しないことでこの脆さを解消する。
     /// </summary>
     private void TryReapplyPresetForCurrentTemperature(bool fireOutOfRangeWarning)
     {
-        if (_lastAppliedPreset is null) return;
+        if (_manualOpticalOverride) return;
+
+        var solvText = (_solvent.Text ?? string.Empty).Trim();
+        if (!SolventPresetStore.TryFind(solvText, out var preset)) return;
+        _lastAppliedPreset = preset;
+
         var raw = (_temperature.Text ?? string.Empty).Trim();
         var t = 25.0;
         if (!string.IsNullOrWhiteSpace(raw))
@@ -220,14 +236,14 @@ internal sealed class DlsMetadataEditor
             t = parsed;
         }
 
-        var (n, eta) = SolventPresetStore.Interpolate(_lastAppliedPreset, t, out var outOfRange);
+        var (n, eta) = SolventPresetStore.Interpolate(preset, t, out var outOfRange);
         if (!double.IsFinite(n) || !double.IsFinite(eta)) return;
 
         ApplyOpticalParametersFromPreset(n, eta);
         if (outOfRange && fireOutOfRangeWarning)
         {
             AutoReinterpolationWarning?.Invoke(
-                $"「{_lastAppliedPreset.Name}」のプリセット温度範囲外なので端値を使用しました。");
+                $"「{preset.Name}」のプリセット温度範囲外なので端値を使用しました。");
         }
     }
 
@@ -352,15 +368,21 @@ internal sealed class DlsMetadataEditor
         var text = (_solvent.Text ?? string.Empty).Trim();
         if (!SolventPresetStore.TryFind(text, out var preset))
         {
-            // free-form text や空文字。自動再補間モードを抜ける。
+            // free-form text や空文字。自動再補間する対象がないので manual override も
+            // 意味を失う → リセットしておく (ユーザーが後で再度プリセット名を入れたとき
+            // にクリーン状態から始められる)。
             _lastAppliedPreset = null;
+            _manualOpticalOverride = false;
             return false;
         }
 
         // OnSolventChanged は打鍵ごとに発火するので、同一プリセットが既に記憶されている
-        // ときは再 apply / toast を抑制 (ユーザーが Water の "r" を消して打ち直したような
-        // 編集経路で同じ preset に戻ったときに繰り返し warning が出るのを防ぐ)。
+        // ときは toast を抑制 (ユーザーが Water の "r" を消して打ち直したような編集経路で
+        // 同じ preset に戻ったときに繰り返し warning が出るのを防ぐ)。
         var presetChanged = !ReferenceEquals(_lastAppliedPreset, preset);
+
+        // プリセット名と一致 = 自動再補間モードに復帰 (もし手動 override が立っていても解除)。
+        _manualOpticalOverride = false;
         _lastAppliedPreset = preset;
         TryReapplyPresetForCurrentTemperature(fireOutOfRangeWarning && presetChanged);
         return true;
@@ -382,9 +404,11 @@ internal sealed class DlsMetadataEditor
         // 屈折率 / 粘度をユーザーが手で編集したら自動再補間モードを抜ける (lock 解除)。
         // ApplyOpticalParametersFromPreset から呼ばれる経路は _setSuppressed(true) で囲まれて
         // いて関数冒頭で早期 return するため、ここに来るのは純粋なユーザー入力経路だけ。
+        // _lastAppliedPreset は cache 用に残し、override フラグを立てて再補間だけ止める
+        // (溶媒名を再度プリセット名に書き直したら adopt 経路で override が解除される)。
         if (ReferenceEquals(textBox, _refractiveIndex) || ReferenceEquals(textBox, _viscosity))
         {
-            _lastAppliedPreset = null;
+            _manualOpticalOverride = true;
         }
 
         var raw = (textBox.Text ?? string.Empty).Trim();

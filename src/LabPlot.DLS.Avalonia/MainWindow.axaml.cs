@@ -981,39 +981,15 @@ public partial class MainWindow : Window, IDlsAnalysisHost
 
     private DlsAnalysisSession BuildSession()
     {
-        var sessionDatasets = new List<DlsAnalysisSessionDataset>();
+        // per-dataset の Style / Metadata / Cumulant 転写は DlsSessionMapper に集約。
+        // 新フィールドを追加するときは Mapper だけ更新すれば save / load 両経路に反映される。
+        var sourceFilePath = _currentWorkbookPath ?? string.Empty;
+        var sessionDatasets = new List<DlsAnalysisSessionDataset>(_datasetItems.Count);
         for (int i = 0; i < _datasetItems.Count; i++)
         {
             var item = _datasetItems[i];
-            var ds = item.Dataset;
-            sessionDatasets.Add(new DlsAnalysisSessionDataset
-            {
-                SheetName = ds.SheetName,
-                SourceFilePath = _currentWorkbookPath ?? string.Empty,
-                Selected = _selectedDatasets.Contains(ds),
-                Style = new AnalysisSessionStyle
-                {
-                    ColorHex = item.Style.ColorHex,
-                    LegendName = item.Style.LegendName,
-                    LineWidth = item.Style.LineWidth,
-                    MarkerSize = item.Style.MarkerSize,
-                },
-                Metadata = new DlsAnalysisSessionMetadata
-                {
-                    TemperatureCelsius = item.Metadata.TemperatureCelsius,
-                    Solvent = item.Metadata.Solvent,
-                    ConcentrationMgPerMl = item.Metadata.ConcentrationMgPerMl,
-                    RefractiveIndex = item.Metadata.RefractiveIndex,
-                    ViscosityMpas = item.Metadata.ViscosityMpas,
-                    WavelengthNm = item.Metadata.WavelengthNm,
-                    ScatteringAngleDegrees = item.Metadata.ScatteringAngleDegrees,
-                },
-                CumulantSettings = new DlsAnalysisSessionCumulantSettings
-                {
-                    FitRangeMinMicroseconds = item.Cumulant.FitRangeMinMicroseconds,
-                    FitRangeMaxMicroseconds = item.Cumulant.FitRangeMaxMicroseconds,
-                },
-            });
+            sessionDatasets.Add(DlsSessionMapper.ToSessionDataset(
+                item, sourceFilePath, selected: _selectedDatasets.Contains(item.Dataset)));
         }
 
         return new DlsAnalysisSession
@@ -1089,21 +1065,8 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 continue;
             }
 
-            item.Style.ColorHex = sessionDs.Style.ColorHex;
-            item.Style.LegendName = sessionDs.Style.LegendName;
-            item.Style.LineWidth = sessionDs.Style.LineWidth;
-            item.Style.MarkerSize = sessionDs.Style.MarkerSize;
-
-            item.Metadata.TemperatureCelsius = sessionDs.Metadata.TemperatureCelsius;
-            item.Metadata.Solvent = sessionDs.Metadata.Solvent;
-            item.Metadata.ConcentrationMgPerMl = sessionDs.Metadata.ConcentrationMgPerMl;
-            item.Metadata.RefractiveIndex = sessionDs.Metadata.RefractiveIndex;
-            item.Metadata.ViscosityMpas = sessionDs.Metadata.ViscosityMpas;
-            item.Metadata.WavelengthNm = sessionDs.Metadata.WavelengthNm;
-            item.Metadata.ScatteringAngleDegrees = sessionDs.Metadata.ScatteringAngleDegrees;
-
-            item.Cumulant.FitRangeMinMicroseconds = sessionDs.CumulantSettings.FitRangeMinMicroseconds;
-            item.Cumulant.FitRangeMaxMicroseconds = sessionDs.CumulantSettings.FitRangeMaxMicroseconds;
+            // per-dataset の Style / Metadata / Cumulant 反映は DlsSessionMapper に集約 (Save と双方向対)。
+            DlsSessionMapper.ApplyToItem(sessionDs, item);
         }
 
         NormalizeSharedMetadataAcrossItems();

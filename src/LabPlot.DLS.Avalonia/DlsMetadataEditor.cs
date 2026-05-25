@@ -144,23 +144,31 @@ internal sealed class DlsMetadataEditor
     }
 
     /// <summary>
-    /// 屈折率・粘度のテキストを外部 (プリセット選択) から差し替えて commit する。
-    /// プリセット選択時は AutoCompleteBox 側に focus があり、屈折率・粘度 TextBox は
-    /// non-focused なので強制 update で書いてから OnRefractiveIndexCommit /
-    /// OnViscosityCommit を直接呼び broadcast を起動する。
+    /// プリセット選択で屈折率・粘度を 1 ペアにまとめて全シートに反映する。
+    /// 個別の <see cref="OnRefractiveIndexCommit"/> / <see cref="OnViscosityCommit"/>
+    /// を順に呼ぶと最初の commit が <c>RequestAnalysisDataChanged</c> を発火 → 親が
+    /// <see cref="Sync"/> を呼び戻して、まだ commit されていない側の TextBox を「古い
+    /// metadata 値」で塗り直し、続く commit が空文字や旧値を読んで失敗するので、
+    /// Commit 経路を使わず metadata に直接書いて 1 回だけ host 通知する。
     /// </summary>
     public void ApplyOpticalParametersFromPreset(double refractiveIndex, double viscosityMpas)
     {
         _setSuppressed(true);
         try
         {
+            var items = _host.DatasetItems;
+            for (int i = 0; i < items.Count; i++)
+            {
+                items[i].Metadata.RefractiveIndex = refractiveIndex;
+                items[i].Metadata.ViscosityMpas = viscosityMpas;
+            }
+
             _refractiveIndex.Text = FormatDouble(refractiveIndex);
             _viscosity.Text = FormatDouble(viscosityMpas);
         }
         finally { _setSuppressed(false); }
 
-        OnRefractiveIndexCommit();
-        OnViscosityCommit();
+        _host.RequestAnalysisDataChanged();
     }
 
     // ===== 全 input 同期 (アクティブシート切替・xlsx 読み込み・セッション復元時) =====

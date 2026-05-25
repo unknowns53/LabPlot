@@ -358,14 +358,6 @@ public partial class MainWindow : Window
         catch { return null; }
     }
 
-    private sealed class DatasetStyle
-    {
-        public string? ColorHex { get; set; }
-        public string? LegendName { get; set; }
-        public double LineWidth { get; set; } = GraphFormattingConfig.DefaultLineWidth;
-        public double MarkerSize { get; set; } = GraphFormattingConfig.DefaultMarkerSize;
-    }
-
     private readonly record struct MolecularWeightCacheKey(
         IReadOnlyList<GpcDataPoint> Points,
         string? SourceFilePath,
@@ -1067,19 +1059,7 @@ public partial class MainWindow : Window
             var style = i < _datasetStyles.Count ? _datasetStyles[i] : CreateDefaultDatasetStyle();
             var selectedPeakId = i < _datasetSelectedPeakIds.Count ? _datasetSelectedPeakIds[i] : null;
 
-            datasets.Add(new GpcAnalysisSessionDataset
-            {
-                SourceFilePath = dataset.SourceFilePath ?? string.Empty,
-                Detector = dataset.Detector,
-                SelectedPeakId = selectedPeakId,
-                Style = new AnalysisSessionStyle
-                {
-                    ColorHex = style.ColorHex,
-                    LegendName = style.LegendName,
-                    LineWidth = style.LineWidth,
-                    MarkerSize = style.MarkerSize,
-                },
-            });
+            datasets.Add(GpcSessionMapper.ToSessionDataset(dataset, style, selectedPeakId));
         }
 
         AnalysisSessionCalibration? calibration = null;
@@ -1206,13 +1186,7 @@ public partial class MainWindow : Window
                 }
 
                 _loadedDatasets.Add(loaded);
-                _datasetStyles.Add(new DatasetStyle
-                {
-                    ColorHex = sessionDataset.Style.ColorHex,
-                    LegendName = sessionDataset.Style.LegendName,
-                    LineWidth = sessionDataset.Style.LineWidth,
-                    MarkerSize = sessionDataset.Style.MarkerSize,
-                });
+                _datasetStyles.Add(GpcSessionMapper.ToDatasetStyle(sessionDataset.Style));
                 _datasetSelectedPeakIds.Add(sessionDataset.SelectedPeakId);
                 sessionToLoadedIndex[i] = _loadedDatasets.Count - 1;
             }

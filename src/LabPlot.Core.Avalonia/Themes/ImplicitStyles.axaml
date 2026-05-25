@@ -17,7 +17,7 @@
 
     <!-- ============================================================
          Phase 7 Batch 6 step 3: フォント線幅を WPF 同等に強化
-         step 2 で SubpixelAntialias を当てたが、鷹栖くん実機確認では
+         step 2 で SubpixelAntialias を当てたが、実機確認では
          「線幅自体が細い / アンチエイリアスが効いていない」体感。
          Yu Gothic UI / Segoe UI の Regular ウェイトはそもそも細めで、
          Avalonia の SkiaSharp 描画では特に薄く見える。WPF 版が体感的に

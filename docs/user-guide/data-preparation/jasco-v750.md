@@ -25,7 +25,7 @@ Spectrum モジュールは JASCO Spectra Manager の TXT / CSV エクスポー�
 
 ## 装置側でのエクスポート手順
 
-> TODO: 鷹栖くん実機で加筆予定
+> TODO: 実機で加筆予定
 >
 > このセクションには JASCO Spectra Manager 上での具体的な操作手順を追記する予定です。実機環境での確認後に埋めます。次の 3 種類の出力に分けて手順を載せる想定です。
 >

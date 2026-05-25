@@ -8,8 +8,8 @@ namespace LabPlot.DLS.Avalonia;
 /// 観測点 (<see cref="SolventPresetPoint"/>) の表として持つ。プリセットを
 /// 選択した瞬間、AnalysisWindow は現在の温度入力で表を線形補間して n と
 /// eta を <c>MetadataRefractiveIndexTextBox</c> /
-/// <c>MetadataViscosityTextBox</c> に無条件で書き込む (鷹栖くん 2026-05-25
-/// 合意)。ユーザー追加プリセットは <see cref="SolventPresetStore"/> 経由で
+/// <c>MetadataViscosityTextBox</c> に無条件で書き込む (2026-05-25 合意仕様)。
+/// ユーザー追加プリセットは <see cref="SolventPresetStore"/> 経由で
 /// <c>%APPDATA%/LabPlot/dls-solvent-presets.json</c> に永続化される。
 /// </summary>
 internal sealed record SolventPreset(

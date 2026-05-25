@@ -34,7 +34,7 @@ internal static class SolventPresetStore
     /// <summary>
     /// 組み込み温度テーブル。CRC Handbook 等から拾った 5 / 15 / 25 / 35 / 45 deg C の
     /// 代表値 (DMSO は融点 18.5 deg C なので 20 deg C 起点)。実装時に最新文献値で
-    /// 要再確認 (鷹栖くん側 fact check 想定)。線形補間で中間温度の値を推定するため、
+    /// 要再確認 (利用者側で fact check 想定)。線形補間で中間温度の値を推定するため、
     /// 温度範囲外のサンプルは端値クランプ + warning toast で扱う。
     /// </summary>
     public static IReadOnlyList<SolventPreset> BuiltInPresets { get; } = new[]

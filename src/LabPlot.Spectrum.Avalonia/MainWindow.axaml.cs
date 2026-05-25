@@ -295,14 +295,6 @@ public partial class MainWindow : Window
     private string? GetDefaultOutputDirectoryIfExists()
         => FormattingDefaultsStore.GetExistingDefaultOutputDirectory(_formattingDefaults);
 
-    private sealed class DatasetStyle
-    {
-        public string? ColorHex { get; set; }
-        public string? LegendName { get; set; }
-        public double LineWidth { get; set; } = GraphFormattingConfig.DefaultLineWidth;
-        public double MarkerSize { get; set; } = GraphFormattingConfig.DefaultMarkerSize;
-    }
-
     private struct AxisDataRange
     {
         public bool HasValue { get; private set; }
@@ -1091,17 +1083,7 @@ public partial class MainWindow : Window
         {
             var dataset = _loadedDatasets[i];
             var style = i < _datasetStyles.Count ? _datasetStyles[i] : CreateDefaultDatasetStyle();
-            session.Datasets.Add(new AnalysisSessionDataset
-            {
-                SourceFilePath = dataset.SourceFilePath ?? string.Empty,
-                Style = new AnalysisSessionStyle
-                {
-                    ColorHex = style.ColorHex,
-                    LegendName = style.LegendName,
-                    LineWidth = style.LineWidth,
-                    MarkerSize = style.MarkerSize,
-                },
-            });
+            session.Datasets.Add(SpectrumSessionMapper.ToSessionDataset(dataset, style));
         }
 
         return session;
@@ -1120,13 +1102,7 @@ public partial class MainWindow : Window
             {
                 var dataset = _reader.Read(entry.SourceFilePath);
                 loaded.Add(dataset);
-                styles.Add(new DatasetStyle
-                {
-                    ColorHex = entry.Style.ColorHex,
-                    LegendName = entry.Style.LegendName,
-                    LineWidth = entry.Style.LineWidth,
-                    MarkerSize = entry.Style.MarkerSize,
-                });
+                styles.Add(SpectrumSessionMapper.ToDatasetStyle(entry.Style));
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or FileNotFoundException)
             {

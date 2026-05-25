@@ -42,11 +42,36 @@ public sealed partial class AnalysisWindow : Window
     // していないので該当しない。
     private bool _initialized;
 
+    // 4 解析セクションの「結果 placeholder リセット + ステータス Show/Hide」を束ねる軽量ビュー。
+    // null! は InitializeComponent 直後 (x:Name フィールドが埋まったあと) の構築まで一時的。
+    private AnalysisSectionView _cumulantView = null!;
+    private AnalysisSectionView _rampView = null!;
+    private AnalysisSectionView _concentrationView = null!;
+    private AnalysisSectionView _inversionView = null!;
+
     public AnalysisWindow(IDlsAnalysisHost host)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         InitializeComponent();
         _initialized = true;
+
+        _cumulantView = new AnalysisSectionView(
+            CumulantStatusText,
+            CumulantZAverageText, CumulantPdiText, CumulantGammaText,
+            CumulantRangeText, CumulantRSquaredText);
+        _rampView = new AnalysisSectionView(
+            RampStatusText,
+            RampTransitionTemperatureText, RampTransitionWidthText,
+            RampLowPlateauText, RampHighPlateauText, RampRSquaredText);
+        _concentrationView = new AnalysisSectionView(
+            ConcentrationStatusText,
+            ConcentrationD0Text, ConcentrationKDText,
+            ConcentrationDhText, ConcentrationRSquaredText,
+            ConcentrationReferenceText);
+        _inversionView = new AnalysisSectionView(
+            InversionStatusText,
+            InversionAlphaText, InversionRSquaredText,
+            InversionBetaText, InversionFreeBinText);
 
         // 子 Window は Application 経由のスタイル自動適用が走らないので明示適用。
         // Spectrum CalibrationCurveWindow と同方針。
@@ -236,7 +261,7 @@ public sealed partial class AnalysisWindow : Window
         // 走らせたときに OnInversionComputed で push される。host event だけでは
         // 重い計算は走らせない。最新値が無いときは hint を表示する。
         if (InversionAlphaText.Text == "—")
-            ShowInversionStatus("「グラフとして見る」を押すと計算します");
+            _inversionView.ShowStatus("「グラフとして見る」を押すと計算します");
     }
 
     // ===================================================================
@@ -275,8 +300,7 @@ public sealed partial class AnalysisWindow : Window
         var items = _host.DatasetItems;
         if (idx < 0 || idx >= items.Count)
         {
-            ResetCumulantDisplay();
-            ShowCumulantStatus("シートを選択してください");
+            _cumulantView.FailWith("シートを選択してください");
             return;
         }
 
@@ -284,8 +308,7 @@ public sealed partial class AnalysisWindow : Window
         var correlation = item.Dataset.Correlation;
         if (correlation is null)
         {
-            ResetCumulantDisplay();
-            ShowCumulantStatus("自己相関データがありません");
+            _cumulantView.FailWith("自己相関データがありません");
             return;
         }
 
@@ -296,8 +319,7 @@ public sealed partial class AnalysisWindow : Window
 
         if (!outcome.Success || outcome.Result is null)
         {
-            ResetCumulantDisplay();
-            ShowCumulantStatus(outcome.FailureReason ?? "fit に失敗しました");
+            _cumulantView.FailWith(outcome.FailureReason ?? "fit に失敗しました");
             return;
         }
 
@@ -325,39 +347,16 @@ public sealed partial class AnalysisWindow : Window
         {
             NumberCountUp.Animate(CumulantZAverageText, size.HydrodynamicDiameterNm.Value,
                 v => $"{v.ToString("0.0", CultureInfo.InvariantCulture)} nm");
-            HideCumulantStatus();
+            _cumulantView.HideStatus();
         }
         else
         {
             NumberCountUp.Cancel(CumulantZAverageText, "—");
             var missing = string.Join("・", size.MissingFields);
-            ShowCumulantStatus(string.IsNullOrEmpty(missing)
+            _cumulantView.ShowStatus(string.IsNullOrEmpty(missing)
                 ? "粒径計算に必要なメタデータが不足しています"
                 : $"{missing} が未入力で粒径計算できません");
         }
-    }
-
-    private void ResetCumulantDisplay()
-    {
-        // v1.3 Batch K: 残ったアニメを止めてプレースホルダに固定する。
-        NumberCountUp.Cancel(CumulantZAverageText, "—");
-        NumberCountUp.Cancel(CumulantPdiText, "—");
-        NumberCountUp.Cancel(CumulantGammaText, "—");
-        NumberCountUp.Cancel(CumulantRangeText, "—");
-        NumberCountUp.Cancel(CumulantRSquaredText, "—");
-        HideCumulantStatus();
-    }
-
-    private void ShowCumulantStatus(string message)
-    {
-        CumulantStatusText.Text = message;
-        CumulantStatusText.IsVisible = true;
-    }
-
-    private void HideCumulantStatus()
-    {
-        CumulantStatusText.Text = string.Empty;
-        CumulantStatusText.IsVisible = false;
     }
 
     // Cumulant fit range TextBox: 三段構え (TextChanged サイレント / LostFocus + Enter ロールバック付き)
@@ -467,13 +466,12 @@ public sealed partial class AnalysisWindow : Window
         var outcome = TemperatureRampAnalyzer.Analyze(points);
         if (!outcome.Success || outcome.Result is null)
         {
-            ResetRampDisplay();
             var reason = outcome.FailureReason ?? "解析できません";
             var hints = new List<string>();
             if (missingTemp > 0) hints.Add($"温度未入力 {missingTemp} 件");
             if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
             var detail = hints.Count > 0 ? $"（{string.Join(" / ", hints)}）" : string.Empty;
-            ShowRampStatus($"{reason}{detail}");
+            _rampView.FailWith($"{reason}{detail}");
             return;
         }
 
@@ -495,11 +493,11 @@ public sealed partial class AnalysisWindow : Window
             var hints = new List<string>();
             if (missingTemp > 0) hints.Add($"温度未入力 {missingTemp} 件");
             if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
-            ShowRampStatus($"残り {string.Join(" / ", hints)} は除外しました");
+            _rampView.ShowStatus($"残り {string.Join(" / ", hints)} は除外しました");
         }
         else
         {
-            HideRampStatus();
+            _rampView.HideStatus();
         }
     }
 
@@ -535,27 +533,6 @@ public sealed partial class AnalysisWindow : Window
         return (points, points.Count, missingTemp, missingFit);
     }
 
-    private void ResetRampDisplay()
-    {
-        NumberCountUp.Cancel(RampTransitionTemperatureText, "—");
-        NumberCountUp.Cancel(RampTransitionWidthText, "—");
-        NumberCountUp.Cancel(RampLowPlateauText, "—");
-        NumberCountUp.Cancel(RampHighPlateauText, "—");
-        NumberCountUp.Cancel(RampRSquaredText, "—");
-    }
-
-    private void ShowRampStatus(string message)
-    {
-        RampStatusText.Text = message;
-        RampStatusText.IsVisible = true;
-    }
-
-    private void HideRampStatus()
-    {
-        RampStatusText.Text = string.Empty;
-        RampStatusText.IsVisible = false;
-    }
-
     private void TemperatureRampShowAsGraphButton_Click(object? sender, RoutedEventArgs e)
         => _host.RequestShowAsGraph(DistributionMode.TemperatureRamp);
 
@@ -589,13 +566,12 @@ public sealed partial class AnalysisWindow : Window
 
         if (!outcome.Success || outcome.Result is null)
         {
-            ResetConcentrationDisplay();
             var reason = outcome.FailureReason ?? "解析できません";
             var hints = new List<string>();
             if (missingConc > 0) hints.Add($"濃度未入力 {missingConc} 件");
             if (missingFit > 0) hints.Add($"キュムラント失敗 {missingFit} 件");
             var detail = hints.Count > 0 ? $"（{string.Join(" / ", hints)}）" : string.Empty;
-            ShowConcentrationStatus($"{reason}{detail}");
+            _concentrationView.FailWith($"{reason}{detail}");
             return;
         }
 
@@ -630,9 +606,9 @@ public sealed partial class AnalysisWindow : Window
         if (multiViscosity) warnings.Add("シート間で粘度が異なります（中央値を使用）");
 
         if (warnings.Count > 0)
-            ShowConcentrationStatus(string.Join(" / ", warnings));
+            _concentrationView.ShowStatus(string.Join(" / ", warnings));
         else
-            HideConcentrationStatus();
+            _concentrationView.HideStatus();
     }
 
     private (List<ConcentrationSeriesPoint> Points,
@@ -700,27 +676,6 @@ public sealed partial class AnalysisWindow : Window
         return (max - min) / min > relativeTolerance;
     }
 
-    private void ResetConcentrationDisplay()
-    {
-        NumberCountUp.Cancel(ConcentrationD0Text, "—");
-        NumberCountUp.Cancel(ConcentrationKDText, "—");
-        NumberCountUp.Cancel(ConcentrationDhText, "—");
-        NumberCountUp.Cancel(ConcentrationRSquaredText, "—");
-        ConcentrationReferenceText.Text = "—";
-    }
-
-    private void ShowConcentrationStatus(string message)
-    {
-        ConcentrationStatusText.Text = message;
-        ConcentrationStatusText.IsVisible = true;
-    }
-
-    private void HideConcentrationStatus()
-    {
-        ConcentrationStatusText.Text = string.Empty;
-        ConcentrationStatusText.IsVisible = false;
-    }
-
     private void ConcentrationShowAsGraphButton_Click(object? sender, RoutedEventArgs e)
         => _host.RequestShowAsGraph(DistributionMode.ConcentrationSeries);
 
@@ -738,18 +693,16 @@ public sealed partial class AnalysisWindow : Window
     {
         if (outcome is null || activeItem is null)
         {
-            ResetInversionDisplay();
-            ShowInversionStatus("解析対象のシートが見つかりません");
+            _inversionView.FailWith("解析対象のシートが見つかりません");
             return;
         }
 
         if (!outcome.Success || outcome.Result is null)
         {
-            ResetInversionDisplay();
-            if (outcome.MissingFields.Count > 0)
-                ShowInversionStatus("測定条件を入力してください: " + string.Join(" / ", outcome.MissingFields));
-            else
-                ShowInversionStatus(outcome.FailureReason ?? "解析できません");
+            var message = outcome.MissingFields.Count > 0
+                ? "測定条件を入力してください: " + string.Join(" / ", outcome.MissingFields)
+                : outcome.FailureReason ?? "解析できません";
+            _inversionView.FailWith(message);
             return;
         }
 
@@ -774,29 +727,9 @@ public sealed partial class AnalysisWindow : Window
         if (failureReasons.Count > 0) hints.Add(string.Join(" / ", failureReasons));
 
         if (hints.Count > 0)
-            ShowInversionStatus(string.Join(" / ", hints));
+            _inversionView.ShowStatus(string.Join(" / ", hints));
         else
-            HideInversionStatus();
-    }
-
-    private void ResetInversionDisplay()
-    {
-        NumberCountUp.Cancel(InversionAlphaText, "—");
-        NumberCountUp.Cancel(InversionRSquaredText, "—");
-        NumberCountUp.Cancel(InversionBetaText, "—");
-        NumberCountUp.Cancel(InversionFreeBinText, "—");
-    }
-
-    private void ShowInversionStatus(string message)
-    {
-        InversionStatusText.Text = message;
-        InversionStatusText.IsVisible = true;
-    }
-
-    private void HideInversionStatus()
-    {
-        InversionStatusText.Text = string.Empty;
-        InversionStatusText.IsVisible = false;
+            _inversionView.HideStatus();
     }
 
     private void InversionWeightComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)

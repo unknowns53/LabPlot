@@ -54,6 +54,16 @@ public static class FormatHelpers
         return value.ToString("0.###", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// null は空文字、非 null は <see cref="FormatDouble(double)"/> と同形式で返す。
+    /// DLS の Metadata / Cumulant TextBox のように「未入力ならクリア」する
+    /// 三段構え Commit で使う想定。
+    /// </summary>
+    public static string FormatNullableDouble(double? value)
+    {
+        return value.HasValue ? FormatDouble(value.Value) : string.Empty;
+    }
+
     // ===== Colour helpers =====
 
     public static bool IsAutoColorText(string? text)

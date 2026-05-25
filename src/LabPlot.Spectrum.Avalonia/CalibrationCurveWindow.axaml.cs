@@ -17,6 +17,7 @@ using LabPlot.Core.Avalonia.Controls;
 using LabPlot.Core.Avalonia.Helpers;
 using ScottPlot;
 using SpectrumAnalyzer.Core;
+using static LabPlot.Core.Avalonia.FormatHelpers;
 
 namespace LabPlot.Spectrum.Avalonia;
 
@@ -616,13 +617,6 @@ public partial class CalibrationCurveWindow : Window
         }
 
         return value.ToString("0.####", CultureInfo.InvariantCulture);
-    }
-
-    private static bool TryParseDouble(string? text, out double value)
-    {
-        value = double.NaN;
-        if (string.IsNullOrWhiteSpace(text)) return false;
-        return double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
 
     // ----- Row view-model ---------------------------------------------------

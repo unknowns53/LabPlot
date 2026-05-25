@@ -887,10 +887,6 @@ public sealed partial class AnalysisWindow : Window
         return value.ToString("0.###e+0", CultureInfo.InvariantCulture);
     }
 
-    // DlsMetadataEditor からも参照するため internal 格上げ。
-    internal static string FormatNullableDouble(double? value)
-        => value.HasValue ? FormatDouble(value.Value) : string.Empty;
-
     // ===================================================================
     // Tab 1: Measurement metadata (active sheet + broadcast to all sheets)
     // ===================================================================

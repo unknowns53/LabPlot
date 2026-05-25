@@ -92,7 +92,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
     {
         InitializeComponent();
         LoadFormattingDefaults();
-        _formattingConfig = CloneFormattingConfig(_formattingDefaults);
+        _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
         Opened += OnOpened;
 
         // ListBox の DragDrop 系 routed event は XAML 属性経由で配線できないので
@@ -1276,9 +1276,6 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         }
     }
 
-    private static string FormatNullableDouble(double? value)
-        => value.HasValue ? FormatDouble(value.Value) : string.Empty;
-
     // ---------- Display / format ----------
 
     private void DistributionTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -2211,18 +2208,9 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             FormattingConfigJsonOptions);
     }
 
-    private static GraphFormattingConfig CloneFormattingConfig(GraphFormattingConfig source)
-    {
-        var json = JsonSerializer.Serialize(source, FormattingConfigJsonOptions);
-        var clone = JsonSerializer.Deserialize<GraphFormattingConfig>(json, FormattingConfigJsonOptions)
-            ?? GraphFormattingConfig.CreateFactoryDefault();
-        clone.Normalize();
-        return clone;
-    }
-
     private GraphFormattingConfig BuildSessionFormatting()
     {
-        var formatting = CloneFormattingConfig(_formattingConfig);
+        var formatting = FormattingDefaultsStore.Clone(_formattingConfig, FormattingConfigJsonOptions);
         formatting.DefaultOutputDirectory = null;
         return formatting;
     }

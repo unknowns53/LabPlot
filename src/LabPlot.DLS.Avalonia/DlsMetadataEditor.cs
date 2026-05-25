@@ -177,13 +177,13 @@ internal sealed class DlsMetadataEditor
             }
 
             var metadata = items[idx].Metadata;
-            SetTextSkippingFocused(_temperature, AnalysisWindow.FormatNullableDouble(metadata.TemperatureCelsius), skip);
-            SetTextSkippingFocused(_concentration, AnalysisWindow.FormatNullableDouble(metadata.ConcentrationMgPerMl), skip);
+            SetTextSkippingFocused(_temperature, FormatNullableDouble(metadata.TemperatureCelsius), skip);
+            SetTextSkippingFocused(_concentration, FormatNullableDouble(metadata.ConcentrationMgPerMl), skip);
             SetTextSkippingFocused(_solvent, metadata.Solvent ?? string.Empty, skip);
-            SetTextSkippingFocused(_refractiveIndex, AnalysisWindow.FormatNullableDouble(metadata.RefractiveIndex), skip);
-            SetTextSkippingFocused(_viscosity, AnalysisWindow.FormatNullableDouble(metadata.ViscosityMpas), skip);
-            SetTextSkippingFocused(_wavelength, AnalysisWindow.FormatNullableDouble(metadata.WavelengthNm), skip);
-            SetTextSkippingFocused(_scatteringAngle, AnalysisWindow.FormatNullableDouble(metadata.ScatteringAngleDegrees), skip);
+            SetTextSkippingFocused(_refractiveIndex, FormatNullableDouble(metadata.RefractiveIndex), skip);
+            SetTextSkippingFocused(_viscosity, FormatNullableDouble(metadata.ViscosityMpas), skip);
+            SetTextSkippingFocused(_wavelength, FormatNullableDouble(metadata.WavelengthNm), skip);
+            SetTextSkippingFocused(_scatteringAngle, FormatNullableDouble(metadata.ScatteringAngleDegrees), skip);
         }
         finally { _setSuppressed(false); }
     }

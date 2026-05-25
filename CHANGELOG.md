@@ -6,6 +6,119 @@ distribution is the Avalonia portal (`LabPlot.Avalonia`); the WPF portal
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
+## [1.3.0] - 2026-05-25
+
+Follow-up to the v1.2.0 Avalonia mainline. This release lands a wide
+data-processing correctness sweep driven by parallel Codex static reviews,
+restructures the DLS module around a dedicated AnalysisWindow with four
+analysis tabs (cumulant / temperature ramp / concentration series / CONTIN),
+adds a polish pass over the desktop UX (status bar, toasts, F1 cheat-sheet,
+recent-files menu, result-copy buttons, animated result readouts), embeds
+the LabPlot app icon across windows, and ships the first end-user-facing
+documentation set under `docs/user-guide/`.
+
+### Added
+
+- **DLS AnalysisWindow** (`src/LabPlot.DLS.Avalonia/AnalysisWindow.axaml`)
+  hosts cumulant fit, Boltzmann temperature-ramp, concentration-series
+  (D₀ / k_D / d_h via Stokes–Einstein), and CONTIN-style size-distribution
+  inversion as a vertical expander stack — multiple sections can be open
+  simultaneously, each runs `RecomputeAllSections` on data changes, and
+  chrome is aligned with the main window's `CustomTitleBar`.
+- **NNLS-based size distribution inverter** (CONTIN Phase 1+2) with
+  α / R² / β / free-bin diagnostics surfaced in the AnalysisWindow.
+- **Boltzmann temperature-ramp analysis** for cloud-point / coil-globule
+  transitions on DLS temperature scans (T_c / w / plateaus / R²).
+- **Concentration-series analysis** for diffusion coefficient
+  extrapolation and hydrodynamic radius determination.
+- **DLS demo workbook** (`tools/DlsSampleGenerator`) committed at
+  `samples/demo.xlsx` so users can exercise every analysis path without
+  proprietary Zetasizer data.
+- **Solution-side DLS metadata** is shared across sheets and committed
+  live, so concentration / solvent / temperature entered in one sheet
+  propagate to every related sheet immediately.
+- **Status bar control** with severity-aware icon and color states.
+- **ToastHost** for instant save / reset feedback.
+- **F1 keyboard-shortcut cheat-sheet** available on the portal, the three
+  analysis windows, and the GPC calibration-curve window.
+- **Result-copy buttons** in GPC (representative-peak Mn / Mw / Đ chip)
+  and Spectrum (cloud-point Tc / k / R² block) plus DLS (cumulant fit).
+- **Recent-files menu** persists the five most-recently-opened files per
+  app across sessions.
+- **AnalysisWindow expander state** is persisted between sessions in DLS
+  so users return to the same open sections they left.
+- **Animated result numbers** (`NumberCountUp` helper) — analysis result
+  values ease over 200 ms when they recompute, parsing only the leading
+  numeric token so unit-bearing strings like `123.4 nm` stay formatted.
+- **Reset-to-defaults confirm dialog** (`Core.Avalonia ConfirmDialog`)
+  guards the three "既定値に戻す" buttons behind a destructive-color
+  modal so a misclick no longer wipes title / axis labels / range /
+  line styles in one shot.
+- **File name in title bar**: the subtitle and OS task-bar window title
+  reflect the currently-open session / data file.
+- **End-user documentation** under `docs/user-guide/` covering
+  installation, portal usage, quick-start walkthrough, per-module guides
+  (GPC / Spectrum / DLS), device-specific data preparation skeletons,
+  a troubleshooting guide, and FAQs. Avalonia mainline READMEs and the
+  root README link into it.
+- **App icon** embedded across every Avalonia window and the portal
+  launcher (refreshed with stronger color saturation in a follow-up).
+
+### Changed
+
+- **DLS sidebar reduction**: the DLS main window's sidebar was compressed
+  by moving the four analysis sections and measurement-condition editor
+  into the AnalysisWindow tabs. `IDlsAnalysisHost` (with the new
+  `RequestAnalysisDataChanged` signal) keeps the two windows in sync.
+- **AnalysisWindow tab layout** evolved from a `TabControl` to a vertical
+  `Expander` stack (`SectionStyle ×5`) so users can compare multiple
+  analyses side-by-side without re-clicking tabs.
+- **Section header style** is now unified between sidebar and
+  AnalysisWindow for a single visual vocabulary.
+- **Cumulant numerical stability**: τ is centred and scaled before the
+  Cramer solve to avoid ill-conditioning on long-tau acquisitions.
+- **Cumulant auto-threshold** now restricts itself to a contiguous τ
+  window instead of accepting disjoint regions that produced unstable
+  fits on noisy ACFs.
+- **Cloud-point detection** is gated on signal amplitude and plateau
+  contrast so flat / noise-only spectra no longer report spurious Tc.
+- **λ-max detection** gained a `MinimumProminence` filter that suppresses
+  near-flat shoulders being reported as peaks.
+- **Flat-top plateau peaks** are now collapsed to a single representative
+  point in both λ-max and IR detection paths.
+- **GPC calibration extrapolation** is detected and flagged when the
+  elution time falls outside the curve's calibrated MW range; the
+  `Math.Pow` MW evaluation guards against double overflow on extreme
+  extrapolation.
+- **GPC statistics** correctly area-weight Mn / Mw across overlay peaks
+  (the previous implementation summed unweighted values).
+- **Beer-Lambert calibration** now flags absorbance values that fall
+  outside the linear-response range used when the calibration was built.
+- **JASCO V-750 reader** tracks `NPOINTS` from the file header and
+  detects truncated exports where the actual point count diverges.
+- **Zetasizer reader** handles narrow integration regions and
+  seconds-axis exports (older firmware variants).
+- **IR parabolic apex** direction sign was corrected for descending
+  baselines.
+
+### Fixed
+
+- **AnalysisWindow first-open NRE** on DLS when no run was selected
+  before opening the analysis tab.
+- **Cloud-point false positives** on noise-dominated temperature scans.
+- **Cumulant Cramer instability** on long-τ acquisitions (companion to
+  the Changed-section centring/scaling).
+- Numerous P1 / P2 data-processing bugs surfaced by parallel Codex
+  reviews of DLS / GPC / Spectrum (372 unit tests now pass green:
+  DLS 179 + Spectrum 167 + GPC 26).
+
+### Misc
+
+- **`*.lscache` ignored** so local lint / Codex cache files stop landing
+  in `git status`.
+- **Codex review artifact exclusion** and image directory tracking added
+  to repository hygiene.
+
 ## [1.2.0] - 2026-05-08
 
 This release ships the **Avalonia mainline portal** for the first time. Phase 7

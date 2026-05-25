@@ -194,8 +194,12 @@ public partial class MainWindow : Window
     }
 
     // v1.3 Batch E: 最近開いたファイル MRU。
+    // 2026-05-25: 選択後に SelectedIndex=-1 へリセットしていたが、placeholder に潰れて
+    // 「今どのファイルを開いているか」が一目で分からなかった。直近で開いたファイルを
+    // 選択状態のまま保持する方針に変更。
     private const string RecentFilesAppKey = "gpc";
     private bool _suppressRecentFilesEvents;
+    private string? _lastLoadedFilePath;
 
     private void RefreshRecentFilesUi()
     {
@@ -205,7 +209,7 @@ public partial class MainWindow : Window
         try
         {
             RecentFilesComboBox.ItemsSource = entries.Select(BuildRecentFilesEntry).ToArray();
-            RecentFilesComboBox.SelectedIndex = -1;
+            RecentFilesComboBox.SelectedIndex = ResolveRecentFilesSelectedIndex(entries);
             RecentFilesComboBox.IsEnabled = entries.Count > 0;
             RecentFilesComboBox.PlaceholderText = entries.Count > 0 ? "選択して再読み込み" : "(履歴なし)";
         }
@@ -213,6 +217,17 @@ public partial class MainWindow : Window
         {
             _suppressRecentFilesEvents = false;
         }
+    }
+
+    private int ResolveRecentFilesSelectedIndex(IReadOnlyList<string> entries)
+    {
+        if (string.IsNullOrEmpty(_lastLoadedFilePath)) return -1;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            if (string.Equals(entries[i], _lastLoadedFilePath, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+        return -1;
     }
 
     private static ComboBoxItem BuildRecentFilesEntry(string path)
@@ -229,9 +244,6 @@ public partial class MainWindow : Window
         var path = item.Tag as string;
         if (string.IsNullOrWhiteSpace(path)) return;
         _ = ImportCsvFilesAsync(new[] { path });
-        _suppressRecentFilesEvents = true;
-        try { RecentFilesComboBox.SelectedIndex = -1; }
-        finally { _suppressRecentFilesEvents = false; }
     }
 
     // WPF の InputBindings 群を OnKeyDown 1 メソッドに集約。
@@ -641,6 +653,8 @@ public partial class MainWindow : Window
             {
                 RecentFilesStore.Add(RecentFilesAppKey, fileName);
             }
+            // MRU の最上位 (= fileNames[0]) を選択状態のまま残し、現在開いているファイルを可視化する。
+            _lastLoadedFilePath = fileNames[0];
             RefreshRecentFilesUi();
 
             // v1.3 Batch H: タイトルバー Subtitle と Window Title にファイル名を反映。

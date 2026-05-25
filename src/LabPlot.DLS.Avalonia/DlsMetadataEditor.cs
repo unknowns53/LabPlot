@@ -37,10 +37,12 @@ internal sealed class DlsMetadataEditor
     private readonly TextBox _wavelength;
     private readonly TextBox _scatteringAngle;
 
-    // 最後にプリセット選択で適用した SolventPreset を覚えておき、温度を後から変えたら
-    // 自動で再補間して屈折率・粘度を上書きする (鷹栖くん 2026-05-25 仕様変更)。手動で
-    // 屈折率 / 粘度の TextBox を編集したら自動再補間モードを抜ける (lock 解除)。
-    // null なら自動再補間を行わない (free-form 入力 or 手動編集後)。
+    // 溶媒名がプリセット名と一致したら記憶し、温度を後から変えたら自動で再補間して
+    // 屈折率・粘度を上書きする (2026-05-25 仕様変更)。手動で屈折率 / 粘度の TextBox を
+    // 編集したら自動再補間モードを抜ける (lock 解除)。null なら自動再補間を行わない
+    // (free-form 入力 or 手動編集後)。AutoCompleteBox の SelectionChanged は再選択や
+    // typed-match では発火しないケースがあるので、TextChanged 経路で AdoptPreset を
+    // 走らせて判定する方が確実。
     private SolventPreset? _lastAppliedPreset;
 
     /// <summary>
@@ -74,9 +76,18 @@ internal sealed class DlsMetadataEditor
     // ===== TextChanged: 中間入力サイレント (rollbackOnFail=false / reformatTextOnSuccess=false) =====
 
     public void OnTemperatureChanged()
-        => CommitNumeric(_temperature, NumericConstraint.AnyFinite,
+    {
+        var ok = CommitNumeric(_temperature, NumericConstraint.AnyFinite,
             (item, v) => item.Metadata.TemperatureCelsius = v,
             broadcastToAllSheets: false, rollbackOnFail: false, reformatTextOnSuccess: false);
+        if (ok)
+        {
+            // 打鍵中も即時に屈折率・粘度を追従させる。LostFocus / Enter まで待たないと
+            // 反映されなかった旧仕様 (2026-05-25 指摘) を解消。out-of-range warning は
+            // OnTemperatureCommit (LostFocus / Enter) 側でだけ発火して打鍵中の連打を防ぐ。
+            TryReapplyPresetForCurrentTemperature(fireOutOfRangeWarning: false);
+        }
+    }
 
     public void OnConcentrationChanged()
         => CommitNumeric(_concentration, NumericConstraint.NonNegative,
@@ -84,7 +95,7 @@ internal sealed class DlsMetadataEditor
             broadcastToAllSheets: false, rollbackOnFail: false, reformatTextOnSuccess: false);
 
     public void OnSolventChanged()
-        => CommitSolventString();
+        => CommitSolventString(fireOutOfRangeWarning: true);
 
     public void OnRefractiveIndexChanged()
         => CommitNumeric(_refractiveIndex, NumericConstraint.Positive,
@@ -117,7 +128,7 @@ internal sealed class DlsMetadataEditor
         {
             // 温度確定が成功 (空入力含む) したら、保存中の SolventPreset を新しい温度で
             // 再補間して屈折率・粘度を上書き。lock は維持 (続けて温度を弄っても追従する)。
-            TryReapplyPresetForCurrentTemperature();
+            TryReapplyPresetForCurrentTemperature(fireOutOfRangeWarning: true);
         }
     }
 
@@ -127,7 +138,7 @@ internal sealed class DlsMetadataEditor
             broadcastToAllSheets: false, rollbackOnFail: true, reformatTextOnSuccess: true);
 
     public void OnSolventCommit()
-        => CommitSolventString();
+        => CommitSolventString(fireOutOfRangeWarning: true);
 
     public void OnRefractiveIndexCommit()
         => CommitNumeric(_refractiveIndex, NumericConstraint.Positive,
@@ -192,43 +203,28 @@ internal sealed class DlsMetadataEditor
     }
 
     /// <summary>
-    /// 最後にプリセット選択経由で適用された <see cref="SolventPreset"/> を記憶する。
-    /// 以後温度が変わるたびに <see cref="OnTemperatureCommit"/> が同プリセットを
-    /// 再補間して屈折率・粘度を上書きする。手動編集で <see cref="ClearAppliedPreset"/>
-    /// が呼ばれるとこの記憶は破棄される。
+    /// 温度や溶媒名の確定後に呼ばれる helper。最後に適用された SolventPreset があるなら、
+    /// 現在温度で再補間して屈折率・粘度を上書きする。温度未入力時は 25 deg C 既定。
+    /// <paramref name="fireOutOfRangeWarning"/> = true のときだけ補間範囲外で
+    /// <see cref="AutoReinterpolationWarning"/> 経由で AnalysisWindow に Toast 用
+    /// メッセージを渡す (TextChanged 連打中の toast 連発を避ける目的)。
     /// </summary>
-    public void RememberAppliedPreset(SolventPreset preset)
-    {
-        _lastAppliedPreset = preset;
-    }
-
-    /// <summary>
-    /// 自動再補間モードを抜けて手動編集モードに戻る。屈折率 / 粘度を手で書いた直後と
-    /// AnalysisWindow が「明示的に解除したい」と判断したときに使う。
-    /// </summary>
-    public void ClearAppliedPreset()
-    {
-        _lastAppliedPreset = null;
-    }
-
-    /// <summary>
-    /// <see cref="OnTemperatureCommit"/> の末尾で呼ばれる helper。最後に適用された
-    /// SolventPreset があるなら、現在温度で再補間して屈折率・粘度を上書きする。
-    /// 補間範囲外なら <see cref="AutoReinterpolationWarning"/> 経由で AnalysisWindow に
-    /// Toast 用メッセージを渡す。
-    /// </summary>
-    private void TryReapplyPresetForCurrentTemperature()
+    private void TryReapplyPresetForCurrentTemperature(bool fireOutOfRangeWarning)
     {
         if (_lastAppliedPreset is null) return;
         var raw = (_temperature.Text ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(raw)) return;
-        if (!TryParseDouble(raw, out var t) || !double.IsFinite(t)) return;
+        var t = 25.0;
+        if (!string.IsNullOrWhiteSpace(raw))
+        {
+            if (!TryParseDouble(raw, out var parsed) || !double.IsFinite(parsed)) return;
+            t = parsed;
+        }
 
         var (n, eta) = SolventPresetStore.Interpolate(_lastAppliedPreset, t, out var outOfRange);
         if (!double.IsFinite(n) || !double.IsFinite(eta)) return;
 
         ApplyOpticalParametersFromPreset(n, eta);
-        if (outOfRange)
+        if (outOfRange && fireOutOfRangeWarning)
         {
             AutoReinterpolationWarning?.Invoke(
                 $"「{_lastAppliedPreset.Name}」のプリセット温度範囲外なので端値を使用しました。");
@@ -318,7 +314,7 @@ internal sealed class DlsMetadataEditor
 
     private enum NumericConstraint { AnyFinite, NonNegative, Positive }
 
-    private void CommitSolventString()
+    private void CommitSolventString(bool fireOutOfRangeWarning)
     {
         if (_isSuppressed()) return;
         var idx = _host.ActiveItemIndex;
@@ -333,7 +329,41 @@ internal sealed class DlsMetadataEditor
         {
             items[i].Metadata.Solvent = value;
         }
-        _host.RequestAnalysisDataChanged();
+
+        // 溶媒名が SolventPresetStore のプリセット名と完全一致した瞬間、preset を記憶 + 即適用。
+        // AutoCompleteBox の SelectionChanged は再選択や typed-match では発火しないケースが
+        // あるので TextChanged ベース (本メソッド経由) で判定する方が確実。一致しなければ
+        // 自動再補間モードを抜けて、ユーザー手入力の屈折率・粘度を尊重する。
+        var presetApplied = AdoptPresetFromCurrentSolventText(fireOutOfRangeWarning);
+        if (!presetApplied)
+        {
+            // ApplyOpticalParametersFromPreset 経路は内部で host 通知するので二重発火を避ける。
+            _host.RequestAnalysisDataChanged();
+        }
+    }
+
+    /// <summary>
+    /// 現在の溶媒名テキストが <see cref="SolventPresetStore"/> のプリセット名と一致したら
+    /// 記憶 + 即時補間適用。返り値 true なら ApplyOpticalParametersFromPreset 経由で
+    /// host 通知が既に走った旨を呼び元に伝える。
+    /// </summary>
+    private bool AdoptPresetFromCurrentSolventText(bool fireOutOfRangeWarning)
+    {
+        var text = (_solvent.Text ?? string.Empty).Trim();
+        if (!SolventPresetStore.TryFind(text, out var preset))
+        {
+            // free-form text や空文字。自動再補間モードを抜ける。
+            _lastAppliedPreset = null;
+            return false;
+        }
+
+        // OnSolventChanged は打鍵ごとに発火するので、同一プリセットが既に記憶されている
+        // ときは再 apply / toast を抑制 (ユーザーが Water の "r" を消して打ち直したような
+        // 編集経路で同じ preset に戻ったときに繰り返し warning が出るのを防ぐ)。
+        var presetChanged = !ReferenceEquals(_lastAppliedPreset, preset);
+        _lastAppliedPreset = preset;
+        TryReapplyPresetForCurrentTemperature(fireOutOfRangeWarning && presetChanged);
+        return true;
     }
 
     private bool CommitNumeric(

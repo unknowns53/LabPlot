@@ -101,8 +101,7 @@
                                                                  FilterMode="Contains"
                                                                  TextChanged="MetadataSolventAutoComplete_TextChanged"
                                                                  LostFocus="MetadataSolventAutoComplete_LostFocus"
-                                                                 KeyDown="MetadataInput_KeyDown"
-                                                                 SelectionChanged="MetadataSolventAutoComplete_SelectionChanged" />
+                                                                 KeyDown="MetadataInput_KeyDown" />
                                                 <Button Grid.Column="2"
                                                         Name="SolventPresetSaveCurrentButton"
                                                         Content="＋"

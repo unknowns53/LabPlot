@@ -971,36 +971,6 @@ public sealed partial class AnalysisWindow : Window
         => _metadataEditor.OnScatteringAngleChanged();
 
     /// <summary>
-    /// AutoCompleteBox から SolventPreset が選択されたら、現在温度 (MetadataTemperatureTextBox)
-    /// で温度テーブルを線形補間して屈折率・粘度を即時自動入力 (全シート broadcast)。
-    /// 温度未入力時は 25 deg C 既定で補間。プリセットの温度範囲外は端値クランプして
-    /// warning toast を出す。選択したプリセットは <c>DlsMetadataEditor</c> に記憶させて、
-    /// 以後温度を変えるたびに自動で再補間が走るようにする (鷹栖くん 2026-05-25 仕様変更)。
-    /// free-form 入力 (候補にない名前) はここに飛んでこないので既存値を尊重したまま
-    /// 溶媒名だけ更新される。
-    /// </summary>
-    private void MetadataSolventAutoComplete_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (!_initialized) return;
-        if (MetadataSolventAutoComplete.SelectedItem is not SolventPreset preset) return;
-
-        var temperatureC = TryParseDouble(MetadataTemperatureTextBox.Text, out var t)
-            ? t : 25.0;
-        var (n, eta) = SolventPresetStore.Interpolate(preset, temperatureC, out var outOfRange);
-        if (!double.IsFinite(n) || !double.IsFinite(eta)) return;
-
-        _metadataEditor.ApplyOpticalParametersFromPreset(n, eta);
-        _metadataEditor.RememberAppliedPreset(preset);
-
-        if (outOfRange)
-        {
-            Toast?.Show(
-                $"「{preset.Name}」のプリセット温度範囲外なので端値を使用しました。",
-                StatusSeverity.Warning);
-        }
-    }
-
-    /// <summary>
     /// [＋] ボタン: 現在の溶媒名・屈折率・粘度・温度を 1 温度点としてユーザー追加プリセットに保存。
     /// 同名プリセットが既にあれば温度点を merge (同温度は上書き)。組み込み名との衝突や入力不正は
     /// Toast 警告で拒否。成功時は AutoCompleteBox の ItemsSource を再ロード。

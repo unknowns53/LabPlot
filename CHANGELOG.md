@@ -319,8 +319,10 @@ distribution, and incorporated user feedback from real-machine validation.
   `InitFailed`) driven by a small `PlotPlaceholder` helper. The placeholder
   now survives `PlotHost.Children.Clear()` and restores after every dataset
   is removed.
-- **Phase 7 smoke test checklist** for DLS and Spectrum
-  (`docs/Phase7_smoke_test.md`).
+- **Smoke-test checklist** for DLS and Spectrum
+  (originally `docs/Phase7_smoke_test.md`; renamed to
+  `docs/release-smoke-test.md` post v1.3.3 as the generic release smoke
+  checklist).
 
 ### Changed
 
@@ -397,5 +399,9 @@ distribution, and incorporated user feedback from real-machine validation.
 Initial tagged release of the WPF mainline. See `git log v1.1.0` for the full
 list of changes leading up to it.
 
+[1.3.3]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.3
+[1.3.2]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.2
+[1.3.1]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.1
+[1.3.0]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.0
 [1.2.0]: https://github.com/unknowns53/LabPlot/releases/tag/v1.2.0
 [1.1.0]: https://github.com/unknowns53/LabPlot/releases/tag/v1.1.0

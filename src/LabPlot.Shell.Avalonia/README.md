@@ -52,7 +52,7 @@ dotnet run --project src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj
 .\tools\run-avalonia.ps1 -KillOnly
 ```
 
-ビルド時に `-nodeReuse:false /p:UseSharedCompilation=false` が常に付くので、ビルド完了時の `dotnet.exe` プロセス数が積み上がりません（commit `cd31ddb`）。
+ビルド時に `-nodeReuse:false /p:UseSharedCompilation=false` が常に付くので、ビルド完了時の `dotnet.exe` プロセス数が積み上がりません。
 
 ### デバッグ実行
 

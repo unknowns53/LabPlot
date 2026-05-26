@@ -60,7 +60,7 @@
 # Build（トップレベル slnx で全 17 プロジェクトを一括ビルド）
 dotnet build LabPlot.slnx -c Debug
 
-# Tests（トップレベルから全テストを一括実行。GPC 23 + Spectrum 160 + DLS 141 = 324 件）
+# Tests（トップレベルから全テストを一括実行。GPC 26 + Spectrum 167 + DLS 179 = 372 件）
 dotnet test LabPlot.slnx -c Debug
 
 # 特定モジュールだけテストしたい場合

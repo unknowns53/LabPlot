@@ -2,10 +2,10 @@
 
 まっさらな Apple Silicon Mac (M1 / M2 / M3 / M4 系) に LabPlot
 (`.NET 10 / Avalonia`) のソースから動かせる開発環境をセットアップする
-ための内部ドキュメント。Phase 7 Batch 6 で Windows 実機検証を済ませた
-後、macOS 側 (`osx-arm64`) の実機検証 / 不具合切り分けに使う想定。
+ための内部ドキュメント。Avalonia 主流化以降、macOS 側 (`osx-arm64`) の
+実機検証 / 不具合切り分けに使う想定。
 
-`docs/Phase7_smoke_test.md` (起動シナリオ) と
+`docs/release-smoke-test.md` (起動シナリオ) と
 `src/LabPlot.Shell.Avalonia/README.md` (build / publish コマンド集)
 を補完する位置付け。
 
@@ -15,7 +15,7 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| ハードウェア | Apple Silicon (arm64)。Intel Mac は対象外 (`osx-x64` 用追加 RID は未配布) |
+| ハードウェア | Apple Silicon (arm64) を主想定。Intel Mac (`osx-x64`) も csproj の `.app` バンドル target は対応済みだが、`.github/workflows/release.yml` の publish matrix には未追加 (今後 ROADMAP §5 残課題で対応) |
 | OS | macOS 14 Sonoma 以降。13 Ventura でも .NET 10 はサポート対象だが推奨は 14+ |
 | ネットワーク | App Store と公式 SDK インストーラのダウンロードが必要 |
 | ユーザ権限 | sudo 可能な管理者アカウント |
@@ -167,7 +167,7 @@ Windows 側と同じコマンドで `osx-arm64` ターゲットを直接ビル�
 dotnet publish src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj \
   -c Release -r osx-arm64 --self-contained \
   -p:PublishSingleFile=true \
-  -p:Version=1.3.1
+  -p:Version=1.3.3
 ```
 
 成果物は `src/LabPlot.Shell.Avalonia/bin/Release/net10.0/osx-arm64/publish/LabPlot.app`。
@@ -307,13 +307,17 @@ Windows 側で済んでいる項目に加えて、以下を実機確認する:
 2. **3 モジュール起動**: GPC / Spectrum / DLS それぞれ Window が描ける
 3. **ファイル D&D**: Finder からの D&D が各 MainWindow で効く
 4. **「開く」ダイアログ**: NSOpenPanel が出てファイル選択できる
-5. **MRU 永続化**: 開いたファイルが `~/.config/LabPlot/recent-{app}.json` に
-   反映される + 再起動後に ComboBox で復元
+5. **MRU 永続化**: 開いたファイルが
+   `~/Library/Application Support/LabPlot/recent-{app}.json` に反映される +
+   再起動後に ComboBox で復元 (.NET 5+ の macOS では `ApplicationData` が
+   `~/Library/Application Support/` を指す、§7.2 参照)
 6. **Window 位置永続化**: リサイズ / 移動して閉じる → 再起動で同じ位置
 7. **マルチモニタ**: 外部ディスプレイがあれば、サブモニタ側に出した
    状態で閉じる → 外して再起動 → 内蔵ディスプレイ中央に戻る
-8. **キーボードショートカット**: `Cmd` ではなく `Ctrl` で動くか (Avalonia の
-   デフォルト挙動。Mac 慣習の `Cmd` には未対応。今後の課題候補)
+8. **キーボードショートカット**: `Cmd+O` / `Cmd+S` / `Cmd+Shift+S` / `Cmd+R` /
+   `Cmd+G` / `Cmd+,` (Preferences) / `Cmd+Q` (Quit) が動くか
+   (v1.3.3 の `KeyboardShortcuts.HasCommandModifier` 経由で OS 別に出し分け)。
+   F1 cheat-sheet と各 ToolTip も "Cmd + …" 表記に動的差し替えされる
 9. **F1 ショートカット一覧**: 開ける
 10. **ToastHost / StatusBar**: 文字化けせず日本語表示される
 11. **DLS 溶媒プリセット**: AutoCompleteBox の候補表示 + 温度補間
@@ -323,7 +327,7 @@ Windows 側で済んでいる項目に加えて、以下を実機確認する:
 15. **Excel 出力**: GPC / Spectrum / DLS の Export が動く (`ClosedXML` の
     macOS 動作確認)
 
-詳細手順は `docs/Phase7_smoke_test.md` の Windows 版を流用。
+詳細手順は `docs/release-smoke-test.md` を流用。
 
 ---
 
@@ -439,16 +443,36 @@ xcrun stapler validate LabPlot.app                   # 公証チケット同梱�
 
 ---
 
-## 11. 今後の検討項目
+## 11. v1.3.3 までで対応済み・未対応の整理
 
-- `osx-x64` (Intel Mac) RID を CI に追加するか (`publish-macos.sh` 自体は
-  `LABPLOT_RID=osx-x64` で動くので、あとは GitHub Actions の matrix に追加するだけ)
-- アプリメニューバー (`NSMenu`) の整備: macOS は他 OS と違いウィンドウから独立した
-  アプリメニューが Cmd+Q / Preferences / About の標準受け口になる。現状は未実装
-- Dock メニュー (右クリックで "Open Recent" や About を出すやつ) は未対応
+### 対応済み (v1.3.3)
 
-ここに着手するときは別 PR / 別ドキュメントで切り出す。
+- **OS 別ショートカット出し分け**: `KeyboardShortcuts.HasCommandModifier` で
+  `Cmd+O` / `Cmd+S` / `Cmd+Shift+S` / `Cmd+R` / `Cmd+G` / `Cmd+1〜4` 等が
+  macOS で動く。F1 cheat-sheet と各 ToolTip も "Cmd + …" 表記に動的差し替え
+- **ファイルダイアログ既定パス**: `FormattingDefaultsStore.GetEffectiveDefaultOutputDirectory`
+  で macOS のみ `~/Documents` を fallback
+- **アプリメニューバー (`NSMenu`)**: `App.axaml` の `<NativeMenu.Menu>` で
+  About / Preferences (`Cmd+,`) / Hide / Quit (`Cmd+Q`) を出す。AppKit が Hide /
+  Hide Others / Show All を自動で追加
+- **Dock アイコン**: `.app` バンドル経路は `Info.plist` + `.icns`、`dotnet run`
+  経路は `MacAppIcon.TrySetDockIcon` の `objc_msgSend` で
+  `NSApp.setApplicationIconImage:` を叩く
+- **macOS 配布パイプライン**: `scripts/publish-macos.sh` で codesign + notarytool +
+  stapler、`.github/workflows/release.yml` で `v*` タグ push をトリガに
+  3 platform 自動 publish + GitHub Release 化
 
-v1.3.3 で `Cmd+O` / `Cmd+S` 等の OS 別ショートカット出し分け (`KeyboardShortcuts.HasCommandModifier`)
-とファイルダイアログ既定パスの macOS フォールバック (`GetEffectiveDefaultOutputDirectory` で
-`~/Documents`) は対応済み。F1 cheat-sheet と ToolTip 表記も Mac では "Cmd" 表示に切り替わる。
+### 未対応 / 今後の検討項目
+
+- **`osx-x64` (Intel Mac) を release pipeline に追加**: csproj の `.app` バンドル
+  target は対応済み、`publish-macos.sh` も `LABPLOT_RID=osx-x64` で動く。あとは
+  `.github/workflows/release.yml` の publish スクリプトを RID 配列にすれば良い
+- **Dock メニュー (右クリックで "Open Recent" や About を出すやつ)**: Avalonia
+  11.3 は `applicationDockMenu:` の窓口を持たないので、`NSApplicationDelegate`
+  サブクラス化 + objc 経由の登録が必要。アプリメニューバー本体とは別系統
+- **Apple Developer Program 加入後の正式署名リリース**: `scripts/publish-macos.sh`
+  は dry-run 検証済み。加入 + Developer ID Application 証明書取得 + app-specific
+  password 発行で end-to-end 通せる状態 (`APPLE_DEVELOPER_ID` / `APPLE_ID` /
+  `APPLE_TEAM_ID` / `APPLE_APP_PASSWORD` の env 4 種を揃える)
+
+ここに着手するときは別 PR / 別 branch で切り出す。

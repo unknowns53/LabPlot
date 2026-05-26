@@ -2,7 +2,7 @@
 
 LabPlot 全体の今後の機能追加・拡張計画をまとめたメモです。優先度や着手時期は流動的で、必要が具体化したものから順次着手する方針です。
 
-最終更新: 2026-05-26（**v1.3.2 で macOS first-class 化**。Apple Silicon Mac での実機 smoke test を経て、`.app` バンドルを `dotnet publish` から自動生成 + `scripts/publish-macos.sh` で codesign + notarytool + stapler を 1 コマンドにまとめた。これ以前に v1.3.0 で DLS AnalysisWindow を 4 タブに再構成 + 横断的な UI polish、v1.3.1 で DLS 溶媒プリセット / Window 状態永続化 / 不正入力 toast / recent-files 履歴クリア UI / ~640 行の GPC リファクタリング、v1.3.2 で macOS 由来でないプロット残存バグと凡例最上段見切れも併せて修正済み）
+最終更新: 2026-05-26（**v1.3.3 で macOS UX 細部と CI 自動化**。Cmd+O 系の OS 別出し分け、ファイルダイアログ既定パスの `~/Documents` フォールバック、macOS App メニュー (About / Preferences / Quit / Cmd+,) と `dotnet run` 経路の Dock アイコンを整え、`v*` タグ push で 3 platform を自動 publish + GitHub Release 化する Actions ワークフローを導入。直前 v1.3.2 で macOS first-class (.app バンドル + codesign + notarytool パイプライン)、v1.3.1 で DLS 溶媒プリセット / Window 状態永続化 / 不正入力 toast、v1.3.0 で DLS AnalysisWindow 4 タブ化 + 横断 UI polish を完了済み）
 
 ---
 
@@ -84,28 +84,20 @@ WPF + win-x64 single-file exe では macOS / Linux ユーザーに配れない�
 
 進捗:
 
-- **Batch 0** ✅: 採用バージョン確定、XAML 規模把握（合計 6049 行 / 17 ファイル）、WPF→Avalonia 差分マッピング整備
-- **Batch 1** ✅: `LabPlot.Core.Avalonia` 立ち上げ。CommonStyles / ImplicitStyles / 7 UserControl（CustomTitleBar / AxisRangePanel / ColorPickerPanel / GraphFormatPanel / Error/Success/WarningBanner / BusyOverlay）/ FormatHelpers の Avalonia 版 / Storyboard 起源演出（Chevron 回転、CheckMark slide-in、Expander slide+fade、ToolTip BoxShadow）を Avalonia の Transitions + Animations で再現（Batch 1a `289b83a` / 1b `aee3659` / 1c `df1fca5` / 1d `0002fa6` / 1e `d1075d2` / 1f `1486532` / 1g `610e5e2`）
-- **Batch 2** ✅: `LabPlot.Shell.Avalonia` 立ち上げ。PortalWindow を AXAML 化、ログパスを Linux: `~/.local/share/LabPlot/Logs/`、macOS: `~/Library/Application Support/LabPlot/Logs/`、Windows: `%LocalAppData%\LabPlot\Logs\` に振り分け、3 経路で例外をログ集約（commit `691bad6`）
-- **Batch 3** ✅: `LabPlot.DLS.Avalonia` 移植。XAML 1 個（982 行）+ code-behind 2167 行を完全実装、xlsx 読み込み・キュムラント解析・Stokes-Einstein 計算・セッション保存復元まで WPF 版と同形（commit `8854311` / `041f2d2`）
-- **Batch 4** ✅: `GPC_Visualization.Avalonia` 移植。XAML 928 行 + code-behind 3131 行を完全実装、CSV/TXT 読み込み・較正曲線適用・分子量変換・統計 chip まで稼働（commit `f25d49e` / `e32f9e9`）
-- **Batch 5** ✅: `Spectrum_Visualization.Avalonia` 移植。XAML 5 個（最大 MainWindow 1431 行）+ code-behind 計 4849 行を完全実装、JASCO TXT 読み込み・線スタイル・軸書式・X 反転 / Y 表示モード・IR ピーク帰属・λmax / Tc 自動 + 手動検出・温度スキャン Tc（4 method + sigmoid fit）・積分領域・Beer-Lambert 検量線エディタまで稼働（commit `117e08e` / `76f5292`）
-- **Batch 6** ✅: Windows 実機での 3 アプリ動作検証で Expander / ColorPicker / Avalonia.Generators 系の実装課題 3 件を fix、ファイル D&D / 凡例 D&D / 太字でないフォントの読みづらさも順次解決。GPC のドラッグ並べ替えを DataTemplate ベースのゴースト + InputHitTest 方式に整理して DLS / Spectrum へ横展開。`dotnet build` で MSBuild worker / Roslyn server が常駐する亡霊プロセス問題は `tools/run-avalonia.ps1` の `-nodeReuse:false /p:UseSharedCompilation=false` で根治
-- **Phase 7 主流化（2026-05-08）** ✅: Avalonia 版を主流系統に切り替え。README / ROADMAP / 各アプリドキュメントを「主流 = Avalonia、保守 = WPF」の建付けに書き換え
-- **Phase 7 後始末 Batch 7a（2026-05-08）** ✅: 3 アプリの外部ファイル D&D ハンドラを Avalonia 11.3 の新 API（`DragEventArgs.DataTransfer` / `DataFormat.File` / `IAsyncDataTransfer.TryGetFilesAsync`）に移行、`#pragma warning disable CS0618` 対 3 組を削除。DLS の `OnDatasetDrop` も `async void` に揃えた
-- **Phase 7 後始末 Batch 7e（2026-05-08）** ✅: 3 アプリ MainWindow + Spectrum CalibrationCurveWindow の AXAML を `{ReflectionBinding}` × 40 件 → `{CompiledBinding}` に格上げ。各 ItemTemplate / DataGrid に `x:DataType="vm:Window+Vm"` を付与し、Spectrum の `ManualLambdaMaxEntryVm` / `ManualIrPeakEntryVm` を `private` → `internal` に昇格
-- **v1.3.0（2026-05-25）** ✅: DLS AnalysisWindow を 4 タブ（cumulant / ramp / series / CONTIN）に再構成、NNLS ベース粒径分布インバータ、データ処理の正則性スイープ、status bar / toast / F1 cheat-sheet / recent-files menu / 結果コピー / アニメーション読み出しなど横断 UI polish、`docs/user-guide/` 初版
-- **v1.3.1（2026-05-25）** ✅: DLS 溶媒プリセット（9 種 × 5 温度の n / η テーブル + 線形補間）、Window 状態永続化（4 ウィンドウ × 位置 / サイズ / 最大化）、不正入力 toast in DLS metadata editor、recent-files ComboBox 右クリックで履歴クリア、cross-module refactor sweep（GPC ~640 行削減）
-- **v1.3.2（2026-05-26）** ✅: macOS first-class support。`dotnet publish -r osx-arm64` / `-r osx-x64` で `.app` バンドル自動生成（Info.plist / .icns / Contents/MacOS 配置）、Apple Silicon 実機 smoke test 完走、`scripts/publish-macos.sh` で `dotnet publish` → deep codesign → ditto zip → `xcrun notarytool --wait` → `xcrun stapler` までを 1 コマンド化（資格情報は env 経由）、Hardened Runtime 用 entitlements.plist 同梱、`docs/macOS_開発環境構築.md` 整備。併せて発見した既存バグ 2 件（プロット残存 / 凡例最上段見切れ）と macOS 固有 2 件（AnalysisWindow 最小化 / Z-average ベースラインずれ）を修正
+- **Phase 7 (2026-05-07 〜 2026-05-08)** ✅: WPF → Avalonia への並行移植 → 主流化。採用バージョン確定 (.NET 10 / Avalonia 11.3.14 / ScottPlot.Avalonia 5.1.58) のあと、`LabPlot.Core.Avalonia` + `LabPlot.Shell.Avalonia` + 3 モジュール (DLS / GPC / Spectrum) を Batch 1〜5 で完全移植し、Batch 6 で Windows 実機検証。Avalonia 版を主流系統に切り替え、後始末 Batch 7a で外部ファイル D&D を新 API へ、7e で 40 件の `{ReflectionBinding}` を `{CompiledBinding}` に格上げ。WPF 版は v1.0.x 保守版として並行維持
+- **v1.3.0 (2026-05-25)** ✅: DLS AnalysisWindow を 4 タブ (cumulant / ramp / series / CONTIN) に再構成、NNLS ベース粒径分布インバータ、データ処理の正則性スイープ、status bar / toast / F1 cheat-sheet / recent-files menu / 結果コピー / アニメーション読み出しなど横断 UI polish、`docs/user-guide/` 初版
+- **v1.3.1 (2026-05-25)** ✅: DLS 溶媒プリセット (9 種 × 5 温度の n / η テーブル + 線形補間)、Window 状態永続化 (4 ウィンドウ × 位置 / サイズ / 最大化)、不正入力 toast in DLS metadata editor、recent-files ComboBox 右クリックで履歴クリア、cross-module refactor sweep (GPC ~640 行削減)
+- **v1.3.2 (2026-05-26)** ✅: macOS first-class support。`dotnet publish -r osx-arm64` / `-r osx-x64` で `.app` バンドル自動生成、Apple Silicon 実機 smoke test 完走、`scripts/publish-macos.sh` で `dotnet publish` → deep codesign → ditto zip → `xcrun notarytool --wait` → `xcrun stapler` まで 1 コマンド化、Hardened Runtime 用 entitlements.plist 同梱、`docs/macOS_開発環境構築.md` 整備。併せてプロット残存 / 凡例最上段見切れ / AnalysisWindow 最小化不可 / Z-average ベースラインずれの 4 バグを修正
+- **v1.3.3 (2026-05-26)** ✅: macOS UX 細部と CI 自動化。Cmd+O / Cmd+S 系を `KeyboardShortcuts.HasCommandModifier` で OS 別に出し分け、F1 cheat-sheet と ToolTip も "Cmd +" 表記に動的差し替え、ファイルダイアログ既定パスを `FormattingDefaultsStore.GetEffectiveDefaultOutputDirectory` で macOS のみ `~/Documents` フォールバック。`<NativeMenu.Menu>` で macOS アプリメニュー (About / Preferences / Quit / Cmd+,) を整備、`dotnet run` 経路でも Dock アイコンが出るよう `NSApp.setApplicationIconImage:` を objc_msgSend で叩く。`.github/workflows/release.yml` + `scripts/publish-all-platforms.sh` で `v*` タグ push をトリガに 3 platform publish + CHANGELOG 抜き出し + GitHub Release 化を自動化
 
-残課題（主流化後に着手）:
+残課題:
 
-- **GitHub Actions による 3 platform publish の自動化**: タグ push をトリガーに `win-x64` / `osx-arm64` / `linux-x64` の self-contained single-file を作成し、Release zip 添付まで。現状は手動 `dotnet publish` を 3 回回している（v1.3.2 リリース時の運用）
 - **macOS Developer ID 加入後の codesign + notarytool 実機検証 → 正式署名リリース**: `scripts/publish-macos.sh` は dry-run 検証済み。Apple Developer Program 加入 + Developer ID Application 証明書取得 + app-specific password 発行で end-to-end 通せる状態
-- **osx-x64 (Intel Mac) を release pipeline に追加**: csproj の `.app` バンドル target は既に `osx-x64` も対応済み。あとは CI / リリース手順に matrix 追加するだけ
-- **macOS arm64 publish の起動スモーク CI 化**（GitHub Actions `macos-latest` ランナー）— PR #1 で実機検証は完了したので、回帰防止の自動化フェーズに移行
-- **アプリメニューバー (`NSMenu`) / Dock メニューの整備**: Cmd+Q / Preferences / About の標準受け口は macOS だけアプリメニュー側にぶら下げる慣習。現状未実装
+- **osx-x64 (Intel Mac) を release pipeline に追加**: csproj の `.app` バンドル target は既に `osx-x64` も対応済み。`.github/workflows/release.yml` の publish スクリプトを RID 配列にして osx-x64 を加えれば自動 publish される
+- **macOS arm64 publish の起動スモーク CI 化** (GitHub Actions `macos-latest` ランナー) — リリース workflow とは別系統で、PR トリガで起動テストする回帰防止用
+- **Dock メニュー (右クリック) の整備**: Avalonia は `applicationDockMenu:` の窓口を持たないので NSApplicationDelegate のサブクラス化 + objc 経由の登録が必要。App メニュー本体は v1.3.3 で対応済み
 - **WSL2 + WSLg での Linux x64 publish 実機相当検証の手順 docs 化**
+- **GitHub Actions の Node.js 20 → 24 移行**: `actions/checkout@v4` / `setup-dotnet@v4` / `upload-artifact@v4` が Node.js 20 で動いている。2026-06-02 以降にデフォルトが 24 に切り替わるので、各 action の `@v5` がリリースされ次第追従
 
 CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → PNG / xlsx 変換だけ提供）は補助的な選択肢として引き続き残します。
 
@@ -116,8 +108,7 @@ CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → 
 - **テストカバレッジ**: 各アプリで単体テストはあるが、不正ファイル（ヘッダ欠損・データ行混入）に対する挙動テストの拡充余地あり
 - **サンプルデータ**: `samples/` を各装置・測定種ごとに整備。エッジケース（極端に小さい・大きいデータ）の追加も
 - **ドキュメント**: スクリーンショット込みの README は GPC が先行整備済み、Spectrum / DLS も同様に整える
-- **macOS UX 細部**: アプリメニューバー（"About LabPlot" / "Preferences..." を `NSMenu` 経由で macOS 慣習に揃える）/ Dock メニュー右クリック対応が未整備。`Cmd+` 系ショートカットとファイルダイアログ既定パスは feature/macos-ux-shortcuts-and-paths で対応済み
-- **CI / リリース自動化**: 現状はリリースのたびに手動で 3 回 `dotnet publish` → `zip` / `ditto` → `gh release create` を走らせている。GitHub Actions matrix で自動化したい
+- **macOS Dock メニュー**: 右クリックで「最近開いたファイル」を出す等、Avalonia 11.3 の標準 API には窓口がないので NSApplicationDelegate サブクラス化が必要。App メニュー本体 / Cmd 系ショートカット / ファイルダイアログ既定パスは v1.3.3 で対応済み
 - **パフォーマンスベンチマーク**: 体感で重さを感じるケースが具体化したら BenchmarkDotNet で計測
 
 ---
@@ -128,11 +119,9 @@ CLI / ライブラリ化（`LabPlot.Core` の薄い CLI ラッパーで CSV → 
 
 1. **共通基盤化（1）** ✅: `LabPlot.Core` / `LabPlot.Core.Avalonia`（主流） / `LabPlot.Core.Wpf`（保守）を切り出し済み
 2. **LabPlot.DLS 新規開発（2-DLS）** ✅: 主流・保守の両系統とも完了
-3. **クロスプラットフォーム（5）** ✅: Phase 7 Batch 1–6 + v1.3.2 で macOS first-class（`.app` バンドル / codesign + notarytool パイプライン / 実機 smoke test）まで完了
-4. **macOS UX 細部**: `Cmd+O` / `Cmd+S` ショートカット対応とファイルダイアログ既定パスの macOS 対応は feature/macos-ux-shortcuts-and-paths で着手中。残るはアプリメニューバー / Dock メニュー整備
-5. **CI / リリース自動化**: GitHub Actions matrix で 3 platform publish を自動化、タグ push で Release zip 添付まで自動。回帰防止と運用負荷削減の両面で効く
-6. **Apple Developer Program 加入後の正式署名リリース**: 加入後に `scripts/publish-macos.sh` を実走、`spctl --assess` が "Notarized Developer ID" を返すことを確認、v1.3.x の patch 番号 or v1.4.0 で正式署名版を出し直す
-7. **Spectrum 残課題（2-Spectrum）**: ブランク差し引き・濃度逆算・Boltzmann fit など、利用ニーズに合わせて随時
-8. **新規フォーマット対応（3）**: 共同研究者・研究室メンバーの要望が具体化したら（JCAMP-DX が汎用性最大）
-9. **GPC パフォーマンス最適化（2-GPC）**: 体感で困るケースが出てきたら
-10. **新規アプリ候補（4）**: 必要が具体化してから
+3. **クロスプラットフォーム（5）** ✅: Phase 7 + v1.3.2 macOS first-class + v1.3.3 で macOS UX 細部 + CI 自動 Release まで完了
+4. **Apple Developer Program 加入後の正式署名リリース**: 加入後に `scripts/publish-macos.sh` を実走、`spctl --assess` が "Notarized Developer ID" を返すことを確認、v1.3.x patch or v1.4.0 で正式署名版を出し直す
+5. **Spectrum 残課題（2-Spectrum）**: ブランク差し引き・濃度逆算・Boltzmann fit など、利用ニーズに合わせて随時
+6. **新規フォーマット対応（3）**: 共同研究者・研究室メンバーの要望が具体化したら（JCAMP-DX が汎用性最大）
+7. **GPC パフォーマンス最適化（2-GPC）**: 体感で困るケースが出てきたら
+8. **新規アプリ候補（4）**: 必要が具体化してから

@@ -1,0 +1,108 @@
+name: Release
+
+# v* タグを push すると 3 platform (win-x64 / osx-arm64 / linux-x64) の publish + zip 化を
+# 走らせ、CHANGELOG.md から該当バージョンの節を切り出して GitHub Release の body にした上で
+# zip をアセット添付する。workflow_dispatch でも同じ流れを起動できるが、初回は dry_run=true で
+# Release を作らず Workflow artifacts に上げる形で動作確認するのを推奨する。
+#
+# scripts/publish-all-platforms.sh が CI とローカルの publish 経路を一本化しているので、
+# ローカルで再現する場合は `LABPLOT_VERSION=1.3.3 scripts/publish-all-platforms.sh` で OK。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 1.3.3)。"v" は付けない'
+        required: true
+        type: string
+      dry_run:
+        description: 'GitHub Release を作らず Workflow artifacts に上げるだけ'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve version
+        id: meta
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            version="${tag#v}"
+          else
+            version="${{ github.event.inputs.version }}"
+            tag="v$version"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=$tag version=$version"
+
+      - name: Publish all 3 platforms
+        shell: bash
+        env:
+          LABPLOT_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          chmod +x scripts/publish-all-platforms.sh
+          scripts/publish-all-platforms.sh
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        shell: bash
+        run: |
+          version="${{ steps.meta.outputs.version }}"
+          # `## [<version>]` 行から次の `## [` まで (= その節のみ) を切り出す。
+          # 一致が無ければ body は空で続行 (Release notes は手動で埋める想定)。
+          notes=$(awk -v ver="$version" '
+            BEGIN { p=0 }
+            /^## \[/ {
+              if (p) { exit }
+              if (index($0, "[" ver "]") > 0) { p=1; next }
+            }
+            p { print }
+          ' CHANGELOG.md)
+          {
+            echo "body<<__LABPLOT_NOTES_EOF__"
+            echo "$notes"
+            echo "__LABPLOT_NOTES_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'push' || github.event.inputs.dry_run == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |
+            dist/LabPlot-${{ steps.meta.outputs.tag }}-win-x64.zip
+            dist/LabPlot-${{ steps.meta.outputs.tag }}-osx-arm64.zip
+            dist/LabPlot-${{ steps.meta.outputs.tag }}-linux-x64.zip
+          fail_on_unmatched_files: true
+
+      - name: Upload artifacts (dry run)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: labplot-${{ steps.meta.outputs.version }}-dist
+          path: dist/LabPlot-*.zip
+          retention-days: 7
+          if-no-files-found: error

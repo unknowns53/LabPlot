@@ -250,6 +250,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
     private const string RecentFilesAppKey = "dls";
     private bool _suppressRecentFilesEvents;
     private string? _lastLoadedFilePath;
+    private MissingFileWatcher? _missingFileWatcher;
 
     private void RefreshRecentFilesUi()
     {
@@ -303,12 +304,46 @@ public partial class MainWindow : Window, IDlsAnalysisHost
     // 履歴 ComboBox の右クリックメニュー → 「履歴をクリア」。RecentFilesStore.Clear で永続化
     // ファイルを消し、UI を空状態に戻す。確認ダイアログは省略 (履歴は復元可能性が低くないし、
     // 普通に「開く」で再構築できる)。代わりに Toast で「クリアした」を必ず通知する。
+    // 履歴 (MRU) と表示中のプロット・データセットの寿命を揃える (GPC / Spectrum と同じ方針)。
     private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
     {
         RecentFilesStore.Clear(RecentFilesAppKey);
         _lastLoadedFilePath = null;
+
+        _datasets.Clear();
+        _datasetItems.Clear();
+        _activeItemIndex = -1;
+        _currentWorkbookPath = null;
+        DatasetListBox.ItemsSource = _datasetItems;
+        DatasetCountText.Text = string.Empty;
+        InitializeEmptyPlot();
+
+        _missingFileWatcher?.Watch(null);
+
         RefreshRecentFilesUi();
-        SetStatus("最近開いたファイルの履歴をクリアしました。", StatusSeverity.Info);
+        SetStatus("最近開いたファイルの履歴とプロットをクリアしました。", StatusSeverity.Info);
+    }
+
+    // 読み込み中の xlsx が OS 側で削除 / リネームされた瞬間に MissingFileWatcher から
+    // UI スレッド経由で呼ばれる。GPC / Spectrum と同方針で MRU 履歴は触らず、表示中の
+    // プロットとデータセット内部状態だけクリアする。
+    private void OnLoadedFileMissing()
+    {
+        var name = string.IsNullOrEmpty(_lastLoadedFilePath)
+            ? "ファイル"
+            : Path.GetFileName(_lastLoadedFilePath);
+
+        _missingFileWatcher?.Watch(null);
+        _lastLoadedFilePath = null;
+        _datasets.Clear();
+        _datasetItems.Clear();
+        _activeItemIndex = -1;
+        _currentWorkbookPath = null;
+        DatasetListBox.ItemsSource = _datasetItems;
+        DatasetCountText.Text = string.Empty;
+        InitializeEmptyPlot();
+
+        SetStatus($"{name} が削除されたためプロットをクリアしました。", StatusSeverity.Info);
     }
 
     private async Task OpenWorkbookAsync()
@@ -364,6 +399,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             // 直近で開いたファイル名が ComboBox に表示され続けるよう _lastLoadedFilePath で保持。
             RecentFilesStore.Add(RecentFilesAppKey, filePath);
             _lastLoadedFilePath = filePath;
+            (_missingFileWatcher ??= new MissingFileWatcher(OnLoadedFileMissing)).Watch(_lastLoadedFilePath);
             RefreshRecentFilesUi();
 
             // v1.3 Batch H: タイトルバー Subtitle と Window Title にファイル名を反映。
@@ -2415,7 +2451,17 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             _analysisWindow = new AnalysisWindow(this);
             _analysisWindow.Closed += (_, _) => _analysisWindow = null;
         }
-        if (!_analysisWindow.IsVisible) _analysisWindow.Show(this);
+        if (!_analysisWindow.IsVisible)
+        {
+            // macOS で Show(owner) は addChildWindow: で親に attach されるため、
+            // 子 Window が独立して最小化できなくなる。Windows / Linux の挙動は維持しつつ
+            // macOS のみ Owner なしで開く。MainWindow を閉じた時の連動 close は
+            // OnClosing 側で明示的に行っているので Owner を外しても破綻しない。
+            if (OperatingSystem.IsMacOS())
+                _analysisWindow.Show();
+            else
+                _analysisWindow.Show(this);
+        }
         _analysisWindow.Activate();
     }
 
@@ -2431,6 +2477,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         // ウィンドウを閉じる直前に Maximized / Normal サイズと位置を保存。
         WindowStateStore.PersistFrom(this, RecentFilesAppKey);
         _analysisWindow?.Close();
+        _missingFileWatcher?.Dispose();
         base.OnClosing(e);
     }
 

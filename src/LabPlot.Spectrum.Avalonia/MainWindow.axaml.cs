@@ -188,6 +188,7 @@ public partial class MainWindow : Window
     private const string RecentFilesAppKey = "spectrum";
     private bool _suppressRecentFilesEvents;
     private string? _lastLoadedFilePath;
+    private MissingFileWatcher? _missingFileWatcher;
 
     private void RefreshRecentFilesUi()
     {
@@ -235,12 +236,54 @@ public partial class MainWindow : Window
     }
 
     // 履歴 ComboBox の右クリックメニュー → 「履歴をクリア」。
+    // 履歴 (MRU) と表示中のプロット・データセットの寿命を揃える (GPC / DLS と同じ方針)。
     private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
     {
         RecentFilesStore.Clear(RecentFilesAppKey);
         _lastLoadedFilePath = null;
+
+        _currentDataset = null;
+        _loadedDatasets.Clear();
+        _datasetStyles.Clear();
+        _activeIndex = -1;
+        if (_spectrumPlot is not null)
+        {
+            _spectrumPlot.Plot.Clear();
+            _spectrumPlot.Refresh();
+        }
+        RefreshDatasetEntries();
+        SetGraphActionsEnabled(false);
+
+        _missingFileWatcher?.Watch(null);
+
         RefreshRecentFilesUi();
-        SetStatus("最近開いたファイルの履歴をクリアしました。", StatusSeverity.Info);
+        SetStatus("最近開いたファイルの履歴とプロットをクリアしました。", StatusSeverity.Info);
+    }
+
+    // 読み込み中のファイルが OS 側で削除 / リネームされた瞬間に MissingFileWatcher から
+    // UI スレッド経由で呼ばれる。GPC / DLS と同方針で MRU 履歴は触らず、表示中の
+    // プロットとデータセット内部状態だけクリアする。
+    private void OnLoadedFileMissing()
+    {
+        var name = string.IsNullOrEmpty(_lastLoadedFilePath)
+            ? "ファイル"
+            : Path.GetFileName(_lastLoadedFilePath);
+
+        _missingFileWatcher?.Watch(null);
+        _lastLoadedFilePath = null;
+        _currentDataset = null;
+        _loadedDatasets.Clear();
+        _datasetStyles.Clear();
+        _activeIndex = -1;
+        if (_spectrumPlot is not null)
+        {
+            _spectrumPlot.Plot.Clear();
+            _spectrumPlot.Refresh();
+        }
+        RefreshDatasetEntries();
+        SetGraphActionsEnabled(false);
+
+        SetStatus($"{name} が削除されたためプロットをクリアしました。", StatusSeverity.Info);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -253,6 +296,7 @@ public partial class MainWindow : Window
     protected override void OnClosing(WindowClosingEventArgs e)
     {
         WindowStateStore.PersistFrom(this, RecentFilesAppKey);
+        _missingFileWatcher?.Dispose();
         base.OnClosing(e);
     }
 
@@ -799,6 +843,7 @@ public partial class MainWindow : Window
             }
             // MRU の最上位 (= fileNames[0]) を選択状態のまま残し、現在開いているファイルを可視化する。
             _lastLoadedFilePath = fileNames[0];
+            (_missingFileWatcher ??= new MissingFileWatcher(OnLoadedFileMissing)).Watch(_lastLoadedFilePath);
             RefreshRecentFilesUi();
 
             // v1.3 Batch H: タイトルバー Subtitle と Window Title にファイル名を反映。
@@ -1320,6 +1365,11 @@ public partial class MainWindow : Window
         // データ無しの状態 — placeholder を「ファイルを読み込むと…」に切り替え。
         // 起動時 (InitializePlotControl 直後) と全データセット削除時の両方から呼ばれる。
         PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
+
+        // 全データセット削除パスから呼ばれる時、ScottPlot.Plot に残っている Scatter 要素を
+        // 明示的に消さないと「空状態のラベルだけ書き換えて、過去のデータ曲線が残ったまま」
+        // というゴースト描画になる。DLS 版に揃える (GPC も同 fix を入れている)。
+        _spectrumPlot.Plot.Clear();
 
         _spectrumPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
         _spectrumPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);

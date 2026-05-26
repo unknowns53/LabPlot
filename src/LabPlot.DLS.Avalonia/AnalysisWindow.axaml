@@ -251,6 +251,16 @@
 
                                             <Grid ColumnDefinitions="Auto,8,*"
                                                   RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                                                <!-- macOS の Hiragino Sans 系で Row=0 の値だけ上にずれて見える件への対応。
+                                                     Grid 内 TextBlock を一律 VerticalAlignment="Center" に揃え、行内の
+                                                     ラベルと値の baseline 不一致を排除する。Windows 側にも影響するが
+                                                     現状中央寄せが崩れて困る Status TextBlock は IsVisible=False の
+                                                     1 行表示で副作用なし。 -->
+                                                <Grid.Styles>
+                                                    <Style Selector="TextBlock">
+                                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                                    </Style>
+                                                </Grid.Styles>
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Z-average 径" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />
                                                 <TextBlock Name="CumulantZAverageText" Grid.Row="0" Grid.Column="2" Text="—" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,6" />
                                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="PdI" Foreground="#475569" FontSize="12" Margin="0,0,0,6" />

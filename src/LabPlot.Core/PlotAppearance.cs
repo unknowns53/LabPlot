@@ -438,6 +438,25 @@ public static class PlotAppearance
         plot.Legend.BackgroundFillStyle.Color = background;
         plot.Legend.OutlineStyle.Color = outline;
         plot.Legend.OutlineStyle.Width = DefaultLegendOutlineWidth;
+
+        // 凡例最上段ラベルの ascender が OutlineStyle の上辺で見切れる症状への対応。
+        // ScottPlot 5.1.58 の Legend.Padding デフォルトは new(10, 5) = 左右 10 上下 5。
+        // 5 px の Top では macOS のフォントフォールバック先 (Hiragino Sans 系) で
+        // ascender が枠線にめり込む。コミット 07166f6 で PaddingBetweenTickAndAxisLabels
+        // を FontSize 連動にしたのと同じ方針で、上下を FontSize 相当まで確保する。
+        // Legend.FontSize は float? なので null 合体で float に確定させ、
+        // PixelPadding(float, ...) オーバーロードに解決させる。
+        float fontSize = plot.Legend.FontSize ?? 12f;
+        float horizontal = Math.Max(6f, fontSize * 0.5f);
+        float vertical = Math.Max(6f, fontSize);
+        plot.Legend.Padding = new ScottPlot.PixelPadding(horizontal, horizontal, vertical, vertical);
+
+        // 凡例フォントを Arial に明示固定。macOS の Avalonia 11 でデフォルトの
+        // フォントフォールバックに任せると Hiragino Sans / Helvetica 系 (ascender が
+        // 大きい) に落ちることがあり、Padding を増やしても見切れが残る。Arial は
+        // Windows / macOS 双方に標準搭載で、ascender が穏当。CLAUDE.md の
+        // 「python プロット作成時は Arial を明示」と同じ規約に揃える。
+        plot.Legend.FontName = "Arial";
     }
 
     /// <summary>

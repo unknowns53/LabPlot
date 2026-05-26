@@ -6,6 +6,53 @@ distribution is the Avalonia portal (`LabPlot.Avalonia`); the WPF portal
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
+## [1.3.3] - 2026-05-26
+
+macOS UX 細部の詰めと CI 自動化。v1.3.2 で macOS first-class を打ち出した直後の
+follow-up として、`Cmd+O` 系の OS 別ショートカット出し分け、ファイルダイアログ既定パスの
+`~/Documents` フォールバック、macOS アプリメニュー (About / Preferences / Quit) と
+`dotnet run` 経路の Dock アイコンを整え、`v*` タグ push で 3 platform を自動 publish +
+GitHub Release 化する Actions ワークフローを導入した。
+
+### Added
+
+- **macOS アプリメニューバー** (`<NativeMenu.Menu>` in `App.axaml`): macOS で「LabPlot ▸
+  About LabPlot / Preferences... / Quit LabPlot (Cmd+Q)」が出るようになった。About は
+  バージョンとリポジトリ URL を borderless 小ダイアログで表示。Preferences (Cmd+,) は
+  「LabPlot は専用の設定 Window を持たず、各モジュールの軸範囲 / グラフ書式パネルに直結」
+  旨のプレースホルダ。Quit / Hide / Hide Others / Show All は AppKit が自動でぶら下げる。
+- **`dotnet run` 経路の Dock アイコン**: `MacAppIcon.TrySetDockIcon` で `objc_msgSend` を介し
+  `NSApp.setApplicationIconImage:` を呼び、avares 上の `app-icon.png` を NSImage 化して
+  Dock に渡す。配布 .app バンドル経路 (Info.plist + .icns) は不変。
+- **OS 別 command modifier ヘルパ** (`LabPlot.Core.Avalonia.Helpers.KeyboardShortcuts`):
+  `HasCommandModifier()` 拡張メソッドで macOS では Cmd (Meta)、それ以外は Ctrl を返す。
+  `LocalizeTooltipsForMac` は logical tree を走査して "Ctrl+" tooltip 文字列を Mac だけ
+  "Cmd+" に置換する。
+- **macOS ファイルダイアログ既定パス**: `FormattingDefaultsStore.GetEffectiveDefaultOutputDirectory`
+  でユーザ設定の `DefaultOutputDirectory` が空のとき macOS だけ `~/Documents` を fallback。
+  Avalonia の `SuggestedStartLocation` null → 無音 `~` 落ちを回避する。
+- **GitHub Actions release workflow** (`.github/workflows/release.yml`): `v*` タグ push で
+  3 platform (win-x64 / osx-arm64 / linux-x64) を自動 publish、`CHANGELOG.md` から該当
+  バージョンの節を切り出して Release body にし、zip 3 本を添付して GitHub Release を作成。
+  `workflow_dispatch` で dry-run も可。
+- **`scripts/publish-all-platforms.sh`**: ローカル / CI 両用の 3 platform 一括 publish
+  スクリプト。`LABPLOT_VERSION` env 必須 (未指定なら git describe で推定)。
+
+### Changed
+
+- **4 モジュール `OnKeyDown` ハンドラ** (Portal + GPC / Spectrum / DLS): `KeyModifiers.Control`
+  直判定 → `HasCommandModifier()` 経由に統一。macOS では Cmd+O / Cmd+S / Cmd+L / Cmd+R /
+  Cmd+G / Cmd+1〜4 / Cmd+Shift+O / Cmd+Shift+S が動く。Windows / Linux 挙動は不変。
+- **F1 cheat-sheet** (`KeyboardShortcutsWindow`): "Ctrl + O" 等の表記が macOS では "Cmd + O"
+  に動的差し替え。
+- **csproj `<Version>`**: 4 Avalonia csproj を 1.2.0 → 1.3.3 に bump。`dotnet publish -p:Version=`
+  上書きは引き続き有効だが、Dev 起動でも About が正しいバージョンを表示する。
+
+### Misc
+
+- `docs/macOS_開発環境構築.md` §7.4 / §11 を v1.3.3 の対応状況に追従更新。
+- ROADMAP の Phase 7 Batch 0〜7e 詳細を 1 行に圧縮。v1.3.3 進捗エントリと整合化。
+
 ## [1.3.2] - 2026-05-26
 
 macOS first-class support. The Avalonia portal now ships as a Finder-launchable

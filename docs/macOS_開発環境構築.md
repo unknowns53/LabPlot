@@ -338,11 +338,108 @@ Windows 側で済んでいる項目に加えて、以下を実機確認する:
 
 ---
 
-## 10. 次に検討する項目
+## 10. 配布用 .app の codesign + notarytool
 
-- `osx-x64` (Intel Mac) RID を CI に追加するか (csproj の MacOSAppBundle target
-  は `osx-x64` も対応済みなので CI 側の追加だけで済む見込み)
-- Apple Silicon 実機での `codesign` + `notarytool` での署名フロー
+7 章では「自分で動かす」ための quarantine 解除と ad-hoc 署名を扱った。
+ここでは **他人に配って当該 Mac で警告なく開ける** ところまで持っていく
+正式署名 + 公証フローを扱う。`scripts/publish-macos.sh` が dotnet publish
+から stapler staple まで一括で実行する。
+
+### 10.1 前提
+
+- Apple Developer Program に加入していること ($99/yr)
+- "Developer ID Application: \<Name\> (\<TeamID\>)" 証明書を Keychain に
+  インストール済みであること
+  (Apple Developer サイト → Certificates → "+" → Developer ID Application で発行、
+  `.cer` を Keychain にダブルクリック投入。秘密鍵はその Mac の Keychain にしかない
+  ので、別マシンで署名したい場合は P12 export で持ち運ぶ)
+- notarytool 用の app-specific password を発行済みであること
+  (https://appleid.apple.com/account/manage → サインインとセキュリティ →
+  App 用パスワード → 「+」)
+- Xcode Command Line Tools が `xcrun notarytool` / `xcrun stapler` を含む
+  バージョン (macOS 12 / Xcode 13 以降) であること
+
+### 10.2 必須環境変数
+
+```bash
+export APPLE_DEVELOPER_ID="Developer ID Application: Foo Bar (ABCDE12345)"
+export APPLE_ID="you@example.com"
+export APPLE_TEAM_ID="ABCDE12345"
+export APPLE_APP_PASSWORD="xxxx-xxxx-xxxx-xxxx"   # app-specific password
+```
+
+`APPLE_DEVELOPER_ID` は `security find-identity -v -p codesigning` の出力に
+表示される名前そのものをコピーする (引用符内の文字列)。`APPLE_TEAM_ID` は
+証明書名の括弧内 10 文字。
+
+これらは Bash 履歴や `.zshrc` に直書きせず、`direnv` か macOS の Keychain
+(`security add-generic-password`) 経由で渡すのが安全。
+
+### 10.3 実行
+
+```bash
+scripts/publish-macos.sh
+```
+
+内部で:
+
+1. `dotnet publish` (`-c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true`)
+2. `LabPlot.app/Contents/MacOS/` 配下の dylib / 実行ファイルを再帰的に
+   `codesign --options runtime --timestamp --entitlements …` で署名
+3. `LabPlot.app` 全体を同じオプションで署名
+4. `ditto -c -k --keepParent` で zip を作成 (Apple 推奨。`zip` だと拡張属性が
+   落ちて notarize 検証エラーになる)
+5. `xcrun notarytool submit --wait` で Apple の公証サーバに送信し、Accepted
+   が返るまで待機 (2〜10 分、Apple のキュー次第)
+6. `xcrun stapler staple` で公証チケットを `.app` に同梱
+7. ステープル後に zip を作り直して `dist/LabPlot-<version>-<rid>.zip`
+
+`LABPLOT_VERSION=1.3.2 LABPLOT_RID=osx-arm64 scripts/publish-macos.sh` のように
+環境変数で上書き可能。RID は `osx-arm64` (Apple Silicon) と `osx-x64` (Intel Mac)
+の両方が通る。
+
+### 10.4 entitlements
+
+`src/LabPlot.Shell.Avalonia/macOS/entitlements.plist` で以下 3 つを true に
+してある。.NET CoreCLR の JIT は Hardened Runtime 下ではこの 3 つが必須:
+
+- `com.apple.security.cs.allow-jit` — JIT 生成コードの実行
+- `com.apple.security.cs.allow-unsigned-executable-memory` — ReadyToRun や動的アロケート領域
+- `com.apple.security.cs.disable-library-validation` — SkiaSharp 等の自前 native dylib
+
+これを欠かすと公証は通るがアプリ起動時に `Killed: 9` で即死する。
+
+### 10.5 検証
+
+スクリプト末尾で自動で:
+
+```bash
+codesign --verify --strict --verbose=2 LabPlot.app   # 署名整合性
+spctl --assess --type execute --verbose=2 LabPlot.app # Gatekeeper assessment
+xcrun stapler validate LabPlot.app                   # 公証チケット同梱確認
+```
+
+を走らせる。`spctl` で `accepted, source=Notarized Developer ID` が出れば、
+配布先 Mac でダブルクリックして警告ダイアログなしで起動できる状態。
+
+`xattr -dr com.apple.quarantine` の手動解除はもう不要。
+
+### 10.6 トラブルシューティング
+
+| 症状 | 原因と対処 |
+| --- | --- |
+| `notarytool` が `Invalid` で返る | `xcrun notarytool log <submission-id>` でログ JSON を取得。`code-signature-flags` や `hardened` の欠如が典型。`--options runtime` を付け忘れていないか確認 |
+| ステープル後の .app が `Killed: 9` で起動しない | entitlements の 3 項目が反映されていない。`codesign -d --entitlements - LabPlot.app` で表示して確認 |
+| `Developer ID Application: ...` 証明書が見つからない | `security find-identity -v -p codesigning` で表示されないなら Keychain への取り込み失敗。`.cer` をダブルクリックし直す |
+| `notarytool submit` で `Forbidden` | app-specific password の typo か、Team ID / Apple ID の組み合わせ違い。Apple Developer サイトの "Team Membership" でも Team ID を再確認 |
+| zip 内の .app が破損しているとはじかれる | `ditto` を使う。`zip -r` だと拡張属性 / シンボリックリンク / Resource Fork が落ちる |
+
+---
+
+## 11. 今後の検討項目
+
+- `osx-x64` (Intel Mac) RID を CI に追加するか (`publish-macos.sh` 自体は
+  `LABPLOT_RID=osx-x64` で動くので、あとは GitHub Actions の matrix に追加するだけ)
 - macOS の `Cmd+O` / `Cmd+S` ショートカット対応 (現状 `Ctrl+O` 固定)
 - ファイルダイアログのデフォルト保存先を `~/Documents` ベースに切り替え
   (Windows のレジストリ参照ロジックが macOS で動かないので fallback ルート)

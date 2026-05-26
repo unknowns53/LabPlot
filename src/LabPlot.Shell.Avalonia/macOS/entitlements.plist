@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Developer ID 配布用 entitlements。Hardened Runtime + Notarization を有効にすると
+  .NET (CoreCLR) の JIT がそのままでは "killed: 9" で落ちるため、以下 3 つを
+  明示的に許可する。dotnet publish が出力する LabPlot.Avalonia 実行ファイルと
+  内部 dylib に対し、scripts/publish-macos.sh から codesign --entitlements で適用する。
+
+  - allow-jit:                          JIT で生成したコードを実行可能ページに置く
+  - allow-unsigned-executable-memory:   ReadyToRun の事前生成コードや動的アロケート領域
+  - disable-library-validation:         自前バンドルした native dylib (SkiaSharp 等)
+                                        を Apple 純正以外の署名でロードする
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

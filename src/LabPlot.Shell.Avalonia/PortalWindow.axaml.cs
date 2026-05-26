@@ -44,6 +44,8 @@ public partial class PortalWindow : Window
         // 直近セッションのウィンドウサイズ・位置を復元する。Portal もリサイズ可能なので
         // 利用者の作業環境 (ウルトラワイド / サブモニタ) を毎起動で破壊しないように。
         WindowStateStore.ApplyTo(this, WindowStateAppKey);
+        // macOS では "Ctrl+1" のような tooltip 表記を "Cmd+1" に置換 (Windows / Linux は noop)。
+        KeyboardShortcuts.LocalizeTooltipsForMac(this);
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -89,11 +91,12 @@ public partial class PortalWindow : Window
         => OpenSingleton<LabPlot.DLS.Avalonia.MainWindow>();
 
     // v1.3 Batch G: Portal にもキーボードショートカットを入れる。
-    // Ctrl+1 = GPC、Ctrl+2 = UV-Vis、Ctrl+3 = DLS、F1 = ショートカット一覧、Esc = 終了。
+    // Ctrl/Cmd+1 = GPC、Ctrl/Cmd+2 = UV-Vis、Ctrl/Cmd+3 = DLS、F1 = ショートカット一覧、Esc = 終了。
+    // 修飾キーは KeyboardShortcuts.HasCommandModifier 経由で OS 別に出し分ける (macOS = Cmd)。
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        if (ctrl)
+        var cmd = e.HasCommandModifier();
+        if (cmd)
         {
             switch (e.Key)
             {

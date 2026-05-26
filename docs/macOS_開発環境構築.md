@@ -278,7 +278,10 @@ Windows の `IFileOpenDialog` 相当として macOS は NSOpenPanel を呼ぶ。
 Avalonia の `IStorageProvider` 経由なら抽象化されているので code 変更は
 不要だが、UI の細部 (アイコン、サイドバーの並び、ホームディレクトリ
 初期位置) は macOS の作法に従う。`SuggestedStartLocation` で渡したパスが
-無効だと無音で `~` フォールバックする挙動なので注意。
+無効だと無音で `~` フォールバックする挙動だが、v1.3.3 で
+`FormattingDefaultsStore.GetEffectiveDefaultOutputDirectory` が macOS のとき
+`~/Documents` を fallback として返すようにしたので、最初の Save / Open は
+ホーム直下からではなく書類フォルダから始まる。
 
 ### 7.5 ScottPlot の描画
 
@@ -440,8 +443,12 @@ xcrun stapler validate LabPlot.app                   # 公証チケット同梱�
 
 - `osx-x64` (Intel Mac) RID を CI に追加するか (`publish-macos.sh` 自体は
   `LABPLOT_RID=osx-x64` で動くので、あとは GitHub Actions の matrix に追加するだけ)
-- macOS の `Cmd+O` / `Cmd+S` ショートカット対応 (現状 `Ctrl+O` 固定)
-- ファイルダイアログのデフォルト保存先を `~/Documents` ベースに切り替え
-  (Windows のレジストリ参照ロジックが macOS で動かないので fallback ルート)
+- アプリメニューバー (`NSMenu`) の整備: macOS は他 OS と違いウィンドウから独立した
+  アプリメニューが Cmd+Q / Preferences / About の標準受け口になる。現状は未実装
+- Dock メニュー (右クリックで "Open Recent" や About を出すやつ) は未対応
 
 ここに着手するときは別 PR / 別ドキュメントで切り出す。
+
+v1.3.3 で `Cmd+O` / `Cmd+S` 等の OS 別ショートカット出し分け (`KeyboardShortcuts.HasCommandModifier`)
+とファイルダイアログ既定パスの macOS フォールバック (`GetEffectiveDefaultOutputDirectory` で
+`~/Documents`) は対応済み。F1 cheat-sheet と ToolTip 表記も Mac では "Cmd" 表示に切り替わる。

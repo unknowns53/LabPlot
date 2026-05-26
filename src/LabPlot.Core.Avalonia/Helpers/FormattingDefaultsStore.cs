@@ -83,4 +83,25 @@ public static class FormattingDefaultsStore
         var dir = config.DefaultOutputDirectory;
         return !string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir) ? dir : null;
     }
+
+    /// <summary>
+    /// ファイルダイアログの `SuggestedStartLocation` に渡す「実効的な既定パス」を返す。
+    /// ユーザが設定済みの <see cref="GraphFormattingConfigBase.DefaultOutputDirectory"/> が
+    /// あればそれを優先し、未設定の場合は macOS のみ `~/Documents` をフォールバックとして返す
+    /// (Windows / Linux は従来通り null を返し、Avalonia 側のデフォルトに任せる)。
+    ///
+    /// Windows 由来のレジストリ参照ロジックが macOS だと無音で `~` に落ちる挙動 (docs §7.4)
+    /// を防ぐためで、Mac 利用者の最初の Save / Open がホーム直下から始まる UX を回避する。
+    /// `GetExistingDefaultOutputDirectory` は「保存済みの値だけ」が必要な呼び元 (直接保存パス
+    /// 算出など) のために残してある。
+    /// </summary>
+    public static string? GetEffectiveDefaultOutputDirectory(GraphFormattingConfigBase config)
+    {
+        var saved = GetExistingDefaultOutputDirectory(config);
+        if (saved is not null) return saved;
+        if (!OperatingSystem.IsMacOS()) return null;
+
+        var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        return !string.IsNullOrEmpty(documents) && Directory.Exists(documents) ? documents : null;
+    }
 }

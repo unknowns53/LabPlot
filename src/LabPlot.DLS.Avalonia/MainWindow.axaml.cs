@@ -160,12 +160,12 @@ public partial class MainWindow : Window, IDlsAnalysisHost
     }
 
     // WPF の InputBindings / RoutedUICommand 配列を OnKeyDown 1 メソッドに集約。
-    // 修飾キー判定は Avalonia の KeyModifiers flags で行う。
+    // 修飾キー判定は KeyboardShortcuts.HasCommandModifier 経由で OS 別に出し分ける (macOS = Cmd)。
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        var cmd = e.HasCommandModifier();
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-        if (ctrl && shift)
+        if (cmd && shift)
         {
             switch (e.Key)
             {
@@ -173,7 +173,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 case Key.O: _ = LoadSessionAsync(); e.Handled = true; return;
             }
         }
-        else if (ctrl)
+        else if (cmd)
         {
             switch (e.Key)
             {
@@ -369,7 +369,9 @@ public partial class MainWindow : Window, IDlsAnalysisHost
 
     private async Task<IStorageFolder?> GetDefaultStartLocationAsync(IStorageProvider sp)
     {
-        var dir = FormattingDefaultsStore.GetExistingDefaultOutputDirectory(_formattingDefaults);
+        // ユーザ設定の DefaultOutputDirectory がなければ、macOS は ~/Documents に
+        // フォールバック (docs §7.4 の SuggestedStartLocation null → ~ 落ちを回避)。
+        var dir = FormattingDefaultsStore.GetEffectiveDefaultOutputDirectory(_formattingDefaults);
         if (string.IsNullOrEmpty(dir)) return null;
         try { return await sp.TryGetFolderFromPathAsync(dir); }
         catch { return null; }
@@ -2470,6 +2472,8 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         base.OnOpened(e);
         // 直近セッションのウィンドウサイズ・位置を復元 (画面外フォールバックは Store 側で処理)。
         WindowStateStore.ApplyTo(this, RecentFilesAppKey);
+        // macOS では "Ctrl+O" のような tooltip 表記を "Cmd+O" に置換 (Windows / Linux は noop)。
+        KeyboardShortcuts.LocalizeTooltipsForMac(this);
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)

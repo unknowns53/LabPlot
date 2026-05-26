@@ -313,6 +313,8 @@ public partial class MainWindow : Window
         base.OnOpened(e);
         // 直近セッションのウィンドウサイズ・位置を復元する。
         WindowStateStore.ApplyTo(this, RecentFilesAppKey);
+        // macOS では "Ctrl+O" のような tooltip 表記を "Cmd+O" に置換 (Windows / Linux は noop)。
+        KeyboardShortcuts.LocalizeTooltipsForMac(this);
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -324,9 +326,9 @@ public partial class MainWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        var cmd = e.HasCommandModifier();
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-        if (ctrl && shift)
+        if (cmd && shift)
         {
             switch (e.Key)
             {
@@ -334,7 +336,7 @@ public partial class MainWindow : Window
                 case Key.O: LoadSessionButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
             }
         }
-        else if (ctrl)
+        else if (cmd)
         {
             switch (e.Key)
             {
@@ -439,7 +441,9 @@ public partial class MainWindow : Window
 
     private async Task<IStorageFolder?> GetDefaultStartLocationAsync(IStorageProvider sp)
     {
-        var dir = FormattingDefaultsStore.GetExistingDefaultOutputDirectory(_formattingDefaults);
+        // ユーザ設定の DefaultOutputDirectory がなければ、macOS は ~/Documents に
+        // フォールバック (docs §7.4 の SuggestedStartLocation null → ~ 落ちを回避)。
+        var dir = FormattingDefaultsStore.GetEffectiveDefaultOutputDirectory(_formattingDefaults);
         if (string.IsNullOrEmpty(dir)) return null;
         try { return await sp.TryGetFolderFromPathAsync(dir); }
         catch { return null; }

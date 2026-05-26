@@ -57,23 +57,29 @@ public sealed partial class KeyboardShortcutsWindow : Window
 
     // ---------- データソース ----------
 
-    private static IReadOnlyList<ShortcutGroup> BuildShortcutGroups(AppKind app) => app switch
+    private static IReadOnlyList<ShortcutGroup> BuildShortcutGroups(AppKind app)
     {
+        // OS 別の修飾キー名 (macOS なら "Cmd"、それ以外は "Ctrl") を 1 度だけ拾って共通の
+        // 補間文字列に流す。各エントリで KeyboardShortcuts.CommandModifierLabel を直接書くより
+        // 読みやすく、Mac / Windows / Linux で同じ entry list が動的に切り替わる。
+        var mod = KeyboardShortcuts.CommandModifierLabel;
+        return app switch
+        {
         AppKind.Dls => new[]
         {
             new ShortcutGroup("ファイル / 解析", new[]
             {
-                new ShortcutEntry("Ctrl + O", "DLS xlsx を開く"),
-                new ShortcutEntry("Ctrl + S", "グラフを PNG / SVG で保存"),
-                new ShortcutEntry("Ctrl + E", "解析結果を CSV / xlsx で出力"),
-                new ShortcutEntry("Ctrl + Shift + S", "解析条件を保存 (.dlsjson)"),
-                new ShortcutEntry("Ctrl + Shift + O", "解析条件を読み込み (.dlsjson)"),
+                new ShortcutEntry($"{mod} + O", "DLS xlsx を開く"),
+                new ShortcutEntry($"{mod} + S", "グラフを PNG / SVG で保存"),
+                new ShortcutEntry($"{mod} + E", "解析結果を CSV / xlsx で出力"),
+                new ShortcutEntry($"{mod} + Shift + S", "解析条件を保存 (.dlsjson)"),
+                new ShortcutEntry($"{mod} + Shift + O", "解析条件を読み込み (.dlsjson)"),
             }),
             new ShortcutGroup("表示", new[]
             {
-                new ShortcutEntry("Ctrl + L", "全シート選択 / 全解除"),
-                new ShortcutEntry("Ctrl + R", "軸範囲を自動に戻す"),
-                new ShortcutEntry("Ctrl + G", "プロットグリッドの表示切替"),
+                new ShortcutEntry($"{mod} + L", "全シート選択 / 全解除"),
+                new ShortcutEntry($"{mod} + R", "軸範囲を自動に戻す"),
+                new ShortcutEntry($"{mod} + G", "プロットグリッドの表示切替"),
                 new ShortcutEntry("F2", "凡例名 TextBox にフォーカス"),
                 new ShortcutEntry("F1", "このヘルプ"),
             }),
@@ -82,7 +88,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
                 new ShortcutEntry("左ドラッグ", "パン"),
                 new ShortcutEntry("右ドラッグ", "範囲ズーム"),
                 new ShortcutEntry("ホイール", "拡大 / 縮小"),
-                new ShortcutEntry("Ctrl + ホイール", "横方向のみ拡縮"),
+                new ShortcutEntry($"{mod} + ホイール", "横方向のみ拡縮"),
                 new ShortcutEntry("Shift + ホイール", "縦方向のみ拡縮"),
                 new ShortcutEntry("ダブルクリック", "ベンチマーク表示"),
             }),
@@ -91,21 +97,21 @@ public sealed partial class KeyboardShortcutsWindow : Window
         {
             new ShortcutGroup("ファイル / 解析", new[]
             {
-                new ShortcutEntry("Ctrl + O", "CSV / LabSolutions TXT を開く"),
-                new ShortcutEntry("Ctrl + S", "グラフを PNG / SVG で保存"),
-                new ShortcutEntry("Ctrl + E", "解析結果を CSV / xlsx で出力"),
-                new ShortcutEntry("Ctrl + Shift + S", "解析条件を保存"),
-                new ShortcutEntry("Ctrl + Shift + O", "解析条件を読み込み"),
+                new ShortcutEntry($"{mod} + O", "CSV / LabSolutions TXT を開く"),
+                new ShortcutEntry($"{mod} + S", "グラフを PNG / SVG で保存"),
+                new ShortcutEntry($"{mod} + E", "解析結果を CSV / xlsx で出力"),
+                new ShortcutEntry($"{mod} + Shift + S", "解析条件を保存"),
+                new ShortcutEntry($"{mod} + Shift + O", "解析条件を読み込み"),
             }),
             new ShortcutGroup("表示", new[]
             {
-                new ShortcutEntry("Ctrl + L", "重ね描きの切替"),
-                new ShortcutEntry("Ctrl + R", "軸範囲を自動に戻す"),
-                new ShortcutEntry("Ctrl + G", "プロットグリッドの表示切替"),
-                new ShortcutEntry("Ctrl + 1", "溶媒の選択を循環"),
-                new ShortcutEntry("Ctrl + 2", "検出器の選択を循環"),
-                new ShortcutEntry("Ctrl + 3", "分子量表示の切替"),
-                new ShortcutEntry("Ctrl + 4", "MW Y モードを循環"),
+                new ShortcutEntry($"{mod} + L", "重ね描きの切替"),
+                new ShortcutEntry($"{mod} + R", "軸範囲を自動に戻す"),
+                new ShortcutEntry($"{mod} + G", "プロットグリッドの表示切替"),
+                new ShortcutEntry($"{mod} + 1", "溶媒の選択を循環"),
+                new ShortcutEntry($"{mod} + 2", "検出器の選択を循環"),
+                new ShortcutEntry($"{mod} + 3", "分子量表示の切替"),
+                new ShortcutEntry($"{mod} + 4", "MW Y モードを循環"),
                 new ShortcutEntry("F2", "凡例名 TextBox にフォーカス"),
                 new ShortcutEntry("F1", "このヘルプ"),
             }),
@@ -114,7 +120,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
                 new ShortcutEntry("左ドラッグ", "パン"),
                 new ShortcutEntry("右ドラッグ", "範囲ズーム"),
                 new ShortcutEntry("ホイール", "拡大 / 縮小"),
-                new ShortcutEntry("Ctrl + ホイール", "横方向のみ拡縮"),
+                new ShortcutEntry($"{mod} + ホイール", "横方向のみ拡縮"),
                 new ShortcutEntry("Shift + ホイール", "縦方向のみ拡縮"),
                 new ShortcutEntry("ダブルクリック", "ベンチマーク表示"),
             }),
@@ -123,17 +129,17 @@ public sealed partial class KeyboardShortcutsWindow : Window
         {
             new ShortcutGroup("ファイル / 解析", new[]
             {
-                new ShortcutEntry("Ctrl + O", "JASCO TXT を開く"),
-                new ShortcutEntry("Ctrl + S", "グラフを PNG / SVG で保存"),
-                new ShortcutEntry("Ctrl + E", "解析結果を CSV / xlsx で出力"),
-                new ShortcutEntry("Ctrl + Shift + S", "解析条件を保存"),
-                new ShortcutEntry("Ctrl + Shift + O", "解析条件を読み込み"),
+                new ShortcutEntry($"{mod} + O", "JASCO TXT を開く"),
+                new ShortcutEntry($"{mod} + S", "グラフを PNG / SVG で保存"),
+                new ShortcutEntry($"{mod} + E", "解析結果を CSV / xlsx で出力"),
+                new ShortcutEntry($"{mod} + Shift + S", "解析条件を保存"),
+                new ShortcutEntry($"{mod} + Shift + O", "解析条件を読み込み"),
             }),
             new ShortcutGroup("表示", new[]
             {
-                new ShortcutEntry("Ctrl + L", "重ね描きの切替"),
-                new ShortcutEntry("Ctrl + R", "軸範囲を自動に戻す"),
-                new ShortcutEntry("Ctrl + G", "プロットグリッドの表示切替"),
+                new ShortcutEntry($"{mod} + L", "重ね描きの切替"),
+                new ShortcutEntry($"{mod} + R", "軸範囲を自動に戻す"),
+                new ShortcutEntry($"{mod} + G", "プロットグリッドの表示切替"),
                 new ShortcutEntry("F2", "凡例名 TextBox にフォーカス"),
                 new ShortcutEntry("F1", "このヘルプ"),
             }),
@@ -146,7 +152,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
                 new ShortcutEntry("左ドラッグ", "パン"),
                 new ShortcutEntry("右ドラッグ", "範囲ズーム"),
                 new ShortcutEntry("ホイール", "拡大 / 縮小"),
-                new ShortcutEntry("Ctrl + ホイール", "横方向のみ拡縮"),
+                new ShortcutEntry($"{mod} + ホイール", "横方向のみ拡縮"),
                 new ShortcutEntry("Shift + ホイール", "縦方向のみ拡縮"),
                 new ShortcutEntry("ダブルクリック", "ベンチマーク表示"),
             }),
@@ -164,9 +170,9 @@ public sealed partial class KeyboardShortcutsWindow : Window
         {
             new ShortcutGroup("アプリ起動", new[]
             {
-                new ShortcutEntry("Ctrl + 1", "GPC Analyzer を開く"),
-                new ShortcutEntry("Ctrl + 2", "UV-Vis Analyzer を開く"),
-                new ShortcutEntry("Ctrl + 3", "DLS Analyzer を開く"),
+                new ShortcutEntry($"{mod} + 1", "GPC Analyzer を開く"),
+                new ShortcutEntry($"{mod} + 2", "UV-Vis Analyzer を開く"),
+                new ShortcutEntry($"{mod} + 3", "DLS Analyzer を開く"),
             }),
             new ShortcutGroup("一般", new[]
             {
@@ -174,7 +180,8 @@ public sealed partial class KeyboardShortcutsWindow : Window
             }),
         },
         _ => System.Array.Empty<ShortcutGroup>(),
-    };
+        };
+    }
 
     public sealed record ShortcutEntry(string KeyCombo, string Description);
     public sealed record ShortcutGroup(string GroupName, IReadOnlyList<ShortcutEntry> Entries);

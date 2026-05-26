@@ -3,6 +3,20 @@
              x:Class="LabPlot.Shell.Avalonia.App"
              RequestedThemeVariant="Light">
 
+    <!--
+      macOS のアプリメニューバー (LabPlot ▸ About / Preferences / Quit) を組む。
+      NativeMenu は macOS で NSMenu に橋渡しされ、Windows / Linux では無視される。
+      Quit (Cmd+Q) / Hide / Hide Others / Show All は AppKit が自動でアプリメニューに
+      足してくれるので明示しない。About / Preferences だけここでぶら下げ、Click 時に
+      App.OnAbout_Click / OnPreferences_Click を発火させる。
+    -->
+    <NativeMenu.Menu>
+        <NativeMenu>
+            <NativeMenuItem Header="About LabPlot" Click="OnAbout_Click" />
+            <NativeMenuItem Header="Preferences..." Gesture="Cmd+OemComma" Click="OnPreferences_Click" />
+        </NativeMenu>
+    </NativeMenu.Menu>
+
     <Application.Resources>
         <!-- Core.Avalonia の共通リソース (Brush / StreamGeometry / ControlTheme) を
              Application 全体に展開する。WPF 版 App.xaml の MergedDictionaries に

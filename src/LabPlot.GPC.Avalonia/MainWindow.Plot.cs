@@ -64,6 +64,12 @@ public partial class MainWindow
         // 起動時 (InitializePlotControl 直後) と全データセット削除時の両方から呼ばれる。
         PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
 
+        // 全データセット削除パス (RemoveDatasetButton_Click の Count==0 ブランチ) から呼ばれる時、
+        // ScottPlot.Plot に残っている Scatter / Line 要素を明示的に消さないと「空状態のラベルだけ
+        // 書き換えて、過去のデータ曲線が残ったまま」というゴースト描画になる。DLS 版の
+        // InitializeEmptyPlot() は最初から Plot.Clear() を呼んでいるので同じ規約に揃える。
+        _chromatogramPlot.Plot.Clear();
+
         _chromatogramPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
         _chromatogramPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
         _chromatogramPlot.Plot.YLabel(DefaultLabels.PlaceholderYLabel);

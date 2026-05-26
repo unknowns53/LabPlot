@@ -200,6 +200,7 @@ public partial class MainWindow : Window
     private const string RecentFilesAppKey = "gpc";
     private bool _suppressRecentFilesEvents;
     private string? _lastLoadedFilePath;
+    private MissingFileWatcher? _missingFileWatcher;
 
     private void RefreshRecentFilesUi()
     {
@@ -247,12 +248,63 @@ public partial class MainWindow : Window
     }
 
     // 履歴 ComboBox の右クリックメニュー → 「履歴をクリア」。
+    // 履歴 (MRU) と表示中のプロット・データセットの寿命を揃える。
+    // 履歴だけ消えてグラフが残ると「リセットしたつもり」が画面に痕跡を
+    // 残す形になり、ファイル削除と組み合わせると消し方が無くなるため。
     private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
     {
         RecentFilesStore.Clear(RecentFilesAppKey);
         _lastLoadedFilePath = null;
+
+        _currentDataset = null;
+        _loadedDatasets.Clear();
+        _datasetStyles.Clear();
+        _datasetSelectedPeakIds.Clear();
+        ClearComputedDataCaches();
+        _activeIndex = -1;
+        if (_chromatogramPlot is not null)
+        {
+            _chromatogramPlot.Plot.Clear();
+            _chromatogramPlot.Refresh();
+        }
+        RefreshDatasetEntries();
+        SetGraphActionsEnabled(false);
+        UpdateStatisticsText((MolecularWeightStatistics?)null);
+
+        _missingFileWatcher?.Watch(null);
+
         RefreshRecentFilesUi();
-        SetStatus("最近開いたファイルの履歴をクリアしました。", StatusSeverity.Info);
+        SetStatus("最近開いたファイルの履歴とプロットをクリアしました。", StatusSeverity.Info);
+    }
+
+    // 読み込み中のファイルが OS 側で削除 / リネームされた瞬間に MissingFileWatcher から
+    // UI スレッド経由で呼ばれる。MRU 履歴は触らず、現在表示中のプロットとデータセット
+    // 内部状態だけクリアする (一時的な移動かもしれないので履歴は残し、ユーザが MRU
+    // から再選択した時に「ファイルがありません」エラーで気付けば十分とする方針)。
+    private void OnLoadedFileMissing()
+    {
+        var name = string.IsNullOrEmpty(_lastLoadedFilePath)
+            ? "ファイル"
+            : Path.GetFileName(_lastLoadedFilePath);
+
+        _missingFileWatcher?.Watch(null);
+        _lastLoadedFilePath = null;
+        _currentDataset = null;
+        _loadedDatasets.Clear();
+        _datasetStyles.Clear();
+        _datasetSelectedPeakIds.Clear();
+        ClearComputedDataCaches();
+        _activeIndex = -1;
+        if (_chromatogramPlot is not null)
+        {
+            _chromatogramPlot.Plot.Clear();
+            _chromatogramPlot.Refresh();
+        }
+        RefreshDatasetEntries();
+        SetGraphActionsEnabled(false);
+        UpdateStatisticsText((MolecularWeightStatistics?)null);
+
+        SetStatus($"{name} が削除されたためプロットをクリアしました。", StatusSeverity.Info);
     }
 
     // WPF の InputBindings 群を OnKeyDown 1 メソッドに集約。
@@ -266,6 +318,7 @@ public partial class MainWindow : Window
     protected override void OnClosing(WindowClosingEventArgs e)
     {
         WindowStateStore.PersistFrom(this, RecentFilesAppKey);
+        _missingFileWatcher?.Dispose();
         base.OnClosing(e);
     }
 
@@ -677,6 +730,7 @@ public partial class MainWindow : Window
             }
             // MRU の最上位 (= fileNames[0]) を選択状態のまま残し、現在開いているファイルを可視化する。
             _lastLoadedFilePath = fileNames[0];
+            (_missingFileWatcher ??= new MissingFileWatcher(OnLoadedFileMissing)).Watch(_lastLoadedFilePath);
             RefreshRecentFilesUi();
 
             // v1.3 Batch H: タイトルバー Subtitle と Window Title にファイル名を反映。

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS app bundle 用 Info.plist テンプレート。
+
+  dotnet publish -r osx-arm64 後、LabPlot.Shell.Avalonia.csproj の
+  MacOSAppBundle target がこの plist を LabPlot.app/Contents/Info.plist
+  にコピーし、CFBundleVersion / CFBundleShortVersionString のバージョン
+  プレースホルダを $(Version) プロパティで sed 置換する。
+  プレースホルダは「先頭末尾アンダースコア 2 文字 + VERSION」の形を
+  使っているので、ここでは手動編集しない (実体は下の string 要素を参照)。
+
+  CFBundleExecutable は AssemblyName (LabPlot.Avalonia) と一致させる。
+  CFBundleIconFile は Assets/app-icon.icns のファイル名 (拡張子なし)。
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>LabPlot</string>
+    <key>CFBundleDisplayName</key>
+    <string>LabPlot</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.unknowns53.labplot</string>
+    <key>CFBundleVersion</key>
+    <string>__VERSION__</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__VERSION__</string>
+    <key>CFBundleExecutable</key>
+    <string>LabPlot.Avalonia</string>
+    <key>CFBundleIconFile</key>
+    <string>app-icon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>

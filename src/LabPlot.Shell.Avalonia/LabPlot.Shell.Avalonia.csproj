@@ -36,4 +36,51 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.14" />
   </ItemGroup>
 
+  <!-- macOS .app バンドル化。dotnet publish -r osx-arm64 の Publish ターゲット完了後に
+       LabPlot.app/Contents/{MacOS, Resources, Info.plist} を組み立てて Finder から
+       ダブルクリック起動 / Dock アイコン表示できるようにする。osx-arm64 RID のときだけ
+       走るので、Windows / Linux 向け publish には影響しない。
+
+       手順:
+         1. publish 出力ディレクトリに LabPlot.app/Contents/{MacOS,Resources} を作成
+         2. macOS/Info.plist の __VERSION__ プレースホルダを $(Version) で置換しコピー
+         3. Assets/app-icon.icns を Resources/ にコピー (Info.plist の CFBundleIconFile が参照)
+         4. publish された全ファイル (LabPlot.Avalonia 実行ファイル + native libs) を
+            Contents/MacOS/ に移動。LabPlot.app 自身は除外して再帰移動を防ぐ -->
+  <ItemGroup>
+    <None Include="Assets\app-icon.icns" />
+    <None Include="macOS\Info.plist" />
+  </ItemGroup>
+
+  <Target Name="MacOSAppBundle"
+          AfterTargets="Publish"
+          Condition="'$(RuntimeIdentifier)' == 'osx-arm64' Or '$(RuntimeIdentifier)' == 'osx-x64'">
+    <PropertyGroup>
+      <AppBundleRoot>$(PublishDir)LabPlot.app</AppBundleRoot>
+      <ContentsDir>$(AppBundleRoot)/Contents</ContentsDir>
+    </PropertyGroup>
+
+    <RemoveDir Directories="$(AppBundleRoot)" Condition="Exists('$(AppBundleRoot)')" />
+    <MakeDir Directories="$(ContentsDir)/MacOS;$(ContentsDir)/Resources" />
+
+    <Exec Command="sed &quot;s/__VERSION__/$(Version)/g&quot; &quot;$(MSBuildProjectDirectory)/macOS/Info.plist&quot; &gt; &quot;$(ContentsDir)/Info.plist&quot;" />
+
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/Assets/app-icon.icns"
+          DestinationFolder="$(ContentsDir)/Resources/" />
+
+    <!-- $(PublishDir)**\* で再帰的に全ファイル (samples/demo.xlsx などサブディレクトリも) を
+         取得し、%(RecursiveDir) で Contents/MacOS/ 配下に同じ構造で移動する。
+         LabPlot.app 自身は除外して再帰移動を防ぐ。 -->
+    <ItemGroup>
+      <_AppBundlePayload Include="$(PublishDir)**\*" Exclude="$(PublishDir)LabPlot.app/**" />
+    </ItemGroup>
+    <Move SourceFiles="@(_AppBundlePayload)"
+          DestinationFiles="@(_AppBundlePayload->'$(ContentsDir)/MacOS/%(RecursiveDir)%(Filename)%(Extension)')" />
+
+    <!-- 残った空ディレクトリを掃除 (samples/ など、Move 後に親ディレクトリが空になる) -->
+    <RemoveDir Directories="$(PublishDir)samples" Condition="Exists('$(PublishDir)samples')" />
+
+    <Message Text="macOS .app bundle 作成完了: $(AppBundleRoot)" Importance="high" />
+  </Target>
+
 </Project>

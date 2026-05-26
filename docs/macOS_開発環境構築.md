@@ -136,9 +136,14 @@ git log --oneline -5
 
 ### 5.1 依存復元 + Debug ビルド
 
+`LabPlot.slnx` を直接渡すと WPF 版プロジェクト (`net10.0-windows*`) が
+`NETSDK1100` で復元失敗するので、macOS では Avalonia 版 Shell を起点に
+復元する。`Shell.Avalonia` の `ProjectReference` を辿って Avalonia 版
+9 プロジェクトが芋づる式に復元される。
+
 ```bash
-dotnet restore LabPlot.slnx
-dotnet build src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj -c Debug
+dotnet restore src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj
+dotnet build   src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj -c Debug
 ```
 
 `net10.0` ターゲットなので警告は基本ゼロ、AVLN3001 (XAML resource 未公開
@@ -154,7 +159,7 @@ LabPlot Portal が立ち上がり、GPC / Spectrum / DLS のタイルが表示�
 OK。各タイルから個別モジュールを起動して、Window が描けるところまで
 確認する。
 
-### 5.3 Release single-file の publish
+### 5.3 Release .app bundle の publish
 
 Windows 側と同じコマンドで `osx-arm64` ターゲットを直接ビルドできる:
 
@@ -165,8 +170,12 @@ dotnet publish src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj \
   -p:Version=1.3.1
 ```
 
-成果物は `src/LabPlot.Shell.Avalonia/bin/Release/net10.0/osx-arm64/publish/LabPlot.Avalonia`。
-ダブルクリック起動可能だが、初回は Gatekeeper の警告が出る (詳細は 7 章)。
+成果物は `src/LabPlot.Shell.Avalonia/bin/Release/net10.0/osx-arm64/publish/LabPlot.app`。
+Publish ターゲット完了後に `LabPlot.Shell.Avalonia.csproj` の MacOSAppBundle
+target が自動で `.app` バンドル化する (Contents/MacOS に実行ファイルと dylib、
+Contents/Resources に app-icon.icns、Contents/Info.plist に macOS/Info.plist の
+バージョン置換版)。Finder でダブルクリック起動でき、Dock には .icns 由来の
+LabPlot アイコンが表示される。初回は Gatekeeper の警告が出る (詳細は 7 章)。
 
 ### 5.4 ユニットテスト
 
@@ -176,10 +185,12 @@ DLS Core の 179 件が PASS することだけ確認しておく:
 dotnet test src/LabPlot.DLS/DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj
 ```
 
-GPC / Spectrum の test も同様に走らせる場合は:
+GPC / Spectrum の test も同様に走らせる場合は、5.1 と同じ理由で
+`LabPlot.slnx` 単位ではなくテスト用 csproj を個別に指定する:
 
 ```bash
-dotnet test LabPlot.slnx
+dotnet test src/LabPlot.GPC/GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj
+dotnet test src/LabPlot.Spectrum/SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj
 ```
 
 ---
@@ -212,14 +223,13 @@ Avalonia の XAML プレビューは Rider 標準で動く (拡張不要)。
 
 ### 7.1 Gatekeeper / Quarantine
 
-`dotnet publish` で作った `LabPlot.Avalonia` バイナリは未署名なので、
-初回ダブルクリックすると「開発元を確認できない」ダイアログで起動拒否
-される。回避策:
+`dotnet publish` で作った `LabPlot.app` は未署名なので、初回ダブルクリック
+すると「開発元を確認できない」ダイアログで起動拒否される。回避策:
 
 ```bash
-# 個別バイナリの quarantine 属性を外す
+# .app バンドル全体から quarantine 属性を外す (-r で再帰)
 xattr -dr com.apple.quarantine \
-  src/LabPlot.Shell.Avalonia/bin/Release/net10.0/osx-arm64/publish/LabPlot.Avalonia
+  src/LabPlot.Shell.Avalonia/bin/Release/net10.0/osx-arm64/publish/LabPlot.app
 
 # あるいは右クリック → 「開く」→ ダイアログで「開く」を押す (1 回で永続化)
 ```
@@ -231,18 +241,19 @@ xattr -dr com.apple.quarantine \
 ### 7.2 AppData の物理パス
 
 LabPlot は `RecentFilesStore` / `WindowStateStore` / `SolventPresetStore` が
-`Environment.SpecialFolder.ApplicationData` 配下に JSON を吐く。.NET 10 の
+`Environment.SpecialFolder.ApplicationData` 配下に JSON を吐く。.NET 5 以降の
 macOS 実装ではここが:
 
 ```text
-~/.config/LabPlot/
+~/Library/Application Support/LabPlot/
 ```
 
-になる (Windows の `%APPDATA%\LabPlot` 相当)。`~/Library/Application Support/`
-ではないことに注意。動作確認時の grep 先:
+になる (Windows の `%APPDATA%\LabPlot` 相当)。`~/.config/` ではなく
+macOS の作法に従った `~/Library/Application Support/` 配下である点に注意。
+動作確認時の grep 先:
 
 ```bash
-ls -la ~/.config/LabPlot/
+ls -la ~/Library/Application\ Support/LabPlot/
 # recent-{dls,gpc,spectrum,portal}.json
 # window-{dls,gpc,spectrum,portal}.json
 # dls-solvent-presets.json
@@ -329,9 +340,9 @@ Windows 側で済んでいる項目に加えて、以下を実機確認する:
 
 ## 10. 次に検討する項目
 
-- `osx-x64` (Intel Mac) RID を CI に追加するか
+- `osx-x64` (Intel Mac) RID を CI に追加するか (csproj の MacOSAppBundle target
+  は `osx-x64` も対応済みなので CI 側の追加だけで済む見込み)
 - Apple Silicon 実機での `codesign` + `notarytool` での署名フロー
-- `.app` バンドル化 (`PublishMacOSAppBundle` プロパティ or 手動 plist)
 - macOS の `Cmd+O` / `Cmd+S` ショートカット対応 (現状 `Ctrl+O` 固定)
 - ファイルダイアログのデフォルト保存先を `~/Documents` ベースに切り替え
   (Windows のレジストリ参照ロジックが macOS で動かないので fallback ルート)

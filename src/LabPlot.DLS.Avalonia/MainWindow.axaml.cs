@@ -2451,7 +2451,17 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             _analysisWindow = new AnalysisWindow(this);
             _analysisWindow.Closed += (_, _) => _analysisWindow = null;
         }
-        if (!_analysisWindow.IsVisible) _analysisWindow.Show(this);
+        if (!_analysisWindow.IsVisible)
+        {
+            // macOS で Show(owner) は addChildWindow: で親に attach されるため、
+            // 子 Window が独立して最小化できなくなる。Windows / Linux の挙動は維持しつつ
+            // macOS のみ Owner なしで開く。MainWindow を閉じた時の連動 close は
+            // OnClosing 側で明示的に行っているので Owner を外しても破綻しない。
+            if (OperatingSystem.IsMacOS())
+                _analysisWindow.Show();
+            else
+                _analysisWindow.Show(this);
+        }
         _analysisWindow.Activate();
     }
 

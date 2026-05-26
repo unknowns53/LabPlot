@@ -6,6 +6,65 @@ distribution is the Avalonia portal (`LabPlot.Avalonia`); the WPF portal
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
+## [1.3.2] - 2026-05-26
+
+macOS first-class support. The Avalonia portal now ships as a Finder-launchable
+`.app` bundle on Apple Silicon, with two long-standing bugs (plot residue
+after file deletion / history clear, legend top-row clipping) fixed along the
+way, three macOS-specific issues smoked out during real-hardware verification,
+and a one-command Developer ID codesign + notarytool pipeline ready for
+distribution once a paid Apple Developer account is in hand.
+
+### Added
+
+- **macOS `.app` bundle** is produced automatically by `dotnet publish -r osx-arm64`
+  (and `osx-x64`). The Shell.Avalonia csproj has a post-publish target that
+  lays out `Contents/{MacOS, Resources, Info.plist}`, embeds the app icon as
+  `.icns`, and substitutes the build version into `Info.plist`. Double-click
+  from Finder lands on the LabPlot icon in the Dock.
+- **One-command codesign + notarytool pipeline** at `scripts/publish-macos.sh`:
+  runs `dotnet publish`, deep-codesigns every dylib and the `.app` itself with
+  Hardened Runtime, submits to `xcrun notarytool --wait`, staples the ticket,
+  and emits `dist/LabPlot-<version>-<rid>.zip`. Credentials are env-driven
+  (`APPLE_DEVELOPER_ID` / `APPLE_ID` / `APPLE_TEAM_ID` / `APPLE_APP_PASSWORD`)
+  and missing ones fail fast with a clear message.
+- **Hardened Runtime entitlements** (`macOS/entitlements.plist`) covering
+  `allow-jit`, `allow-unsigned-executable-memory`, and `disable-library-validation`
+  so the .NET CoreCLR JIT survives under notarization without being killed
+  at launch.
+- **Apple Silicon development setup guide** (`docs/macOS_開発環境構築.md`)
+  covering SDK install, repo build, smoke-test list, macOS-specific pitfalls
+  (Gatekeeper, AppData path, font fallback), and the full codesign + notarytool
+  workflow in section 10.
+
+### Changed
+
+- **Plot legend pinned to Arial** with padding scaled to font size, so the
+  top-row text is no longer clipped on macOS where Hiragino Sans's tall
+  ascender exceeded the previous padding.
+- **DLS AnalysisWindow fit-result rows are vertically centered**, fixing a
+  baseline offset where the Z-average value sat above its label.
+
+### Fixed
+
+- **Plot residue after a file is removed from the dataset list, the recent-files
+  history is cleared, or the source file is deleted on disk.** GPC and Spectrum
+  `InitializeEmptyPlot` now clears the plot first, all three modules clear
+  the plot on right-click-clear-history, and a new `MissingFileWatcher` fires
+  a UI-thread callback when the loaded file disappears from the filesystem
+  so the plot resets automatically.
+- **DLS AnalysisWindow could not be minimized on macOS** because Avalonia's
+  `Show(owner)` maps to `addChildWindow:` on AppKit, which suppresses the
+  child's minimize button. The owner attach is now skipped on macOS only;
+  Windows / Linux behavior is unchanged.
+
+### Misc
+
+- macOS setup doc `§5.1` / `§5.4` updated to scope `dotnet restore` / `dotnet test`
+  to specific csproj files (avoids `NETSDK1100` from the WPF projects in the
+  slnx); `§7.2` corrected to the .NET 5+ AppData path
+  (`~/Library/Application Support/LabPlot/`).
+
 ## [1.3.1] - 2026-05-25
 
 Maintenance follow-up to v1.3.0 focused on usability rather than new

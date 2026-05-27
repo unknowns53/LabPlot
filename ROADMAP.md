@@ -2,7 +2,7 @@
 
 LabPlot 全体の今後の機能追加・拡張計画をまとめたメモです。優先度や着手時期は流動的で、必要が具体化したものから順次着手する方針です。
 
-最終更新: 2026-05-26（**v1.3.3 で macOS UX 細部と CI 自動化**。Cmd+O 系の OS 別出し分け、ファイルダイアログ既定パスの `~/Documents` フォールバック、macOS App メニュー (About / Preferences / Quit / Cmd+,) と `dotnet run` 経路の Dock アイコンを整え、`v*` タグ push で 3 platform を自動 publish + GitHub Release 化する Actions ワークフローを導入。直前 v1.3.2 で macOS first-class (.app バンドル + codesign + notarytool パイプライン)、v1.3.1 で DLS 溶媒プリセット / Window 状態永続化 / 不正入力 toast、v1.3.0 で DLS AnalysisWindow 4 タブ化 + 横断 UI polish を完了済み）
+最終更新: 2026-05-27（**v1.3.4 で 3 モジュール横断のパフォーマンス改善 sweep**。GPC で確立した 3 パターン (パーサ data-row allocation 削減、複数ファイル並列読み込み、`Plot.Clear` → plottable pool 管理) を Spectrum / DLS にもそれぞれの構造に合わせて展開、BenchmarkDotNet 0.14.0 ベースのベンチマーク基盤を 3 モジュール全部に揃え v1.3.x の baseline を固定。あわせて `PortalWindow` (固定 540×620 / `CanResize=False`) が最大化ボタン経由で declared サイズを失い「最大化が戻らない」状態に陥る回帰を修正。直前 v1.3.3 で macOS UX 細部と CI 自動化、v1.3.2 で macOS first-class (.app バンドル + codesign + notarytool パイプライン)、v1.3.1 で DLS 溶媒プリセット / Window 状態永続化 / 不正入力 toast、v1.3.0 で DLS AnalysisWindow 4 タブ化 + 横断 UI polish を完了済み）
 
 ---
 
@@ -22,7 +22,7 @@ GPC・Spectrum・DLS の 3 アプリで共通する解析ロジック・UI 部�
 
 ### LabPlot.GPC
 
-- **パフォーマンス最適化** (v1.3.3 後の improvement sweep で 3 件着手):
+- **パフォーマンス最適化** (v1.3.4 improvement sweep で 3 件完了):
   - **パーサ allocation 削減** ✅: `CsvGpcDataReader` の data-row hot path を `ReadOnlySpan<char>` ベースの `TryParseXyRow` に切替。50k 点で time -18%、allocated -43% (12.5 MB → 7.1 MB)
   - **複数ファイル並列読み込み** ✅: `MainWindow.ImportCsvFilesAsync` を `Task.WhenAll` で N ファイル並列パースに
   - **`Plot.Clear()` → plottable 管理** (部分対応): `MainWindow.Plot.cs` の `Plot.Clear()` を pool-based の `ClearScatterPool()` に置換、Scatter を厳密に追跡しつつ axes / title / legend state を保持。**真の in-place データ swap は ScottPlot 5.1.58 が `Scatter.Data` / `ScatterSourceDoubleArray.Xs / Ys` の setter を公開していないため未着手** — 公開 API 追加後に再着手予定
@@ -110,6 +110,7 @@ WPF + win-x64 single-file exe では macOS / Linux ユーザーに配れない�
 - **v1.3.1 (2026-05-25)** ✅: DLS 溶媒プリセット (9 種 × 5 温度の n / η テーブル + 線形補間)、Window 状態永続化 (4 ウィンドウ × 位置 / サイズ / 最大化)、不正入力 toast in DLS metadata editor、recent-files ComboBox 右クリックで履歴クリア、cross-module refactor sweep (GPC ~640 行削減)
 - **v1.3.2 (2026-05-26)** ✅: macOS first-class support。`dotnet publish -r osx-arm64` / `-r osx-x64` で `.app` バンドル自動生成、Apple Silicon 実機 smoke test 完走、`scripts/publish-macos.sh` で `dotnet publish` → deep codesign → ditto zip → `xcrun notarytool --wait` → `xcrun stapler` まで 1 コマンド化、Hardened Runtime 用 entitlements.plist 同梱、`docs/macOS_開発環境構築.md` 整備。併せてプロット残存 / 凡例最上段見切れ / AnalysisWindow 最小化不可 / Z-average ベースラインずれの 4 バグを修正
 - **v1.3.3 (2026-05-26)** ✅: macOS UX 細部と CI 自動化。Cmd+O / Cmd+S 系を `KeyboardShortcuts.HasCommandModifier` で OS 別に出し分け、F1 cheat-sheet と ToolTip も "Cmd +" 表記に動的差し替え、ファイルダイアログ既定パスを `FormattingDefaultsStore.GetEffectiveDefaultOutputDirectory` で macOS のみ `~/Documents` フォールバック。`<NativeMenu.Menu>` で macOS アプリメニュー (About / Preferences / Quit / Cmd+,) を整備、`dotnet run` 経路でも Dock アイコンが出るよう `NSApp.setApplicationIconImage:` を objc_msgSend で叩く。`.github/workflows/release.yml` + `scripts/publish-all-platforms.sh` で `v*` タグ push をトリガに 3 platform publish + CHANGELOG 抜き出し + GitHub Release 化を自動化
+- **v1.3.4 (2026-05-27)** ✅: 3 モジュール (GPC / Spectrum / DLS) 横断のパフォーマンス改善 sweep。GPC `CsvGpcDataReader` / Spectrum `JascoSpectrumReader` の data-row hot path を `ReadOnlySpan<char>` ベースの span tokenizer + stackalloc decimal-comma fallback に置換 (50k 点 / 10k 点でそれぞれ −43% / −52% allocation)、GPC / Spectrum の複数ファイル open を `Task.WhenAll` で並列化、GPC `Plot.Clear()` を `_scatterPool` 管理に、DLS `Plot.Clear()` × 5 refresh path を `List<IPlottable>` 共有 pool に置換 (Spectrum は overlay Line/Text/Marker 多用のため pool 化見送り)。`GpcAnalyzer.Benchmarks` / `SpectrumAnalyzer.Benchmarks` / `DlsAnalyzer.Benchmarks` (BenchmarkDotNet 0.14.0 + `MemoryDiagnoser`) を整備し v1.3.x baseline を固定。あわせて `PortalWindow` (固定 540×620 / `CanResize=False`) が最大化ボタン経由で declared サイズを失う回帰を `CustomTitleBar` 側で最大化ボタン非表示 + `WindowStateStore` 側で固定サイズ Window の `Maximized` / `Bounds` 永続化抑止により修正
 
 残課題:
 

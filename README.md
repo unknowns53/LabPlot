@@ -45,7 +45,7 @@
 
 ### モノレポ構成と slnx
 
-リポジトリ全体を束ねるトップレベル `LabPlot.slnx` と、アプリごとの `.slnx` の二層構成です。トップレベルを開けば主流の Avalonia 系統 + 保守用の WPF 系統 + 共有ライブラリ（合計 17 プロジェクト）を一括でビルド・テストできます。各アプリ単体の `.slnx` は library 化後も保持していて、そのアプリだけに集中して触りたいときに使えます（ただし主流・保守どちらの系統でも各モジュール csproj は `WinExe` ではなくクラスライブラリとして出力されるため、単体 `dotnet run` はできません）。
+リポジトリ全体を束ねるトップレベル `LabPlot.slnx` と、アプリごとの `.slnx` の二層構成です。トップレベルを開けば主流の Avalonia 系統 + 保守用の WPF 系統 + 共有ライブラリ + ベンチマーク（合計 19 プロジェクト）を一括でビルド・テストできます。各アプリ単体の `.slnx` は library 化後も保持していて、そのアプリだけに集中して触りたいときに使えます（ただし主流・保守どちらの系統でも各モジュール csproj は `WinExe` ではなくクラスライブラリとして出力されるため、単体 `dotnet run` はできません）。
 
 | 区分 | slnx | 主流（Avalonia） | 保守（WPF） |
 | --- | --- | --- | --- |
@@ -57,7 +57,7 @@
 ### コマンドラインからのビルド・テスト・実行
 
 ```powershell
-# Build（トップレベル slnx で全 18 プロジェクトを一括ビルド）
+# Build（トップレベル slnx で全 19 プロジェクトを一括ビルド）
 dotnet build LabPlot.slnx -c Debug
 
 # Tests（トップレベルから全テストを一括実行。GPC 26 + Spectrum 167 + DLS 179 = 372 件）
@@ -68,8 +68,9 @@ dotnet test src/LabPlot.GPC/GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj
 dotnet test src/LabPlot.Spectrum/SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj
 dotnet test src/LabPlot.DLS/DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj
 
-# Benchmark（GPC LabSolutions TXT パーサのベースライン計測。Release 推奨）
+# Benchmark（パーサのベースライン計測。Release 推奨）
 dotnet run -c Release --project src/LabPlot.GPC/GpcAnalyzer.Benchmarks -- --filter '*'
+dotnet run -c Release --project src/LabPlot.Spectrum/SpectrumAnalyzer.Benchmarks -- --filter '*'
 
 # Run（主流の Avalonia 版ポータル、Windows / macOS / Linux 共通）
 dotnet run --project src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj

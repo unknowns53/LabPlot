@@ -10,6 +10,7 @@
   <Project Path="src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj" />
   <Project Path="src/LabPlot.Spectrum/SpectrumAnalyzer.Core/SpectrumAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.Spectrum/SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj" />
+  <Project Path="src/LabPlot.Spectrum/SpectrumAnalyzer.Benchmarks/SpectrumAnalyzer.Benchmarks.csproj" />
   <Project Path="src/LabPlot.Spectrum/Spectrum_Visualization/Spectrum_Visualization.csproj" />
   <Project Path="src/LabPlot.DLS/DlsAnalyzer.Core/DlsAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.DLS/DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj" />

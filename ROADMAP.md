@@ -32,6 +32,12 @@ GPC・Spectrum・DLS の 3 アプリで共通する解析ロジック・UI 部�
 
 ### LabPlot.Spectrum
 
+- **パフォーマンス最適化** (v1.3.x improvement sweep、GPC PR #10-#12 と同パターンの平行移植):
+  - **パーサ allocation 削減** ✅: `JascoSpectrumReader.TryParseDataRow` の data-row hot path を `ReadOnlySpan<char>` ベースの手書きトークナイザに置換 (`string.Split` 撤去)、`TryParseLooseDouble` も `ReadOnlySpan<char>` overload + stackalloc 64 文字バッファで decimal-comma fallback を allocation-free に。10k 点 (UV-Vis 800–200 nm @ 0.06 nm) で time -12%、allocated -52% (2.24 MB → 1.07 MB)
+  - **複数ファイル並列読み込み** ✅: `MainWindow.OpenSpectrumFilesAsync` 系の `Task.Run(() => fileNames.Select(...).ToArray())` 直列パターンを `Task.WhenAll(fileNames.Select(file => Task.Run(...)))` 並列に。GPC PR #11 と同型 (`JascoSpectrumReader` は static readonly Encoding キャッシュのみで thread-safe)
+  - **`Plot.Clear()` → plottable 管理** (見送り): `PlotCurrentDataset` 内で `DrawPeakAssignments` / `DrawIntegrationRegions` / `DrawLambdaMaxMarkers` / `DrawIrPeakMarkers` / `DrawCloudPointMarkers` / `DrawMetadataAnnotation` が Line / Text / Marker / VerticalLine を多数追加するため、Scatter のみ pool 管理にすると overlay の残骸が重ね描き時に蓄積する。`List<IPlottable>` 化は修正範囲が広く overlay 挙動を壊すリスクが高い + ScottPlot 5.1.58 の `Scatter.Data` 読み取り専用制約により GC 削減効果は微小なので、ScottPlot の inplace data swap 解禁まで延期
+  - **計測基盤**: `src/LabPlot.Spectrum/SpectrumAnalyzer.Benchmarks` (BenchmarkDotNet 0.14.0) で再現可能
+
 波長スキャン:
 
 - **参照（ブランク）スペクトルの差し引き**: ベースライン補正用の差分機能

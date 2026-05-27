@@ -20,6 +20,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   loads; future tuning should likely focus on the plot-rebuild path
   (`MainWindow.Plot.cs` `Plot.Clear()` → re-add-all) before the parser.
 
+### Changed
+
+- **GPC parser hot data-row path is now allocation-aware**. The LabSolutions
+  chromatogram loop and the loose-CSV / whitespace-delimited paths no longer
+  call `SplitLooseColumns` on every data row; a new `TryParseXyRow` helper
+  slices each line via `ReadOnlySpan<char>` and parses the two doubles in
+  place, dropping the per-row `string[]` + substring allocations. The rare
+  whitespace-delimited fallback also stops going through `Regex.Split` and
+  uses a manual tokenizer. Same observable behavior, covered by all 26
+  existing `GpcAnalyzer.Tests`. Benchmark deltas vs the v1.3.3 baseline
+  (Apple M5 / .NET 10.0.8 Release, mean / allocated):
+  - 1k points: 96 μs → 83 μs (−14%); 262 KB → 155 KB (−41%)
+  - 10k points: 1.05 ms → 0.79 ms (−25%); 2.6 MB → 1.5 MB (−40%)
+  - 50k points: 8.05 ms → 6.57 ms (−18%); 12.5 MB → 7.1 MB (−43%)
+
 ## [1.3.3] - 2026-05-26
 
 macOS UX 細部の詰めと CI 自動化。v1.3.2 で macOS first-class を打ち出した直後の

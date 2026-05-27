@@ -148,13 +148,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
 
         foreach (var line in lines.SkipWhile(line => string.IsNullOrWhiteSpace(line)).Skip(1))
         {
-            var columns = SplitLooseColumns(line);
-            if (columns.Length < 2)
-            {
-                continue;
-            }
-
-            if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
+            if (TryParseXyRow(line, out var x, out var y))
             {
                 points.Add(new GpcDataPoint { X = x, Y = y });
             }
@@ -172,13 +166,7 @@ public sealed class CsvGpcDataReader : IGpcDataReader
 
         while (reader.ReadLine() is { } line)
         {
-            var columns = SplitLooseColumns(line);
-            if (columns.Length < 2)
-            {
-                continue;
-            }
-
-            if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
+            if (TryParseXyRow(line, out var x, out var y))
             {
                 points.Add(new GpcDataPoint { X = x, Y = y });
             }
@@ -270,9 +258,9 @@ public sealed class CsvGpcDataReader : IGpcDataReader
                 continue;
             }
 
-            var columns = SplitLooseColumns(line);
             if (!readingPoints)
             {
+                var columns = SplitLooseColumns(line);
                 ReadLabSolutionsMetadata(columns, ref intensityMultiplier, ref yUnits);
 
                 if (LooksLikeChromatogramHeader(columns))
@@ -291,12 +279,10 @@ public sealed class CsvGpcDataReader : IGpcDataReader
                 continue;
             }
 
-            if (columns.Length < 2)
-            {
-                continue;
-            }
-
-            if (TryParseDouble(columns[0], out var x) && TryParseDouble(columns[1], out var y))
+            // Hot path: data rows go through TryParseXyRow which slices the
+            // line via ReadOnlySpan<char> and avoids the per-row string[] +
+            // substring allocations that SplitLooseColumns would produce.
+            if (TryParseXyRow(line, out var x, out var y))
             {
                 points.Add(new GpcDataPoint { X = x, Y = y * intensityMultiplier });
             }
@@ -556,7 +542,168 @@ public sealed class CsvGpcDataReader : IGpcDataReader
             return line.Split(';', StringSplitOptions.TrimEntries);
         }
 
-        return Regex.Split(line.Trim(), @"\s+");
+        return SplitOnWhitespace(line.AsSpan().Trim());
+    }
+
+    private static string[] SplitOnWhitespace(ReadOnlySpan<char> span)
+    {
+        if (span.IsEmpty)
+        {
+            return Array.Empty<string>();
+        }
+
+        // Manual whitespace tokenizer matching the previous Regex.Split(@"\s+")
+        // behavior on trimmed input: collapse consecutive whitespace and emit
+        // one string per run of non-whitespace. Avoids Regex allocation /
+        // cache lookup overhead in the rare loose-CSV fallback path.
+        var tokens = new List<string>(capacity: 4);
+        var i = 0;
+        while (i < span.Length)
+        {
+            while (i < span.Length && char.IsWhiteSpace(span[i]))
+            {
+                i++;
+            }
+            var start = i;
+            while (i < span.Length && !char.IsWhiteSpace(span[i]))
+            {
+                i++;
+            }
+            if (i > start)
+            {
+                tokens.Add(span[start..i].ToString());
+            }
+        }
+        return tokens.ToArray();
+    }
+
+    /// <summary>
+    /// Allocation-free parser for two-column data rows ("x &lt;delim&gt; y").
+    /// Mirrors the delimiter precedence of <see cref="SplitLooseColumns"/>
+    /// (TAB → comma → semicolon → whitespace) but slices the input via
+    /// <see cref="ReadOnlySpan{T}"/> so no intermediate <c>string[]</c> or
+    /// substring objects are created on the hot per-row path.
+    /// </summary>
+    /// <remarks>
+    /// Returns <c>false</c> for header / metadata rows so callers can fall
+    /// back to <see cref="SplitLooseColumns"/> when richer column access is
+    /// needed (label rows, multi-column tables).
+    /// </remarks>
+    private static bool TryParseXyRow(string line, out double x, out double y)
+    {
+        x = 0;
+        y = 0;
+
+        var span = line.AsSpan();
+        int firstStart, firstEnd, secondStart, secondEnd;
+
+        // Pick the same delimiter SplitLooseColumns would use, then walk the
+        // span once to locate the first two fields.
+        if (span.IndexOf('\t') >= 0)
+        {
+            if (!FindFirstTwoFieldsBySeparator(span, '\t', out firstStart, out firstEnd, out secondStart, out secondEnd))
+            {
+                return false;
+            }
+        }
+        else if (span.IndexOf(',') >= 0)
+        {
+            if (!FindFirstTwoFieldsBySeparator(span, ',', out firstStart, out firstEnd, out secondStart, out secondEnd))
+            {
+                return false;
+            }
+        }
+        else if (span.IndexOf(';') >= 0)
+        {
+            if (!FindFirstTwoFieldsBySeparator(span, ';', out firstStart, out firstEnd, out secondStart, out secondEnd))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if (!FindFirstTwoFieldsByWhitespace(span, out firstStart, out firstEnd, out secondStart, out secondEnd))
+            {
+                return false;
+            }
+        }
+
+        var first = TrimSpan(span, firstStart, firstEnd);
+        var second = TrimSpan(span, secondStart, secondEnd);
+        return TryParseDouble(first, out x) && TryParseDouble(second, out y);
+    }
+
+    private static bool FindFirstTwoFieldsBySeparator(
+        ReadOnlySpan<char> span,
+        char separator,
+        out int firstStart,
+        out int firstEnd,
+        out int secondStart,
+        out int secondEnd)
+    {
+        firstStart = 0;
+        firstEnd = span.IndexOf(separator);
+        if (firstEnd < 0)
+        {
+            secondStart = secondEnd = 0;
+            return false;
+        }
+
+        secondStart = firstEnd + 1;
+        var nextSep = span[secondStart..].IndexOf(separator);
+        secondEnd = nextSep < 0 ? span.Length : secondStart + nextSep;
+        return true;
+    }
+
+    private static bool FindFirstTwoFieldsByWhitespace(
+        ReadOnlySpan<char> span,
+        out int firstStart,
+        out int firstEnd,
+        out int secondStart,
+        out int secondEnd)
+    {
+        firstStart = firstEnd = secondStart = secondEnd = 0;
+
+        var i = 0;
+        while (i < span.Length && char.IsWhiteSpace(span[i]))
+        {
+            i++;
+        }
+        firstStart = i;
+        while (i < span.Length && !char.IsWhiteSpace(span[i]))
+        {
+            i++;
+        }
+        firstEnd = i;
+        if (firstStart == firstEnd)
+        {
+            return false;
+        }
+
+        while (i < span.Length && char.IsWhiteSpace(span[i]))
+        {
+            i++;
+        }
+        secondStart = i;
+        while (i < span.Length && !char.IsWhiteSpace(span[i]))
+        {
+            i++;
+        }
+        secondEnd = i;
+        return secondStart != secondEnd;
+    }
+
+    private static ReadOnlySpan<char> TrimSpan(ReadOnlySpan<char> source, int start, int end)
+    {
+        while (start < end && char.IsWhiteSpace(source[start]))
+        {
+            start++;
+        }
+        while (end > start && char.IsWhiteSpace(source[end - 1]))
+        {
+            end--;
+        }
+        return source[start..end];
     }
 
     private static bool LooksLikeChromatogramHeader(IReadOnlyList<string> columns)
@@ -617,8 +764,18 @@ public sealed class CsvGpcDataReader : IGpcDataReader
 
     private static bool TryParseDouble(string? text, out double value)
     {
+        if (text is null)
+        {
+            value = 0;
+            return false;
+        }
+        return TryParseDouble(text.AsSpan(), out value);
+    }
+
+    private static bool TryParseDouble(ReadOnlySpan<char> text, out double value)
+    {
         value = 0;
-        if (string.IsNullOrWhiteSpace(text))
+        if (text.IsWhiteSpace())
         {
             return false;
         }
@@ -638,8 +795,21 @@ public sealed class CsvGpcDataReader : IGpcDataReader
 
         if (text.IndexOf(',') >= 0 && text.IndexOf('.') < 0)
         {
-            var swapped = text.Replace(',', '.');
-            if (double.TryParse(swapped, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            // Stack-allocate for typical numeric field lengths so the
+            // decimal-comma fallback adds no heap pressure.
+            Span<char> buffer = text.Length <= 64
+                ? stackalloc char[64]
+                : new char[text.Length];
+            buffer = buffer[..text.Length];
+            text.CopyTo(buffer);
+            for (var i = 0; i < buffer.Length; i++)
+            {
+                if (buffer[i] == ',')
+                {
+                    buffer[i] = '.';
+                }
+            }
+            if (double.TryParse(buffer, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
                 && double.IsFinite(value))
             {
                 return true;

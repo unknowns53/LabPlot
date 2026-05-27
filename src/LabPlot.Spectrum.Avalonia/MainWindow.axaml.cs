@@ -826,9 +826,13 @@ public partial class MainWindow : Window
                 : $"{fileNames.Length} ファイルを読み込み中…";
             BusyOverlay.Show(busyMessage);
 
-            var datasets = await Task.Run(() => fileNames
-                .Select(fileName => _reader.Read(fileName))
-                .ToArray());
+            // GPC PR #11 と同じパターン: 直列の Task.Run(Select(...).ToArray()) は
+            // I/O と Shift-JIS デコード + parse を 1 スレッドに直列化してしまうため、
+            // 複数ファイル open 時の待ち時間がファイル数に線形比例していた。
+            // Task.WhenAll で各 Read() を独立 Task として走らせ、結果の順序は
+            // Select の入力順を保つ (WhenAll は配列順を維持)。
+            var datasets = await Task.WhenAll(
+                fileNames.Select(fileName => Task.Run(() => _reader.Read(fileName))));
             foreach (var dataset in datasets)
             {
                 AddLoadedDataset(dataset);

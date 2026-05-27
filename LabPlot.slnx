@@ -14,6 +14,7 @@
   <Project Path="src/LabPlot.Spectrum/Spectrum_Visualization/Spectrum_Visualization.csproj" />
   <Project Path="src/LabPlot.DLS/DlsAnalyzer.Core/DlsAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.DLS/DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj" />
+  <Project Path="src/LabPlot.DLS/DlsAnalyzer.Benchmarks/DlsAnalyzer.Benchmarks.csproj" />
   <Project Path="src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj" />
   <Project Path="src/LabPlot.DLS.Avalonia/LabPlot.DLS.Avalonia.csproj" />
   <Project Path="src/LabPlot.GPC.Avalonia/LabPlot.GPC.Avalonia.csproj" />

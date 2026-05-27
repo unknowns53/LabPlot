@@ -69,6 +69,7 @@ public partial class MainWindow
         // 書き換えて、過去のデータ曲線が残ったまま」というゴースト描画になる。DLS 版の
         // InitializeEmptyPlot() は最初から Plot.Clear() を呼んでいるので同じ規約に揃える。
         _chromatogramPlot.Plot.Clear();
+        _scatterPool.Clear();
 
         _chromatogramPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
         _chromatogramPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
@@ -376,7 +377,7 @@ public partial class MainWindow
             return;
         }
 
-        _chromatogramPlot.Plot.Clear();
+        ClearScatterPool();
         _chromatogramPlot.Plot.Axes.NumericTicksBottom();
 
         var displayPointLimit = GetDisplayPointLimit(entries.Count, GetRetentionTimePointCount(entries));
@@ -392,6 +393,7 @@ public partial class MainWindow
             _currentPlotUsesDownsampledData |= series.IsDownsampled;
 
             var signal = _chromatogramPlot.Plot.Add.Scatter(series.XValues, series.YValues);
+            _scatterPool.Add(signal);
             signal.LegendText = GetSeriesLegendText(dataset, "Signal", datasetIndex);
             ApplySeriesStyle(signal, datasetIndex);
         }
@@ -429,7 +431,7 @@ public partial class MainWindow
             return;
         }
 
-        _chromatogramPlot.Plot.Clear();
+        ClearScatterPool();
         SetMolecularWeightLogTicks();
 
         var displayPointLimit = GetDisplayPointLimit(entries.Count, GetMolecularWeightPointCount(entries));
@@ -445,6 +447,7 @@ public partial class MainWindow
             _currentPlotUsesDownsampledData |= series.IsDownsampled;
 
             var signal = _chromatogramPlot.Plot.Add.Scatter(series.XValues, series.YValues);
+            _scatterPool.Add(signal);
             signal.LegendText = GetSeriesLegendText(dataset, $"{dataset.Solvent}/{dataset.Detector}", datasetIndex);
             ApplySeriesStyle(signal, datasetIndex);
         }
@@ -658,5 +661,37 @@ public partial class MainWindow
     {
         var label = textBox.Text?.Trim() ?? string.Empty;
         return string.IsNullOrWhiteSpace(label) ? defaultLabel : label;
+    }
+
+    /// <summary>
+    /// Removes every Scatter currently held in <see cref="_scatterPool"/>
+    /// from the chromatogram plot without disturbing axes / title / legend
+    /// state, then clears the pool ready to be repopulated by the next
+    /// rendering pass. Replaces the broader <c>Plot.Clear()</c> call so
+    /// non-plottable plot state (titles, axis ticks, legend orientation)
+    /// is preserved between refreshes.
+    /// </summary>
+    /// <remarks>
+    /// ScottPlot 5.1.58 does not expose a setter on <c>Scatter.Data</c> or
+    /// the underlying <c>ScatterSourceDoubleArray.Xs / Ys</c> auto-properties,
+    /// so true in-place data swap is not currently possible — each refresh
+    /// still allocates a fresh Scatter per dataset. The pool gives us
+    /// precise lifecycle tracking and lets us avoid the wider state-reset
+    /// that <c>Plot.Clear()</c> implies; data-swap recycling will become
+    /// available if ScottPlot adds a public mutation surface later.
+    /// </remarks>
+    private void ClearScatterPool()
+    {
+        if (_chromatogramPlot is null)
+        {
+            return;
+        }
+
+        var plot = _chromatogramPlot.Plot;
+        foreach (var scatter in _scatterPool)
+        {
+            plot.Remove(scatter);
+        }
+        _scatterPool.Clear();
     }
 }

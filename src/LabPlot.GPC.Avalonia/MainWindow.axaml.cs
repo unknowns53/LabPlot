@@ -105,6 +105,13 @@ public partial class MainWindow : Window
     private CalibrationCurve? _selectedCalibrationCurve;
     private string? _calibrationFilePath;
     private AvaPlot? _chromatogramPlot;
+    // Tracks the Scatter plottables this MainWindow added during the most
+    // recent PlotCurrentDataset() so we can clear them precisely via
+    // ClearScatterPool() (Plot.Remove per entry) instead of the broader
+    // Plot.Clear() that wipes axes / title / legend state too. ScottPlot
+    // 5.1.58 does not expose a setter on Scatter.Data, so true in-place
+    // recycling is not currently possible — see ClearScatterPool() doc.
+    private readonly List<ScottPlot.Plottables.Scatter> _scatterPool = new();
     private LegendDragController? _legendDragController;
     private bool _updatingCalibrationSelection;
     private bool _suppressGraphAppearanceEvents;

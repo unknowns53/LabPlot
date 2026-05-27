@@ -42,6 +42,17 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   behavior, and the existing `IOException / InvalidDataException /
   ArgumentException` catch still receives the first failure unwrapped
   (await on `Task.WhenAll` surfaces the first inner exception directly).
+- **GPC plot refresh tracks Scatter plottables in a pool** instead of
+  calling `Plot.Clear()` on every refresh. `MainWindow.Plot.cs` keeps an
+  internal `_scatterPool` list of the Scatters added on the most recent
+  pass and removes them one-by-one (via `Plot.Remove`) before adding the
+  new set. Title / axis ticks / legend orientation are no longer reset by
+  the broader `Plot.Clear()`, which keeps cross-refresh state consistent.
+  True in-place data swap (skip Add/Remove entirely on dataset-count-stable
+  refreshes) is blocked on ScottPlot 5.1.58 not exposing setters on
+  `Scatter.Data` or `ScatterSourceDoubleArray.Xs / Ys`; this lands as
+  partial progress against ROADMAP §2-GPC and can be extended once the
+  ScottPlot public surface allows mutation.
 
 ## [1.3.3] - 2026-05-26
 

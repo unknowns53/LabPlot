@@ -22,7 +22,12 @@ GPC・Spectrum・DLS の 3 アプリで共通する解析ロジック・UI 部�
 
 ### LabPlot.GPC
 
-- **パフォーマンス最適化**: LabSolutions TXT は数万点規模になることがあり、重ね描き枚数が増えると描画更新が重くなる場合がある。`src/LabPlot.GPC/GpcAnalyzer.Benchmarks` (BenchmarkDotNet 0.14.0) を導入してパーサのベースラインを取得済み — Apple M5 で 1k 点 96 μs / 10k 点 1.05 ms / 50k 点 8.05 ms、アロケーションは 50k 点で約 12.5 MB。重ね描き 5 dataset でも parse 合計 ~40 ms と人間の知覚閾値内のため、**主因はパーサではなく `MainWindow.Plot.cs` の `Plot.Clear()` → 全 dataset 再追加パスの可能性が高い**。改善優先順は (a) `Plot.Clear` → plottable リサイクル (`MainWindow.Plot.cs` L379 / L432)、(b) `CsvGpcDataReader.SplitLooseColumns` の `Regex.Split` 廃止 (アロケーション削減)、(c) 複数ファイル並列読み込み (`MainWindow.axaml.cs` L705 の LINQ 直列を `Parallel.ForEach` 化)
+- **パフォーマンス最適化** (v1.3.3 後の improvement sweep で 3 件着手):
+  - **パーサ allocation 削減** ✅: `CsvGpcDataReader` の data-row hot path を `ReadOnlySpan<char>` ベースの `TryParseXyRow` に切替。50k 点で time -18%、allocated -43% (12.5 MB → 7.1 MB)
+  - **複数ファイル並列読み込み** ✅: `MainWindow.ImportCsvFilesAsync` を `Task.WhenAll` で N ファイル並列パースに
+  - **`Plot.Clear()` → plottable 管理** (部分対応): `MainWindow.Plot.cs` の `Plot.Clear()` を pool-based の `ClearScatterPool()` に置換、Scatter を厳密に追跡しつつ axes / title / legend state を保持。**真の in-place データ swap は ScottPlot 5.1.58 が `Scatter.Data` / `ScatterSourceDoubleArray.Xs / Ys` の setter を公開していないため未着手** — 公開 API 追加後に再着手予定
+  - **計測基盤**: `src/LabPlot.GPC/GpcAnalyzer.Benchmarks` (BenchmarkDotNet 0.14.0) で `dotnet run -c Release --project ... -- --filter '*'` で再現可能
+  - **次の候補**: 重ね描き時の rasterization コスト (SkiaSharp 側) は ScottPlot のダウンサンプリングで既に軽減されているが、`GetDisplayPointLimit` のチューニングや log-scale X 軸の point density 調整に余地があるかも。`Spectrum` / `DLS` の同パターン箇所への展開も今後
 - **配布後フィードバックに基づく書式の微調整**: 軸ラベル・凡例位置・既定値の保存復元・アスペクト比反映など、研究室メンバーからの報告ベースで対応
 
 ### LabPlot.Spectrum

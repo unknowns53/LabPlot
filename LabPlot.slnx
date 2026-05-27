@@ -6,6 +6,7 @@
   <Project Path="src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj" />
   <Project Path="src/LabPlot.GPC/GpcAnalyzer.Core/GpcAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.GPC/GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj" />
+  <Project Path="src/LabPlot.GPC/GpcAnalyzer.Benchmarks/GpcAnalyzer.Benchmarks.csproj" />
   <Project Path="src/LabPlot.GPC/GPC_Visualization/GPC_Visualization.csproj" />
   <Project Path="src/LabPlot.Spectrum/SpectrumAnalyzer.Core/SpectrumAnalyzer.Core.csproj" />
   <Project Path="src/LabPlot.Spectrum/SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj" />

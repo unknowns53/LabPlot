@@ -57,7 +57,7 @@
 ### コマンドラインからのビルド・テスト・実行
 
 ```powershell
-# Build（トップレベル slnx で全 17 プロジェクトを一括ビルド）
+# Build（トップレベル slnx で全 18 プロジェクトを一括ビルド）
 dotnet build LabPlot.slnx -c Debug
 
 # Tests（トップレベルから全テストを一括実行。GPC 26 + Spectrum 167 + DLS 179 = 372 件）
@@ -67,6 +67,9 @@ dotnet test LabPlot.slnx -c Debug
 dotnet test src/LabPlot.GPC/GpcAnalyzer.Tests/GpcAnalyzer.Tests.csproj
 dotnet test src/LabPlot.Spectrum/SpectrumAnalyzer.Tests/SpectrumAnalyzer.Tests.csproj
 dotnet test src/LabPlot.DLS/DlsAnalyzer.Tests/DlsAnalyzer.Tests.csproj
+
+# Benchmark（GPC LabSolutions TXT パーサのベースライン計測。Release 推奨）
+dotnet run -c Release --project src/LabPlot.GPC/GpcAnalyzer.Benchmarks -- --filter '*'
 
 # Run（主流の Avalonia 版ポータル、Windows / macOS / Linux 共通）
 dotnet run --project src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj

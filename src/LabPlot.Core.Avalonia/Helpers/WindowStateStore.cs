@@ -91,6 +91,8 @@ public static class WindowStateStore
     /// <summary>
     /// 保存済みの状態 (あれば) を Window に適用する。OnOpened から呼ぶ。
     /// 画面外の位置や負のサイズは無視して既定の起動レイアウトにフォールバックする。
+    /// CanResize=False のウィンドウは固定サイズ運用 (例: PortalWindow) なので
+    /// 保存済みの Width/Height および Maximized は無視し、座標のみ復元する。
     /// </summary>
     public static void ApplyTo(Window window, string appKey)
     {
@@ -101,35 +103,60 @@ public static class WindowStateStore
         var w = Math.Max(window.MinWidth > 0 ? window.MinWidth : 1, rec.Width);
         var h = Math.Max(window.MinHeight > 0 ? window.MinHeight : 1, rec.Height);
 
-        if (rec.X is double x && rec.Y is double y
-            && IsRectVisibleOnAnyScreen(window, x, y, w, h))
+        // 固定サイズの Window では Width/Height を上書きすると XAML で宣言した
+        // サイズが失われる。座標復元と Maximized 復元は両方とも skip して、
+        // declared な Width/Height のまま起動させる。
+        if (window.CanResize)
         {
-            window.Position = new PixelPoint((int)x, (int)y);
-            // 明示的に位置を当てた以降は OS の StartupLocation 補正で上書きされないように。
-            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            if (rec.X is double x && rec.Y is double y
+                && IsRectVisibleOnAnyScreen(window, x, y, w, h))
+            {
+                window.Position = new PixelPoint((int)x, (int)y);
+                // 明示的に位置を当てた以降は OS の StartupLocation 補正で上書きされないように。
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+            }
+            window.Width = w;
+            window.Height = h;
+            if (rec.Maximized) window.WindowState = WindowState.Maximized;
         }
-        window.Width = w;
-        window.Height = h;
-        if (rec.Maximized) window.WindowState = WindowState.Maximized;
+        else
+        {
+            // 固定サイズでも前回の表示位置は復元する (マルチモニタで「左モニタに
+            // 置いていたウィンドウが起動時に CenterScreen に戻る」のは UX として
+            // 不便)。サイズは declared を尊重するため再評価はしない。
+            if (rec.X is double x && rec.Y is double y
+                && IsRectVisibleOnAnyScreen(window, x, y, window.Width, window.Height))
+            {
+                window.Position = new PixelPoint((int)x, (int)y);
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+            }
+        }
     }
 
     /// <summary>
     /// 現在の Window 状態を保存する。OnClosing から呼ぶ。
     /// Maximized 時は次回 Restore 用に Bounds (= Normal 想定の現サイズ) を保存。
     /// Minimized は記録せず Normal として保存する。
+    /// CanResize=False のウィンドウは Maximized を常に false で保存し、サイズも
+    /// 現在の declared Width/Height をそのまま記録する (= 巨大な Bounds が
+    /// Normal サイズとして混入するのを防ぐ)。
     /// </summary>
     public static void PersistFrom(Window window, string appKey)
     {
-        var isMaximized = window.WindowState == WindowState.Maximized;
+        var canResize = window.CanResize;
+        var isMaximized = canResize && window.WindowState == WindowState.Maximized;
         var isNormal = window.WindowState == WindowState.Normal;
 
-        double width = isNormal ? window.Width : window.Bounds.Width;
-        double height = isNormal ? window.Height : window.Bounds.Height;
+        // CanResize=False の場合は Bounds を信用せず declared Width/Height を採用。
+        double width = (!canResize || isNormal) ? window.Width : window.Bounds.Width;
+        double height = (!canResize || isNormal) ? window.Height : window.Bounds.Height;
         if (!(width > 0)) width = window.Width;
         if (!(height > 0)) height = window.Height;
 
-        double? x = isNormal ? window.Position.X : null;
-        double? y = isNormal ? window.Position.Y : null;
+        // CanResize=False は位置 (画面復帰のため) を常に保存する。CanResize=True
+        // は従来通り Normal のときだけ。
+        double? x = (!canResize || isNormal) ? window.Position.X : null;
+        double? y = (!canResize || isNormal) ? window.Position.Y : null;
 
         var rec = new WindowStateRecord(width, height, x, y, isMaximized);
         Save(appKey, rec);

@@ -107,6 +107,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   `Scatter.Data`, so this is pool-management progress, not true in-place
   recycling — future work in ROADMAP §2-DLS.
 
+### Fixed
+
+- **Portal window no longer gets stuck "maximized" after a maximize click.**
+  `PortalWindow` is `CanResize="False"` with a hard-coded 540 × 620 chrome,
+  but the shared `CustomTitleBar` (used by every Avalonia window in the app)
+  was still wiring its maximize button and title-bar double-click to
+  `WindowState = Maximized`. On macOS the button would happily flip the
+  window to maximized, but restoring it back left the declared `Width` /
+  `Height` set to the full-screen `Bounds` from the previous state, so the
+  portal stayed full-screen even though `WindowState` had returned to
+  `Normal`. `CustomTitleBar` now hides the maximize button entirely and
+  ignores the double-click maximize gesture when the parent window has
+  `CanResize == false`, matching Avalonia's own behavior for the native
+  decorations. `WindowStateStore` was the other half of the bug — it wrote
+  `window.Bounds` (the full-screen size) as the persisted "normal" width /
+  height for the next launch. It now refuses to persist `Maximized=true`
+  or to overwrite the declared `Width` / `Height` for fixed-size windows,
+  and on the restore side it only re-applies the saved size and the
+  `Maximized` flag when `CanResize` is true. Existing
+  `window-portal.json` files with stale full-screen dimensions are now
+  ignored cleanly instead of forcing a giant portal.
+
 ## [1.3.3] - 2026-05-26
 
 macOS UX 細部の詰めと CI 自動化。v1.3.2 で macOS first-class を打ち出した直後の

@@ -225,16 +225,21 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
         // decimal-comma exports such as "0,5\t1,234" by breaking the values
         // at the decimal point. TXT exports use tab, CSV exports use comma,
         // so picking whichever is present in the row keeps both happy.
-        var separator = line.IndexOf('\t') >= 0 ? '\t' : ',';
-        var fields = line.Split(separator, StringSplitOptions.RemoveEmptyEntries);
-        if (fields.Length < 2)
+        var span = line.AsSpan();
+        var separator = span.IndexOf('\t') >= 0 ? '\t' : ',';
+
+        // string.Split allocates a fresh string[] plus N substring instances
+        // per data row, which dominates parser allocation on multi-thousand-
+        // point spectra. Walk the span directly to find the first two
+        // non-empty fields, then hand off to the span-based double parser.
+        if (!TryFindFirstTwoFields(span, separator, out var first, out var second))
         {
             point = default;
             return false;
         }
 
-        if (!TryParseLooseDouble(fields[0], out var x)
-            || !TryParseLooseDouble(fields[1], out var y))
+        if (!TryParseLooseDouble(first, out var x)
+            || !TryParseLooseDouble(second, out var y))
         {
             point = default;
             return false;
@@ -244,6 +249,38 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
         return true;
     }
 
+    // Matches the semantics of string.Split(separator, RemoveEmptyEntries):
+    // consecutive separators collapse, and the first two non-empty tokens
+    // are returned. Anything past field index 1 is ignored.
+    private static bool TryFindFirstTwoFields(
+        ReadOnlySpan<char> span,
+        char separator,
+        out ReadOnlySpan<char> first,
+        out ReadOnlySpan<char> second)
+    {
+        first = default;
+        second = default;
+
+        var n = span.Length;
+        var i = 0;
+
+        while (i < n && span[i] == separator) i++;
+        if (i >= n) return false;
+
+        var firstStart = i;
+        while (i < n && span[i] != separator) i++;
+        first = span.Slice(firstStart, i - firstStart);
+
+        while (i < n && span[i] == separator) i++;
+        if (i >= n) return false;
+
+        var secondStart = i;
+        while (i < n && span[i] != separator) i++;
+        second = span.Slice(secondStart, i - secondStart);
+
+        return first.Length > 0 && second.Length > 0;
+    }
+
     // double.TryParse("NaN", ...) succeeds, so a downstream IsFinite gate
     // is required to keep NaN / ±Infinity out of the dataset. We also fall
     // back to a "comma → dot" swap so European-style decimal commas
@@ -251,8 +288,23 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
     // AllowThousands (which would silently strip commas from "0,00833").
     private static bool TryParseLooseDouble(string? text, out double value)
     {
+        if (text is null)
+        {
+            value = 0;
+            return false;
+        }
+
+        return TryParseLooseDouble(text.AsSpan(), out value);
+    }
+
+    // Span overload used by the data-row hot path. Uses stackalloc for the
+    // decimal-comma fallback so short fields (the common case) don't allocate
+    // at all; longer fields fall back to heap allocation, but those are rare
+    // in real JASCO exports (most fields are <16 chars).
+    private static bool TryParseLooseDouble(ReadOnlySpan<char> text, out double value)
+    {
         value = 0;
-        if (string.IsNullOrWhiteSpace(text)) return false;
+        if (text.IsEmpty || text.IsWhiteSpace()) return false;
 
         if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
             && double.IsFinite(value))
@@ -262,11 +314,29 @@ public sealed class JascoSpectrumReader : ISpectrumDataReader
 
         if (text.IndexOf(',') >= 0 && text.IndexOf('.') < 0)
         {
-            var swapped = text.Replace(',', '.');
-            if (double.TryParse(swapped, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
-                && double.IsFinite(value))
+            if (text.Length <= 64)
             {
-                return true;
+                Span<char> buffer = stackalloc char[64];
+                var slice = buffer[..text.Length];
+                for (var i = 0; i < text.Length; i++)
+                {
+                    slice[i] = text[i] == ',' ? '.' : text[i];
+                }
+
+                if (double.TryParse(slice, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                    && double.IsFinite(value))
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                var swapped = text.ToString().Replace(',', '.');
+                if (double.TryParse(swapped, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                    && double.IsFinite(value))
+                {
+                    return true;
+                }
             }
         }
 

@@ -63,6 +63,16 @@ Malvern Zetasizer の DLS データ可視化・解析を新規開発:
 - キュムラント解析（Z-average、polydispersity index）
 - 多成分フィット（CONTIN 等の正則化逆問題は将来的な検討対象）
 
+**パフォーマンス最適化** (v1.3.x improvement sweep、GPC PR #10-#12 と同パターンの平行移植):
+
+- **`Plot.Clear()` → plottable 管理** ✅: `MainWindow.RefreshPlot` / `RefreshTemperatureRampPlot` / `RefreshConcentrationSeriesPlot` / `RefreshSizeDistributionInversionPlot` / `InitializeEmptyPlot` の 5 箇所の `Plot.Clear()` を `_plottablePool` (List&lt;IPlottable&gt;) ベースの `ClearPlottablePool()` に置換。Scatter / ScatterPoints / ScatterLine 6 ヶ所の追加後で pool.Add。DLS は overlay (Line/Text/Marker) を持たないので Spectrum と違って pool 管理だけで完結する。**真の inplace data swap は ScottPlot 5.1.58 が `Scatter.Data` の setter を公開していないため未着手** (GPC / Spectrum と同じ前提)
+- **パーサ allocation 削減**: 対象外。`ZetasizerXlsxReader` は ClosedXML が xlsx パースを担っており、GPC の `Regex.Split` / Spectrum の `string.Split` のような書き換え余地が data-row 層に無い
+- **複数ファイル並列読み込み**: 対象外。DLS は「1 ファイル / 複数 sheet」モデルで、複数ファイル同時 open の UI 経路を持たない
+- **計測基盤** ✅: `src/LabPlot.DLS/DlsAnalyzer.Benchmarks` で `ZetasizerXlsxReader` と `SizeDistributionInverter` (CONTIN-相当 NNLS 反転) の 2 ベンチを整備。v1.3.x ベースライン (Apple M5 / .NET 10.0.8 Release):
+  - Reader: 1 sheet 2.22 ms / 2.00 MB allocated、5 sheets 9.52 ms / 8.20 MB allocated
+  - Inverter: fixed-α 101.5 μs / 139 KB、auto-α (default UI path、16 candidates) 1.66 ms / 1.19 MB
+- **CONTIN 反転 (Nnls.cs) の行列キャッシュ**: 計測結果は CONTIN auto-α 1.66 ms vs Reader 1-sheet 2.22 ms と同オーダーで、Reader が「支配的」とは言いがたい。CONTIN 側の K / L 行列キャッシュは効くと予想されるが、AnalysisWindow が passive 計算で UI ブロッキングは小さく、現時点で最優先ではない。**ScottPlot の inplace Scatter API が公開された段階で plot pool を本物のリサイクルに進化させるのと併せて再評価する**
+
 ---
 
 ## 3. 新規対応フォーマット

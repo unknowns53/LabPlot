@@ -115,6 +115,16 @@ public partial class CustomTitleBar : UserControl
             .GetObservable(Window.WindowStateProperty)
             .Subscribe(new AnonymousObserver<WindowState>(_ => SyncMaxRestoreGlyph()));
         SyncMaxRestoreGlyph();
+
+        // 親 Window が CanResize=False (固定サイズ運用、例: PortalWindow) の場合、
+        // 標準 OS タイトルバーと同じく Maximize ボタンを完全に隠す。隠さずに残すと
+        // 押下時に WindowState=Maximized が通る一方、Avalonia 11.3 + macOS では
+        // Bounds が画面いっぱいに広がったまま declared Width/Height が更新され、
+        // Normal に戻したあとも「巨大な Normal」状態に固定されて見た目「最大化が
+        // 戻らない」現象になる (WindowStateStore.PersistFrom が Maximized 時に
+        // Bounds を Normal サイズとして書き出すのも組み合わさる)。
+        if (_maxRestoreButton is not null)
+            _maxRestoreButton.IsVisible = _parentWindow.CanResize;
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -150,7 +160,9 @@ public partial class CustomTitleBar : UserControl
         var properties = e.GetCurrentPoint(this).Properties;
         if (!properties.IsLeftButtonPressed) return;
 
-        if (e.ClickCount == 2)
+        // CanResize=False のウィンドウではダブルクリック最大化も無効。Maximize
+        // ボタン側 (OnAttachedToVisualTree で隠している) と挙動を揃える。
+        if (e.ClickCount == 2 && _parentWindow.CanResize)
         {
             _parentWindow.WindowState = _parentWindow.WindowState == WindowState.Maximized
                 ? WindowState.Normal
@@ -171,6 +183,9 @@ public partial class CustomTitleBar : UserControl
     private void MaxRestoreButton_Click(object? sender, RoutedEventArgs e)
     {
         if (_parentWindow is null) return;
+        // CanResize=False のウィンドウでは Maximize ボタンを非表示にしているが、
+        // テスト等で直接 Click を呼ばれた場合のガード。
+        if (!_parentWindow.CanResize) return;
 
         _parentWindow.WindowState = _parentWindow.WindowState == WindowState.Maximized
             ? WindowState.Normal

@@ -6,6 +6,20 @@ distribution is the Avalonia portal (`LabPlot.Avalonia`); the WPF portal
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
+## [Unreleased]
+
+### Added
+
+- **GPC parser benchmark scaffolding** (`src/LabPlot.GPC/GpcAnalyzer.Benchmarks`).
+  BenchmarkDotNet 0.14.0-based project that parses synthetic LabSolutions-style
+  TXT files (1k / 10k / 50k points) through `CsvGpcDataReader.Read` with
+  `MemoryDiagnoser`. Synthetic data is generated in-process; no large fixtures
+  are committed. Baseline on Apple M5 / .NET 10.0.8: 96 μs / 1.05 ms / 8.05 ms
+  respectively, allocating ~262 KB / 2.6 MB / 12.5 MB per parse. The numbers
+  indicate the parser is not the dominant cost for typical multi-dataset
+  loads; future tuning should likely focus on the plot-rebuild path
+  (`MainWindow.Plot.cs` `Plot.Clear()` → re-add-all) before the parser.
+
 ## [1.3.3] - 2026-05-26
 
 macOS UX 細部の詰めと CI 自動化。v1.3.2 で macOS first-class を打ち出した直後の

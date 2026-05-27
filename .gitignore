@@ -54,3 +54,6 @@ Thumbs.db
 
 # Codex CLI review session artifacts (Markdown/JSON streams)
 .reviews/
+
+# BenchmarkDotNet output (per-run artifacts under each benchmark project)
+BenchmarkDotNet.Artifacts/

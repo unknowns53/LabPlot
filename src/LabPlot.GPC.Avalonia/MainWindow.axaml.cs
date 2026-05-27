@@ -702,9 +702,14 @@ public partial class MainWindow : Window
                 : $"{fileNames.Length} ファイルを読み込み中…";
             BusyOverlay.Show(busyMessage);
 
-            var datasets = await Task.Run(() => fileNames
-                .Select(fileName => _reader.Read(fileName))
-                .ToArray());
+            // Parse files in parallel via ThreadPool tasks. CsvGpcDataReader
+            // holds no instance state (only a static readonly Encoding), so
+            // Read() can be called concurrently. Task.WhenAll preserves the
+            // input order in the returned array and lets the first
+            // IOException / InvalidDataException / ArgumentException surface
+            // unwrapped to the existing catch below.
+            var datasets = await Task.WhenAll(
+                fileNames.Select(fileName => Task.Run(() => _reader.Read(fileName))));
             foreach (var dataset in datasets)
             {
                 AddLoadedDataset(dataset);

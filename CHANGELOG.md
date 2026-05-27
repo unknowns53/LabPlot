@@ -27,6 +27,18 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   `JascoSpectrumReader.Read`. Identifying fields use neutral placeholders.
   Baseline on Apple M5 / .NET 10.0.8: 218 μs / 571 μs / 1.16 ms allocating
   421 KB / 1.13 MB / 2.24 MB per parse.
+- **DLS benchmark scaffolding**
+  (`src/LabPlot.DLS/DlsAnalyzer.Benchmarks`). Two BenchmarkDotNet 0.14.0 /
+  `MemoryDiagnoser` benches: (a) `ZetasizerXlsxReader` against a synthetic
+  ClosedXML workbook (1 sheet vs 5 sheets, each carrying Number / Intensity
+  / Volume distributions × 3 runs + the g₂-1 correlation block at 150 τ
+  samples) and (b) `SizeDistributionInverter` with a synthetic single-peak
+  log-Gaussian distribution at 100 nm — both a fixed-α single-NNLS solve
+  and the default 16-point auto-α sweep. v1.3.x baseline (Apple M5 /
+  .NET 10.0.8): Reader 2.22 ms (1 sheet, 2.00 MB) / 9.52 ms (5 sheets,
+  8.20 MB); Inverter 101.5 μs fixed-α (139 KB) / 1.66 ms auto-α (1.19 MB).
+  Reader and CONTIN auto-α sit in the same order of magnitude, so neither
+  side is the obvious bottleneck.
 
 ### Changed
 
@@ -80,6 +92,20 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   slowest one rather than the sum. `JascoSpectrumReader` is thread-safe
   (`Encoding.RegisterProvider` + `static readonly ShiftJis` are
   cache-once-then-read). Single-file open is unchanged in behavior.
+- **DLS plot refresh tracks plottables in a pool** instead of calling
+  `Plot.Clear()` on every refresh. `MainWindow` keeps an internal
+  `_plottablePool` list of the Scatter / ScatterPoints / ScatterLine
+  instances added on the most recent refresh and removes them one-by-one
+  (via `Plot.Remove`) before re-adding the new set; title / axis ticks /
+  legend orientation are no longer reset by the broader `Plot.Clear()`.
+  Five refresh paths (Number/Intensity/Volume distribution, temperature
+  ramp Boltzmann fit, concentration-series linear fit, CONTIN-like size
+  inversion, the empty-state placeholder) all share the same pool. DLS
+  does not draw overlay Line / Text / Marker plottables, so a single
+  `List<IPlottable>` pool covers every Plot.Add site cleanly. Same
+  blocker as GPC PR #12: ScottPlot 5.1.58 doesn't expose setters on
+  `Scatter.Data`, so this is pool-management progress, not true in-place
+  recycling — future work in ROADMAP §2-DLS.
 
 ## [1.3.3] - 2026-05-26
 

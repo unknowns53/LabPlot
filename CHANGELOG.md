@@ -34,6 +34,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   - 1k points: 96 μs → 83 μs (−14%); 262 KB → 155 KB (−41%)
   - 10k points: 1.05 ms → 0.79 ms (−25%); 2.6 MB → 1.5 MB (−40%)
   - 50k points: 8.05 ms → 6.57 ms (−18%); 12.5 MB → 7.1 MB (−43%)
+- **GPC multi-file open is now parallelized**. `MainWindow.ImportCsvFilesAsync`
+  previously chained the `_reader.Read` calls sequentially inside a single
+  `Task.Run`; it now dispatches one `Task.Run` per file via `Task.WhenAll`,
+  so on a multi-core machine N selected files complete in roughly the time
+  of the slowest one rather than the sum. Single-file open is unchanged in
+  behavior, and the existing `IOException / InvalidDataException /
+  ArgumentException` catch still receives the first failure unwrapped
+  (await on `Task.WhenAll` surfaces the first inner exception directly).
 
 ## [1.3.3] - 2026-05-26
 

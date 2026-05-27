@@ -19,6 +19,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   indicate the parser is not the dominant cost for typical multi-dataset
   loads; future tuning should likely focus on the plot-rebuild path
   (`MainWindow.Plot.cs` `Plot.Clear()` → re-add-all) before the parser.
+- **Spectrum parser benchmark scaffolding**
+  (`src/LabPlot.Spectrum/SpectrumAnalyzer.Benchmarks`). Same BenchmarkDotNet
+  0.14.0 / `MemoryDiagnoser` setup as the GPC one. Writes synthetic JASCO
+  V-750 UV-Vis exports (2k / 5k / 10k points, full Shift-JIS header + footer
+  including `[測定情報]` section) to a temp file per parameter set and times
+  `JascoSpectrumReader.Read`. Identifying fields use neutral placeholders.
+  Baseline on Apple M5 / .NET 10.0.8: 218 μs / 571 μs / 1.16 ms allocating
+  421 KB / 1.13 MB / 2.24 MB per parse.
 
 ### Changed
 
@@ -53,6 +61,25 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   `Scatter.Data` or `ScatterSourceDoubleArray.Xs / Ys`; this lands as
   partial progress against ROADMAP §2-GPC and can be extended once the
   ScottPlot public surface allows mutation.
+- **Spectrum parser hot data-row path is now allocation-aware**. The
+  `JascoSpectrumReader.TryParseDataRow` per-row `string.Split` is replaced
+  by a `ReadOnlySpan<char>` walker (`TryFindFirstTwoFields`) that locates
+  the first two non-empty tokens without allocating, and `TryParseLooseDouble`
+  gets a `ReadOnlySpan<char>` overload that uses a 64-char stackalloc buffer
+  for the decimal-comma fallback so European-style "0,5" parses heap-free.
+  Same observable behavior, covered by all 167 existing
+  `SpectrumAnalyzer.Tests`. Benchmark deltas vs the new v1.3.x baseline
+  (Apple M5 / .NET 10.0.8 Release, mean / allocated):
+  - 2k points: 218 μs → 197 μs (−10%); 421 KB → 186 KB (−56%)
+  - 5k points: 571 μs → 494 μs (−13%); 1.13 MB → 542 KB (−52%)
+  - 10k points: 1.16 ms → 1.02 ms (−12%); 2.24 MB → 1.07 MB (−52%)
+- **Spectrum multi-file open is now parallelized**. `MainWindow` previously
+  ran the per-file `_reader.Read` calls sequentially inside a single
+  `Task.Run`; it now dispatches one `Task.Run` per file via `Task.WhenAll`,
+  so N selected JASCO TXT/CSV files complete in roughly the time of the
+  slowest one rather than the sum. `JascoSpectrumReader` is thread-safe
+  (`Encoding.RegisterProvider` + `static readonly ShiftJis` are
+  cache-once-then-read). Single-file open is unchanged in behavior.
 
 ## [1.3.3] - 2026-05-26
 

@@ -69,6 +69,17 @@ public partial class MainWindow : Window, IDlsAnalysisHost
     private AvaPlot? _plot;
     private LegendDragController? _legendDragController;
 
+    // GPC PR #12 と同パターン: 直近の Plot 描画で追加した plottable を追跡し、
+    // 次回 refresh のときに `Plot.Clear()` で全体リセットする代わりに、ここに
+    // 入っているものだけを `Plot.Remove()` する。Title / axes / legend setting
+    // など Plot side の global state は維持される。DLS は GPC と違って Scatter
+    // 以外に ScatterPoints / ScatterLine も使うので IPlottable で受ける。
+    // ScottPlot 5.1.58 の `Scatter.Data` は読み取り専用なので「dataset 数が
+    // 変わらないとき plottable をリサイクル」までは到達できず、現状は単純な
+    // pool 管理のみ。ScottPlot 公開 API が拡張されたら inplace data swap に
+    // 進められる。
+    private readonly List<ScottPlot.IPlottable> _plottablePool = new();
+
     // Phase 7 Batch 6 step 4: 内部 reorder 状態。GPC / Spectrum と同方針で
     // OS DragDrop layer は使わず PointerCapture + 手動位置計算で実装する。
     private Point? _datasetDragStartPoint;
@@ -225,7 +236,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         // 起動時 (OnOpened 直後) と全データセット解除時の両方から呼ばれる。
         PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
 
-        _plot.Plot.Clear();
+        ClearPlottablePool();
         _plot.Plot.Title(GetGraphTitle(DefaultLabels.GetPlotTypeLabel(_selectedMode)));
         _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
         _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
@@ -1521,7 +1532,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         // データを描画するので placeholder を非表示にする。
         PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
 
-        _plot.Plot.Clear();
+        ClearPlottablePool();
 
         var seriesCount = 0;
         foreach (var dataset in _selectedDatasets)
@@ -1551,6 +1562,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 : null;
 
             var scatter = _plot.Plot.Add.Scatter(xs, ys);
+            _plottablePool.Add(scatter);
             scatter.LineWidth = (float)(style?.LineWidth ?? _formattingConfig.LineWidth);
             scatter.MarkerSize = (float)(style?.MarkerSize ?? _formattingConfig.MarkerSize);
             ApplyDatasetColor(scatter, dataset);
@@ -1616,7 +1628,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         if (_plot is null) return;
         PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
 
-        _plot.Plot.Clear();
+        ClearPlottablePool();
 
         // Color refresh keeps the dataset list dots (sidebar) consistent
         // with the rest of the app even though the ramp plot itself does
@@ -1656,6 +1668,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             ys[i] = points[i].DiameterNm;
         }
         var scatter = _plot.Plot.Add.ScatterPoints(xs, ys);
+        _plottablePool.Add(scatter);
         scatter.MarkerSize = (float)(_formattingConfig.MarkerSize * 1.4);
         scatter.LegendText = "data";
         if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
@@ -1677,6 +1690,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 fitY[i] = TemperatureRampAnalyzer.Predict(fitX[i], outcome.Result);
             }
             var line = _plot.Plot.Add.ScatterLine(fitX, fitY);
+            _plottablePool.Add(line);
             line.LineWidth = (float)Math.Max(_formattingConfig.LineWidth, 2.0);
             line.LegendText = "Boltzmann fit";
         }
@@ -1741,7 +1755,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         if (_plot is null) return;
         PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
 
-        _plot.Plot.Clear();
+        ClearPlottablePool();
 
         for (int i = 0; i < _datasetItems.Count; i++)
             _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
@@ -1791,6 +1805,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
             ys[i] = points[i].DiffusionCoefficientM2PerSecond * DiffusionDisplayScale;
         }
         var scatter = _plot.Plot.Add.ScatterPoints(xs, ys);
+        _plottablePool.Add(scatter);
         scatter.MarkerSize = (float)(_formattingConfig.MarkerSize * 1.4);
         scatter.LegendText = "data";
         if (!string.IsNullOrWhiteSpace(_formattingConfig.DefaultLineColorHex))
@@ -1814,6 +1829,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 fitY[i] = ConcentrationSeriesAnalyzer.Predict(fitX[i], outcome.Result) * DiffusionDisplayScale;
             }
             var line = _plot.Plot.Add.ScatterLine(fitX, fitY);
+            _plottablePool.Add(line);
             line.LineWidth = (float)Math.Max(_formattingConfig.LineWidth, 2.0);
             line.LegendText = "linear fit";
         }
@@ -1923,7 +1939,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         }
 
         PlotPlaceholder.Hide(PlotPlaceholderTextBlock);
-        _plot.Plot.Clear();
+        ClearPlottablePool();
 
         for (int i = 0; i < _datasetItems.Count; i++)
             _datasetItems[i].ColorBrush = ResolveDatasetBrush(i);
@@ -2014,6 +2030,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 : null;
 
             var scatter = _plot.Plot.Add.Scatter(xs, ys);
+            _plottablePool.Add(scatter);
             scatter.LineWidth = (float)(style?.LineWidth ?? _formattingConfig.LineWidth);
             scatter.MarkerSize = (float)(style?.MarkerSize ?? _formattingConfig.MarkerSize);
             ApplyDatasetColor(scatter, dataset);
@@ -2525,5 +2542,22 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         int ActiveRunIndex)
     {
         public int RunCount => Runs.Count;
+    }
+
+    // GPC PR #12 と同パターン: PlotCurrentDataset / Refresh*Plot の冒頭で
+    // _plot.Plot.Clear() を呼んでいたところを、追加したものだけ Remove する
+    // 形に切り替える。Title / axes / legend など Scatter 以外の Plot state を
+    // 不必要にリセットしない。ScottPlot 5.1.58 では Scatter.Data setter が
+    // 公開されていないので、ここでは「pool に貯めたものを Remove して再 Add」
+    // までしかできず、本当の意味のリサイクルは将来の課題 (ROADMAP §2-DLS)。
+    private void ClearPlottablePool()
+    {
+        if (_plot is null) return;
+        var plot = _plot.Plot;
+        foreach (var plottable in _plottablePool)
+        {
+            plot.Remove(plottable);
+        }
+        _plottablePool.Clear();
     }
 }

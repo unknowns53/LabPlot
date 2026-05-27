@@ -8,6 +8,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-05-27
+
+3 モジュール (GPC / Spectrum / DLS) を横断するパフォーマンス改善 sweep。GPC で確立した
+3 つのパターン (パーサ data-row allocation 削減、複数ファイル並列読み込み、`Plot.Clear()`
+→ plottable pool 管理) を Spectrum / DLS にもそれぞれの構造に合わせて展開し、BenchmarkDotNet
+0.14.0 ベースのベンチマーク基盤を 3 モジュール全部に揃えて v1.3.x の baseline を固定した。
+あわせて、`PortalWindow` (固定 540 × 620 / `CanResize=False`) が最大化ボタンを経由すると
+declared サイズが Bounds に上書きされて「最大化が戻らない」状態に陥る回帰も修正している。
+
 ### Added
 
 - **GPC parser benchmark scaffolding** (`src/LabPlot.GPC/GpcAnalyzer.Benchmarks`).
@@ -522,6 +531,7 @@ distribution, and incorporated user feedback from real-machine validation.
 Initial tagged release of the WPF mainline. See `git log v1.1.0` for the full
 list of changes leading up to it.
 
+[1.3.4]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.4
 [1.3.3]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.3
 [1.3.2]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.2
 [1.3.1]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.1

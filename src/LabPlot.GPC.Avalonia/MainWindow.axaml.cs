@@ -258,8 +258,21 @@ public partial class MainWindow : Window
     // 履歴 (MRU) と表示中のプロット・データセットの寿命を揃える。
     // 履歴だけ消えてグラフが残ると「リセットしたつもり」が画面に痕跡を
     // 残す形になり、ファイル削除と組み合わせると消し方が無くなるため。
-    private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
+    //
+    // v1.3.5: 旧実装は確認なしで履歴 + データセット + プロットを一気に消していた。
+    //         「履歴クリア」程度のクリック (右クリックメニュー 1 発) で
+    //         作業中のグラフまで消えるのは破壊的すぎるため ConfirmDialog を挟む。
+    //         Spectrum / DLS と同方針。
+    private async void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
     {
+        var confirmed = await ConfirmDialog.ShowAsync(
+            this,
+            title: "履歴とプロットをクリアしますか?",
+            message: "最近開いたファイルの履歴と、現在表示中のグラフ・データセットをすべて破棄します。",
+            confirmLabel: "クリア",
+            isDestructive: true);
+        if (!confirmed) return;
+
         RecentFilesStore.Clear(RecentFilesAppKey);
         _lastLoadedFilePath = null;
 
@@ -758,15 +771,12 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {
-            _currentDataset = null;
-            _loadedDatasets.Clear();
-            _datasetStyles.Clear();
-            _datasetSelectedPeakIds.Clear();
-            ClearComputedDataCaches();
-            _activeIndex = -1;
-            RefreshDatasetEntries();
-            SetGraphActionsEnabled(false);
-            UpdateStatisticsText((MolecularWeightStatistics?)null);
+            // v1.3.5: 旧実装は失敗時に _loadedDatasets / _datasetStyles を全 Clear し
+            //         「読み込み失敗 → 既存グラフも消失」というユーザーの予期に反する挙動を
+            //         していた。await Task.WhenAll は 1 ファイル失敗で全 Task をまとめて
+            //         throw するため AddLoadedDataset 開始前に確実に脱出し、partial 書込は
+            //         発生しない。よって既存 dataset / グラフは保持したまま ShowError のみ
+            //         で return し、ユーザーが直前まで作業していた状態を温存する。
             ShowError($"読み込みに失敗しました: {ex.Message}");
         }
         finally

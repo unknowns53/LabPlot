@@ -77,7 +77,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
             }),
             new ShortcutGroup("表示", new[]
             {
-                new ShortcutEntry($"{mod} + L", "全シート選択 / 全解除"),
+                new ShortcutEntry($"{mod} + A", "全シート選択 / 全解除"),
                 new ShortcutEntry($"{mod} + R", "軸範囲を自動に戻す"),
                 new ShortcutEntry($"{mod} + G", "プロットグリッドの表示切替"),
                 new ShortcutEntry("F2", "凡例名 TextBox にフォーカス"),

@@ -193,7 +193,10 @@ public partial class MainWindow : Window, IDlsAnalysisHost
                 case Key.E: _ = ExportAnalysisAsync(); e.Handled = true; return;
                 case Key.R: AxisRangePanel.ResetToAuto(); e.Handled = true; return;
                 case Key.G: GraphFormatPanel.TogglePlotGrid(); e.Handled = true; return;
-                case Key.L: ToggleAllDatasets(); e.Handled = true; return;
+                // v1.3.5: Ctrl/Cmd+L は GPC/Spectrum で Overlay 切替に予約されているため、
+                //         DLS 固有の「全選択/全解除」を Ctrl/Cmd+A に移し、3 モジュール間の
+                //         ホットキー意味衝突を解消する。
+                case Key.A: ToggleAllDatasets(); e.Handled = true; return;
             }
         }
         else if (e.Key == Key.F2)
@@ -313,11 +316,22 @@ public partial class MainWindow : Window, IDlsAnalysisHost
     }
 
     // 履歴 ComboBox の右クリックメニュー → 「履歴をクリア」。RecentFilesStore.Clear で永続化
-    // ファイルを消し、UI を空状態に戻す。確認ダイアログは省略 (履歴は復元可能性が低くないし、
-    // 普通に「開く」で再構築できる)。代わりに Toast で「クリアした」を必ず通知する。
-    // 履歴 (MRU) と表示中のプロット・データセットの寿命を揃える (GPC / Spectrum と同じ方針)。
-    private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
+    // ファイルを消し、UI を空状態に戻す。履歴 (MRU) と表示中のプロット・データセットの寿命を
+    // 揃える (GPC / Spectrum と同じ方針)。
+    //
+    // v1.3.5: 旧実装は Confirm を省略し Toast 通知のみだったが、右クリックメニュー 1 発で
+    //         作業中のグラフが消えるのは破壊的すぎるため、GPC / Spectrum と揃えて
+    //         ConfirmDialog を挟む。
+    private async void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
     {
+        var confirmed = await ConfirmDialog.ShowAsync(
+            this,
+            title: "履歴とプロットをクリアしますか?",
+            message: "最近開いたファイルの履歴と、現在表示中のグラフ・データセットをすべて破棄します。",
+            confirmLabel: "クリア",
+            isDestructive: true);
+        if (!confirmed) return;
+
         RecentFilesStore.Clear(RecentFilesAppKey);
         _lastLoadedFilePath = null;
 

@@ -121,6 +121,33 @@
                                                              Background="Transparent"
                                                              Padding="0"
                                                              DragDrop.AllowDrop="True">
+                                                        <!-- v1.3.5: 複数選択中の sheet/run が一目で分かるよう、
+                                                             :selected 時に左 3px のアクセント帯と薄い blue 背景を出す。
+                                                             ContentPresenter 側に BorderThickness を寄せることで
+                                                             選択切替時にレイアウトシフトが起きないように固定枠を確保する。 -->
+                                                        <ListBox.Styles>
+                                                            <Style Selector="ListBoxItem">
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Margin" Value="0,1" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem /template/ ContentPresenter">
+                                                                <Setter Property="Padding" Value="7,5,8,5" />
+                                                                <Setter Property="BorderThickness" Value="3,0,0,0" />
+                                                                <Setter Property="BorderBrush" Value="Transparent" />
+                                                                <Setter Property="CornerRadius" Value="0" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                                                                <Setter Property="Background" Value="#F1F5F9" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                                                <Setter Property="Background" Value="#DBEAFE" />
+                                                                <Setter Property="BorderBrush" Value="#2563EB" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
+                                                                <Setter Property="Background" Value="#BFDBFE" />
+                                                                <Setter Property="BorderBrush" Value="#1D4ED8" />
+                                                            </Style>
+                                                        </ListBox.Styles>
                                                         <ListBox.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:DlsDatasetItem">
                                                                 <Grid ColumnDefinitions="Auto,*">

@@ -8,7 +8,7 @@
         Title="Spectrum Analyzer"
         Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
         Height="860" MinHeight="660" Width="1280" MinWidth="960"
-        Background="#F7F8FA"
+        Background="{DynamicResource MainBgSurfaceBrush}"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"
         UseLayoutRounding="True"

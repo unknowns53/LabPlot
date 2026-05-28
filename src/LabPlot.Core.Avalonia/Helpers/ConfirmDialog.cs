@@ -46,7 +46,10 @@ public static class ConfirmDialog
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ShowInTaskbar = false,
-            Background = new SolidColorBrush(Color.Parse("#F7F8FA")),
+            // v1.3.5: アプリ全体の Window 背景は CommonTokens.MainBgSurfaceBrush に一元化。
+            //         FindResource が null を返した場合は #F7F8FA に fallback。
+            Background = (Application.Current?.FindResource("MainBgSurfaceBrush") as IBrush)
+                ?? new SolidColorBrush(Color.Parse("#F7F8FA")),
             FontFamily = new FontFamily("Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"),
             FontSize = 13,
             UseLayoutRounding = true,

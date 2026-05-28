@@ -8,7 +8,39 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Added
+
+- **デザイントークン辞書を独立リソースに分離**
+  (`src/LabPlot.Core.Avalonia/Themes/CommonTokens.axaml`). アクセント / 状態
+  フィードバック (Success / Warning / Error の 4 色セット) / 中間階調 / フォーカス
+  リング / 角丸 / フォントスタックの全 SolidColorBrush / CornerRadius / FontFamily
+  を 1 ファイルに集約。`App.axaml` の MergedDictionaries で `CommonStyles.axaml`
+  より先に Include する。新しい `MainBgSurfaceBrush` (#F7F8FA) と Error 系の
+  Hover / Pressed 階調 (`ErrorHoverBrush` #B91C1C / `ErrorPressedBrush` #991B1B)
+  を追加し、Window 背景と DestructiveButtonStyle がリテラル直書きから DynamicResource
+  参照に統一された。Dark theme / accent theme 切替の下地ができている。
+- **新モジュール追加 scaffold 手順ドキュメント** (`docs/AddModule.md`). csproj /
+  MainWindow / PortalWindow カード / KeyboardShortcutsWindow / slnx 登録までの
+  8 ステップを既存 3 モジュールの実装に紐づけて記述。NMR / Raman など将来モジュール
+  追加時に「どこを編集すれば動くか」を 1 ファイルで追える。
+
 ### Changed
+
+- **3 モジュール + Portal の Window 背景 / Portal カード Hover-Focus 枠を DynamicResource 化**
+  (`PortalWindow.axaml`, GPC / Spectrum / DLS の `MainWindow.axaml`,
+  `CalibrationCurveWindow.axaml`, `AnalysisWindow.axaml`, `SolventPresetManagerDialog.axaml`,
+  `KeyboardShortcutsWindow.axaml`, `CustomTitleBar.axaml`). `Background="#F7F8FA"` を
+  `{DynamicResource MainBgSurfaceBrush}` に、Portal カードの `BorderBrush="#2563EB"` を
+  `{DynamicResource AccentBrush}` に置換。ConfirmDialog / Preferences placeholder
+  / ComingSoon dialog の動的 Window でも `Application.Current.FindResource` 経由で
+  同じトークンを引いて統一感を出す。データの色 (ComboBoxItem の Tag swatch、Color
+  picker preset palette) は意図的にリテラルのまま残し、Dark theme 切替時にユーザー
+  データの色が変わらないようにしている。
+- **`DestructiveButtonStyle` の硬コード色を Error 系トークン参照に**
+  (`src/LabPlot.Core.Avalonia/Themes/CommonStyles.axaml`). PR A で追加した時点では
+  `#DC2626` / `#B91C1C` / `#991B1B` を直書きしていたが、`ErrorBrush` /
+  `ErrorHoverBrush` / `ErrorPressedBrush` / `ErrorForegroundBrush` を引くように
+  書き換え、PrimaryButtonStyle と並ぶ 1 段抽象化が完成した。
 
 - **DLS の「全シート選択 / 全解除」を `Ctrl/Cmd + A` に再割当**
   (`src/LabPlot.DLS.Avalonia/MainWindow.axaml.cs`,

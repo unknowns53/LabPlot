@@ -36,47 +36,10 @@
     <StreamGeometry x:Key="AnalysisConditionsIconGeometry">M 2,2 L 12,2 L 12,12 L 2,12 Z M 4,2 L 4,6 L 10,6 L 10,2 M 5,9 L 9,9</StreamGeometry>
     <StreamGeometry x:Key="PreferencesIconGeometry">M 7,1 L 7,3 M 7,11 L 7,13 M 1,7 L 3,7 M 11,7 L 13,7 M 3,3 L 4,4 M 10,10 L 11,11 M 11,3 L 10,4 M 3,11 L 4,10 M 5,5 L 9,5 L 9,9 L 5,9 Z</StreamGeometry>
 
-    <!-- 状態フィードバック用パレット。Banner 系および将来のステータスチップで使う。 -->
-    <SolidColorBrush x:Key="SuccessBrush" Color="#10B981" />
-    <SolidColorBrush x:Key="SuccessForegroundBrush" Color="#065F46" />
-    <SolidColorBrush x:Key="SuccessBackgroundBrush" Color="#ECFDF5" />
-    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#A7F3D0" />
-
-    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
-    <SolidColorBrush x:Key="WarningForegroundBrush" Color="#92400E" />
-    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#FFFBEB" />
-    <SolidColorBrush x:Key="WarningBorderBrush" Color="#FCD34D" />
-
-    <SolidColorBrush x:Key="ErrorBrush" Color="#DC2626" />
-    <SolidColorBrush x:Key="ErrorForegroundBrush" Color="#7F1D1D" />
-    <SolidColorBrush x:Key="ErrorBackgroundBrush" Color="#FEE2E2" />
-    <SolidColorBrush x:Key="ErrorBorderBrush" Color="#FCA5A5" />
-
-    <!-- アクセント色。WPF 版では各 ControlTemplate に hard-coded だったが、Avalonia 移植に
-         合わせて共通 Brush として括り出し、Batch 1b の InputComboBoxStyle / Button 系から
-         参照できるようにする。 -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#1D4ED8" />
-    <SolidColorBrush x:Key="AccentPressedBrush" Color="#1E3A8A" />
-    <SolidColorBrush x:Key="AccentDisabledBrush" Color="#CBD5E1" />
-    <SolidColorBrush x:Key="AccentLightBrush" Color="#BFDBFE" />
-    <!-- FocusRing 専用トークン。Button / Input 系の外周 2px Border に当てる。
-         #60A5FA は WPF 版の FocusVisualStyle に近い淡 blue で、Accent 系より
-         一段薄くして「フォーカスは目立つが押し付けがましくない」見た目にする。
-         Phase 7 までは PrimaryButton/SecondaryButton ControlTemplate に
-         直接書いてあったが、テーマ調整時に hex 直書きが分散すると追跡しづらい
-         ので Brush 1 つに集約した。 -->
-    <SolidColorBrush x:Key="FocusRingBrush" Color="#60A5FA" />
-
-    <!-- 中間階調 / 罫線 / 文字色。slate-50 〜 slate-900 系で揃えている WPF 版と同じ値。 -->
-    <SolidColorBrush x:Key="SurfaceBrush" Color="White" />
-    <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#F8FAFC" />
-    <SolidColorBrush x:Key="BorderSubtleBrush" Color="#E2E8F0" />
-    <SolidColorBrush x:Key="BorderDefaultBrush" Color="#CBD5E1" />
-    <SolidColorBrush x:Key="BorderHoverBrush" Color="#94A3B8" />
-    <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#0F172A" />
-    <SolidColorBrush x:Key="ForegroundMutedBrush" Color="#475569" />
-    <SolidColorBrush x:Key="ForegroundDisabledBrush" Color="#94A3B8" />
+    <!-- v1.3.5: 状態フィードバック / アクセント / 中間階調 / 罫線 / 文字色のトークンは
+         CommonTokens.axaml に分離。App.axaml の MergedDictionaries で CommonTokens を
+         最初に Include しているため、ここでの再定義は不要。`{StaticResource AccentBrush}`
+         等の参照はそのまま CommonTokens 内の同名キーに解決される。 -->
 
     <!-- セクション枠 (白カード + 角丸 8px + 薄影)。WPF 版は DropShadowEffect を Effect で
          指定していたが、Avalonia では Border の BoxShadow プロパティで等価な結果が得られる。
@@ -554,9 +517,9 @@
     <!-- ============================================================
          DestructiveButtonStyle — v1.3.5 で ConfirmDialog から参照する破壊操作用ボタン。
          PrimaryButtonStyle と同じテンプレ・同じ Hover lift / Pressed push-down を踏襲し、
-         アクセント色だけを Tailwind red 系 (#DC2626 / #B91C1C / #991B1B) に差し替える。
-         影は dark red (#7F1D1D) で primary の dark blue と同じ親和性を出す。色直書きは
-         PR B で DangerBrush 系トークン化と一緒に DynamicResource 化する想定。
+         アクセント色だけを Error 系 Brush (ErrorBrush / ErrorHoverBrush / ErrorPressedBrush)
+         に差し替える。影は ErrorForegroundBrush (#7F1D1D) を opacity 0.18 で重ねて
+         primary の dark blue と同じ親和性を出す。Tokens は CommonTokens.axaml に集約。
          ============================================================ -->
     <ControlTheme x:Key="DestructiveButtonStyle" TargetType="Button">
         <Setter Property="Height" Value="36" />
@@ -566,7 +529,7 @@
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="White" />
-        <Setter Property="Background" Value="#DC2626" />
+        <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -575,7 +538,7 @@
                 <Grid>
                     <Border Name="ShadowLayer"
                             CornerRadius="6"
-                            Background="#7F1D1D"
+                            Background="{StaticResource ErrorForegroundBrush}"
                             Opacity="0.18"
                             Margin="0,2,0,-2" />
                     <Border Name="ButtonBorder"
@@ -606,7 +569,7 @@
         </Setter>
 
         <Style Selector="^:pointerover /template/ Border#ButtonBorder">
-            <Setter Property="Background" Value="#B91C1C" />
+            <Setter Property="Background" Value="{StaticResource ErrorHoverBrush}" />
             <Style.Animations>
                 <Animation Duration="0:0:0.12" FillMode="Forward">
                     <KeyFrame Cue="0%">
@@ -634,7 +597,7 @@
             <Setter Property="Opacity" Value="0.28" />
         </Style>
         <Style Selector="^:pressed /template/ Border#ButtonBorder">
-            <Setter Property="Background" Value="#991B1B" />
+            <Setter Property="Background" Value="{StaticResource ErrorPressedBrush}" />
             <Style.Animations>
                 <Animation Duration="0:0:0.08" FillMode="Forward">
                     <KeyFrame Cue="0%">

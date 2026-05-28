@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="LabPlot.Core.Avalonia.Controls.CustomTitleBar"
              Height="44"
-             Background="#F7F8FA">
+             Background="{DynamicResource MainBgSurfaceBrush}">
     <Grid ColumnDefinitions="Auto,*,Auto">
 
         <!-- ブランディング(左): 30 x 30 の #DBEAFE バッジに 16 x 16 のアイコン Path、

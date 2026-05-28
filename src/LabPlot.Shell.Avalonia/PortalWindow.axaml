@@ -1,10 +1,11 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        xmlns:shell="using:LabPlot.Shell.Avalonia"
         x:Class="LabPlot.Shell.Avalonia.PortalWindow"
         Title="LabPlot"
         Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
-        Height="540" Width="620"
+        Height="540" Width="940"
         CanResize="False"
         Background="{DynamicResource MainBgSurfaceBrush}"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
@@ -20,7 +21,13 @@
          に対応する Avalonia 設定。ExtendClientAreaToDecorationsHint=True で OS の
          タイトルバーを内側に押し込み、ChromeHints=NoChrome でシステムボタンを完全に
          消す。CustomTitleBar が Window.BeginMoveDrag を呼ぶことで上 44 px が
-         キャプション領域として機能する。 -->
+         キャプション領域として機能する。
+
+         v1.3.5 (PR C): Width を 620 → 940 に拡張し、右側に「最近開いたファイル」
+         縦リストを併置する。ファイル drop は「各モジュールカード」ごとに受け付ける
+         (Window 全体 drop は廃止)。.txt / .csv のように複数モジュールが対応する
+         拡張子で振り分けが曖昧になるのを避け、利用者が「どのモジュールで開きたいか」
+         をカード位置で明示できる UX にしている。 -->
 
     <Window.Resources>
         <!-- ポータル カード ボタン。WPF 版と完全同じ寸法・配色・シャドウで、
@@ -123,9 +130,42 @@
             <Setter Property="Margin" Value="6" />
             <Setter Property="Padding" Value="14" />
         </ControlTheme>
+
+        <!-- 最近開いたファイル一行ボタン。card より情報密度が高いので、低 chrome の
+             "Hover で薄水色" だけにする。クリックで該当モジュールを起動 + ファイル open。 -->
+        <ControlTheme x:Key="RecentFileRowStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <ControlTemplate TargetType="Button">
+                    <Border Name="RowBorder"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover /template/ Border#RowBorder">
+                <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+            </Style>
+            <Style Selector="^:pressed /template/ Border#RowBorder">
+                <Setter Property="Background" Value="#E0E7FF" />
+            </Style>
+        </ControlTheme>
     </Window.Resources>
 
-    <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
+    <Border Name="ChromeRoot"
+            Theme="{DynamicResource WindowChromeRootBorderStyle}">
         <Grid RowDefinitions="Auto,*">
 
             <!-- ================= TITLE BAR ================= -->
@@ -134,102 +174,205 @@
                                      Subtitle="Analysis portal"
                                      AppIconData="M 3,3 L 8,3 L 8,8 L 3,8 Z M 12,3 L 17,3 L 17,8 L 12,8 Z M 3,12 L 8,12 L 8,17 L 3,17 Z M 12,12 L 17,12 L 17,17 L 12,17 Z" />
 
-            <!-- ================= 2x2 CARD GRID ================= -->
-            <UniformGrid Grid.Row="1"
-                         Rows="2"
-                         Columns="2"
-                         Margin="20,12,20,20">
+            <!-- ================= BODY: cards (左) + recent files (右) ================= -->
+            <Grid Grid.Row="1"
+                  ColumnDefinitions="*,300"
+                  Margin="20,12,20,20">
 
-                <!-- GPC -->
-                <Button Theme="{DynamicResource PortalCardStyle}"
-                        Click="OpenGpc_Click"
-                        ToolTip.Tip="GPC クロマトグラム解析">
-                    <Grid RowDefinitions="Auto,*">
-                        <StackPanel Grid.Row="0" Orientation="Horizontal">
-                            <Border Theme="{DynamicResource PortalCardBadgeStyle}">
-                                <Path Theme="{DynamicResource PortalCardIconStyle}"
-                                      Data="M 2,16 L 6,16 L 8,11 L 10,3 L 12,11 L 14,16 L 18,16" />
-                            </Border>
-                            <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
-                                       Text="GPC" />
-                        </StackPanel>
-                        <TextBlock Grid.Row="1"
-                                   Theme="{DynamicResource PortalCardSubtitleStyle}"
-                                   Text="サイズ排除クロマトグラフィー&#x0a;分子量分布の解析" />
-                    </Grid>
-                </Button>
+                <!-- ============ 左カラム: 2x2 カードグリッド ============ -->
+                <UniformGrid Grid.Column="0"
+                             Rows="2"
+                             Columns="2">
 
-                <!-- UV-Vis -->
-                <Button Theme="{DynamicResource PortalCardStyle}"
-                        Click="OpenSpectrum_Click"
-                        ToolTip.Tip="UV-Vis スペクトル解析">
-                    <Grid RowDefinitions="Auto,*">
-                        <StackPanel Grid.Row="0" Orientation="Horizontal">
-                            <Border Theme="{DynamicResource PortalCardBadgeStyle}">
-                                <Path Theme="{DynamicResource PortalCardIconStyle}"
-                                      Data="M 2,10 Q 4.25,3 6.5,10 Q 8.75,17 11,10 Q 13.25,3 15.5,10 Q 17,14 18,10" />
-                            </Border>
-                            <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
-                                       Text="UV-Vis" />
-                        </StackPanel>
-                        <TextBlock Grid.Row="1"
-                                   Theme="{DynamicResource PortalCardSubtitleStyle}"
-                                   Text="紫外可視吸収スペクトル&#x0a;λmax / 曇点 / Beer-Lambert" />
-                    </Grid>
-                </Button>
+                    <!-- GPC -->
+                    <Button Name="GpcCard"
+                            Theme="{DynamicResource PortalCardStyle}"
+                            Click="OpenGpc_Click"
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="GPC クロマトグラム解析&#x0a;（ファイルをここに drop して開く）">
+                        <Grid RowDefinitions="Auto,*">
+                            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                    <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                          Data="M 2,16 L 6,16 L 8,11 L 10,3 L 12,11 L 14,16 L 18,16" />
+                                </Border>
+                                <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                           Text="GPC" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1"
+                                       Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                       Text="サイズ排除クロマトグラフィー&#x0a;分子量分布の解析" />
+                        </Grid>
+                    </Button>
 
-                <!-- DLS -->
-                <Button Theme="{DynamicResource PortalCardStyle}"
-                        Click="OpenDls_Click"
-                        ToolTip.Tip="DLS 粒径分布解析">
-                    <Grid RowDefinitions="Auto,*">
-                        <StackPanel Grid.Row="0" Orientation="Horizontal">
-                            <Border Theme="{DynamicResource PortalCardBadgeStyle}">
-                                <Path Theme="{DynamicResource PortalCardIconStyle}"
-                                      Data="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
-                            </Border>
-                            <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
-                                       Text="DLS" />
-                        </StackPanel>
-                        <TextBlock Grid.Row="1"
-                                   Theme="{DynamicResource PortalCardSubtitleStyle}"
-                                   Text="動的光散乱（粒径分布）&#x0a;キュムラント / 自己相関" />
-                    </Grid>
-                </Button>
+                    <!-- UV-Vis -->
+                    <Button Name="SpectrumCard"
+                            Theme="{DynamicResource PortalCardStyle}"
+                            Click="OpenSpectrum_Click"
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="UV-Vis スペクトル解析&#x0a;（ファイルをここに drop して開く）">
+                        <Grid RowDefinitions="Auto,*">
+                            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                    <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                          Data="M 2,10 Q 4.25,3 6.5,10 Q 8.75,17 11,10 Q 13.25,3 15.5,10 Q 17,14 18,10" />
+                                </Border>
+                                <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                           Text="UV-Vis" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1"
+                                       Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                       Text="紫外可視吸収スペクトル&#x0a;λmax / 曇点 / Beer-Lambert" />
+                        </Grid>
+                    </Button>
 
-                <!-- + 追加プレースホルダー -->
-                <Border Theme="{DynamicResource PortalPlaceholderCardStyle}">
-                    <Grid RowDefinitions="Auto,*">
-                        <StackPanel Grid.Row="0" Orientation="Horizontal">
-                            <Border Width="36" Height="36"
-                                    CornerRadius="7"
-                                    Background="#E2E8F0"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,12,0">
-                                <Path Stroke="#94A3B8"
-                                      StrokeThickness="1.8"
-                                      StrokeLineCap="Round"
-                                      Fill="Transparent"
-                                      Stretch="Uniform"
-                                      Width="18" Height="18"
-                                      Data="M 10,3 L 10,17 M 3,10 L 17,10" />
-                            </Border>
-                            <TextBlock FontSize="16"
-                                       FontWeight="SemiBold"
+                    <!-- DLS -->
+                    <Button Name="DlsCard"
+                            Theme="{DynamicResource PortalCardStyle}"
+                            Click="OpenDls_Click"
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="DLS 粒径分布解析&#x0a;（ファイルをここに drop して開く）">
+                        <Grid RowDefinitions="Auto,*">
+                            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                    <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                          Data="M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16" />
+                                </Border>
+                                <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                           Text="DLS" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1"
+                                       Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                       Text="動的光散乱（粒径分布）&#x0a;キュムラント / 自己相関" />
+                        </Grid>
+                    </Button>
+
+                    <!-- + 追加プレースホルダー -->
+                    <Border Theme="{DynamicResource PortalPlaceholderCardStyle}">
+                        <Grid RowDefinitions="Auto,*">
+                            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                <Border Width="36" Height="36"
+                                        CornerRadius="7"
+                                        Background="#E2E8F0"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,12,0">
+                                    <Path Stroke="#94A3B8"
+                                          StrokeThickness="1.8"
+                                          StrokeLineCap="Round"
+                                          Fill="Transparent"
+                                          Stretch="Uniform"
+                                          Width="18" Height="18"
+                                          Data="M 10,3 L 10,17 M 3,10 L 17,10" />
+                                </Border>
+                                <TextBlock FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="#94A3B8"
+                                           VerticalAlignment="Center"
+                                           Text="今後追加予定" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1"
+                                       FontSize="12.5"
                                        Foreground="#94A3B8"
-                                       VerticalAlignment="Center"
-                                       Text="今後追加予定" />
+                                       TextWrapping="Wrap"
+                                       LineHeight="18"
+                                       Margin="0,12,0,0"
+                                       Text="DSC / TGA / NMR など&#x0a;新規アプリの拡張枠" />
+                        </Grid>
+                    </Border>
+                </UniformGrid>
+
+                <!-- ============ 右カラム: 最近開いたファイル ============ -->
+                <Border Grid.Column="1"
+                        Margin="12,6,0,6"
+                        Background="White"
+                        BorderBrush="#E2E8F0"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        BoxShadow="0 1 6 0 #0D0F172A">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0"
+                                   Text="最近開いたファイル"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#0F172A"
+                                   Margin="2,2,0,10" />
+
+                        <!-- ItemsControl: code-behind から ItemsSource を流し込む。
+                             RecentFileEntry 1 件あたり 行 button。クリックで該当モジュール
+                             起動 + ファイル open。 -->
+                        <ScrollViewer Grid.Row="1"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Auto">
+                            <ItemsControl Name="RecentFilesList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="shell:PortalRecentFileEntry">
+                                        <Button Theme="{DynamicResource RecentFileRowStyle}"
+                                                Click="RecentFile_Click"
+                                                Tag="{Binding}">
+                                            <Grid ColumnDefinitions="Auto,*"
+                                                  ToolTip.Tip="{Binding FilePath}">
+                                                <Border Grid.Column="0"
+                                                        Width="26" Height="26"
+                                                        CornerRadius="5"
+                                                        Background="#DBEAFE"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,10,0">
+                                                    <Path Stroke="{DynamicResource AccentBrush}"
+                                                          StrokeThickness="1.5"
+                                                          StrokeLineCap="Round"
+                                                          StrokeJoin="Round"
+                                                          Fill="Transparent"
+                                                          Stretch="Uniform"
+                                                          Width="14" Height="14"
+                                                          Data="{Binding IconData}" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontSize="12.5"
+                                                               FontWeight="Medium"
+                                                               Foreground="#0F172A"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock FontSize="10.5"
+                                                               Foreground="#64748B"
+                                                               Margin="0,1,0,0"
+                                                               Text="{Binding SecondaryLine}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- 空状態 placeholder。code-behind が IsVisible を切り替える。 -->
+                        <StackPanel Grid.Row="1"
+                                    Name="EmptyRecentPanel"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    IsVisible="False">
+                            <TextBlock Text="まだ履歴がありません"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="ファイルをここに drop して開けます"
+                                       FontSize="11"
+                                       Foreground="#94A3B8"
+                                       Margin="0,4,0,0"
+                                       HorizontalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Grid.Row="1"
-                                   FontSize="12.5"
-                                   Foreground="#94A3B8"
-                                   TextWrapping="Wrap"
-                                   LineHeight="18"
-                                   Margin="0,12,0,0"
-                                   Text="DSC / TGA / NMR など&#x0a;新規アプリの拡張枠" />
                     </Grid>
                 </Border>
-            </UniformGrid>
+            </Grid>
+
+            <!-- ============ Toast overlay: drop 受付メッセージ等 ============ -->
+            <controls:ToastHost Grid.Row="1"
+                                Name="PortalToast"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Bottom"
+                                Margin="0,0,0,16"
+                                IsVisible="False" />
         </Grid>
     </Border>
 </Window>

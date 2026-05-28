@@ -49,7 +49,7 @@ namespace LabPlot.GPC.Avalonia;
 /// <see cref="LabPlot.Core.Avalonia.Helpers.LegendDragController"/> として移植済み。
 /// 凡例位置 / オフセット は GraphFormatPanel + ドラッグ操作の双方から制御できる。
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IPortalFileOpener
 {
     private readonly IGpcDataReader _reader = new CsvGpcDataReader();
     private readonly StandardCurveFileReader _standardCurveReader = new();
@@ -707,6 +707,18 @@ public partial class MainWindow : Window
         if (fileNames.Length == 0) return;
 
         await ImportCsvFilesAsync(fileNames);
+    }
+
+    /// <summary>
+    /// <see cref="IPortalFileOpener.OpenFilesAsync"/> の実装。Portal からのファイル
+    /// drop / 最近開いたファイルクリックの 1 本道として、Window が表示完了する
+    /// (Loaded) まで待ってから既存の <see cref="ImportCsvFilesAsync"/> に流す。
+    /// </summary>
+    public async Task OpenFilesAsync(IReadOnlyList<string> filePaths)
+    {
+        if (filePaths is null || filePaths.Count == 0) return;
+        await this.WhenLoadedAsync();
+        await ImportCsvFilesAsync(filePaths.ToArray());
     }
 
     private async Task ImportCsvFilesAsync(string[] fileNames)

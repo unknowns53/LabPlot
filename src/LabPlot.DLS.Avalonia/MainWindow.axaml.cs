@@ -42,7 +42,7 @@ namespace LabPlot.DLS.Avalonia;
 /// <see cref="LabPlot.Core.Avalonia.Helpers.LegendDragController"/> として移植済み。
 /// LegendPosition / LegendOffsetX/Y は GraphFormatPanel + ドラッグ操作の双方から制御できる。
 /// </summary>
-public partial class MainWindow : Window, IDlsAnalysisHost
+public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
 {
     private static readonly string[] AutoLineColors =
     [
@@ -400,6 +400,19 @@ public partial class MainWindow : Window, IDlsAnalysisHost
         if (string.IsNullOrEmpty(dir)) return null;
         try { return await sp.TryGetFolderFromPathAsync(dir); }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// <see cref="IPortalFileOpener.OpenFilesAsync"/> の実装。Portal からのファイル
+    /// drop / 最近開いたファイルクリックの 1 本道として、Window が表示完了する
+    /// (Loaded) まで待ってから既存の <see cref="ImportWorkbookAsync"/> に流す。
+    /// DLS は単一 xlsx しか扱えないので、複数渡された場合は先頭のみ採用する。
+    /// </summary>
+    public async Task OpenFilesAsync(IReadOnlyList<string> filePaths)
+    {
+        if (filePaths is null || filePaths.Count == 0) return;
+        await this.WhenLoadedAsync();
+        await ImportWorkbookAsync(filePaths[0]);
     }
 
     private async Task ImportWorkbookAsync(string filePath)

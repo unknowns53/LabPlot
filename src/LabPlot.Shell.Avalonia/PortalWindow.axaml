@@ -24,7 +24,10 @@
          キャプション領域として機能する。
 
          v1.3.5 (PR C): Width を 620 → 940 に拡張し、右側に「最近開いたファイル」
-         縦リストを併置する。ファイル drop も Window 全体で受け付ける (AllowDrop=True)。 -->
+         縦リストを併置する。ファイル drop は「各モジュールカード」ごとに受け付ける
+         (Window 全体 drop は廃止)。.txt / .csv のように複数モジュールが対応する
+         拡張子で振り分けが曖昧になるのを避け、利用者が「どのモジュールで開きたいか」
+         をカード位置で明示できる UX にしている。 -->
 
     <Window.Resources>
         <!-- ポータル カード ボタン。WPF 版と完全同じ寸法・配色・シャドウで、
@@ -162,8 +165,7 @@
     </Window.Resources>
 
     <Border Name="ChromeRoot"
-            Theme="{DynamicResource WindowChromeRootBorderStyle}"
-            DragDrop.AllowDrop="True">
+            Theme="{DynamicResource WindowChromeRootBorderStyle}">
         <Grid RowDefinitions="Auto,*">
 
             <!-- ================= TITLE BAR ================= -->
@@ -183,9 +185,11 @@
                              Columns="2">
 
                     <!-- GPC -->
-                    <Button Theme="{DynamicResource PortalCardStyle}"
+                    <Button Name="GpcCard"
+                            Theme="{DynamicResource PortalCardStyle}"
                             Click="OpenGpc_Click"
-                            ToolTip.Tip="GPC クロマトグラム解析">
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="GPC クロマトグラム解析&#x0a;（ファイルをここに drop して開く）">
                         <Grid RowDefinitions="Auto,*">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
                                 <Border Theme="{DynamicResource PortalCardBadgeStyle}">
@@ -202,9 +206,11 @@
                     </Button>
 
                     <!-- UV-Vis -->
-                    <Button Theme="{DynamicResource PortalCardStyle}"
+                    <Button Name="SpectrumCard"
+                            Theme="{DynamicResource PortalCardStyle}"
                             Click="OpenSpectrum_Click"
-                            ToolTip.Tip="UV-Vis スペクトル解析">
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="UV-Vis スペクトル解析&#x0a;（ファイルをここに drop して開く）">
                         <Grid RowDefinitions="Auto,*">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
                                 <Border Theme="{DynamicResource PortalCardBadgeStyle}">
@@ -221,9 +227,11 @@
                     </Button>
 
                     <!-- DLS -->
-                    <Button Theme="{DynamicResource PortalCardStyle}"
+                    <Button Name="DlsCard"
+                            Theme="{DynamicResource PortalCardStyle}"
                             Click="OpenDls_Click"
-                            ToolTip.Tip="DLS 粒径分布解析">
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="DLS 粒径分布解析&#x0a;（ファイルをここに drop して開く）">
                         <Grid RowDefinitions="Auto,*">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
                                 <Border Theme="{DynamicResource PortalCardBadgeStyle}">

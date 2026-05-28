@@ -15,10 +15,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
   (1) **Esc で Portal を閉じる**: ShutdownMode=OnMainWindowClose と組み合わせて
   キー 1 つで終了できる。子モジュール (GPC/Spectrum/DLS) には伝播させない (解析中
   の誤操作リスク回避)。
-  (2) **ファイル drop 受付**: Portal Window 全体で drop を受け付け、最初のファイル
-  の拡張子から対応モジュール (`.csv`/`.tsv`→GPC、`.txt`→UV-Vis、`.xlsx`→DLS) を
-  判定して起動 + ファイル open まで 1 アクションで完結。混在 drop は先頭モジュール
-  の分だけ採用し、未対応拡張子は Toast で案内。
+  (2) **カードごとのファイル drop 受付**: 3 モジュールカードが drop ターゲットになり、
+  「どのカードに drop したか」で「どのモジュールで開くか」が決まる。`.txt` や `.csv`
+  のように複数モジュールが対応する拡張子で振り分けが曖昧になる問題を避けるため、
+  Window 全体の drop は廃止して利用者がカード位置で意図を明示する設計に。各カードは
+  自身が受け付ける拡張子 (GPC: `.csv`/`.tsv`/`.txt`、Spectrum: `.csv`/`.txt`、DLS:
+  `.xlsx`) でフィルタし、対応外なら Toast で案内して誤起動させない。
   (3) **最近開いたファイル一覧**: 3 モジュールが既に書き出している
   `RecentFilesStore` JSON (`%APPDATA%/LabPlot/recent-{gpc,spectrum,dls}.json`) を
   Portal で集約し、`File.GetLastWriteTimeUtc` で降順 sort して最大 8 件を右側カラム

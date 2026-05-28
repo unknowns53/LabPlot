@@ -37,8 +37,11 @@ namespace LabPlot.Shell.Avalonia;
 ///   <item><b>Esc で Portal close</b>: ShutdownMode=OnMainWindowClose と組み合わせて
 ///     キー 1 つで終了できる。子モジュール (GPC/Spectrum/DLS) には伝播させない
 ///     (解析中の誤操作で消えるリスクを避けるため)。</item>
-///   <item><b>ファイル drop 受付</b>: 拡張子で対応モジュールを判定し、起動 + ファイル
-///     open まで 1 アクション。.csv/.tsv→GPC, .txt→Spectrum, .xlsx→DLS。</item>
+///   <item><b>カードごとのファイル drop 受付</b>: 各モジュールカードが drop ターゲット
+///     になっており、「どこに drop したか」が「どのモジュールで開くか」と一致する。
+///     `.txt` / `.csv` のように複数モジュールが対応する拡張子で振り分けが曖昧になる
+///     問題を避けるため、Window 全体 drop は廃止し、利用者がカード位置で意図を明示
+///     する設計にしている。</item>
 ///   <item><b>最近開いたファイル一覧</b>: 3 モジュールが既に書き出している
 ///     <see cref="RecentFilesStore"/> JSON を集約し、最終更新日時で sort して表示。
 ///     クリックで該当モジュール起動 + ファイル open。</item>
@@ -50,17 +53,16 @@ public partial class PortalWindow : Window
     private const string WindowStateAppKey = "portal";
 
     /// <summary>
-    /// 拡張子 → モジュール種別 のマップ。Drop 時とリストクリック時の双方で使う。
-    /// 重複拡張子 (.csv / .txt は GPC/Spectrum 両対応) は実運用の主たる用途で振り分け:
-    /// GPC は CSV 出力が大半、Spectrum は JASCO TXT が中心、DLS は xlsx 専用。
+    /// 各モジュールが受け入れるファイル拡張子。カード drop 時に「対応外なら Toast で
+    /// 案内して open を起動しない」誤起動防止チェックに使う。GPC / Spectrum は
+    /// `.csv` / `.txt` を共有し、GPC は `.tsv` も、DLS は `.xlsx` 専用。
     /// </summary>
-    private static readonly IReadOnlyDictionary<string, PortalModuleKind> ExtensionMap =
-        new Dictionary<string, PortalModuleKind>(StringComparer.OrdinalIgnoreCase)
+    private static readonly IReadOnlyDictionary<PortalModuleKind, IReadOnlySet<string>> SupportedExtensions =
+        new Dictionary<PortalModuleKind, IReadOnlySet<string>>
         {
-            [".csv"] = PortalModuleKind.Gpc,
-            [".tsv"] = PortalModuleKind.Gpc,
-            [".txt"] = PortalModuleKind.Spectrum,
-            [".xlsx"] = PortalModuleKind.Dls,
+            [PortalModuleKind.Gpc] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".csv", ".tsv", ".txt" },
+            [PortalModuleKind.Spectrum] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".csv", ".txt" },
+            [PortalModuleKind.Dls] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".xlsx" },
         };
 
     private Border? _chromeRoot;
@@ -68,6 +70,9 @@ public partial class PortalWindow : Window
     private ItemsControl? _recentFilesList;
     private StackPanel? _emptyRecentPanel;
     private ToastHost? _toast;
+    private Button? _gpcCard;
+    private Button? _spectrumCard;
+    private Button? _dlsCard;
 
     public PortalWindow()
     {
@@ -76,10 +81,24 @@ public partial class PortalWindow : Window
         _recentFilesList = this.FindControl<ItemsControl>("RecentFilesList");
         _emptyRecentPanel = this.FindControl<StackPanel>("EmptyRecentPanel");
         _toast = this.FindControl<ToastHost>("PortalToast");
+        _gpcCard = this.FindControl<Button>("GpcCard");
+        _spectrumCard = this.FindControl<Button>("SpectrumCard");
+        _dlsCard = this.FindControl<Button>("DlsCard");
 
-        // Drop ハンドラを Window 全体に登録。AllowDrop=True は axaml 側で指定済み。
-        AddHandler(DragDrop.DragOverEvent, OnFileDragOver);
-        AddHandler(DragDrop.DropEvent, OnFileDrop);
+        // 各カードを drop ターゲットに登録。Card.Tag に PortalModuleKind を仕込み、
+        // 1 つの共通 OnCardDrop からどのモジュールで開くか取り出す。Window 全体ハンドラは
+        // 置かない (拡張子だけだと `.txt` 等で振り分けが曖昧になるのを避けるため)。
+        AttachCardDropHandlers(_gpcCard, PortalModuleKind.Gpc);
+        AttachCardDropHandlers(_spectrumCard, PortalModuleKind.Spectrum);
+        AttachCardDropHandlers(_dlsCard, PortalModuleKind.Dls);
+    }
+
+    private void AttachCardDropHandlers(Button? card, PortalModuleKind kind)
+    {
+        if (card is null) return;
+        card.Tag = kind;
+        card.AddHandler(DragDrop.DragOverEvent, OnCardDragOver);
+        card.AddHandler(DragDrop.DropEvent, OnCardDrop);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -170,14 +189,14 @@ public partial class PortalWindow : Window
     }
 
     // ============================================================
-    // ファイル drop 受付
+    // ファイル drop 受付 (各モジュールカード)
     // ============================================================
 
     /// <summary>
     /// Drag 中の cursor effect を Copy に固定し、Drop を受け付ける合図を OS 側に返す。
-    /// File 以外 (テキスト drop 等) は None で拒否する。
+    /// File 以外 (テキスト drop 等) は None で拒否する。3 カード共通ハンドラ。
     /// </summary>
-    private void OnFileDragOver(object? sender, DragEventArgs e)
+    private void OnCardDragOver(object? sender, DragEventArgs e)
     {
         // Avalonia 11.3 新 API: e.DataTransfer + DataFormat.File。DLS の既存ハンドラと
         // 揃えて、Drop 直前まで cursor effect を Copy で固定する。
@@ -193,13 +212,15 @@ public partial class PortalWindow : Window
     }
 
     /// <summary>
-    /// Drop されたファイル群を、最初のファイルの拡張子で 1 モジュールに振り分けて
-    /// 起動 + open する。混在 (例: .csv と .xlsx) は実用上稀なので、先頭のみで判定する。
-    /// 対応拡張子 (<see cref="ExtensionMap"/>) に該当しなければ Toast で案内する。
+    /// 各モジュールカードへの drop 共通ハンドラ。sender.Tag から
+    /// <see cref="PortalModuleKind"/> を取り出し、そのモジュールが受け付ける拡張子だけを
+    /// フィルタして open する。「カード = 利用者の意思表示」なので、ここで拡張子を
+    /// 推測することはしない。対応外拡張子は Toast で案内するだけで誤起動させない。
     /// </summary>
-    private async void OnFileDrop(object? sender, DragEventArgs e)
+    private async void OnCardDrop(object? sender, DragEventArgs e)
     {
         e.Handled = true;
+        if (sender is not Button card || card.Tag is not PortalModuleKind kind) return;
         if (e.DataTransfer is null || !e.DataTransfer.Contains(DataFormat.File)) return;
         var files = e.DataTransfer.TryGetFiles();
         if (files is null) return;
@@ -211,24 +232,30 @@ public partial class PortalWindow : Window
             .ToArray();
         if (paths.Length == 0) return;
 
-        var firstExt = Path.GetExtension(paths[0]);
-        if (string.IsNullOrEmpty(firstExt) || !ExtensionMap.TryGetValue(firstExt, out var kind))
+        if (!SupportedExtensions.TryGetValue(kind, out var allowedExts))
+            return;
+
+        var acceptedPaths = paths
+            .Where(p => allowedExts.Contains(Path.GetExtension(p)))
+            .ToArray();
+
+        if (acceptedPaths.Length == 0)
         {
-            ShowToast("対応形式: .csv / .tsv / .txt / .xlsx", StatusSeverity.Warning, 2500);
+            var label = ModuleLabel(kind);
+            var hint = string.Join(" / ", allowedExts);
+            ShowToast($"{label} は {hint} のみ対応しています。", StatusSeverity.Warning, 2800);
             return;
         }
 
-        // Drop 内に他モジュール向け拡張子が混在していたら、先頭モジュール分だけ採用する。
-        var sameKindPaths = paths
-            .Where(p => ExtensionMap.TryGetValue(Path.GetExtension(p), out var k) && k == kind)
-            .ToArray();
-        if (sameKindPaths.Length < paths.Length)
+        if (acceptedPaths.Length < paths.Length)
         {
-            ShowToast($"複数モジュールを跨ぐ drop は未対応。{ModuleLabel(kind)} 向け {sameKindPaths.Length} 件だけ開きます。",
-                StatusSeverity.Info, 2800);
+            // 対応外拡張子が混ざっていた場合、受理した件数だけを open する旨を Toast で通知。
+            var skipped = paths.Length - acceptedPaths.Length;
+            ShowToast($"対応形式以外の {skipped} 件はスキップしました。",
+                StatusSeverity.Info, 2500);
         }
 
-        await OpenModuleWithFilesAsync(kind, sameKindPaths);
+        await OpenModuleWithFilesAsync(kind, acceptedPaths);
     }
 
     // ============================================================

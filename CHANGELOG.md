@@ -8,6 +8,40 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Changed
+
+- **DLS の「全シート選択 / 全解除」を `Ctrl/Cmd + A` に再割当**
+  (`src/LabPlot.DLS.Avalonia/MainWindow.axaml.cs`,
+  `src/LabPlot.Core.Avalonia/KeyboardShortcutsWindow.axaml.cs`). GPC / Spectrum
+  が `Ctrl/Cmd + L` を「重ね描きの切替」に使うのに対し、DLS だけ同キーで「全選択」
+  を担う構成だったため、3 モジュール横断のホットキー意味衝突を解消した。F1 ヘルプ
+  内の DLS 行も `Ctrl/Cmd + A` 表記に更新済み。
+- **DLS の複数選択 ListBox に「選択中アクセント帯」を追加**
+  (`src/LabPlot.DLS.Avalonia/MainWindow.axaml`). 旧 UI では Ctrl/Shift クリックで
+  追加選択した sheet/run の選択状態が背景色だけで分かりにくく、いま何が plot に
+  反映されているか視認しづらかった。`ListBoxItem:selected /template/
+  ContentPresenter` に左 3px のアクセント帯と薄い blue 背景を当て、選択切替で
+  レイアウトシフトが起きないよう ContentPresenter 側に枠を固定している。
+
+### Fixed
+
+- **ファイル読み込み失敗時に既存グラフ・データセットを温存**
+  (`src/LabPlot.GPC.Avalonia/MainWindow.axaml.cs`,
+  `src/LabPlot.Spectrum.Avalonia/MainWindow.axaml.cs`). GPC / Spectrum の
+  ファイル open catch では旧実装が `_loadedDatasets.Clear()` /
+  `_datasetStyles.Clear()` 等を呼び、IOException や parse 失敗のたびに作業中の
+  グラフがすべて消えていた。`await Task.WhenAll` は 1 ファイル失敗で全 Task を
+  まとめて throw するため partial 書込は発生しない、ということを確認のうえで
+  catch を `ShowError` のみに削減し、失敗時もユーザーが直前まで作業していた
+  既存グラフ・データセットを保持する挙動に変えた。DLS は読み込み成功後に Clear
+  → Add するため既に同挙動で、修正は不要。
+- **「履歴をクリア」操作に確認ダイアログを追加** (GPC / Spectrum / DLS の
+  `MainWindow.axaml.cs` の `ClearRecentFilesMenuItem_Click`). 旧 UI では履歴
+  ComboBox の右クリック 1 発で「最近開いたファイル一覧」だけでなく現在表示中の
+  グラフ・データセットも問答無用で消えていた。Core.Avalonia の `ConfirmDialog`
+  を挟み、Toast で事後通知する設計から「実行前に Yes/No を取る」設計に揃え、
+  GPC / Spectrum / DLS のクリア系操作の confirmation 有無の非対称を解消した。
+
 ## [1.3.4] - 2026-05-27
 
 3 モジュール (GPC / Spectrum / DLS) を横断するパフォーマンス改善 sweep。GPC で確立した

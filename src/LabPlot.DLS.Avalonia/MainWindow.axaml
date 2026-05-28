@@ -84,8 +84,22 @@
                                                       ToolTip.Tip="直近に開いた xlsx (最大 5 件) を選んで再読み込みします。右クリックで履歴をクリア。">
                                                 <ComboBox.ContextMenu>
                                                     <ContextMenu>
+                                                        <!-- v1.3.5: ContextMenu 単独 MenuItem は Avalonia Fluent default の
+                                                             Icon Column 空白で「文字が中途半端に左寄り」に見える。
+                                                             trash 風 Path を Icon に入れて空きカラムを塞ぐと、視覚的に
+                                                             バランスが取れて「履歴消去」のニュアンスも伝わる。 -->
                                                         <MenuItem Header="履歴をクリア"
-                                                                  Click="ClearRecentFilesMenuItem_Click" />
+                                                                  Click="ClearRecentFilesMenuItem_Click">
+                                                            <MenuItem.Icon>
+                                                                <Path Width="14" Height="14"
+                                                                      Stroke="#475569"
+                                                                      StrokeThickness="1.4"
+                                                                      StrokeLineCap="Round"
+                                                                      StrokeJoin="Round"
+                                                                      Fill="Transparent"
+                                                                      Data="M 2.5,4 L 13.5,4 M 5,4 L 5,2.8 L 11,2.8 L 11,4 M 4,4.5 L 4.8,13.2 L 11.2,13.2 L 12,4.5 M 6.5,6.5 L 6.5,11.5 M 9.5,6.5 L 9.5,11.5" />
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
                                                     </ContextMenu>
                                                 </ComboBox.ContextMenu>
                                             </ComboBox>
@@ -121,6 +135,33 @@
                                                              Background="Transparent"
                                                              Padding="0"
                                                              DragDrop.AllowDrop="True">
+                                                        <!-- v1.3.5: 複数選択中の sheet/run が一目で分かるよう、
+                                                             :selected 時に左 3px のアクセント帯と薄い blue 背景を出す。
+                                                             ContentPresenter 側に BorderThickness を寄せることで
+                                                             選択切替時にレイアウトシフトが起きないように固定枠を確保する。 -->
+                                                        <ListBox.Styles>
+                                                            <Style Selector="ListBoxItem">
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Margin" Value="0,1" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem /template/ ContentPresenter">
+                                                                <Setter Property="Padding" Value="7,5,8,5" />
+                                                                <Setter Property="BorderThickness" Value="3,0,0,0" />
+                                                                <Setter Property="BorderBrush" Value="Transparent" />
+                                                                <Setter Property="CornerRadius" Value="0" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                                                                <Setter Property="Background" Value="#F1F5F9" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                                                <Setter Property="Background" Value="#DBEAFE" />
+                                                                <Setter Property="BorderBrush" Value="#2563EB" />
+                                                            </Style>
+                                                            <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
+                                                                <Setter Property="Background" Value="#BFDBFE" />
+                                                                <Setter Property="BorderBrush" Value="#1D4ED8" />
+                                                            </Style>
+                                                        </ListBox.Styles>
                                                         <ListBox.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:DlsDatasetItem">
                                                                 <Grid ColumnDefinitions="Auto,*">

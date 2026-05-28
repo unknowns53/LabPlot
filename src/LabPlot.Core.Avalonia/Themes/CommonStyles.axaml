@@ -551,6 +551,120 @@
         </Style>
     </ControlTheme>
 
+    <!-- ============================================================
+         DestructiveButtonStyle — v1.3.5 で ConfirmDialog から参照する破壊操作用ボタン。
+         PrimaryButtonStyle と同じテンプレ・同じ Hover lift / Pressed push-down を踏襲し、
+         アクセント色だけを Tailwind red 系 (#DC2626 / #B91C1C / #991B1B) に差し替える。
+         影は dark red (#7F1D1D) で primary の dark blue と同じ親和性を出す。色直書きは
+         PR B で DangerBrush 系トークン化と一緒に DynamicResource 化する想定。
+         ============================================================ -->
+    <ControlTheme x:Key="DestructiveButtonStyle" TargetType="Button">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="#DC2626" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <Border Name="ShadowLayer"
+                            CornerRadius="6"
+                            Background="#7F1D1D"
+                            Opacity="0.18"
+                            Margin="0,2,0,-2" />
+                    <Border Name="ButtonBorder"
+                            CornerRadius="6"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            RenderTransformOrigin="50%,50%">
+                        <Border.RenderTransform>
+                            <TranslateTransform Y="0" />
+                        </Border.RenderTransform>
+                        <ContentPresenter HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <Border Name="FocusRing"
+                            CornerRadius="8"
+                            BorderBrush="{StaticResource FocusRingBrush}"
+                            BorderThickness="2"
+                            Margin="-2"
+                            Opacity="0"
+                            IsHitTestVisible="False" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:pointerover /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#B91C1C" />
+            <Style.Animations>
+                <Animation Duration="0:0:0.12" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="^:not(:pointerover) /template/ Border#ButtonBorder">
+            <Style.Animations>
+                <Animation Duration="0:0:0.12" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="^:pointerover /template/ Border#ShadowLayer">
+            <Setter Property="Opacity" Value="0.28" />
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="#991B1B" />
+            <Style.Animations>
+                <Animation Duration="0:0:0.08" FillMode="Forward">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="(TranslateTransform.Y)" Value="-1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="(TranslateTransform.Y)" Value="0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="^:pressed /template/ Border#ShadowLayer">
+            <Setter Property="Opacity" Value="0.10" />
+            <Setter Property="Margin" Value="0,1,0,-1" />
+        </Style>
+        <Style Selector="^:focus /template/ Border#FocusRing">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#ButtonBorder">
+            <Setter Property="Background" Value="{StaticResource AccentDisabledBrush}" />
+        </Style>
+        <Style Selector="^:disabled /template/ Border#ShadowLayer">
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Foreground" Value="{StaticResource ForegroundDisabledBrush}" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+    </ControlTheme>
+
     <ControlTheme x:Key="SecondaryButtonStyle" TargetType="Button">
         <Setter Property="Height" Value="32" />
         <Setter Property="Padding" Value="12,0" />

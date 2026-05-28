@@ -240,8 +240,19 @@ public partial class MainWindow : Window
 
     // 履歴 ComboBox の右クリックメニュー → 「履歴をクリア」。
     // 履歴 (MRU) と表示中のプロット・データセットの寿命を揃える (GPC / DLS と同じ方針)。
-    private void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
+    //
+    // v1.3.5: 旧実装は確認なしで履歴 + データセット + プロットを一気に消していた。
+    //         GPC / DLS と同じく ConfirmDialog を挟み、誤って作業中のグラフを消す事故を防ぐ。
+    private async void ClearRecentFilesMenuItem_Click(object? sender, RoutedEventArgs e)
     {
+        var confirmed = await ConfirmDialog.ShowAsync(
+            this,
+            title: "履歴とプロットをクリアしますか?",
+            message: "最近開いたファイルの履歴と、現在表示中のグラフ・データセットをすべて破棄します。",
+            confirmLabel: "クリア",
+            isDestructive: true);
+        if (!confirmed) return;
+
         RecentFilesStore.Clear(RecentFilesAppKey);
         _lastLoadedFilePath = null;
 
@@ -863,12 +874,10 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {
-            _currentDataset = null;
-            _loadedDatasets.Clear();
-            _datasetStyles.Clear();
-            _activeIndex = -1;
-            RefreshDatasetEntries();
-            SetGraphActionsEnabled(false);
+            // v1.3.5: GPC と同方針で「読み込み失敗時の既存グラフ温存」に揃える。
+            //         await Task.WhenAll は 1 ファイル失敗で全 Task をまとめて throw するため、
+            //         AddLoadedDataset / PlotCurrentDataset 到達前に脱出し partial 書込は発生
+            //         しない。既存 dataset を全 Clear する旧挙動はユーザー予期に反するため撤去。
             ShowError($"読み込みに失敗しました: {ex.Message}");
         }
         finally

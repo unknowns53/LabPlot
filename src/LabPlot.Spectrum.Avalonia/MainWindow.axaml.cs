@@ -38,7 +38,7 @@ namespace LabPlot.Spectrum.Avalonia;
 /// 凡例ドラッグは Phase 7 Batch 6 step 3 で
 /// <see cref="LabPlot.Core.Avalonia.Helpers.LegendDragController"/> として移植済み。
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IPortalFileOpener
 {
     private readonly ISpectrumDataReader _reader = new JascoSpectrumReader();
 
@@ -822,6 +822,18 @@ public partial class MainWindow : Window
         if (fileNames.Length == 0) return;
 
         await ImportSpectrumFilesAsync(fileNames);
+    }
+
+    /// <summary>
+    /// <see cref="IPortalFileOpener.OpenFilesAsync"/> の実装。Portal からのファイル
+    /// drop / 最近開いたファイルクリックの 1 本道として、Window が表示完了する
+    /// (Loaded) まで待ってから既存の <see cref="ImportSpectrumFilesAsync"/> に流す。
+    /// </summary>
+    public async Task OpenFilesAsync(IReadOnlyList<string> filePaths)
+    {
+        if (filePaths is null || filePaths.Count == 0) return;
+        await this.WhenLoadedAsync();
+        await ImportSpectrumFilesAsync(filePaths.ToArray());
     }
 
     private async Task ImportSpectrumFilesAsync(string[] fileNames)

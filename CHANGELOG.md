@@ -10,6 +10,25 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ### Added
 
+- **Portal をファイル workflow の起点に拡張** (PR C,
+  `src/LabPlot.Shell.Avalonia/PortalWindow.axaml{,.cs}`). 3 機能を追加:
+  (1) **Esc で Portal を閉じる**: ShutdownMode=OnMainWindowClose と組み合わせて
+  キー 1 つで終了できる。子モジュール (GPC/Spectrum/DLS) には伝播させない (解析中
+  の誤操作リスク回避)。
+  (2) **ファイル drop 受付**: Portal Window 全体で drop を受け付け、最初のファイル
+  の拡張子から対応モジュール (`.csv`/`.tsv`→GPC、`.txt`→UV-Vis、`.xlsx`→DLS) を
+  判定して起動 + ファイル open まで 1 アクションで完結。混在 drop は先頭モジュール
+  の分だけ採用し、未対応拡張子は Toast で案内。
+  (3) **最近開いたファイル一覧**: 3 モジュールが既に書き出している
+  `RecentFilesStore` JSON (`%APPDATA%/LabPlot/recent-{gpc,spectrum,dls}.json`) を
+  Portal で集約し、`File.GetLastWriteTimeUtc` で降順 sort して最大 8 件を右側カラム
+  に表示。各行クリックで該当モジュール起動 + ファイル open。ファイル削除済みの
+  エントリは自動的に弾かれる (`RecentFilesStore.Load` の側で stat チェック)。
+- **`IPortalFileOpener` 共通インターフェース** (`src/LabPlot.Core.Avalonia/Helpers/IPortalFileOpener.cs`).
+  Portal が具体的なモジュールを知らずに「このファイルを開いて」と依頼するための
+  契約。3 MainWindow が implement し、新モジュール追加時の Portal 連携も同パターン
+  で揃う。あわせて `Window.WhenLoadedAsync()` 拡張メソッドを同居させ、Show 直後に
+  Import* を呼んでも BusyOverlay 等の Visual Tree 依存処理が間に合わない競合を防ぐ。
 - **デザイントークン辞書を独立リソースに分離**
   (`src/LabPlot.Core.Avalonia/Themes/CommonTokens.axaml`). アクセント / 状態
   フィードバック (Success / Warning / Error の 4 色セット) / 中間階調 / フォーカス

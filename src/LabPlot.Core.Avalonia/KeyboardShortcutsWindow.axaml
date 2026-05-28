@@ -8,7 +8,7 @@
         MinHeight="320" MaxHeight="720"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
-        Background="#F7F8FA"
+        Background="{DynamicResource MainBgSurfaceBrush}"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"
         UseLayoutRounding="True"

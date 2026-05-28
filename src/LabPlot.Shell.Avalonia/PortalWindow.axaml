@@ -6,7 +6,7 @@
         Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
         Height="540" Width="620"
         CanResize="False"
-        Background="#F7F8FA"
+        Background="{DynamicResource MainBgSurfaceBrush}"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"
         UseLayoutRounding="True"
@@ -55,17 +55,17 @@
                  Avalonia の擬似クラス Selector に置換。/template/ で ControlTemplate
                  内の Border#CardBorder を狙い撃つ。 -->
             <Style Selector="^:pointerover /template/ Border#CardBorder">
-                <Setter Property="BorderBrush" Value="#2563EB" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             </Style>
             <Style Selector="^:pressed /template/ Border#CardBorder">
                 <Setter Property="Background" Value="#F0F7FF" />
             </Style>
             <Style Selector="^:focus /template/ Border#CardBorder">
-                <Setter Property="BorderBrush" Value="#2563EB" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
             </Style>
             <Style Selector="^:disabled /template/ Border#CardBorder">
-                <Setter Property="BorderBrush" Value="#CBD5E1" />
-                <Setter Property="Background" Value="#F8FAFC" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentDisabledBrush}" />
+                <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
             </Style>
             <Style Selector="^:disabled">
                 <Setter Property="Cursor" Value="Arrow" />
@@ -86,7 +86,7 @@
              StrokeLineCap (start/end 兼用) / StrokeJoin に統合される。SnapsToDevicePixels は
              Window.UseLayoutRounding でカバーするので個別指定は省略。 -->
         <ControlTheme x:Key="PortalCardIconStyle" TargetType="Path">
-            <Setter Property="Stroke" Value="#2563EB" />
+            <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
             <Setter Property="StrokeThickness" Value="1.7" />
             <Setter Property="StrokeLineCap" Value="Round" />
             <Setter Property="StrokeJoin" Value="Round" />

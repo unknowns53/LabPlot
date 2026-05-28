@@ -1,0 +1,82 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ============================================================
+         CommonTokens.axaml — v1.3.5 で色 / 寸法 / フォントの "デザイントークン"
+         を独立リソースとして切り出した。以前は CommonStyles.axaml の冒頭に同梱
+         されていたが、styles と tokens が混在すると拡張時 (Dark theme / 新規
+         danger スタイル / 寸法のアプリ統一など) に変更点が散らかる。
+
+         どこから先に参照するか:
+           App.axaml の MergedDictionaries で CommonTokens.axaml を最初に Include。
+           CommonStyles.axaml と各モジュールの axaml は {StaticResource XxxBrush}
+           で名前引きする。
+         ============================================================ -->
+
+    <!-- ===== 状態フィードバック (Success / Warning / Error) =====
+         3 種は完全な 4 色セット (本体 / 文字 / 背景 / ボーダー) を持つ。
+         Banner / Toast / Status chip / Confirm の destructive ボタンから参照。 -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#10B981" />
+    <SolidColorBrush x:Key="SuccessForegroundBrush" Color="#065F46" />
+    <SolidColorBrush x:Key="SuccessBackgroundBrush" Color="#ECFDF5" />
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#A7F3D0" />
+
+    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
+    <SolidColorBrush x:Key="WarningForegroundBrush" Color="#92400E" />
+    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#FFFBEB" />
+    <SolidColorBrush x:Key="WarningBorderBrush" Color="#FCD34D" />
+
+    <!-- Error 系。v1.3.5 で破壊操作 Button (PR A の DestructiveButtonStyle) を
+         サポートするため Hover / Pressed 階調を追加。AccentBrush 系と同じ
+         5 階層 (本体 / Hover / Pressed / Disabled / Light) を持たせ、
+         primary <-> destructive がそのまま差し替え可能になっている。 -->
+    <SolidColorBrush x:Key="ErrorBrush" Color="#DC2626" />
+    <SolidColorBrush x:Key="ErrorHoverBrush" Color="#B91C1C" />
+    <SolidColorBrush x:Key="ErrorPressedBrush" Color="#991B1B" />
+    <SolidColorBrush x:Key="ErrorForegroundBrush" Color="#7F1D1D" />
+    <SolidColorBrush x:Key="ErrorBackgroundBrush" Color="#FEE2E2" />
+    <SolidColorBrush x:Key="ErrorBorderBrush" Color="#FCA5A5" />
+
+    <!-- ===== アクセント (blue) =====
+         WPF 版では各 ControlTemplate に hard-coded だったが、Avalonia 移植時に
+         共通 Brush として括り出し済み。Primary ボタン / Caret / 選択帯ハイライト
+         (DLS ListBoxItem:selected) などから参照。 -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#1D4ED8" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#1E3A8A" />
+    <SolidColorBrush x:Key="AccentDisabledBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="AccentLightBrush" Color="#BFDBFE" />
+
+    <!-- FocusRing 専用トークン。Button / Input 系の外周 2px Border に当てる。
+         #60A5FA は WPF 版の FocusVisualStyle に近い淡 blue で、Accent 系より
+         一段薄くして「フォーカスは目立つが押し付けがましくない」見た目にする。 -->
+    <SolidColorBrush x:Key="FocusRingBrush" Color="#60A5FA" />
+
+    <!-- ===== 中間階調 / 罫線 / 文字色 =====
+         slate-50 〜 slate-900 系で揃える (Tailwind slate ramp 準拠)。
+
+         MainBgSurfaceBrush は v1.3.5 で追加した「Window 全体の薄灰背景」。
+         3 モジュール + Portal で同じ #F7F8FA を Window.Background に直書き
+         していたのを 1 トークンに集約する。SurfaceBrush (= 白カード本体) と
+         SurfaceMutedBrush (= 入力欄 background) との 3 階層を明確化。 -->
+    <SolidColorBrush x:Key="MainBgSurfaceBrush" Color="#F7F8FA" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="White" />
+    <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="BorderDefaultBrush" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="BorderHoverBrush" Color="#94A3B8" />
+    <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="ForegroundMutedBrush" Color="#475569" />
+    <SolidColorBrush x:Key="ForegroundDisabledBrush" Color="#94A3B8" />
+
+    <!-- ===== 寸法 / フォント =====
+         角丸 6/8 とフォントスタックは CLAUDE.md UI 規約 (Segoe UI / Yu Gothic UI
+         / Meiryo UI) 準拠。ControlCornerRadius は Button / Input / 小カード用、
+         CardCornerRadius は SectionStyle のような大きい白カード用。
+         FontFamily は <FontFamily> リソースとして登録し Window.FontFamily から
+         {StaticResource AppFontFamily} で引ける。 -->
+    <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+    <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
+    <FontFamily x:Key="AppFontFamily">Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif</FontFamily>
+
+</ResourceDictionary>

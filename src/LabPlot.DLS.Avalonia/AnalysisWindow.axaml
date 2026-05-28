@@ -6,7 +6,7 @@
         Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
         Height="640" Width="540" MinHeight="480" MinWidth="440"
         WindowStartupLocation="CenterOwner"
-        Background="#F7F8FA"
+        Background="{DynamicResource MainBgSurfaceBrush}"
         FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
         FontSize="13"
         UseLayoutRounding="True"

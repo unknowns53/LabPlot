@@ -23,6 +23,10 @@
              相当するが、Avalonia は ResourceInclude を使う。 -->
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <!-- v1.3.5: 色 / 寸法 / フォントのデザイントークンを styles より先に Include。
+                     CommonStyles.axaml の ControlTheme は {StaticResource AccentBrush} 等で
+                     名前引きするので、解決順序として Tokens が先である必要がある。 -->
+                <ResourceInclude Source="avares://LabPlot.Core.Avalonia/Themes/CommonTokens.axaml" />
                 <ResourceInclude Source="avares://LabPlot.Core.Avalonia/Themes/CommonStyles.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

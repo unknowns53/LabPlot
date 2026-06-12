@@ -247,38 +247,26 @@
                         </Grid>
                     </Button>
 
-                    <!-- + 追加プレースホルダー -->
-                    <Border Theme="{DynamicResource PortalPlaceholderCardStyle}">
+                    <!-- Data Viewer (汎用ビューア) -->
+                    <Button Name="ViewerCard"
+                            Theme="{DynamicResource PortalCardStyle}"
+                            Click="OpenViewer_Click"
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="汎用データビューア&#x0a;（ファイルをここに drop して開く）">
                         <Grid RowDefinitions="Auto,*">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
-                                <Border Width="36" Height="36"
-                                        CornerRadius="7"
-                                        Background="#E2E8F0"
-                                        VerticalAlignment="Center"
-                                        Margin="0,0,12,0">
-                                    <Path Stroke="#94A3B8"
-                                          StrokeThickness="1.8"
-                                          StrokeLineCap="Round"
-                                          Fill="Transparent"
-                                          Stretch="Uniform"
-                                          Width="18" Height="18"
-                                          Data="M 10,3 L 10,17 M 3,10 L 17,10" />
+                                <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                    <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                          Data="M 3,3 L 3,17 L 17,17 M 6,13 L 9,8 L 12,11 L 16,5" />
                                 </Border>
-                                <TextBlock FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="#94A3B8"
-                                           VerticalAlignment="Center"
-                                           Text="今後追加予定" />
+                                <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                           Text="Viewer" />
                             </StackPanel>
                             <TextBlock Grid.Row="1"
-                                       FontSize="12.5"
-                                       Foreground="#94A3B8"
-                                       TextWrapping="Wrap"
-                                       LineHeight="18"
-                                       Margin="0,12,0,0"
-                                       Text="DSC / TGA / NMR など&#x0a;新規アプリの拡張枠" />
+                                       Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                       Text="汎用データビューア&#x0a;CSV / TSV / xlsx の重ね描き" />
                         </Grid>
-                    </Border>
+                    </Button>
                 </UniformGrid>
 
                 <!-- ============ 右カラム: 最近開いたファイル ============ -->

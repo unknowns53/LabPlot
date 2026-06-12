@@ -27,6 +27,7 @@
     <ProjectReference Include="..\LabPlot.DLS.Avalonia\LabPlot.DLS.Avalonia.csproj" />
     <ProjectReference Include="..\LabPlot.GPC.Avalonia\LabPlot.GPC.Avalonia.csproj" />
     <ProjectReference Include="..\LabPlot.Spectrum.Avalonia\LabPlot.Spectrum.Avalonia.csproj" />
+    <ProjectReference Include="..\LabPlot.Viewer.Avalonia\LabPlot.Viewer.Avalonia.csproj" />
   </ItemGroup>
 
   <ItemGroup>

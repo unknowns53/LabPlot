@@ -162,8 +162,104 @@
                                                                RadiusY="4"
                                                                IsHitTestVisible="False"
                                                                IsVisible="False" />
+                                                    <!-- 内部 reorder 用の insertion line (GPC と同方式: AdornerLayer の
+                                                         代替として sibling を絶対位置決めし Margin / IsVisible で動かす) -->
+                                                    <Grid Name="InsertionLine"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Top"
+                                                          Height="12"
+                                                          Margin="0"
+                                                          IsVisible="False"
+                                                          IsHitTestVisible="False">
+                                                        <Grid.Effect>
+                                                            <DropShadowEffect BlurRadius="8"
+                                                                              Color="#2563EB"
+                                                                              Opacity="0.55"
+                                                                              OffsetX="0"
+                                                                              OffsetY="0" />
+                                                        </Grid.Effect>
+                                                        <Rectangle Height="2"
+                                                                   VerticalAlignment="Center"
+                                                                   Fill="#2563EB"
+                                                                   Opacity="0.85" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 Opacity="0.85"
+                                                                 HorizontalAlignment="Left"
+                                                                 VerticalAlignment="Center" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 Opacity="0.85"
+                                                                 HorizontalAlignment="Right"
+                                                                 VerticalAlignment="Center" />
+                                                    </Grid>
                                                 </Grid>
                                             </Border>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Column mapping (選択中テーブル) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="True">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 1,3 L 13,3 M 1,7 L 13,7 M 1,11 L 13,11 M 5,1 L 5,13 M 9,1 L 9,13" />
+                                                <TextBlock Text="列マッピング"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                                <TextBlock Name="MappingTableLabel"
+                                                           Text="(テーブル未選択)"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"
+                                                           VerticalAlignment="Bottom"
+                                                           Margin="6,0,0,2" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="X 列"
+                                                       Theme="{DynamicResource FieldLabelStyle}" />
+                                            <ComboBox Name="XColumnComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      HorizontalAlignment="Stretch"
+                                                      IsEnabled="False"
+                                                      Margin="0,0,0,10"
+                                                      PlaceholderText="(数値列なし)"
+                                                      ToolTip.Tip="横軸に使う列を選択"
+                                                      SelectionChanged="XColumnComboBox_SelectionChanged" />
+
+                                            <TextBlock Text="Y 列（チェックした列を描画）"
+                                                       Theme="{DynamicResource FieldLabelStyle}" />
+                                            <ItemsControl Name="YColumnItemsControl">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:MainWindow+SeriesRowVm">
+                                                        <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,2,0,2">
+                                                            <CheckBox Grid.Column="0"
+                                                                      IsChecked="{CompiledBinding IsVisible, Mode=TwoWay}"
+                                                                      Tag="{CompiledBinding}"
+                                                                      Click="YColumnCheckBox_Click"
+                                                                      VerticalAlignment="Center" />
+                                                            <Border Grid.Column="1"
+                                                                    Width="14" Height="14"
+                                                                    Background="{CompiledBinding ColorBrush}"
+                                                                    CornerRadius="2"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="6,0,8,0" />
+                                                            <TextBlock Grid.Column="2"
+                                                                       Text="{CompiledBinding ColumnName}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Name="MappingEmptyHint"
+                                                       Text="テーブルを読み込むと、ここで X 列と表示する Y 列を選べます。"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Expander>
                                 </Border>

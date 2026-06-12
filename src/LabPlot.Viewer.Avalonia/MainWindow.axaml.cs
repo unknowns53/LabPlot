@@ -6,12 +6,15 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using DataViewer.Core;
 using LabPlot.Core;
 using LabPlot.Core.Avalonia.Controls;
@@ -85,6 +88,17 @@ public partial class MainWindow : Window, IPortalFileOpener
         public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
     }
 
+    /// <summary>列マッピングセクションの Y 列チェック行。CheckBox の TwoWay
+    /// CompiledBinding が IsVisible に書き戻し、Click ハンドラが SeriesState へ
+    /// 反映する (再構築なしでチェック操作を受けるための薄い VM)。</summary>
+    public sealed class SeriesRowVm
+    {
+        public string ColumnName { get; init; } = string.Empty;
+        public bool IsVisible { get; set; }
+        public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
+        internal SeriesState? State { get; init; }
+    }
+
     private readonly List<LoadedTable> _loadedTables = new();
     private readonly ObservableCollection<TableEntryVm> _tableEntries = new();
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
@@ -103,7 +117,24 @@ public partial class MainWindow : Window, IPortalFileOpener
     private bool _suppressStyleControlEvents;
     private bool _suppressTableListEvents;
     private bool _suppressSeriesComboEvents;
+    private bool _suppressMappingEvents;
     private bool _currentLegendAutoShow;
+    private int _clipboardTableCount;
+
+    // X 列 ComboBox の表示順 → 実カラム index の対応表 (numeric 列のみ並ぶ)。
+    private readonly List<int> _xComboColumnIndexes = new();
+    private readonly ObservableCollection<SeriesRowVm> _seriesRows = new();
+
+    // 内部 reorder は GPC と同じく OS DragDrop layer を使わず
+    // PointerCapture + 手動位置計算で行う (Avalonia 11.3 の DoDragDrop は
+    // custom DataFormat の drop 認識が実機で効かないため)。
+    private Point? _tableDragStartPoint;
+    private int? _tableDragSourceIndex;
+    private ListBoxItem? _tableDragSourceContainer;
+    private bool _isInternalReordering;
+    private IPointer? _reorderCapturedPointer;
+    private readonly DragGhostController _dragGhost = new();
+    private Point _dragGhostPointerOffset;
 
     public MainWindow()
     {
@@ -112,7 +143,25 @@ public partial class MainWindow : Window, IPortalFileOpener
         _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
         ApplyFormattingConfigToControls(_formattingConfig);
         TableListBox.ItemsSource = _tableEntries;
+        YColumnItemsControl.ItemsSource = _seriesRows;
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
+
+        // 外部ファイル D&D: 子要素の AllowDrop=False が hit-test を吸収するので
+        // Window レベルでも bubble を待ち受ける (GPC と同配線)。
+        AddHandler(DragDrop.DragOverEvent, OnTableDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, OnTableDragLeave);
+        AddHandler(DragDrop.DropEvent, OnTableDrop);
+        TableListBox.AddHandler(DragDrop.DragOverEvent, OnTableDragOver);
+        TableListBox.AddHandler(DragDrop.DragLeaveEvent, OnTableDragLeave);
+        TableListBox.AddHandler(DragDrop.DropEvent, OnTableDrop);
+
+        // 内部 reorder: ListBox が PointerPressed を消費するため Tunnel | Bubble +
+        // handledEventsToo で確実に拾う。
+        const RoutingStrategies route = RoutingStrategies.Tunnel | RoutingStrategies.Bubble;
+        TableListBox.AddHandler(PointerPressedEvent, OnTableListBoxPointerPressed, route, handledEventsToo: true);
+        TableListBox.AddHandler(PointerMovedEvent, OnTableListBoxPointerMoved, route, handledEventsToo: true);
+        TableListBox.AddHandler(PointerReleasedEvent, OnTableListBoxPointerReleased, route, handledEventsToo: true);
+        TableListBox.AddHandler(PointerCaptureLostEvent, OnTableListBoxPointerCaptureLost);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -142,6 +191,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 case Key.S: SaveGraphButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
                 case Key.R: AxisRangePanel.ResetToAuto(); e.Handled = true; return;
                 case Key.G: GraphFormatPanel.TogglePlotGrid(); e.Handled = true; return;
+                case Key.V: _ = PasteFromClipboardAsync(); e.Handled = true; return;
             }
         }
         else if (e.Key == Key.F2)
@@ -261,13 +311,25 @@ public partial class MainWindow : Window, IPortalFileOpener
                 fileNames.Select(fileName => Task.Run(() => ReadTableSet(fileName))));
 
             var addedTables = 0;
+            var addedRows = 0;
             foreach (var tableSet in tableSets)
             {
-                foreach (var table in tableSet.Tables)
+                IReadOnlyList<ViewerTable> tables = tableSet.Tables;
+                if (tables.Count > 1)
+                {
+                    // 複数シートの xlsx はどのシートを読み込むか選ばせる (既定全選択)。
+                    var fileName = Path.GetFileName(tables[0].SourceFilePath) ?? "ブック";
+                    var selected = await SheetSelectionDialog.ShowAsync(this, fileName, tables);
+                    if (selected is null) continue;
+                    tables = selected;
+                }
+
+                foreach (var table in tables)
                 {
                     if (TryAddLoadedTable(table))
                     {
                         addedTables++;
+                        addedRows += table.RowCount;
                     }
                 }
             }
@@ -278,17 +340,10 @@ public partial class MainWindow : Window, IPortalFileOpener
                 return;
             }
 
-            _activeTableIndex = _loadedTables.Count - 1;
-            _activeSeriesIndex = _loadedTables[_activeTableIndex].Series.Count > 0 ? 0 : -1;
-            RefreshTableEntries();
-            RefreshSeriesCombo();
-            SyncStyleControlsFromActiveSeries();
-            RefreshPlot();
-
-            var rowCount = tableSets.SelectMany(static set => set.Tables).Sum(static table => table.RowCount);
+            ActivateLastLoadedTable();
             SetStatus(addedTables == 1
-                ? $"{rowCount:N0} 行のデータを読み込みました。"
-                : $"{addedTables} テーブル / {rowCount:N0} 行のデータを読み込みました。", false);
+                ? $"{addedRows:N0} 行のデータを読み込みました。"
+                : $"{addedTables} テーブル / {addedRows:N0} 行のデータを読み込みました。", false);
 
             var primaryName = Path.GetFileName(fileNames[0]);
             var subtitle = fileNames.Length == 1 ? primaryName : $"{primaryName} 他 {fileNames.Length - 1} 件";
@@ -317,9 +372,10 @@ public partial class MainWindow : Window, IPortalFileOpener
 
     /// <summary>
     /// テーブルを自動マッピングして読み込みリストへ追加する。数値列ゼロの
-    /// テーブルは false を返してスキップ (xlsx の説明シートなど)。
+    /// テーブルは false を返してスキップ (xlsx の説明シートなど)。系列は
+    /// 全数値列ぶん作り、X 列の付け替え (列マッピングセクション) に備える。
     /// </summary>
-    private bool TryAddLoadedTable(ViewerTable table)
+    private bool TryAddLoadedTable(ViewerTable table, string? displayNameOverride = null)
     {
         ColumnMapping mapping;
         try
@@ -332,12 +388,12 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
 
         var fileName = Path.GetFileName(table.SourceFilePath);
-        var displayName = (fileName, table.SheetName) switch
+        var displayName = displayNameOverride ?? ((fileName, table.SheetName) switch
         {
             (null or "", _) => $"テーブル {_loadedTables.Count + 1}",
             (_, null or "") => fileName!,
             _ => $"{fileName} [{table.SheetName}]",
-        };
+        });
 
         var loaded = new LoadedTable
         {
@@ -349,7 +405,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         var autoEnabled = mapping.YColumnIndexes.ToHashSet();
         for (var col = 0; col < table.Columns.Count; col++)
         {
-            if (!table.Columns[col].IsNumeric || (col == mapping.XColumnIndex && !autoEnabled.Contains(col)))
+            if (!table.Columns[col].IsNumeric)
             {
                 continue;
             }
@@ -364,6 +420,157 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         _loadedTables.Add(loaded);
         return true;
+    }
+
+    /// <summary>スタイル編集の初期選択: X 列を避けて最初の可視系列を返す。</summary>
+    private static int GetDefaultSeriesIndex(LoadedTable loaded)
+    {
+        for (var i = 0; i < loaded.Series.Count; i++)
+        {
+            if (loaded.Series[i].IsVisible && loaded.Series[i].ColumnIndex != loaded.XColumnIndex)
+            {
+                return i;
+            }
+        }
+
+        return loaded.Series.Count > 0 ? 0 : -1;
+    }
+
+    /// <summary>読み込み直後の共通 UI 更新: 最後のテーブルをアクティブ化して再描画。</summary>
+    private void ActivateLastLoadedTable()
+    {
+        _activeTableIndex = _loadedTables.Count - 1;
+        _activeSeriesIndex = GetDefaultSeriesIndex(_loadedTables[_activeTableIndex]);
+        RefreshTableEntries();
+        RefreshMappingPanel();
+        RefreshSeriesCombo();
+        SyncStyleControlsFromActiveSeries();
+        RefreshPlot();
+    }
+
+    // ---------- Clipboard paste ----------
+
+    private async Task PasteFromClipboardAsync()
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                Toast?.Show("クリップボードを利用できません", StatusSeverity.Error);
+                return;
+            }
+
+            var text = await clipboard.TryGetTextAsync();
+            var table = ClipboardTableParser.Parse(text);
+            var displayName = $"クリップボード {++_clipboardTableCount}";
+            if (!TryAddLoadedTable(table, displayName))
+            {
+                _clipboardTableCount--;
+                SetStatus("貼り付けた表にプロットできる数値列がありません。", true);
+                return;
+            }
+
+            ActivateLastLoadedTable();
+            Toast?.Show("クリップボードの表を読み込みました", StatusSeverity.Success);
+            SetStatus($"{displayName}: {table.RowCount:N0} 行 × {table.Columns.Count} 列を読み込みました。", false);
+        }
+        catch (InvalidDataException ex)
+        {
+            SetStatus($"貼り付けできませんでした: {ex.Message}", true);
+            Toast?.Show("表として解釈できませんでした", StatusSeverity.Warning);
+        }
+    }
+
+    // ---------- Column mapping panel ----------
+
+    /// <summary>選択中テーブルの X 列 ComboBox と Y 列チェックリストを作り直す。</summary>
+    private void RefreshMappingPanel()
+    {
+        _suppressMappingEvents = true;
+        try
+        {
+            _seriesRows.Clear();
+            _xComboColumnIndexes.Clear();
+
+            if (ActiveTable is not { } loaded)
+            {
+                XColumnComboBox.ItemsSource = null;
+                XColumnComboBox.IsEnabled = false;
+                MappingTableLabel.Text = "(テーブル未選択)";
+                MappingEmptyHint.IsVisible = true;
+                return;
+            }
+
+            var numericNames = new List<string>();
+            for (var col = 0; col < loaded.Table.Columns.Count; col++)
+            {
+                if (!loaded.Table.Columns[col].IsNumeric) continue;
+                _xComboColumnIndexes.Add(col);
+                numericNames.Add(loaded.Table.Columns[col].Name);
+            }
+
+            XColumnComboBox.ItemsSource = numericNames;
+            XColumnComboBox.IsEnabled = numericNames.Count > 1;
+            XColumnComboBox.SelectedIndex = _xComboColumnIndexes.IndexOf(loaded.XColumnIndex);
+
+            for (var i = 0; i < loaded.Series.Count; i++)
+            {
+                var series = loaded.Series[i];
+                if (series.ColumnIndex == loaded.XColumnIndex && loaded.Series.Count > 1)
+                {
+                    continue;
+                }
+
+                var autoIndex = GetSeriesAutoColorIndex(_activeTableIndex, i);
+                var hex = series.Style.ColorHex ?? AutoLineColors[autoIndex % AutoLineColors.Length];
+                _seriesRows.Add(new SeriesRowVm
+                {
+                    ColumnName = series.ColumnName,
+                    IsVisible = series.IsVisible,
+                    ColorBrush = new SolidColorBrush(HexToAvaloniaColor(hex)),
+                    State = series,
+                });
+            }
+
+            MappingTableLabel.Text = $"({loaded.DisplayName})";
+            MappingEmptyHint.IsVisible = _seriesRows.Count == 0;
+        }
+        finally
+        {
+            _suppressMappingEvents = false;
+        }
+    }
+
+    private void XColumnComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressMappingEvents) return;
+
+        var comboIndex = XColumnComboBox.SelectedIndex;
+        if (ActiveTable is not { } loaded
+            || comboIndex < 0
+            || comboIndex >= _xComboColumnIndexes.Count)
+        {
+            return;
+        }
+
+        var newXColumn = _xComboColumnIndexes[comboIndex];
+        if (newXColumn == loaded.XColumnIndex) return;
+
+        loaded.XColumnIndex = newXColumn;
+        RefreshMappingPanel();
+        RefreshSeriesCombo();
+        RefreshPlot();
+    }
+
+    private void YColumnCheckBox_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressMappingEvents) return;
+        if (sender is not CheckBox { Tag: SeriesRowVm { State: { } state } } checkBox) return;
+
+        state.IsVisible = checkBox.IsChecked == true;
+        RefreshTableEntries();
+        RefreshPlot();
     }
 
     // ---------- Table list ----------
@@ -420,7 +627,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (newIndex < 0 || newIndex >= _loadedTables.Count) return;
 
         _activeTableIndex = newIndex;
-        _activeSeriesIndex = _loadedTables[newIndex].Series.Count > 0 ? 0 : -1;
+        _activeSeriesIndex = GetDefaultSeriesIndex(_loadedTables[newIndex]);
+        RefreshMappingPanel();
         RefreshSeriesCombo();
         SyncStyleControlsFromActiveSeries();
     }
@@ -442,14 +650,320 @@ public partial class MainWindow : Window, IPortalFileOpener
         else
         {
             _activeTableIndex = Math.Clamp(_activeTableIndex, 0, _loadedTables.Count - 1);
-            _activeSeriesIndex = _loadedTables[_activeTableIndex].Series.Count > 0 ? 0 : -1;
+            _activeSeriesIndex = GetDefaultSeriesIndex(_loadedTables[_activeTableIndex]);
         }
 
         RefreshTableEntries();
+        RefreshMappingPanel();
         RefreshSeriesCombo();
         SyncStyleControlsFromActiveSeries();
         RefreshPlot();
         SetStatus("テーブルを削除しました。", StatusSeverity.Info);
+    }
+
+    // ---------- External file drag & drop ----------
+
+    private void OnTableDragOver(object? sender, DragEventArgs e)
+    {
+        // 内部 reorder 中は OS D&D を一切受け付けない。
+        if (_isInternalReordering) return;
+
+        if (e.DataTransfer is not null && e.DataTransfer.Contains(DataFormat.File))
+        {
+            e.DragEffects = DragDropEffects.Copy;
+            ShowFileDropOverlay();
+            e.Handled = true;
+            return;
+        }
+
+        HideFileDropOverlay();
+        e.DragEffects = DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnTableDragLeave(object? sender, DragEventArgs e)
+    {
+        var pos = e.GetPosition(TableListBox);
+        if (pos.X < 0 || pos.Y < 0
+            || pos.X > TableListBox.Bounds.Width
+            || pos.Y > TableListBox.Bounds.Height)
+        {
+            HideFileDropOverlay();
+        }
+    }
+
+    private async void OnTableDrop(object? sender, DragEventArgs e)
+    {
+        HideFileDropOverlay();
+        if (e.DataTransfer is null || !e.DataTransfer.Contains(DataFormat.File)) return;
+        var files = e.DataTransfer.TryGetFiles();
+        if (files is null) return;
+        var paths = files
+            .Select(f => f.TryGetLocalPath())
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Cast<string>()
+            .ToArray();
+        if (paths.Length == 0) return;
+        e.Handled = true;
+        await ImportDataFilesAsync(paths);
+    }
+
+    private void ShowFileDropOverlay()
+    {
+        TableDropOverlay.IsVisible = true;
+    }
+
+    private void HideFileDropOverlay()
+    {
+        TableDropOverlay.IsVisible = false;
+    }
+
+    // ---------- Table drag-reorder (PointerCapture + DragGhost, GPC と同方式) ----------
+
+    private void OnTableListBoxPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is Visual srcVisual && FindAncestor<Button>(srcVisual) is not null)
+        {
+            // 行内の削除ボタンクリックは drag を発火させない。
+            _tableDragStartPoint = null;
+            _tableDragSourceContainer = null;
+            _tableDragSourceIndex = null;
+            return;
+        }
+
+        var item = e.Source is Visual v ? FindAncestor<ListBoxItem>(v) : null;
+        if (item is null)
+        {
+            _tableDragStartPoint = null;
+            _tableDragSourceContainer = null;
+            _tableDragSourceIndex = null;
+            return;
+        }
+
+        if (!e.GetCurrentPoint(TableListBox).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        _tableDragStartPoint = e.GetPosition(TableListBox);
+        _tableDragSourceContainer = item;
+        _tableDragSourceIndex = TableListBox.IndexFromContainer(item);
+        _dragGhostPointerOffset = e.GetPosition(item);
+    }
+
+    private void OnTableListBoxPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_tableDragStartPoint is null
+            || _tableDragSourceContainer is null
+            || _tableDragSourceIndex is null)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(TableListBox).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(TableListBox);
+
+        if (!_isInternalReordering)
+        {
+            var dx = current.X - _tableDragStartPoint.Value.X;
+            var dy = current.Y - _tableDragStartPoint.Value.Y;
+            if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return;
+
+            var sourceIndex = _tableDragSourceIndex.Value;
+            if (sourceIndex < 0 || sourceIndex >= _tableEntries.Count)
+            {
+                ResetReorderState();
+                return;
+            }
+
+            _isInternalReordering = true;
+            e.Pointer.Capture(TableListBox);
+            _reorderCapturedPointer = e.Pointer;
+
+            _dragGhost.Show(
+                this,
+                TableListBox.ItemTemplate,
+                _tableEntries[sourceIndex],
+                _tableDragSourceContainer.Bounds.Size,
+                e.GetPosition(this),
+                _dragGhostPointerOffset);
+            _tableDragSourceContainer.Opacity = 0.4;
+        }
+
+        _dragGhost.Move(e.GetPosition(this));
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e);
+        if (targetItem is null || ReferenceEquals(targetItem, _tableDragSourceContainer))
+        {
+            HideInsertionLine();
+        }
+        else
+        {
+            UpdateInsertionLine(targetItem, insertAbove);
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnTableListBoxPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isInternalReordering)
+        {
+            ResetReorderState();
+            return;
+        }
+
+        var sourceIndex = _tableDragSourceIndex ?? -1;
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e);
+
+        int newIndex;
+        if (targetItem is null)
+        {
+            newIndex = _tableEntries.Count - 1;
+        }
+        else
+        {
+            var targetIndex = TableListBox.IndexFromContainer(targetItem);
+            if (targetIndex < 0)
+            {
+                HideInsertionLine();
+                ResetReorderState();
+                e.Handled = true;
+                return;
+            }
+
+            newIndex = insertAbove ? targetIndex : targetIndex + 1;
+            if (newIndex > sourceIndex)
+            {
+                newIndex--;
+            }
+        }
+
+        newIndex = Math.Clamp(newIndex, 0, Math.Max(0, _tableEntries.Count - 1));
+        HideInsertionLine();
+
+        if (sourceIndex >= 0 && newIndex != sourceIndex)
+        {
+            MoveTable(sourceIndex, newIndex);
+        }
+
+        ResetReorderState();
+        e.Handled = true;
+    }
+
+    private void OnTableListBoxPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        HideInsertionLine();
+        ResetReorderState();
+    }
+
+    private void ResetReorderState()
+    {
+        if (_tableDragSourceContainer is not null)
+        {
+            _tableDragSourceContainer.Opacity = 1.0;
+        }
+
+        if (_reorderCapturedPointer is { } pointer)
+        {
+            pointer.Capture(null);
+            _reorderCapturedPointer = null;
+        }
+
+        _dragGhost.Hide();
+        _isInternalReordering = false;
+        _tableDragStartPoint = null;
+        _tableDragSourceContainer = null;
+        _tableDragSourceIndex = null;
+    }
+
+    private (ListBoxItem? Item, bool InsertAbove) ResolveDropTargetFromVisual(PointerEventArgs e)
+    {
+        // PointerCapture 中は e.Source が常に capture 先になるため、Pointer 位置から
+        // ListBox の hit-test を自前実行する (GPC と同じ理由)。
+        var posInListBox = e.GetPosition(TableListBox);
+        var hit = TableListBox.InputHitTest(posInListBox) as Visual;
+        var item = hit is null ? null : FindAncestor<ListBoxItem>(hit);
+        if (item is null) return (null, false);
+        var pos = e.GetPosition(item);
+        var insertAbove = pos.Y < item.Bounds.Height / 2;
+        return (item, insertAbove);
+    }
+
+    private void UpdateInsertionLine(ListBoxItem item, bool insertAbove)
+    {
+        var transformPoint = item.TranslatePoint(new Point(0, 0), TableListBox);
+        if (transformPoint is null)
+        {
+            HideInsertionLine();
+            return;
+        }
+
+        var listBoxTopInGrid = TableListBox.Bounds.Top;
+        var itemTopInGrid = listBoxTopInGrid + transformPoint.Value.Y;
+        const double lineCenterOffset = 6;
+        var lineTop = insertAbove
+            ? itemTopInGrid - lineCenterOffset
+            : itemTopInGrid + item.Bounds.Height - lineCenterOffset;
+
+        InsertionLine.Margin = new Thickness(0, Math.Max(0, lineTop), 0, 0);
+        InsertionLine.IsVisible = true;
+    }
+
+    private void HideInsertionLine()
+    {
+        InsertionLine.IsVisible = false;
+    }
+
+    private void MoveTable(int oldIndex, int newIndex)
+    {
+        if (oldIndex == newIndex
+            || oldIndex < 0 || oldIndex >= _loadedTables.Count
+            || newIndex < 0 || newIndex >= _loadedTables.Count)
+        {
+            return;
+        }
+
+        // auto 色は系列通し番号に依存するため、並べ替えで色が変わらないよう
+        // 現在の解決色を移動前に固定する。
+        for (var tableIndex = 0; tableIndex < _loadedTables.Count; tableIndex++)
+        {
+            var loaded = _loadedTables[tableIndex];
+            for (var seriesIndex = 0; seriesIndex < loaded.Series.Count; seriesIndex++)
+            {
+                var style = loaded.Series[seriesIndex].Style;
+                if (string.IsNullOrEmpty(style.ColorHex))
+                {
+                    var autoIndex = GetSeriesAutoColorIndex(tableIndex, seriesIndex);
+                    style.ColorHex = AutoLineColors[autoIndex % AutoLineColors.Length];
+                }
+            }
+        }
+
+        var table = _loadedTables[oldIndex];
+        _loadedTables.RemoveAt(oldIndex);
+        _loadedTables.Insert(newIndex, table);
+        _activeTableIndex = newIndex;
+
+        RefreshTableEntries();
+        RefreshMappingPanel();
+        RefreshSeriesCombo();
+        SyncStyleControlsFromActiveSeries();
+        RefreshPlot();
+    }
+
+    private static T? FindAncestor<T>(Visual? element) where T : class
+    {
+        while (element is not null)
+        {
+            if (element is T match) return match;
+            element = element.GetVisualParent();
+        }
+
+        return null;
     }
 
     // ---------- Series style ----------
@@ -610,8 +1124,16 @@ public partial class MainWindow : Window, IPortalFileOpener
                 var series = loaded.Series[seriesIndex];
                 if (!series.IsVisible) continue;
 
+                // X に割り当てた列は Y からは描かない。数値列がそれ 1 本しか
+                // ないテーブルだけは行番号を X にして値の推移を見せる。
+                var isXColumn = series.ColumnIndex == loaded.XColumnIndex;
+                if (isXColumn && loaded.Series.Count > 1) continue;
+
                 var yColumn = loaded.Table.Columns[series.ColumnIndex];
-                var (xs, ys) = ExtractFinitePairs(xColumn.Values, yColumn.Values);
+                var xValues = isXColumn
+                    ? Enumerable.Range(1, yColumn.Values.Length).Select(static i => (double)i).ToArray()
+                    : xColumn.Values;
+                var (xs, ys) = ExtractFinitePairs(xValues, yColumn.Values);
                 if (xs.Length == 0) continue;
 
                 var scatter = _plot.Plot.Add.Scatter(xs, ys);
@@ -635,8 +1157,12 @@ public partial class MainWindow : Window, IPortalFileOpener
         var defaultTitle = _loadedTables.Count == 1
             ? activeTable.DisplayName
             : $"{_loadedTables.Count} tables";
+        var defaultXLabel = activeTable.Series.Count == 1
+            && activeTable.Series[0].ColumnIndex == activeTable.XColumnIndex
+            ? "Index"
+            : activeTable.Table.Columns[activeTable.XColumnIndex].Name;
         _plot.Plot.Title(GetGraphTitle(defaultTitle));
-        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, activeTable.Table.Columns[activeTable.XColumnIndex].Name));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, defaultXLabel));
         _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, plottedCount == 1 ? firstSeriesName ?? "Value" : "Value"));
         _plot.Plot.Axes.AutoScale();
         ApplyAxisLimits(xRange, yRange);

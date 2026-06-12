@@ -77,6 +77,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         public required int ColumnIndex { get; init; }
         public required string ColumnName { get; init; }
         public bool IsVisible { get; set; } = true;
+        public bool UseRightAxis { get; set; }
+        public SeriesTransform Transform { get; set; } = SeriesTransform.Identity;
         public AnalysisSessionStyle Style { get; } = new();
     }
 
@@ -95,6 +97,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     {
         public string ColumnName { get; init; } = string.Empty;
         public bool IsVisible { get; set; }
+        public bool UseRightAxis { get; set; }
         public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
         internal SeriesState? State { get; init; }
     }
@@ -119,7 +122,11 @@ public partial class MainWindow : Window, IPortalFileOpener
     private bool _suppressSeriesComboEvents;
     private bool _suppressMappingEvents;
     private bool _currentLegendAutoShow;
+    private bool _rightAxisInUse;
+    private string _currentRightAxisDefaultLabel = "Y2";
     private int _clipboardTableCount;
+    private double? _y2Min;
+    private double? _y2Max;
 
     // X 列 ComboBox の表示順 → 実カラム index の対応表 (numeric 列のみ並ぶ)。
     private readonly List<int> _xComboColumnIndexes = new();
@@ -528,6 +535,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 {
                     ColumnName = series.ColumnName,
                     IsVisible = series.IsVisible,
+                    UseRightAxis = series.UseRightAxis,
                     ColorBrush = new SolidColorBrush(HexToAvaloniaColor(hex)),
                     State = series,
                 });
@@ -571,6 +579,95 @@ public partial class MainWindow : Window, IPortalFileOpener
         state.IsVisible = checkBox.IsChecked == true;
         RefreshTableEntries();
         RefreshPlot();
+    }
+
+    private void YColumnRightAxisCheckBox_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressMappingEvents) return;
+        if (sender is not CheckBox { Tag: SeriesRowVm { State: { } state } } checkBox) return;
+
+        state.UseRightAxis = checkBox.IsChecked == true;
+        RefreshPlot();
+    }
+
+    // ---------- Axis scale (log / 右軸) ----------
+
+    private void AxisScaleCheckBox_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        RefreshPlot();
+    }
+
+    private void Y2RangeTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+
+        _y2Min = ParseOptionalDouble(Y2MinTextBox.Text);
+        _y2Max = ParseOptionalDouble(Y2MaxTextBox.Text);
+        SchedulePlotRefresh();
+    }
+
+    private static double? ParseOptionalDouble(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        return double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            && double.IsFinite(value)
+            ? value
+            : null;
+    }
+
+    // ---------- Series transforms ----------
+
+    private void NormalizeCheckBox_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressStyleControlEvents) return;
+        if (ActiveSeries is not { } series) return;
+
+        series.Transform = series.Transform with { Normalize = NormalizeCheckBox.IsChecked == true };
+        SchedulePlotRefresh();
+    }
+
+    private void TransformTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_suppressStyleControlEvents) return;
+        if (ActiveSeries is not { } series) return;
+
+        if (sender == YOffsetTextBox)
+        {
+            var text = YOffsetTextBox.Text?.Trim();
+            if (string.IsNullOrEmpty(text))
+            {
+                series.Transform = series.Transform with { YOffset = 0 };
+            }
+            else if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var offset)
+                && double.IsFinite(offset))
+            {
+                series.Transform = series.Transform with { YOffset = offset };
+            }
+            else
+            {
+                return;
+            }
+        }
+        else
+        {
+            var text = SmoothingWindowTextBox.Text?.Trim();
+            if (string.IsNullOrEmpty(text))
+            {
+                series.Transform = series.Transform with { SmoothingWindow = 0 };
+            }
+            else if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var window)
+                && window >= 0 && window <= 9999)
+            {
+                series.Transform = series.Transform with { SmoothingWindow = window };
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        SchedulePlotRefresh();
     }
 
     // ---------- Table list ----------
@@ -1020,6 +1117,9 @@ public partial class MainWindow : Window, IPortalFileOpener
                 LegendNameTextBox.IsEnabled = false;
                 LineWidthTextBox.Text = _formattingConfig.FormatLineWidth();
                 MarkerSizeTextBox.Text = _formattingConfig.FormatMarkerSize();
+                NormalizeCheckBox.IsChecked = false;
+                YOffsetTextBox.Text = "0";
+                SmoothingWindowTextBox.Text = "0";
                 ActiveSeriesLabel.Text = "(系列未選択)";
                 return;
             }
@@ -1031,6 +1131,9 @@ public partial class MainWindow : Window, IPortalFileOpener
             LegendNameTextBox.IsEnabled = true;
             LineWidthTextBox.Text = series.Style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = series.Style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
+            NormalizeCheckBox.IsChecked = series.Transform.Normalize;
+            YOffsetTextBox.Text = series.Transform.YOffset.ToString("0.######", CultureInfo.InvariantCulture);
+            SmoothingWindowTextBox.Text = series.Transform.SmoothingWindow.ToString(CultureInfo.InvariantCulture);
             ActiveSeriesLabel.Text = $"({series.ColumnName})";
         }
         finally
@@ -1109,11 +1212,18 @@ public partial class MainWindow : Window, IPortalFileOpener
         _plot.Plot.Clear();
         _plottedSeriesStyles.Clear();
 
+        var xLog = XLogCheckBox.IsChecked == true;
+        var yLog = YLogCheckBox.IsChecked == true;
+        var y2Log = Y2LogCheckBox.IsChecked == true;
+
         var xRange = new AxisDataRange();
         var yRange = new AxisDataRange();
+        var y2Range = new AxisDataRange();
         var plottedCount = 0;
         var hasCustomLegendName = false;
         string? firstSeriesName = null;
+        string? firstRightSeriesName = null;
+        _rightAxisInUse = false;
 
         for (var tableIndex = 0; tableIndex < _loadedTables.Count; tableIndex++)
         {
@@ -1133,7 +1243,21 @@ public partial class MainWindow : Window, IPortalFileOpener
                 var xValues = isXColumn
                     ? Enumerable.Range(1, yColumn.Values.Length).Select(static i => (double)i).ToArray()
                     : xColumn.Values;
-                var (xs, ys) = ExtractFinitePairs(xValues, yColumn.Values);
+
+                // 変換は系列単位の非破壊適用 → log は表示変換として最後に挟む。
+                var yValues = SeriesTransformer.Apply(yColumn.Values, series.Transform);
+                if (xLog)
+                {
+                    xValues = LogAxisHelper.ToLog10(xValues);
+                }
+
+                var seriesLog = series.UseRightAxis ? y2Log : yLog;
+                if (seriesLog)
+                {
+                    yValues = LogAxisHelper.ToLog10(yValues);
+                }
+
+                var (xs, ys) = ExtractFinitePairs(xValues, yValues);
                 if (xs.Length == 0) continue;
 
                 var scatter = _plot.Plot.Add.Scatter(xs, ys);
@@ -1143,12 +1267,34 @@ public partial class MainWindow : Window, IPortalFileOpener
                 _plottedSeriesStyles.Add((series.Style, autoIndex));
 
                 xRange.Include(xs);
-                yRange.Include(ys);
+                if (series.UseRightAxis)
+                {
+                    scatter.Axes.YAxis = _plot.Plot.Axes.Right;
+                    y2Range.Include(ys);
+                    _rightAxisInUse = true;
+                    firstRightSeriesName ??= series.ColumnName;
+                }
+                else
+                {
+                    yRange.Include(ys);
+                    firstSeriesName ??= series.ColumnName;
+                }
+
                 plottedCount++;
                 hasCustomLegendName |= !string.IsNullOrWhiteSpace(series.Style.LegendName);
-                firstSeriesName ??= series.ColumnName;
             }
         }
+
+        // log 軸は decade ticks (NumericManual)、linear は automatic に戻す。
+        _plot.Plot.Axes.Bottom.TickGenerator = xLog
+            ? LogAxisHelper.CreateDecadeTicks(xRange.Min, xRange.Max)
+            : new ScottPlot.TickGenerators.NumericAutomatic();
+        _plot.Plot.Axes.Left.TickGenerator = yLog
+            ? LogAxisHelper.CreateDecadeTicks(yRange.Min, yRange.Max)
+            : new ScottPlot.TickGenerators.NumericAutomatic();
+        _plot.Plot.Axes.Right.TickGenerator = _rightAxisInUse && y2Log
+            ? LogAxisHelper.CreateDecadeTicks(y2Range.Min, y2Range.Max)
+            : new ScottPlot.TickGenerators.NumericAutomatic();
 
         _currentLegendAutoShow = plottedCount > 1 || hasCustomLegendName;
         ApplyLegend(_plot.Plot, CaptureFormattingConfigFromControls(), autoShow: _currentLegendAutoShow);
@@ -1161,11 +1307,12 @@ public partial class MainWindow : Window, IPortalFileOpener
             && activeTable.Series[0].ColumnIndex == activeTable.XColumnIndex
             ? "Index"
             : activeTable.Table.Columns[activeTable.XColumnIndex].Name;
+        _currentRightAxisDefaultLabel = firstRightSeriesName ?? "Y2";
         _plot.Plot.Title(GetGraphTitle(defaultTitle));
         _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, defaultXLabel));
-        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, plottedCount == 1 ? firstSeriesName ?? "Value" : "Value"));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, firstSeriesName ?? "Value"));
         _plot.Plot.Axes.AutoScale();
-        ApplyAxisLimits(xRange, yRange);
+        ApplyAxisLimits(xRange, yRange, y2Range, xLog, yLog, y2Log);
         ApplyPlotAppearance();
         _plot.Refresh();
 
@@ -1217,26 +1364,64 @@ public partial class MainWindow : Window, IPortalFileOpener
         scatter.Color = ScottPlot.Color.FromHex(new[] { hex }).First();
     }
 
-    private void ApplyAxisLimits(AxisDataRange xRange, AxisDataRange yRange)
+    private void ApplyAxisLimits(
+        AxisDataRange xRange,
+        AxisDataRange yRange,
+        AxisDataRange y2Range,
+        bool xLog,
+        bool yLog,
+        bool y2Log)
     {
         if (_plot is null) return;
 
+        // AxisRangePanel / Y2 欄の入力は常にデータ単位。log 軸のときだけ
+        // SetLimits 直前で log10 に変換する (0 以下は無効として弾く)。
         var xMin = AxisRangePanel.XMinValue;
         var xMax = AxisRangePanel.XMaxValue;
         var yMin = AxisRangePanel.YMinValue;
         var yMax = AxisRangePanel.YMaxValue;
 
         if ((xMin.HasValue || xMax.HasValue)
+            && TryConvertLogLimit(ref xMin, xLog, "X Min")
+            && TryConvertLogLimit(ref xMax, xLog, "X Max")
             && TryGetRequestedRange(xRange, xMin, xMax, "X", out var left, out var right))
         {
             _plot.Plot.Axes.SetLimitsX(left, right);
         }
 
         if ((yMin.HasValue || yMax.HasValue)
+            && TryConvertLogLimit(ref yMin, yLog, "Y Min")
+            && TryConvertLogLimit(ref yMax, yLog, "Y Max")
             && TryGetRequestedRange(yRange, yMin, yMax, "Y", out var bottom, out var top))
         {
             _plot.Plot.Axes.SetLimitsY(bottom, top);
         }
+
+        if (_rightAxisInUse && (_y2Min.HasValue || _y2Max.HasValue))
+        {
+            var y2Min = _y2Min;
+            var y2Max = _y2Max;
+            if (TryConvertLogLimit(ref y2Min, y2Log, "右 Y Min")
+                && TryConvertLogLimit(ref y2Max, y2Log, "右 Y Max")
+                && TryGetRequestedRange(y2Range, y2Min, y2Max, "右 Y", out var y2Bottom, out var y2Top))
+            {
+                _plot.Plot.Axes.Right.Min = y2Bottom;
+                _plot.Plot.Axes.Right.Max = y2Top;
+            }
+        }
+    }
+
+    private bool TryConvertLogLimit(ref double? value, bool isLog, string label)
+    {
+        if (!value.HasValue || !isLog) return true;
+        if (value.Value <= 0)
+        {
+            SetStatus($"log 軸の {label} は正の値にしてください。", true);
+            return false;
+        }
+
+        value = Math.Log10(value.Value);
+        return true;
     }
 
     private bool TryGetRequestedRange(
@@ -1427,7 +1612,58 @@ public partial class MainWindow : Window, IPortalFileOpener
     private void ApplyPlotAppearance(float scale = 1f)
     {
         if (_plot is null) return;
-        ApplyAll(_plot.Plot, CaptureFormattingConfigFromControls(), scale);
+        var config = CaptureFormattingConfigFromControls();
+        ApplyAll(_plot.Plot, config, scale);
+        ApplyRightAxisAppearance(config, scale);
+    }
+
+    /// <summary>
+    /// 共有 PlotAppearance.ApplyAll は Left / Bottom しか整形しないので、
+    /// 右軸使用時だけモジュール側で同じ規約 (フォントサイズ・tick・
+    /// PaddingBetweenTickAndAxisLabels の Y 係数 0.55+2) を右軸へ写す。
+    /// 未使用時は tick ラベルと tick 線を消して従来の右フレーム線だけ残す。
+    /// </summary>
+    private void ApplyRightAxisAppearance(GraphFormattingConfig config, float scale)
+    {
+        if (_plot is null) return;
+        var right = _plot.Plot.Axes.Right;
+
+        if (!_rightAxisInUse)
+        {
+            right.Label.Text = string.Empty;
+            right.TickLabelStyle.IsVisible = false;
+            ConfigureTickMarkStyle(right.MajorTickStyle, MajorTickLengthBase, (float)config.TickWidth, scale, visible: false);
+            ConfigureTickMarkStyle(right.MinorTickStyle, MinorTickLengthBase, (float)config.TickWidth, scale, visible: false);
+            return;
+        }
+
+        var fontSize = (float)config.FontSize * scale;
+        right.Label.Text = GetGraphLabel(Y2LabelTextBox, _currentRightAxisDefaultLabel);
+        right.Label.FontSize = fontSize;
+        right.Label.Bold = config.AxisLabelBold;
+        right.Label.Font = null;
+        right.TickLabelStyle.IsVisible = true;
+        right.TickLabelStyle.FontSize = Math.Max(6 * scale, fontSize - scale);
+        right.TickLabelStyle.Font = null;
+
+        ConfigureTickMarkStyle(right.MajorTickStyle, MajorTickLengthBase, (float)config.TickWidth, scale, config.ShowMajorTicks);
+        ConfigureTickMarkStyle(right.MinorTickStyle, MinorTickLengthBase, (float)config.TickWidth, scale, config.ShowMinorTicks);
+
+        if (right.TickGenerator is ScottPlot.TickGenerators.NumericAutomatic rightAuto)
+        {
+            rightAuto.TickDensity = config.TickDensity;
+        }
+
+        // 軸ラベルと目盛数字の間隔は左 Y 軸と同じ係数 (FontSize × 0.55 + 2)。
+        float yGap = MathF.Max(5f * scale, fontSize * 0.55f + 2f * scale);
+        float minor = 3f * scale;
+        if (right is ScottPlot.AxisPanels.YAxisBase yRight)
+        {
+            yRight.PaddingBetweenTickAndAxisLabels = new ScottPlot.PixelPadding(yGap, yGap, minor, minor);
+        }
+
+        // 右軸を使っている間はフレーム OFF でも軸線が必要。
+        right.FrameLineStyle.IsVisible = true;
     }
 
     private void PlotContainerBorder_SizeChanged(object? sender, SizeChangedEventArgs e)

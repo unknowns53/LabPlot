@@ -235,7 +235,7 @@
                                             <ItemsControl Name="YColumnItemsControl">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:MainWindow+SeriesRowVm">
-                                                        <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,2,0,2">
+                                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,2,0,2">
                                                             <CheckBox Grid.Column="0"
                                                                       IsChecked="{CompiledBinding IsVisible, Mode=TwoWay}"
                                                                       Tag="{CompiledBinding}"
@@ -251,6 +251,15 @@
                                                                        Text="{CompiledBinding ColumnName}"
                                                                        TextTrimming="CharacterEllipsis"
                                                                        VerticalAlignment="Center" />
+                                                            <CheckBox Grid.Column="3"
+                                                                      Content="右軸"
+                                                                      FontSize="11"
+                                                                      IsChecked="{CompiledBinding UseRightAxis, Mode=TwoWay}"
+                                                                      Tag="{CompiledBinding}"
+                                                                      Click="YColumnRightAxisCheckBox_Click"
+                                                                      ToolTip.Tip="この系列を右 Y 軸 (第 2 軸) に割り当て"
+                                                                      VerticalAlignment="Center"
+                                                                      Margin="6,0,0,0" />
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -388,6 +397,39 @@
                                                              TextChanged="StyleNumberTextBox_TextChanged" />
                                                 </StackPanel>
                                             </Grid>
+
+                                            <Border Height="1" Background="#E2E8F0" Margin="0,12,0,10" />
+
+                                            <TextBlock Text="変換（非破壊・選択中の系列のみ）"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#475569"
+                                                       Margin="0,0,0,6" />
+                                            <CheckBox Name="NormalizeCheckBox"
+                                                      Content="正規化 (max = 1)"
+                                                      Margin="0,0,0,8"
+                                                      ToolTip.Tip="系列の絶対値最大が 1 になるようスケール"
+                                                      IsCheckedChanged="NormalizeCheckBox_Changed" />
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Y オフセット"
+                                                               Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="YOffsetTextBox"
+                                                             Text="0"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             ToolTip.Tip="系列全体を Y 方向にずらす (正規化の後に加算)"
+                                                             TextChanged="TransformTextBox_TextChanged" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="平滑化窓"
+                                                               Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="SmoothingWindowTextBox"
+                                                             Text="0"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             ToolTip.Tip="中央移動平均の窓幅 (0 / 1 で無効、偶数は奇数に丸め)"
+                                                             TextChanged="TransformTextBox_TextChanged" />
+                                                </StackPanel>
+                                            </Grid>
                                         </StackPanel>
                                     </Expander>
                                 </Border>
@@ -414,6 +456,78 @@
                                                                  YAxisLabel="Y"
                                                                  NumberFormat="G6"
                                                                  AxisRangeCommitted="AxisRangePanel_Committed" />
+                                    </Expander>
+                                </Border>
+
+                                <!-- Section: Axis scale (log / 右軸) -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="M 1,1 L 1,13 L 13,13 M 3,11 Q 4,4 6,3 M 7,11 Q 9.5,9 12,8.5" />
+                                                <TextBlock Text="軸スケール"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <CheckBox Name="XLogCheckBox"
+                                                          Grid.Column="0"
+                                                          Content="X 軸 log"
+                                                          ToolTip.Tip="X 軸を対数スケールで表示 (0 以下の点は描画されません)"
+                                                          IsCheckedChanged="AxisScaleCheckBox_Changed" />
+                                                <CheckBox Name="YLogCheckBox"
+                                                          Grid.Column="2"
+                                                          Content="Y 軸 log"
+                                                          ToolTip.Tip="左 Y 軸を対数スケールで表示 (0 以下の点は描画されません)"
+                                                          IsCheckedChanged="AxisScaleCheckBox_Changed" />
+                                            </Grid>
+
+                                            <Border Height="1" Background="#E2E8F0" Margin="0,10,0,10" />
+
+                                            <TextBlock Text="右 Y 軸（第 2 軸）"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#475569"
+                                                       Margin="0,0,0,6" />
+                                            <CheckBox Name="Y2LogCheckBox"
+                                                      Content="右 Y 軸 log"
+                                                      Margin="0,0,0,8"
+                                                      ToolTip.Tip="右 Y 軸を対数スケールで表示"
+                                                      IsCheckedChanged="AxisScaleCheckBox_Changed" />
+                                            <TextBlock Text="右 Y 軸ラベル"
+                                                       Theme="{DynamicResource FieldLabelStyle}" />
+                                            <TextBox Name="Y2LabelTextBox"
+                                                     Theme="{DynamicResource InputTextBoxStyle}"
+                                                     Margin="0,0,0,8"
+                                                     TextChanged="GraphLabelTextBox_TextChanged" />
+                                            <Grid ColumnDefinitions="*,8,*">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="右 Y Min"
+                                                               Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="Y2MinTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             Watermark="auto"
+                                                             TextChanged="Y2RangeTextBox_TextChanged" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="右 Y Max"
+                                                               Theme="{DynamicResource FieldLabelStyle}" />
+                                                    <TextBox Name="Y2MaxTextBox"
+                                                             Theme="{DynamicResource InputTextBoxStyle}"
+                                                             Watermark="auto"
+                                                             TextChanged="Y2RangeTextBox_TextChanged" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <TextBlock Text="系列を右軸に割り当てるには、列マッピングの「右軸」をチェックしてください。"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,8,0,0" />
+                                        </StackPanel>
                                     </Expander>
                                 </Border>
 

@@ -39,6 +39,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
         AppKind.Spectrum => "UV-Vis Analyzer",
         AppKind.Calibration => "Beer-Lambert 検量線エディタ",
         AppKind.Portal => "Analysis portal",
+        AppKind.Viewer => "Data Viewer",
         _ => string.Empty,
     };
 
@@ -173,10 +174,38 @@ public sealed partial class KeyboardShortcutsWindow : Window
                 new ShortcutEntry($"{mod} + 1", "GPC Analyzer を開く"),
                 new ShortcutEntry($"{mod} + 2", "UV-Vis Analyzer を開く"),
                 new ShortcutEntry($"{mod} + 3", "DLS Analyzer を開く"),
+                new ShortcutEntry($"{mod} + 4", "Data Viewer を開く"),
             }),
             new ShortcutGroup("一般", new[]
             {
                 new ShortcutEntry("F1", "このヘルプ"),
+            }),
+        },
+        AppKind.Viewer => new[]
+        {
+            new ShortcutGroup("ファイル", new[]
+            {
+                new ShortcutEntry($"{mod} + O", "CSV / TSV / xlsx を開く"),
+                new ShortcutEntry($"{mod} + V", "クリップボードの表を貼り付け"),
+                new ShortcutEntry($"{mod} + S", "グラフを PNG / SVG で保存"),
+                new ShortcutEntry($"{mod} + E", "表示中の系列を CSV / xlsx で出力"),
+                new ShortcutEntry($"{mod} + Shift + S", "表示条件を保存 (.gvjson)"),
+                new ShortcutEntry($"{mod} + Shift + O", "表示条件を読み込み (.gvjson)"),
+            }),
+            new ShortcutGroup("表示", new[]
+            {
+                new ShortcutEntry($"{mod} + R", "軸範囲を自動に戻す"),
+                new ShortcutEntry($"{mod} + G", "プロットグリッドの表示切替"),
+                new ShortcutEntry("F2", "凡例名 TextBox にフォーカス"),
+                new ShortcutEntry("F1", "このヘルプ"),
+            }),
+            new ShortcutGroup("プロット操作", new[]
+            {
+                new ShortcutEntry("左ドラッグ", "パン"),
+                new ShortcutEntry("右ドラッグ", "範囲ズーム"),
+                new ShortcutEntry("ホイール", "拡大 / 縮小"),
+                new ShortcutEntry($"{mod} + ホイール", "横方向のみ拡縮"),
+                new ShortcutEntry("Shift + ホイール", "縦方向のみ拡縮"),
             }),
         },
         _ => System.Array.Empty<ShortcutGroup>(),
@@ -195,4 +224,5 @@ public enum AppKind
     Spectrum,
     Calibration,
     Portal,
+    Viewer,
 }

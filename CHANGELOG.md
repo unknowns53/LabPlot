@@ -8,6 +8,29 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Added
+
+- **汎用データビューア (Data Viewer) モジュール** (`src/LabPlot.Viewer/DataViewer.Core`,
+  `src/LabPlot.Viewer.Avalonia`, Portal 4 枚目のカード / Ctrl+4)。装置を限定しない
+  表形式データの重ね描きビューアとして 4 つ目のモジュールを追加:
+  - **入力 3 系統**: 区切りテキスト (CSV / TSV / セミコロン / 空白、CsvHelper による
+    引用符対応 + カンマ小数 fallback)、xlsx (ClosedXML、複数シートは選択ダイアログ)、
+    クリップボード貼り付け (Ctrl+V、Excel コピーの TSV を直接プロット、100 万セル上限)
+  - **列マッピング**: 読み込み時に「最初の数値列 = X、残りの数値列 = Y (自動 ON は
+    8 列まで)」を自動推定し、サイドバーで X 列の付け替えと Y 列の表示切替が可能。
+    数値列が 1 本だけのテーブルは行番号を X にフォールバック
+  - **軸**: X / 左 Y / 右 Y の log10 切替 (DLS と同じ decade ticks 方式)、系列ごとの
+    右 Y 軸 (第 2 軸) 割り当て。右軸の書式はモジュール内ヘルパーが左軸の規約
+    (フォント連動 padding 等) を写すため共有 `PlotAppearance` は不変更
+  - **非破壊変換**: 系列単位の正規化 (max=1) / Y オフセット / 中央移動平均
+    (適用順: 平滑化 → 正規化 → オフセット、元データは変更しない)
+  - **標準機能の再利用**: 系列スタイル編集・凡例ドラッグ・GraphFormatPanel・
+    軸範囲・PNG (300 dpi) / SVG 保存・CSV / xlsx データ出力・MRU・ウィンドウ状態
+    永続化・F1 ショートカット一覧・外部ファイル D&D・テーブル並べ替え
+  - **表示条件の保存 / 復元 (`.gvjson`)**: ファイル由来テーブルはパス参照 + 列名での
+    再照合、クリップボード由来テーブルはデータごと JSON 埋め込み (NaN は null) で
+    round-trip。`DataViewer.Tests` 44 件 (リーダー / 列推論 / 変換 / セッション) を追加
+
 ## [1.3.5] - 2026-05-28
 
 ### Added

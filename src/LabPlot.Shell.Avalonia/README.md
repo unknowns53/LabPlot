@@ -2,7 +2,7 @@
 
 > **利用者向け操作手順は [`docs/user-guide/portal.md`](../../docs/user-guide/portal.md) を参照してください。** 本書は開発者向けです。
 
-LabPlot の **主流系統** ポータルアプリです。3 つの解析モジュール（GPC / Spectrum / DLS）を 1 本の self-contained 実行ファイル `LabPlot.Avalonia` にまとめ、Windows / macOS / Linux 共通のカード型ランチャー画面から起動できます。
+LabPlot の **主流系統** ポータルアプリです。3 つの解析モジュール（GPC / Spectrum / DLS）と汎用データビューア（Data Viewer）を 1 本の self-contained 実行ファイル `LabPlot.Avalonia` にまとめ、Windows / macOS / Linux 共通のカード型ランチャー画面から起動できます。
 
 > 保守用の WPF 系統には [`src/LabPlot.Shell`](../LabPlot.Shell/)（`LabPlot.exe`、Windows 専用）があり、新機能・バグ修正は本プロジェクトを優先して受けます。
 
@@ -10,7 +10,7 @@ LabPlot の **主流系統** ポータルアプリです。3 つの解析モジ�
 
 ## 1. ポータルの動作
 
-`LabPlot.Avalonia(.exe)` をダブルクリックすると 540×620 のカード型ランチャー（2×2 UniformGrid）が開きます。GPC / UV-Vis / DLS のいずれかをクリックするとその解析ウィンドウが立ち上がります。各解析モジュールはクラスライブラリとして組み込まれているので、ポータルが唯一の実行可能アプリです。
+`LabPlot.Avalonia(.exe)` をダブルクリックすると 540×620 のカード型ランチャー（2×2 UniformGrid）が開きます。GPC / UV-Vis / DLS / Viewer のいずれかをクリックするとそのウィンドウが立ち上がります。各解析モジュールはクラスライブラリとして組み込まれているので、ポータルが唯一の実行可能アプリです。
 
 - 同じモジュールを 2 回開こうとすると既存ウィンドウをアクティブ化（`OpenSingleton<TWindow>` / `TryActivateExistingWindow<TWindow>`）
 - Portal を × で閉じると子ウィンドウもまとめて閉じる（`ShutdownMode = OnMainWindowClose`）
@@ -98,7 +98,7 @@ ErrorLogWriter.cs           OS 別ログパスへの例外ログ書き出し
 依存:
 
 - `LabPlot.Core` / `LabPlot.Core.Avalonia` — 共通解析・UI 基盤
-- `LabPlot.GPC.Avalonia` / `LabPlot.Spectrum.Avalonia` / `LabPlot.DLS.Avalonia` — 各解析モジュール（library）
+- `LabPlot.GPC.Avalonia` / `LabPlot.Spectrum.Avalonia` / `LabPlot.DLS.Avalonia` / `LabPlot.Viewer.Avalonia` — 各モジュール（library）
 - `Avalonia 11.3.14` / `Avalonia.Themes.Fluent 11.3.14` / `Avalonia.Desktop 11.3.14`
 
 ターゲット: `net10.0`、`OutputType=WinExe`、`AssemblyName=LabPlot.Avalonia`（Windows / macOS / Linux 共通バイナリ）。

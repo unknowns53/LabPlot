@@ -70,10 +70,37 @@
                                                     Margin="0,0,0,8"
                                                     ToolTip.Tip="表形式データを開く (Ctrl+O)"
                                                     Click="OpenFileButton_Click" />
-                                            <TextBlock Text="CSV / TSV / セミコロン / 空白区切りのテキストと Excel ブック (.xlsx) を読み込めます。1 列目（最初の数値列）が X、残りの数値列が Y 系列になります。"
+                                            <TextBlock Text="CSV / TSV / セミコロン / 空白区切りのテキストと Excel ブック (.xlsx) を読み込めます。1 列目（最初の数値列）が X、残りの数値列が Y 系列になります。Excel からコピーした表は Ctrl+V で直接貼り付けできます。"
                                                        Foreground="#64748B"
                                                        FontSize="11"
                                                        TextWrapping="Wrap" />
+                                            <TextBlock Text="最近開いた"
+                                                       Theme="{DynamicResource FieldLabelStyle}"
+                                                       Margin="0,10,0,4" />
+                                            <ComboBox Name="RecentFilesComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      HorizontalAlignment="Stretch"
+                                                      PlaceholderText="(履歴なし)"
+                                                      IsEnabled="False"
+                                                      SelectionChanged="RecentFilesComboBox_SelectionChanged"
+                                                      ToolTip.Tip="直近に開いたファイル (最大 5 件) を選んで再読み込みします。右クリックで履歴をクリア。">
+                                                <ComboBox.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="履歴をクリア"
+                                                                  Click="ClearRecentFilesMenuItem_Click">
+                                                            <MenuItem.Icon>
+                                                                <Path Width="14" Height="14"
+                                                                      Stroke="#475569"
+                                                                      StrokeThickness="1.4"
+                                                                      StrokeLineCap="Round"
+                                                                      StrokeJoin="Round"
+                                                                      Fill="Transparent"
+                                                                      Data="M 2.5,4 L 13.5,4 M 5,4 L 5,2.8 L 11,2.8 L 11,4 M 4,4.5 L 4.8,13.2 L 11.2,13.2 L 12,4.5 M 6.5,6.5 L 6.5,11.5 M 9.5,6.5 L 9.5,11.5" />
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                    </ContextMenu>
+                                                </ComboBox.ContextMenu>
+                                            </ComboBox>
                                         </StackPanel>
                                     </Expander>
                                 </Border>
@@ -604,6 +631,43 @@
                                     </Expander>
                                 </Border>
 
+                                <!-- Section: View session -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource AnalysisConditionsIconGeometry}" />
+                                                <TextBlock Text="表示条件"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Button Name="SaveSessionButton"
+                                                    Content="表示条件を保存"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    IsEnabled="False"
+                                                    Margin="0,0,0,8"
+                                                    ToolTip.Tip="表示条件を .gvjson に保存 (Ctrl+Shift+S)"
+                                                    Click="SaveSessionButton_Click" />
+                                            <Button Name="LoadSessionButton"
+                                                    Content="表示条件を読み込み"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    ToolTip.Tip="表示条件 (.gvjson) を読み込み (Ctrl+Shift+O)"
+                                                    Click="LoadSessionButton_Click" />
+                                            <TextBlock Text="今の表示状態（テーブル・列マッピング・系列スタイル・変換・軸設定・グラフ書式）を任意の場所に .gvjson として保存します。ファイル由来のテーブルはパス参照、クリップボード由来のテーブルはデータごと埋め込んで復元します。"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,10,0,0" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
                             </StackPanel>
                         </ScrollViewer>
 
@@ -651,6 +715,14 @@
                                 IsEnabled="False"
                                 ToolTip.Tip="グラフを PNG / SVG で保存 (Ctrl+S)"
                                 Click="SaveGraphButton_Click" />
+                        <Button Name="ExportDataButton"
+                                DockPanel.Dock="Right"
+                                Content="データ出力"
+                                Theme="{DynamicResource SecondaryButtonStyle}"
+                                IsEnabled="False"
+                                Margin="0,0,8,0"
+                                ToolTip.Tip="表示中の系列を CSV / xlsx で出力 (Ctrl+E)"
+                                Click="ExportDataButton_Click" />
                         <TextBlock Text="Data Viewer"
                                    VerticalAlignment="Center"
                                    FontSize="18"

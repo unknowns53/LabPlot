@@ -1,6 +1,6 @@
 # LabPlot 利用者向けガイド
 
-LabPlot は、Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）といった研究室の測定装置から出力されたデータを読み込んで、グラフ表示・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行うデスクトップアプリです。3 つの解析モジュールが 1 本のポータル（ランチャー）に同梱されており、Windows / macOS / Linux のどれでも同じ感覚で使えます。
+LabPlot は、Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）といった研究室の測定装置から出力されたデータを読み込んで、グラフ表示・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行うデスクトップアプリです。3 つの解析モジュールと、装置を限定しない汎用データビューア（Data Viewer）が 1 本のポータル（ランチャー）に同梱されており、Windows / macOS / Linux のどれでも同じ感覚で使えます。
 
 このガイドは「LabPlot を使ってグラフを 1 枚作るまで」「装置からデータを取り出す手順」「困ったときの対処」を、初めての利用者でも追えるレベルでまとめたものです。開発者向けのビルド手順や API 仕様は対象外なので、コードに手を入れたい場合はリポジトリ直下の [README.md](../../README.md) と各モジュールの README を参照してください。
 
@@ -22,6 +22,7 @@ LabPlot は、Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Ma
 | GPC のデータを開いて分子量分布を出したい | [GPC モジュール](./gpc.md) |
 | UV-Vis や FTIR のスペクトルを解析したい | [Spectrum モジュール](./spectrum.md) |
 | Zetasizer の DLS データから粒径分布を出したい | [DLS モジュール](./dls.md) |
+| 対応モジュールのない CSV / Excel / コピーした表をグラフにしたい | [Data Viewer モジュール](./viewer.md) |
 | ポータル（ランチャー）の挙動を知りたい | [ポータルの使い方](./portal.md) |
 | LabSolutions / Spectra Manager / Zetasizer 側でのエクスポート手順を確認したい | [装置別データ準備](./data-preparation/README.md) |
 | 同梱サンプルデータを試したい | [サンプルデータ一覧](./samples.md) |
@@ -48,6 +49,7 @@ LabPlot は、Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Ma
 - [gpc.md](./gpc.md) — GPC（ゲル浸透クロマトグラフィー）
 - [spectrum.md](./spectrum.md) — Spectrum（UV-Vis 波長スキャン / 温度スキャン / FTIR）
 - [dls.md](./dls.md) — DLS（動的光散乱、粒径分布と自己相関関数）
+- [viewer.md](./viewer.md) — Data Viewer（任意の表形式データの汎用ビューア）
 
 **装置別（測定装置側でのデータエクスポート手順）**
 

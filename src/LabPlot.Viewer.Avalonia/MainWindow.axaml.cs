@@ -179,6 +179,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         Dispatcher.UIThread.Post(InitializePlotControl, DispatcherPriority.Background);
         SetStatus("CSV / TSV / xlsx の表形式データを開いてください。", StatusSeverity.Info);
+        RefreshRecentFilesUi();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -190,16 +191,32 @@ public partial class MainWindow : Window, IPortalFileOpener
     protected override void OnKeyDown(KeyEventArgs e)
     {
         var cmd = e.HasCommandModifier();
-        if (cmd)
+        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        if (cmd && shift)
+        {
+            switch (e.Key)
+            {
+                case Key.S: SaveSessionButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
+                case Key.O: LoadSessionButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
+            }
+        }
+        else if (cmd)
         {
             switch (e.Key)
             {
                 case Key.O: OpenFileButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
                 case Key.S: SaveGraphButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
+                case Key.E: ExportDataButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
                 case Key.R: AxisRangePanel.ResetToAuto(); e.Handled = true; return;
                 case Key.G: GraphFormatPanel.TogglePlotGrid(); e.Handled = true; return;
                 case Key.V: _ = PasteFromClipboardAsync(); e.Handled = true; return;
             }
+        }
+        else if (e.Key == Key.F1)
+        {
+            global::LabPlot.Core.Avalonia.KeyboardShortcutsWindow.ShowFor(this, global::LabPlot.Core.Avalonia.AppKind.Viewer);
+            e.Handled = true;
+            return;
         }
         else if (e.Key == Key.F2)
         {
@@ -352,6 +369,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 ? $"{addedRows:N0} 行のデータを読み込みました。"
                 : $"{addedTables} テーブル / {addedRows:N0} 行のデータを読み込みました。", false);
 
+            RegisterRecentFiles(fileNames);
             var primaryName = Path.GetFileName(fileNames[0]);
             var subtitle = fileNames.Length == 1 ? primaryName : $"{primaryName} 他 {fileNames.Length - 1} 件";
             if (MainTitleBar is not null) MainTitleBar.Subtitle = subtitle;
@@ -1485,6 +1503,8 @@ public partial class MainWindow : Window, IPortalFileOpener
     private void SetGraphActionsEnabled(bool enabled)
     {
         SaveGraphButton.IsEnabled = enabled && _plot is not null;
+        ExportDataButton.IsEnabled = enabled;
+        SaveSessionButton.IsEnabled = _loadedTables.Count > 0;
     }
 
     // ---------- Formatting config ----------

@@ -2,7 +2,7 @@
 
 > **利用者向けマニュアルは [`docs/user-guide/`](docs/user-guide/README.md) を参照してください。** 本書はモノレポ全体の構成・ビルド手順・開発者向け情報をまとめたドキュメントです。
 
-研究室向けの測定データ可視化・解析アプリ群をまとめたモノレポです。Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）など、ラボの測定装置から出力されたデータを読み込んで、ScottPlot による可視化・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行います。Windows / macOS / Linux 共通で動作する **Avalonia 実装が主流系統**で、Windows 専用の WPF 実装は v1.1.0 の保守版として並行維持しています。共通の解析基盤は `LabPlot.Core`、UI 基盤は主流の `LabPlot.Core.Avalonia`（保守用に `LabPlot.Core.Wpf`）に集約しています。
+研究室向けの測定データ可視化・解析アプリ群をまとめたモノレポです。Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Malvern Zetasizer（DLS）など、ラボの測定装置から出力されたデータを読み込んで、ScottPlot による可視化・書式調整・解析・PNG / SVG / Excel / CSV 書き出しを行います。装置を限定しない任意の表形式データ（CSV / TSV / xlsx / クリップボード）向けには汎用ビューア（Data Viewer）を備えています。Windows / macOS / Linux 共通で動作する **Avalonia 実装が主流系統**で、Windows 専用の WPF 実装は v1.1.0 の保守版として並行維持しています。共通の解析基盤は `LabPlot.Core`、UI 基盤は主流の `LabPlot.Core.Avalonia`（保守用に `LabPlot.Core.Wpf`）に集約しています。
 
 ## ポータル（単一 exe 配布）
 
@@ -20,6 +20,7 @@
 - [`src/LabPlot.GPC.Avalonia`](src/LabPlot.GPC.Avalonia/README.md) — GPC（ゲル浸透クロマトグラフィー）データ可視化・分子量分布解析。Shimadzu LabSolutions の TXT エクスポートおよび `Time, Signal` 形式の CSV / TSV に対応
 - [`src/LabPlot.Spectrum.Avalonia`](src/LabPlot.Spectrum.Avalonia/README.md) — UV-Vis 波長スキャン / 温度スキャン / FTIR 解析。JASCO V-750 対応、ベースライン補正・ピーク積分・Beer-Lambert 検量線・λmax / Tc 自動抽出・IR ピーク検出を搭載
 - [`src/LabPlot.DLS.Avalonia`](src/LabPlot.DLS.Avalonia/README.md) — DLS 粒径分布・自己相関関数解析。Malvern Zetasizer の xlsx エクスポート対応、キュムラント解析と Stokes–Einstein 計算を搭載
+- `src/LabPlot.Viewer.Avalonia` — 装置を限定しない汎用データビューア（Data Viewer）。CSV / TSV / セミコロン / 空白区切りテキスト・xlsx（マルチシート）・クリップボード貼り付け（Ctrl+V）に対応し、列マッピング（X 列選択 + Y 列チェック）・log 軸・右 Y 軸（第 2 軸）・非破壊変換（正規化 / オフセット / 移動平均）・`.gvjson` 表示条件の保存復元を搭載。表データの読み込み・推論ロジックは `src/LabPlot.Viewer/DataViewer.Core`
 
 保守系統（WPF、Windows 専用）の機能仕様詳細は各 v1.1.0 README ([GPC](src/LabPlot.GPC/README.md) / [Spectrum](src/LabPlot.Spectrum/README.md) / [DLS](src/LabPlot.DLS/README.md)) を参照してください。
 
@@ -60,7 +61,7 @@
 # Build（トップレベル slnx で全 20 プロジェクトを一括ビルド）
 dotnet build LabPlot.slnx -c Debug
 
-# Tests（トップレベルから全テストを一括実行。GPC 26 + Spectrum 167 + DLS 179 = 372 件）
+# Tests（トップレベルから全テストを一括実行。GPC 26 + Spectrum 167 + DLS 179 + Viewer 44 = 416 件）
 dotnet test LabPlot.slnx -c Debug
 
 # 特定モジュールだけテストしたい場合

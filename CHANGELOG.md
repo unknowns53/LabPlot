@@ -8,6 +8,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-16
+
 ### Added
 
 - **汎用データビューア (Data Viewer) モジュール** (`src/LabPlot.Viewer/DataViewer.Core`,
@@ -643,6 +645,7 @@ distribution, and incorporated user feedback from real-machine validation.
 Initial tagged release of the WPF mainline. See `git log v1.1.0` for the full
 list of changes leading up to it.
 
+[1.4.0]: https://github.com/unknowns53/LabPlot/releases/tag/v1.4.0
 [1.3.5]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.5
 [1.3.4]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.4
 [1.3.3]: https://github.com/unknowns53/LabPlot/releases/tag/v1.3.3

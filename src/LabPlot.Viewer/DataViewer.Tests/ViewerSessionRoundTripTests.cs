@@ -38,6 +38,7 @@ public sealed class ViewerSessionRoundTripTests : IDisposable
                             ColumnIndex = 1,
                             ColumnName = "Transmittance",
                             AxisSide = "Right",
+                            ChartType = ViewerChartType.LineMarkers.ToToken(),
                             Normalize = true,
                             YOffset = 0.5,
                             SmoothingWindow = 5,
@@ -69,6 +70,7 @@ public sealed class ViewerSessionRoundTripTests : IDisposable
         var series = Assert.Single(dataset.Series);
         Assert.Equal("Transmittance", series.ColumnName);
         Assert.Equal("Right", series.AxisSide);
+        Assert.Equal(ViewerChartType.LineMarkers, ViewerChartTypes.Parse(series.ChartType));
         Assert.True(series.Normalize);
         Assert.Equal(5, series.SmoothingWindow);
         Assert.Equal("#2563EB", series.Style.ColorHex);

@@ -78,6 +78,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         public required string ColumnName { get; init; }
         public bool IsVisible { get; set; } = true;
         public bool UseRightAxis { get; set; }
+        public ViewerChartType ChartType { get; set; } = ViewerChartType.Line;
         public SeriesTransform Transform { get; set; } = SeriesTransform.Identity;
         public AnalysisSessionStyle Style { get; } = new();
     }
@@ -106,9 +107,34 @@ public partial class MainWindow : Window, IPortalFileOpener
     private readonly ObservableCollection<TableEntryVm> _tableEntries = new();
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
 
-    // RefreshPlot が描画した順の系列スタイル。エクスポート時のスケール再適用
-    // (ApplyExistingSeriesStyles) で GetPlottables の並びと突き合わせる。
-    private readonly List<(AnalysisSessionStyle Style, int AutoColorIndex)> _plottedSeriesStyles = new();
+    // RefreshPlot が描画した系列を、実際のプロット要素の参照ごと保持する。
+    // エクスポート時のスケール再適用 (ApplyExportStyleScale) で、種別 (散布図 /
+    // 棒) に応じた書式を直接当て直す。棒が混ざると GetPlottables の OfType 並び
+    // 依存では対応が崩れるため、参照を抱えて突き合わせ不要にしている。
+    private readonly List<PlottedSeries> _plottedSeriesStyles = new();
+
+    /// <summary>マーカー表示種別へ切替時、サイズ 0 のままだと点が出ないので使う既定値。</summary>
+    private const double DefaultMarkerSizeForMarkers = 5;
+
+    /// <summary>1 系列ぶんの描画データ (変換・log・有限ペア抽出まで済ませた状態)。</summary>
+    private sealed class RenderItem
+    {
+        public required double[] Xs { get; init; }
+        public required double[] Ys { get; init; }
+        public required AnalysisSessionStyle Style { get; init; }
+        public required int AutoColorIndex { get; init; }
+        public required ViewerChartType ChartType { get; init; }
+        public required bool UseRightAxis { get; init; }
+        public required string LegendText { get; init; }
+        public required string ColumnName { get; init; }
+    }
+
+    /// <summary>描画済みプロット要素とその書式の対応 (エクスポート再スケール用)。</summary>
+    private readonly record struct PlottedSeries(
+        ScottPlot.IPlottable Plottable,
+        AnalysisSessionStyle Style,
+        int AutoColorIndex,
+        ViewerChartType ChartType);
 
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
@@ -1122,6 +1148,33 @@ public partial class MainWindow : Window, IPortalFileOpener
         SyncStyleControlsFromActiveSeries();
     }
 
+    private void ChartTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressStyleControlEvents) return;
+        if (ActiveSeries is not { } series) return;
+
+        var type = (ViewerChartType)Math.Clamp(ChartTypeComboBox.SelectedIndex, 0, 3);
+        series.ChartType = type;
+
+        // マーカー必須種別へ切替時、サイズ 0 のままだと点が出ないので既定へ補正し
+        // 入力欄にも反映する (ユーザーが「マーカーのみ」にして何も出ない事故を防ぐ)。
+        if (type.ShowsMarkers() && series.Style.MarkerSize <= 0)
+        {
+            series.Style.MarkerSize = DefaultMarkerSizeForMarkers;
+            _suppressStyleControlEvents = true;
+            try
+            {
+                MarkerSizeTextBox.Text = series.Style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
+            }
+            finally
+            {
+                _suppressStyleControlEvents = false;
+            }
+        }
+
+        RefreshPlot();
+    }
+
     private void SyncStyleControlsFromActiveSeries()
     {
         _suppressStyleControlEvents = true;
@@ -1131,6 +1184,8 @@ public partial class MainWindow : Window, IPortalFileOpener
             {
                 LineColorPicker.DefaultHex = AutoLineColors[0];
                 LineColorPicker.SetHexValue(null);
+                ChartTypeComboBox.SelectedIndex = 0;
+                ChartTypeComboBox.IsEnabled = false;
                 LegendNameTextBox.Text = string.Empty;
                 LegendNameTextBox.IsEnabled = false;
                 LineWidthTextBox.Text = _formattingConfig.FormatLineWidth();
@@ -1145,6 +1200,8 @@ public partial class MainWindow : Window, IPortalFileOpener
             var autoIndex = GetSeriesAutoColorIndex(_activeTableIndex, _activeSeriesIndex);
             LineColorPicker.DefaultHex = AutoLineColors[autoIndex % AutoLineColors.Length];
             LineColorPicker.SetHexValue(series.Style.ColorHex);
+            ChartTypeComboBox.SelectedIndex = (int)series.ChartType;
+            ChartTypeComboBox.IsEnabled = true;
             LegendNameTextBox.Text = series.Style.LegendName ?? string.Empty;
             LegendNameTextBox.IsEnabled = true;
             LineWidthTextBox.Text = series.Style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
@@ -1237,12 +1294,14 @@ public partial class MainWindow : Window, IPortalFileOpener
         var xRange = new AxisDataRange();
         var yRange = new AxisDataRange();
         var y2Range = new AxisDataRange();
-        var plottedCount = 0;
         var hasCustomLegendName = false;
         string? firstSeriesName = null;
         string? firstRightSeriesName = null;
         _rightAxisInUse = false;
 
+        // 1) 描画データを先に組み立てる (変換・log・有限ペア抽出まで)。棒の
+        //    ドッジ幅を確定するには全系列を見渡す必要があるため一括化する。
+        var items = new List<RenderItem>();
         for (var tableIndex = 0; tableIndex < _loadedTables.Count; tableIndex++)
         {
             var loaded = _loadedTables[tableIndex];
@@ -1278,30 +1337,87 @@ public partial class MainWindow : Window, IPortalFileOpener
                 var (xs, ys) = ExtractFinitePairs(xValues, yValues);
                 if (xs.Length == 0) continue;
 
-                var scatter = _plot.Plot.Add.Scatter(xs, ys);
-                scatter.LegendText = GetSeriesLegendText(loaded, series);
-                var autoIndex = GetSeriesAutoColorIndex(tableIndex, seriesIndex);
-                ApplySeriesStyle(scatter, series.Style, autoIndex);
-                _plottedSeriesStyles.Add((series.Style, autoIndex));
-
-                xRange.Include(xs);
-                if (series.UseRightAxis)
+                items.Add(new RenderItem
                 {
-                    scatter.Axes.YAxis = _plot.Plot.Axes.Right;
-                    y2Range.Include(ys);
-                    _rightAxisInUse = true;
-                    firstRightSeriesName ??= series.ColumnName;
-                }
-                else
-                {
-                    yRange.Include(ys);
-                    firstSeriesName ??= series.ColumnName;
-                }
-
-                plottedCount++;
-                hasCustomLegendName |= !string.IsNullOrWhiteSpace(series.Style.LegendName);
+                    Xs = xs,
+                    Ys = ys,
+                    Style = series.Style,
+                    AutoColorIndex = GetSeriesAutoColorIndex(tableIndex, seriesIndex),
+                    ChartType = series.ChartType,
+                    UseRightAxis = series.UseRightAxis,
+                    LegendText = GetSeriesLegendText(loaded, series),
+                    ColumnName = series.ColumnName,
+                });
             }
         }
+
+        // 2) 棒系列は Excel 風に幅を詰めて横並び (ドッジ) させる。カテゴリ幅は
+        //    全棒系列の X 間隔から推定し、各棒へ通し番号でオフセットを割り当てる。
+        var barItems = items.Where(static item => item.ChartType == ViewerChartType.Bar).ToList();
+        var barGroupWidth = BarLayout.EstimateGroupWidth(barItems.Select(static item => (IReadOnlyList<double>)item.Xs));
+
+        // 3) 描画。散布図系 (折れ線 / マーカー / 両方) は同じ Scatter、棒は Bars。
+        foreach (var item in items)
+        {
+            ScottPlot.IPlottable plottable;
+            double[] xsForRange;
+
+            if (item.ChartType == ViewerChartType.Bar)
+            {
+                var ordinal = barItems.IndexOf(item);
+                var slot = BarLayout.ComputeSlot(ordinal, barItems.Count, barGroupWidth);
+                var color = ResolveSeriesColor(item.Style, item.AutoColorIndex);
+                var bars = new List<ScottPlot.Bar>(item.Xs.Length);
+                xsForRange = new double[item.Xs.Length];
+                for (var i = 0; i < item.Xs.Length; i++)
+                {
+                    var pos = item.Xs[i] + slot.Offset;
+                    xsForRange[i] = pos;
+                    bars.Add(new ScottPlot.Bar
+                    {
+                        Position = pos,
+                        Value = item.Ys[i],
+                        ValueBase = 0,
+                        Size = slot.Size,
+                        FillColor = color,
+                    });
+                }
+
+                var barPlot = _plot.Plot.Add.Bars(bars);
+                barPlot.LegendText = item.LegendText;
+                plottable = barPlot;
+            }
+            else
+            {
+                var scatter = _plot.Plot.Add.Scatter(item.Xs, item.Ys);
+                scatter.LegendText = item.LegendText;
+                ApplyScatterStyle(scatter, item.Style, item.AutoColorIndex, item.ChartType);
+                xsForRange = item.Xs;
+                plottable = scatter;
+            }
+
+            _plottedSeriesStyles.Add(new PlottedSeries(plottable, item.Style, item.AutoColorIndex, item.ChartType));
+
+            xRange.Include(xsForRange);
+            if (item.UseRightAxis)
+            {
+                plottable.Axes.YAxis = _plot.Plot.Axes.Right;
+                y2Range.Include(item.Ys);
+                if (item.ChartType == ViewerChartType.Bar) y2Range.Include(0);
+                _rightAxisInUse = true;
+                firstRightSeriesName ??= item.ColumnName;
+            }
+            else
+            {
+                yRange.Include(item.Ys);
+                if (item.ChartType == ViewerChartType.Bar) yRange.Include(0);
+                firstSeriesName ??= item.ColumnName;
+            }
+
+            hasCustomLegendName |= !string.IsNullOrWhiteSpace(item.Style.LegendName);
+        }
+
+        var plottedCount = items.Count;
 
         // log 軸は decade ticks (NumericManual)、linear は automatic に戻す。
         _plot.Plot.Axes.Bottom.TickGenerator = xLog
@@ -1370,16 +1486,42 @@ public partial class MainWindow : Window, IPortalFileOpener
             : $"{table.DisplayName}: {series.ColumnName}";
     }
 
-    private void ApplySeriesStyle(
+    private ScottPlot.Color ResolveSeriesColor(AnalysisSessionStyle style, int autoColorIndex)
+    {
+        var hex = style.ColorHex ?? AutoLineColors[autoColorIndex % AutoLineColors.Length];
+        return ScottPlot.Color.FromHex(new[] { hex }).First();
+    }
+
+    /// <summary>
+    /// 散布図 (折れ線 / マーカーのみ / 折れ線＋マーカー) の書式を当てる。線・
+    /// マーカーの可否は種別が決め、サイズは系列スタイル値を使う。マーカー必須
+    /// 種別でサイズ 0 のときは既定値へ落として点が消えないようにする。
+    /// </summary>
+    private void ApplyScatterStyle(
         ScottPlot.Plottables.Scatter scatter,
         AnalysisSessionStyle style,
         int autoColorIndex,
+        ViewerChartType chartType,
         float scale = 1f)
     {
-        scatter.LineWidth = (float)style.LineWidth * scale;
-        scatter.MarkerSize = (float)style.MarkerSize * scale;
-        var hex = style.ColorHex ?? AutoLineColors[autoColorIndex % AutoLineColors.Length];
-        scatter.Color = ScottPlot.Color.FromHex(new[] { hex }).First();
+        scatter.LineWidth = chartType.ShowsLine() ? (float)style.LineWidth * scale : 0f;
+        var markerSize = chartType.ShowsMarkers()
+            ? (style.MarkerSize > 0 ? style.MarkerSize : DefaultMarkerSizeForMarkers)
+            : 0;
+        scatter.MarkerSize = (float)markerSize * scale;
+        scatter.Color = ResolveSeriesColor(style, autoColorIndex);
+    }
+
+    private void ApplyBarStyle(
+        ScottPlot.Plottables.BarPlot barPlot,
+        AnalysisSessionStyle style,
+        int autoColorIndex)
+    {
+        var color = ResolveSeriesColor(style, autoColorIndex);
+        foreach (var bar in barPlot.Bars)
+        {
+            bar.FillColor = color;
+        }
     }
 
     private void ApplyAxisLimits(
@@ -1767,14 +1909,17 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (_plot is null) return;
 
         ApplyPlotAppearance(scale);
-        var scatters = _plot.Plot
-            .GetPlottables()
-            .OfType<ScottPlot.Plottables.Scatter>()
-            .ToArray();
-        for (var i = 0; i < scatters.Length && i < _plottedSeriesStyles.Count; i++)
+        foreach (var plotted in _plottedSeriesStyles)
         {
-            var (style, autoIndex) = _plottedSeriesStyles[i];
-            ApplySeriesStyle(scatters[i], style, autoIndex, scale);
+            switch (plotted.Plottable)
+            {
+                case ScottPlot.Plottables.Scatter scatter:
+                    ApplyScatterStyle(scatter, plotted.Style, plotted.AutoColorIndex, plotted.ChartType, scale);
+                    break;
+                case ScottPlot.Plottables.BarPlot barPlot:
+                    ApplyBarStyle(barPlot, plotted.Style, plotted.AutoColorIndex);
+                    break;
+            }
         }
     }
 

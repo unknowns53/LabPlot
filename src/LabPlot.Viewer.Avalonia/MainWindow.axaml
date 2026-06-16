@@ -333,6 +333,22 @@
                                                       ToolTip.Tip="スタイルを編集する系列を選択"
                                                       SelectionChanged="SeriesComboBox_SelectionChanged" />
 
+                                            <TextBlock Text="グラフ種別"
+                                                       Theme="{DynamicResource FieldLabelStyle}" />
+                                            <ComboBox Name="ChartTypeComboBox"
+                                                      Theme="{DynamicResource InputComboBoxStyle}"
+                                                      HorizontalAlignment="Stretch"
+                                                      IsEnabled="False"
+                                                      Margin="0,0,0,10"
+                                                      SelectedIndex="0"
+                                                      ToolTip.Tip="選択中の系列の描き方（折れ線 / マーカー / 棒）"
+                                                      SelectionChanged="ChartTypeComboBox_SelectionChanged">
+                                                <ComboBoxItem>折れ線</ComboBoxItem>
+                                                <ComboBoxItem>マーカーのみ</ComboBoxItem>
+                                                <ComboBoxItem>折れ線＋マーカー</ComboBoxItem>
+                                                <ComboBoxItem>棒グラフ</ComboBoxItem>
+                                            </ComboBox>
+
                                             <TextBlock Text="色"
                                                        Theme="{DynamicResource FieldLabelStyle}" />
                                             <controls:ColorPickerPanel Name="LineColorPicker"

@@ -75,5 +75,8 @@ public sealed class ViewerSessionSeries
 
     public int SmoothingWindow { get; set; }
 
+    /// <summary>Plot style token (see <see cref="ViewerChartType"/>). Missing / unknown ⇒ "Line".</summary>
+    public string ChartType { get; set; } = ViewerChartType.Line.ToToken();
+
     public AnalysisSessionStyle Style { get; set; } = new();
 }

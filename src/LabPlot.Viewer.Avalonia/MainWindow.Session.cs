@@ -154,6 +154,7 @@ public partial class MainWindow
                     ColumnName = series.ColumnName,
                     IsVisible = series.IsVisible,
                     AxisSide = series.UseRightAxis ? "Right" : "Left",
+                    ChartType = series.ChartType.ToToken(),
                     Normalize = series.Transform.Normalize,
                     YOffset = series.Transform.YOffset,
                     SmoothingWindow = series.Transform.SmoothingWindow,
@@ -391,6 +392,7 @@ public partial class MainWindow
 
             target.IsVisible = saved.IsVisible;
             target.UseRightAxis = string.Equals(saved.AxisSide, "Right", StringComparison.OrdinalIgnoreCase);
+            target.ChartType = ViewerChartTypes.Parse(saved.ChartType);
             target.Transform = new SeriesTransform
             {
                 Normalize = saved.Normalize,

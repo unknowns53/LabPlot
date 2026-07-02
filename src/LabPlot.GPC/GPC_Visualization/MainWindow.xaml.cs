@@ -204,7 +204,7 @@ public partial class MainWindow : Window
 
         if (!File.Exists(path))
         {
-            SetStatus($"既定の較正曲線が見つかりませんでした: {path}", true);
+            SetStatus($"既定の較正曲線が見つかりませんでした: {Path.GetFileName(path)}", true);
             return;
         }
 
@@ -216,7 +216,7 @@ public partial class MainWindow : Window
             CalibrationPathTextBlock.Text = $"較正曲線: {path}";
             PopulateSolventComboBox();
             UpdateMolecularWeightAvailability();
-            SetStatus($"既定の較正曲線を読み込みました: {path}", false);
+            SetStatus($"既定の較正曲線を読み込みました: {Path.GetFileName(path)}", false);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or JsonException)
         {
@@ -935,7 +935,7 @@ public partial class MainWindow : Window
 
         if (warnings.Count == 0)
         {
-            SetStatus($"解析条件を読み込みました: {dialog.FileName}", false);
+            SetStatus($"解析条件を読み込みました: {Path.GetFileName(dialog.FileName)}", false);
         }
         else
         {
@@ -2066,7 +2066,7 @@ public partial class MainWindow : Window
         }
 
         var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
-        SetStatisticsLine($"Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)} ({source})");
+        SetStatisticsLine($"Mn: {GpcResultFormat.FormatMolecularWeight(statistics.Mn)}   Mw: {GpcResultFormat.FormatMolecularWeight(statistics.Mw)}   Ð: {GpcResultFormat.FormatRatio(statistics.Pdi)} ({source})");
         UpdateRepresentativePeakSelector(null);
     }
 
@@ -2109,11 +2109,11 @@ public partial class MainWindow : Window
             var representativePeakId = statistics.SelectedPeakId
                 ?? MolecularWeightStatistics.SelectAutoRepresentativePeak(statistics.Peaks)?.PeakId;
             var label = representativePeakId is null ? "" : $"#{representativePeakId} ";
-            return $"{label}Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  Ð {FormatStatistic(statistics.Pdi)}";
+            return $"{label}Mn {GpcResultFormat.FormatMolecularWeight(statistics.Mn)}  Mw {GpcResultFormat.FormatMolecularWeight(statistics.Mw)}  Ð {GpcResultFormat.FormatRatio(statistics.Pdi)}";
         }
 
         var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
-        return $"Mn {FormatStatistic(statistics.Mn)}  Mw {FormatStatistic(statistics.Mw)}  Ð {FormatStatistic(statistics.Pdi)} ({source})";
+        return $"Mn {GpcResultFormat.FormatMolecularWeight(statistics.Mn)}  Mw {GpcResultFormat.FormatMolecularWeight(statistics.Mw)}  Ð {GpcResultFormat.FormatRatio(statistics.Pdi)} ({source})";
     }
 
     private static string FormatRepresentativeStatistics(MolecularWeightStatistics statistics)
@@ -2129,7 +2129,7 @@ public partial class MainWindow : Window
             label = $"Peak #{statistics.SelectedPeakId}";
         }
 
-        return $"{label}   Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)}";
+        return $"{label}   Mn: {GpcResultFormat.FormatMolecularWeight(statistics.Mn)}   Mw: {GpcResultFormat.FormatMolecularWeight(statistics.Mw)}   Ð: {GpcResultFormat.FormatRatio(statistics.Pdi)}";
     }
 
     private void UpdateRepresentativePeakSelector(MolecularWeightStatistics? statistics)
@@ -2242,11 +2242,11 @@ public partial class MainWindow : Window
         var pieces = new List<string> { $"Peak #{peak.PeakId}" };
         if (peak.Mw.HasValue && double.IsFinite(peak.Mw.Value))
         {
-            pieces.Add($"Mw {FormatStatistic(peak.Mw)}");
+            pieces.Add($"Mw {GpcResultFormat.FormatMolecularWeight(peak.Mw)}");
         }
         if (peak.Percent.HasValue && double.IsFinite(peak.Percent.Value))
         {
-            pieces.Add($"{FormatStatistic(peak.Percent)}%");
+            pieces.Add($"{GpcResultFormat.FormatRatio(peak.Percent)}%");
         }
         return string.Join("   ", pieces);
     }
@@ -2256,27 +2256,6 @@ public partial class MainWindow : Window
         return int.TryParse(peakId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
             ? value
             : int.MaxValue;
-    }
-
-    private static string FormatStatistic(double? value)
-    {
-        if (!value.HasValue || !double.IsFinite(value.Value))
-        {
-            return "-";
-        }
-
-        var absoluteValue = Math.Abs(value.Value);
-        if (absoluteValue <= double.Epsilon)
-        {
-            return "0";
-        }
-
-        if (absoluteValue is >= 0.01 and < 10000)
-        {
-            return value.Value.ToString("0.###", CultureInfo.InvariantCulture);
-        }
-
-        return value.Value.ToString("0.###E+0", CultureInfo.InvariantCulture);
     }
 
     private void SetMolecularWeightLogTicks()

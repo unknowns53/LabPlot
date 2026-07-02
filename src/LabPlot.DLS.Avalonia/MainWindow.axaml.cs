@@ -460,12 +460,12 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
             Title = $"DLS Analyzer — {fileNameOnly}";
             DatasetCountText.Text = _datasets.Count == 0
                 ? "粒径分布シートが見つかりませんでした"
-                : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(filePath)}）";
+                : $"{_datasets.Count} シート読み込み済み（{fileNameOnly}）";
 
             HideError();
             SetStatus(_datasets.Count == 0
-                ? $"粒径分布シートが見つかりませんでした: {filePath}"
-                : $"{_datasets.Count} シートを読み込みました: {filePath}");
+                ? $"粒径分布シートが見つかりませんでした: {fileNameOnly}"
+                : $"{_datasets.Count} シートを読み込みました: {fileNameOnly}");
 
             // Notify AnalysisWindow before SelectionChanged fires so the child
             // refreshes its result panels with the new dataset list.

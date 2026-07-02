@@ -1024,7 +1024,7 @@ public partial class MainWindow : Window
 
             if (warnings.Count == 0)
             {
-                SetStatus($"解析条件を読み込みました: {dialog.FileName}", false);
+                SetStatus($"解析条件を読み込みました: {Path.GetFileName(dialog.FileName)}", false);
             }
             else
             {

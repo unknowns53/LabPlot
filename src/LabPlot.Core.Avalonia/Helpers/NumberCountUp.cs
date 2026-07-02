@@ -104,8 +104,9 @@ public static class NumberCountUp
     }
 
     /// <summary>
-    /// <see cref="TextBlock.Text"/> 先頭の数値リテラル ("123.4", "1.234e-3", "-32.5") を取り出す。
-    /// 単位文字 ("nm", "μs⁻¹", "°C") の前で止まる。空文字 / 数字無しは false 返却。
+    /// <see cref="TextBlock.Text"/> 先頭の数値リテラル ("123.4", "1.234e-3", "-32.5", "4,049") を取り出す。
+    /// 桁区切りカンマ (invariant culture の "N0" 書式) も許容し、単位文字 ("nm", "μs⁻¹", "°C") の前で止まる。
+    /// 空文字 / 数字無しは false 返却。
     /// </summary>
     private static bool TryParseLeadingNumber(string text, out double value)
     {
@@ -116,7 +117,7 @@ public static class NumberCountUp
         // 先頭の符号
         if (i < text.Length && (text[i] == '+' || text[i] == '-')) i++;
         var digitStart = i;
-        while (i < text.Length && (char.IsDigit(text[i]) || text[i] == '.')) i++;
+        while (i < text.Length && (char.IsDigit(text[i]) || text[i] == '.' || text[i] == ',')) i++;
         // 指数部 (e / E + 符号付き整数)
         if (i < text.Length && (text[i] == 'e' || text[i] == 'E'))
         {
@@ -125,7 +126,7 @@ public static class NumberCountUp
             while (i < text.Length && char.IsDigit(text[i])) i++;
         }
         if (i == digitStart) return false;
-        return double.TryParse(text.AsSpan(0, i), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        return double.TryParse(text.AsSpan(0, i), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
     }
 
     /// <summary>

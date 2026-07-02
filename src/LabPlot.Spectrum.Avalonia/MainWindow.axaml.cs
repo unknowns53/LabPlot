@@ -1153,7 +1153,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
             if (warnings.Count == 0)
             {
-                SetStatus($"解析条件を読み込みました: {path}", false);
+                SetStatus($"解析条件を読み込みました: {Path.GetFileName(path)}", false);
             }
             else
             {

@@ -151,6 +151,8 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
                 () => _plottablePool);
             _plotFastModeController.Attach();
 
+            PlotContextMenu.Apply(_plot, () => _ = SaveGraphAsync());
+
             ApplyFormattingConfigToControls(_formattingConfig);
             SyncStyleControlsFromActiveItem();
             _selectedMode = DistributionModeFromTag(_formattingConfig.DefaultDistributionMode);

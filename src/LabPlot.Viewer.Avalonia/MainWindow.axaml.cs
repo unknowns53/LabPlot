@@ -434,6 +434,8 @@ public partial class MainWindow : Window, IPortalFileOpener
                 () => _plottedSeriesStyles.Select(p => p.Plottable));
             _plotFastModeController.Attach();
 
+            PlotContextMenu.Apply(_plot, () => SaveGraphButton_Click(this, new RoutedEventArgs()));
+
             UpdatePlotHostAspectRatio();
             PlotPlaceholderSkeleton.IsVisible = false;
             InitializeEmptyPlot();

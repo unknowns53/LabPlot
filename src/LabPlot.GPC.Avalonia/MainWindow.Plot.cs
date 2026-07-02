@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using GpcAnalyzer.Core;
 using LabPlot.Core;
 using LabPlot.Core.Avalonia.Helpers;
@@ -42,6 +43,8 @@ public partial class MainWindow
                 _chromatogramPlot,
                 () => _scatterPool);
             _plotFastModeController.Attach();
+
+            PlotContextMenu.Apply(_chromatogramPlot, () => SaveGraphButton_Click(this, new RoutedEventArgs()));
 
             UpdatePlotHostAspectRatio();
             // 初期化成功時点でスケルトンを消す。placeholder TextBlock の文言は

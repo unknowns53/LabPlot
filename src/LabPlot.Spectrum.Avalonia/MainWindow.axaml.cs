@@ -1361,6 +1361,8 @@ public partial class MainWindow : Window, IPortalFileOpener
                 () => _spectrumPlot!.Plot.GetPlottables());
             _plotFastModeController.Attach();
 
+            PlotContextMenu.Apply(_spectrumPlot, () => SaveGraphButton_Click(this, new RoutedEventArgs()));
+
             // Permanent handlers driving edge-resize for existing integration regions.
             _spectrumPlot.AddHandler(PointerMovedEvent, IntegrationResize_PointerMoved, RoutingStrategies.Tunnel);
             _spectrumPlot.AddHandler(PointerPressedEvent, IntegrationResize_PointerPressed, RoutingStrategies.Tunnel);

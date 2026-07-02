@@ -234,6 +234,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     private GraphFormattingConfig _formattingConfig = GraphFormattingConfig.CreateFactoryDefault();
     private AvaPlot? _plot;
     private LegendDragController? _legendDragController;
+    private PlotFastModeController? _plotFastModeController;
     private int _activeTableIndex = -1;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
@@ -358,6 +359,7 @@ public partial class MainWindow : Window, IPortalFileOpener
             {
                 case Key.S: SaveSessionButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
                 case Key.O: LoadSessionButton_Click(this, new RoutedEventArgs()); e.Handled = true; return;
+                case Key.B: ToggleRenderBenchmarkOverlay(); e.Handled = true; return;
             }
         }
         else if (cmd)
@@ -405,6 +407,11 @@ public partial class MainWindow : Window, IPortalFileOpener
                 OnLegendDragCommit);
             _legendDragController.Attach();
 
+            _plotFastModeController = new PlotFastModeController(
+                _plot,
+                () => _plottedSeriesStyles.Select(p => p.Plottable));
+            _plotFastModeController.Attach();
+
             UpdatePlotHostAspectRatio();
             PlotPlaceholderSkeleton.IsVisible = false;
             InitializeEmptyPlot();
@@ -414,6 +421,17 @@ public partial class MainWindow : Window, IPortalFileOpener
             PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.InitFailed);
             ShowError($"グラフ表示の初期化に失敗しました: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// デバッグ用: ScottPlot 標準の描画時間ベンチマーク表示 (フレーム時間 / FPS) を on/off する。
+    /// Ctrl+Shift+B から呼ばれる。perf/viewer-render-speed 計測用の一時トグルで、UI には出さない。
+    /// </summary>
+    private void ToggleRenderBenchmarkOverlay()
+    {
+        if (_plot is null) return;
+        _plot.Plot.Benchmark.IsVisible = !_plot.Plot.Benchmark.IsVisible;
+        _plot.Refresh();
     }
 
     private void InitializeEmptyPlot()

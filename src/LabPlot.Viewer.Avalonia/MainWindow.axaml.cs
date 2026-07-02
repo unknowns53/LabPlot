@@ -437,6 +437,15 @@ public partial class MainWindow : Window, IPortalFileOpener
             UpdatePlotHostAspectRatio();
             PlotPlaceholderSkeleton.IsVisible = false;
             InitializeEmptyPlot();
+
+            // MRU/ポータル起点のロードは OpenFilesAsync が Window.Loaded 直後に走るため、
+            // Background 優先度で post したこの初期化より先にテーブルが読み込まれることがある
+            // (RefreshPlot は _plot がまだ null で no-op する)。GPC/Spectrum の
+            // InitializePlotControl と同じく、初期化完了時点でデータが既にあれば描き直す。
+            if (_loadedTables.Count > 0)
+            {
+                RefreshPlot();
+            }
         }
         catch (Exception ex)
         {

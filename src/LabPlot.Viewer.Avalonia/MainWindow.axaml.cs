@@ -249,9 +249,26 @@ public partial class MainWindow : Window, IPortalFileOpener
     private bool _currentLegendAutoShow;
     private bool _rightAxisInUse;
     private string _currentRightAxisDefaultLabel = "Y2";
+
+    // RefreshPlot が確定させたタイトル/軸ラベルの既定値。ラベル軽量パス
+    // (ApplyGraphLabels) が RefreshPlot を経由せずに GetGraphTitle /
+    // GetGraphLabel を呼び直せるようキャッシュする (_currentRightAxisDefaultLabel
+    // と同じ前例パターン)。
+    private string _currentDefaultTitle = string.Empty;
+    private string _currentDefaultXLabel = string.Empty;
+    private string _currentDefaultYLabel = string.Empty;
+
     private int _clipboardTableCount;
     private double? _y2Min;
     private double? _y2Max;
+
+    // RefreshPlot が最後に計算した軸データレンジ。Y2 範囲欄の軽量パス
+    // (Y2RangeTextBox_TextChanged) が AutoScale を経ずに ApplyAxisLimits を
+    // 呼び直せるようキャッシュする。AxisDataRange は mutable struct なので
+    // (Include() が自分自身を書き換える) プロパティではなく plain field で持つ。
+    private AxisDataRange _lastXRange;
+    private AxisDataRange _lastYRange;
+    private AxisDataRange _lastY2Range;
 
     // サイドバータブ (データ / 仕上げ) の切替。XAML の RadioButton 初期値
     // (IsChecked="True") が InitializeComponent 実行中に IsCheckedChanged を
@@ -894,6 +911,21 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         _y2Min = ParseOptionalDouble(Y2MinTextBox.Text);
         _y2Max = ParseOptionalDouble(Y2MaxTextBox.Text);
+
+        // 右軸使用中は、既存プロットのまま ApplyAxisLimits だけを呼び直す軽量
+        // パスへ流す。ApplyAxisLimits は範囲欄が空なら何もしない設計なので、
+        // AutoScale を経由しないぶんズームが保持される (Batch 3 の狙い)。
+        // 右軸未使用、またはプロット未初期化のときは従来どおりフル再構築。
+        if (_plot is not null && _rightAxisInUse)
+        {
+            var xLog = XLogCheckBox.IsChecked == true;
+            var yLog = YLogCheckBox.IsChecked == true;
+            var y2Log = Y2LogCheckBox.IsChecked == true;
+            ApplyAxisLimits(_lastXRange, _lastYRange, _lastY2Range, xLog, yLog, y2Log);
+            _plot.Refresh();
+            return;
+        }
+
         SchedulePlotRefresh();
     }
 
@@ -1766,6 +1798,42 @@ public partial class MainWindow : Window, IPortalFileOpener
         return true;
     }
 
+    /// <summary>選択中系列の色 / 線幅 / マーカーサイズ変更を、既存 plottable への
+    /// 直接更新 + <see cref="AvaPlot.Refresh"/> だけで反映する軽量パス
+    /// (ApplyGraphAppearanceAndRefresh と同じ「再構築なし」の流儀)。
+    /// <see cref="_plottedSeriesStyles"/> は Style の参照 (ReferenceEquals) で
+    /// 突き合わせるので、非表示系列や X 列に割り当てた系列 (RefreshPlot が
+    /// そもそも描画しなかったもの) は自動的にヒットせず false を返す。
+    /// 呼び出し元はその場合フル再構築 (SchedulePlotRefresh) へフォールバックする。
+    /// </summary>
+    private bool TryRefreshSelectedSeriesStyleLight()
+    {
+        if (_plot is null || _selectedSeriesRows.Count == 0) return false;
+
+        var hit = false;
+        foreach (var row in _selectedSeriesRows)
+        {
+            if (row.State is not { } state) continue;
+
+            var plotted = _plottedSeriesStyles.FirstOrDefault(p => ReferenceEquals(p.Style, state.Style));
+            if (plotted.Plottable is null) continue;
+
+            if (plotted.Plottable is ScottPlot.IHasLine hasLine and ScottPlot.IHasMarker hasMarker)
+            {
+                ApplyLineMarkerStyle(hasLine, hasMarker, plotted.Style, plotted.AutoColorIndex, plotted.ChartType);
+                hit = true;
+            }
+            else if (plotted.Plottable is ScottPlot.Plottables.BarPlot barPlot)
+            {
+                ApplyBarStyle(barPlot, plotted.Style, plotted.AutoColorIndex);
+                hit = true;
+            }
+        }
+
+        if (hit) _plot.Refresh();
+        return hit;
+    }
+
     private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
     {
         if (_suppressStyleControlEvents) return;
@@ -1773,7 +1841,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         RefreshTableEntries();
         RefreshSelectedSeriesListRowVisuals();
-        SchedulePlotRefresh();
+        if (!TryRefreshSelectedSeriesStyleLight()) SchedulePlotRefresh();
     }
 
     // ---------- 系列名インライン rename (一覧表示名=凡例名) ----------
@@ -1855,6 +1923,30 @@ public partial class MainWindow : Window, IPortalFileOpener
         }, DispatcherPriority.Loaded);
     }
 
+    /// <summary>系列名インライン rename の軽量パス。<see cref="_plottedSeriesStyles"/>
+    /// を Style の参照 (ReferenceEquals) で突き合わせ、ヒットした plottable の
+    /// 凡例文字列を直接書き換える (再構築なし)。凡例自動表示判定
+    /// (<see cref="_currentLegendAutoShow"/>) も、系列名変更でカスタム凡例名の
+    /// 有無が変わり得るためここで再計算する。非表示系列や X 列系列など、
+    /// そもそも RefreshPlot が描画していない系列はヒットせず false を返し、
+    /// 呼び出し元はフル再構築 (SchedulePlotRefresh) へフォールバックする。</summary>
+    private bool TryUpdatePlottedLegendText(SeriesState state, LoadedTable table)
+    {
+        if (_plot is null) return false;
+
+        var plotted = _plottedSeriesStyles.FirstOrDefault(p => ReferenceEquals(p.Style, state.Style));
+        if (plotted.Plottable is not ScottPlot.IHasLegendText hasLegendText) return false;
+
+        hasLegendText.LegendText = GetSeriesLegendText(table, state);
+
+        _currentLegendAutoShow = LegendVisibility.ShouldAutoShow(
+            _plottedSeriesStyles.Count,
+            _plottedSeriesStyles.Any(p => !string.IsNullOrWhiteSpace(p.Style.LegendName)));
+        ApplyLegend(_plot.Plot, CaptureFormattingConfigFromControls(), autoShow: _currentLegendAutoShow);
+        _plot.Refresh();
+        return true;
+    }
+
     /// <summary>編集を確定する。表示名を GetSeriesLegendText で再計算し、
     /// スタイルパネルのヘッダ表示も合わせて更新する。</summary>
     private void CommitInlineRename(SeriesListRowVm row)
@@ -1886,10 +1978,14 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (row is { State: { } s, Table: { } table })
         {
             row.DisplayName = GetSeriesLegendText(table, s);
+            if (!TryUpdatePlottedLegendText(s, table)) SchedulePlotRefresh();
+        }
+        else
+        {
+            SchedulePlotRefresh();
         }
 
         _inlineRenameSnapshot = null;
-        SchedulePlotRefresh();
     }
 
     private void SeriesNameEditBox_TextChanged(object? sender, TextChangedEventArgs e)
@@ -1905,7 +2001,11 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         DatasetStyleCommit.CommitLegendName(box, value => state.Style.LegendName = value);
         row.LastCommittedEditText = box.Text;
-        SchedulePlotRefresh();
+
+        if (row.Table is not { } table || !TryUpdatePlottedLegendText(state, table))
+        {
+            SchedulePlotRefresh();
+        }
     }
 
     private void SeriesNameEditBox_KeyDown(object? sender, KeyEventArgs e)
@@ -1946,7 +2046,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 ApplySeriesStyleEditToSelection(style => style.MarkerSize = value));
         if (committed)
         {
-            SchedulePlotRefresh();
+            if (!TryRefreshSelectedSeriesStyleLight()) SchedulePlotRefresh();
         }
     }
 
@@ -1972,7 +2072,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         if (normalized)
         {
-            SchedulePlotRefresh();
+            if (!TryRefreshSelectedSeriesStyleLight()) SchedulePlotRefresh();
         }
     }
 
@@ -2010,9 +2110,9 @@ public partial class MainWindow : Window, IPortalFileOpener
         var yLog = YLogCheckBox.IsChecked == true;
         var y2Log = Y2LogCheckBox.IsChecked == true;
 
-        var xRange = new AxisDataRange();
-        var yRange = new AxisDataRange();
-        var y2Range = new AxisDataRange();
+        _lastXRange = new AxisDataRange();
+        _lastYRange = new AxisDataRange();
+        _lastY2Range = new AxisDataRange();
         var hasCustomLegendName = false;
         string? firstSeriesName = null;
         string? firstRightSeriesName = null;
@@ -2126,19 +2226,19 @@ public partial class MainWindow : Window, IPortalFileOpener
 
             _plottedSeriesStyles.Add(new PlottedSeries(plottable, item.Style, item.AutoColorIndex, item.ChartType));
 
-            xRange.Include(xsForRange);
+            _lastXRange.Include(xsForRange);
             if (item.UseRightAxis)
             {
                 plottable.Axes.YAxis = _plot.Plot.Axes.Right;
-                y2Range.Include(item.Ys);
-                if (item.ChartType == ViewerChartType.Bar) y2Range.Include(0);
+                _lastY2Range.Include(item.Ys);
+                if (item.ChartType == ViewerChartType.Bar) _lastY2Range.Include(0);
                 _rightAxisInUse = true;
                 firstRightSeriesName ??= item.ColumnName;
             }
             else
             {
-                yRange.Include(item.Ys);
-                if (item.ChartType == ViewerChartType.Bar) yRange.Include(0);
+                _lastYRange.Include(item.Ys);
+                if (item.ChartType == ViewerChartType.Bar) _lastYRange.Include(0);
                 firstSeriesName ??= item.ColumnName;
             }
 
@@ -2149,32 +2249,31 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         // log 軸は decade ticks (NumericManual)、linear は automatic に戻す。
         _plot.Plot.Axes.Bottom.TickGenerator = xLog
-            ? LogAxisHelper.CreateDecadeTicks(xRange.Min, xRange.Max)
+            ? LogAxisHelper.CreateDecadeTicks(_lastXRange.Min, _lastXRange.Max)
             : new ScottPlot.TickGenerators.NumericAutomatic();
         _plot.Plot.Axes.Left.TickGenerator = yLog
-            ? LogAxisHelper.CreateDecadeTicks(yRange.Min, yRange.Max)
+            ? LogAxisHelper.CreateDecadeTicks(_lastYRange.Min, _lastYRange.Max)
             : new ScottPlot.TickGenerators.NumericAutomatic();
         _plot.Plot.Axes.Right.TickGenerator = _rightAxisInUse && y2Log
-            ? LogAxisHelper.CreateDecadeTicks(y2Range.Min, y2Range.Max)
+            ? LogAxisHelper.CreateDecadeTicks(_lastY2Range.Min, _lastY2Range.Max)
             : new ScottPlot.TickGenerators.NumericAutomatic();
 
-        _currentLegendAutoShow = plottedCount > 1 || hasCustomLegendName;
+        _currentLegendAutoShow = LegendVisibility.ShouldAutoShow(plottedCount, hasCustomLegendName);
         ApplyLegend(_plot.Plot, CaptureFormattingConfigFromControls(), autoShow: _currentLegendAutoShow);
 
         var activeTable = ActiveTable ?? _loadedTables[0];
-        var defaultTitle = _loadedTables.Count == 1
+        _currentDefaultTitle = _loadedTables.Count == 1
             ? activeTable.DisplayName
             : $"{_loadedTables.Count} tables";
-        var defaultXLabel = activeTable.Series.Count == 1
+        _currentDefaultXLabel = activeTable.Series.Count == 1
             && activeTable.Series[0].ColumnIndex == activeTable.XColumnIndex
             ? "Index"
             : activeTable.Table.Columns[activeTable.XColumnIndex].Name;
+        _currentDefaultYLabel = firstSeriesName ?? "Value";
         _currentRightAxisDefaultLabel = firstRightSeriesName ?? "Y2";
-        _plot.Plot.Title(GetGraphTitle(defaultTitle));
-        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, defaultXLabel));
-        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, firstSeriesName ?? "Value"));
+        ApplyGraphLabels();
         _plot.Plot.Axes.AutoScale();
-        ApplyAxisLimits(xRange, yRange, y2Range, xLog, yLog, y2Log);
+        ApplyAxisLimits(_lastXRange, _lastYRange, _lastY2Range, xLog, yLog, y2Log);
         ApplyPlotAppearance();
         _plot.Refresh();
 
@@ -2373,6 +2472,19 @@ public partial class MainWindow : Window, IPortalFileOpener
         return string.IsNullOrWhiteSpace(label) ? defaultLabel : label;
     }
 
+    /// <summary>タイトル / X / Y ラベルを、現在のテキストボックス値 (空欄なら
+    /// RefreshPlot がキャッシュした既定値) で適用する軽量パス。フル再構築の
+    /// RefreshPlot と、見た目だけの変更 (GraphLabelTextBox_TextChanged) の
+    /// 双方から呼ぶことで二重実装を防ぐ。プロット未初期化時は何もしない。</summary>
+    private void ApplyGraphLabels()
+    {
+        if (_plot is null) return;
+
+        _plot.Plot.Title(GetGraphTitle(_currentDefaultTitle));
+        _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, _currentDefaultXLabel));
+        _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, _currentDefaultYLabel));
+    }
+
     private void SetGraphActionsEnabled(bool enabled)
     {
         SaveGraphButton.IsEnabled = enabled && _plot is not null;
@@ -2475,7 +2587,20 @@ public partial class MainWindow : Window, IPortalFileOpener
     private void GraphLabelTextBox_TextChanged(object? sender, TextChangedEventArgs e)
     {
         if (_suppressGraphAppearanceEvents) return;
-        SchedulePlotRefresh();
+
+        // プロットが空 (未読み込み) のときは _currentDefaultXxx が未確定なので
+        // フル再構築 (RefreshPlot → InitializeEmptyPlot) に任せる。
+        if (_plot is null || _plottedSeriesStyles.Count == 0)
+        {
+            SchedulePlotRefresh();
+            return;
+        }
+
+        // タイトル/軸ラベルは既存 plottable の再構築なしに書き換えられる見た目
+        // だけの変更。既存プロット要素はそのままズームも保持したまま
+        // ApplyGraphLabels + ApplyGraphAppearanceAndRefresh の軽量パスへ流す。
+        ApplyGraphLabels();
+        ApplyGraphAppearanceAndRefresh();
     }
 
     private void AxisRangePanel_Committed(object? sender, EventArgs e)

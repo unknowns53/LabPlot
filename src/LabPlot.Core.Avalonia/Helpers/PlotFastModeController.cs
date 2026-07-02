@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -18,6 +19,16 @@ namespace LabPlot.Core.Avalonia.Helpers;
 /// (立てると <see cref="AvaPlot"/> 自身の bubble ハンドラにイベントが届かなくなり、
 /// パン / ズームそのものが止まってしまう)。あくまで「AvaPlot が今まさにパン / ズーム
 /// 操作を受けている」ことを横から観測して AA の on/off を切り替えるだけの役割。
+///
+/// また fast mode 中は <see cref="TopLevel.RequestAnimationFrame"/> による
+/// vsync 同期の invalidation ループを別途回す。ScottPlot.Avalonia 5.1.58 の
+/// <c>AvaPlot.Refresh()</c> は <see cref="DispatcherPriority.Background"/> で
+/// <c>InvalidateVisual</c> を予約する実装になっており、パン中は高頻度のポインタ
+/// イベントが UI スレッドの入力キューを埋め続けるため、この Background 優先度の
+/// 予約が飢餓状態になって画面反映が不等間隔になる (数値上は 100fps 相当でも
+/// 体感がガタつく)。描画そのものは compositor の render pass 内で同期実行される
+/// ので、フレームごとに直接 <c>InvalidateVisual</c> を入れてやれば表示はディスプレイ
+/// の垂直同期に揃う。
 /// </remarks>
 public sealed class PlotFastModeController
 {
@@ -29,6 +40,7 @@ public sealed class PlotFastModeController
 
     private bool _attached;
     private bool _active;
+    private bool _animationLoopRunning;
 
     public PlotFastModeController(
         AvaPlot avaPlot,
@@ -70,6 +82,8 @@ public sealed class PlotFastModeController
         _avaPlot.RemoveHandler(InputElement.PointerCaptureLostEvent, OnLostCapture);
         _wheelExitTimer.Stop();
         _attached = false;
+        // _active を落として invalidation ループの次回コールバックで自然停止させる。
+        _active = false;
     }
 
     private void OnPress(object? sender, PointerPressedEventArgs e)
@@ -112,6 +126,7 @@ public sealed class PlotFastModeController
         SetAntiAlias(false);
         // ここでは Refresh() を呼ばない。直後に AvaPlot 自身のパン / ズーム描画が
         // 走るので、ここで描くと二重描画になる。
+        StartInvalidationLoop();
     }
 
     private void ExitFastMode()
@@ -120,6 +135,43 @@ public sealed class PlotFastModeController
         _active = false;
         SetAntiAlias(true);
         _avaPlot.Refresh();
+    }
+
+    /// <summary>
+    /// fast mode 中だけ、フレームごとに <c>InvalidateVisual</c> を直接叩く
+    /// vsync 同期ループを開始する。<see cref="_active"/> が false になった時点で
+    /// 次のコールバックが自ら停止するので、明示的な停止処理は不要。
+    /// </summary>
+    private void StartInvalidationLoop()
+    {
+        if (_animationLoopRunning) return;
+        var topLevel = TopLevel.GetTopLevel(_avaPlot);
+        if (topLevel is null) return;
+        _animationLoopRunning = true;
+        topLevel.RequestAnimationFrame(OnAnimationFrame);
+    }
+
+    private void OnAnimationFrame(TimeSpan _)
+    {
+        if (!_active)
+        {
+            _animationLoopRunning = false;
+            return;
+        }
+
+        // AvaPlot.Refresh() は DispatcherPriority.Background で InvalidateVisual を
+        // 予約するため、連続ポインタ入力中は実行が飢餓状態になり画面反映が不等間隔に
+        // なる。操作中はこちらでフレーム周期ごとに直接 InvalidateVisual を入れて、
+        // 表示更新をディスプレイの垂直同期に揃える。
+        _avaPlot.InvalidateVisual();
+
+        var topLevel = TopLevel.GetTopLevel(_avaPlot);
+        if (topLevel is null)
+        {
+            _animationLoopRunning = false;
+            return;
+        }
+        topLevel.RequestAnimationFrame(OnAnimationFrame);
     }
 
     /// <summary>

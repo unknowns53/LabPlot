@@ -113,6 +113,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     // recycling is not currently possible — see ClearScatterPool() doc.
     private readonly List<ScottPlot.Plottables.Scatter> _scatterPool = new();
     private LegendDragController? _legendDragController;
+    private PlotFastModeController? _plotFastModeController;
     private bool _updatingCalibrationSelection;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;

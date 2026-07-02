@@ -81,6 +81,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     private SpectrumDataset? _currentDataset;
     private AvaPlot? _spectrumPlot;
     private LegendDragController? _legendDragController;
+    private PlotFastModeController? _plotFastModeController;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressDatasetListEvents;
@@ -1353,6 +1354,12 @@ public partial class MainWindow : Window, IPortalFileOpener
                 () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
                 OnLegendDragCommit);
             _legendDragController.Attach();
+
+            // パン / ホイールズーム操作中だけ AA を切って描画を軽くする。
+            _plotFastModeController = new PlotFastModeController(
+                _spectrumPlot,
+                () => _spectrumPlot!.Plot.GetPlottables());
+            _plotFastModeController.Attach();
 
             // Permanent handlers driving edge-resize for existing integration regions.
             _spectrumPlot.AddHandler(PointerMovedEvent, IntegrationResize_PointerMoved, RoutingStrategies.Tunnel);

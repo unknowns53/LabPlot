@@ -115,4 +115,73 @@ public sealed class SeriesTransformerTests
         Assert.Equal(5.0 / 3.0, result[1], precision: 12);
         Assert.Equal(2.0, result[2], precision: 12);
     }
+
+    [Fact]
+    public void Apply_Smoothing_MatchesNaiveWindowAverageForVariousWindows()
+    {
+        const int length = 500;
+        var source = new double[length];
+        uint seed = 12345;
+        for (var i = 0; i < length; i++)
+        {
+            seed = seed * 1664525 + 1013904223;
+            var unit = seed / 4294967296.0; // [0, 1)
+
+            seed = seed * 1664525 + 1013904223;
+            var nanRoll = seed / 4294967296.0;
+
+            source[i] = nanRoll < 0.1 ? double.NaN : unit * 2000.0 - 1000.0;
+        }
+
+        foreach (var window in new[] { 3, 7, 101, 100000 })
+        {
+            var expected = NaiveSmoothCentered(source, window);
+            var actual = SeriesTransformer.Apply(source, new SeriesTransform { SmoothingWindow = window });
+
+            Assert.Equal(expected.Length, actual.Length);
+            for (var i = 0; i < expected.Length; i++)
+            {
+                var isBothNaN = double.IsNaN(expected[i]) && double.IsNaN(actual[i]);
+                Assert.True(isBothNaN || Math.Abs(expected[i] - actual[i]) < 1e-9,
+                    $"window={window}, index={i}: expected={expected[i]}, actual={actual[i]}");
+            }
+        }
+
+        // 素朴な O(N×window) 中心移動平均。累積和実装 (SeriesTransformer 内) との一致確認用の参照実装。
+        static double[] NaiveSmoothCentered(double[] source, int window)
+        {
+            if (window % 2 == 0)
+            {
+                window++;
+            }
+
+            var half = window / 2;
+            var result = new double[source.Length];
+            for (var i = 0; i < source.Length; i++)
+            {
+                if (double.IsNaN(source[i]))
+                {
+                    result[i] = double.NaN;
+                    continue;
+                }
+
+                var sum = 0.0;
+                var count = 0;
+                var from = Math.Max(0, i - half);
+                var to = Math.Min(source.Length - 1, i + half);
+                for (var j = from; j <= to; j++)
+                {
+                    if (double.IsFinite(source[j]))
+                    {
+                        sum += source[j];
+                        count++;
+                    }
+                }
+
+                result[i] = count > 0 ? sum / count : double.NaN;
+            }
+
+            return result;
+        }
+    }
 }

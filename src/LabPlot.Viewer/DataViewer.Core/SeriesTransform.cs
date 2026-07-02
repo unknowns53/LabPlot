@@ -72,8 +72,22 @@ public static class SeriesTransformer
         }
 
         var half = window / 2;
-        var result = new double[source.Length];
-        for (var i = 0; i < source.Length; i++)
+        var n = source.Length;
+
+        // 窓ごとに再走査すると O(N×window) になるため、有限値の累積和/累積個数を
+        // 前計算し、各点の窓和を差分 (prefixSum[to+1] - prefixSum[from]) で O(1) 取得する。
+        // これにより全体は O(N) で済む。
+        var prefixSum = new double[n + 1];
+        var prefixCount = new int[n + 1];
+        for (var i = 0; i < n; i++)
+        {
+            var finite = double.IsFinite(source[i]);
+            prefixSum[i + 1] = prefixSum[i] + (finite ? source[i] : 0.0);
+            prefixCount[i + 1] = prefixCount[i] + (finite ? 1 : 0);
+        }
+
+        var result = new double[n];
+        for (var i = 0; i < n; i++)
         {
             if (double.IsNaN(source[i]))
             {
@@ -81,18 +95,10 @@ public static class SeriesTransformer
                 continue;
             }
 
-            var sum = 0.0;
-            var count = 0;
             var from = Math.Max(0, i - half);
-            var to = Math.Min(source.Length - 1, i + half);
-            for (var j = from; j <= to; j++)
-            {
-                if (double.IsFinite(source[j]))
-                {
-                    sum += source[j];
-                    count++;
-                }
-            }
+            var to = Math.Min(n - 1, i + half);
+            var sum = prefixSum[to + 1] - prefixSum[from];
+            var count = prefixCount[to + 1] - prefixCount[from];
 
             result[i] = count > 0 ? sum / count : double.NaN;
         }

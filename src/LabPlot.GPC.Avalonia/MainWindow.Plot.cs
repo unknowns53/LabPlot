@@ -37,6 +37,12 @@ public partial class MainWindow
                 OnLegendDragCommit);
             _legendDragController.Attach();
 
+            // パン / ホイールズーム操作中だけ AA を切って描画を軽くする。
+            _plotFastModeController = new PlotFastModeController(
+                _chromatogramPlot,
+                () => _scatterPool);
+            _plotFastModeController.Attach();
+
             UpdatePlotHostAspectRatio();
             // 初期化成功時点でスケルトンを消す。placeholder TextBlock の文言は
             // InitializeEmptyPlot で SetState(EmptyReady) に切り替わる。

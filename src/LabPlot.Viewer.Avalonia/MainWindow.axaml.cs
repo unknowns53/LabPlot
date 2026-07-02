@@ -221,6 +221,11 @@ public partial class MainWindow : Window, IPortalFileOpener
         public required bool UseRightAxis { get; init; }
         public required string LegendText { get; init; }
         public required string ColumnName { get; init; }
+
+        // 折れ線 (マーカー無し) かつ X 厳密昇順の系列だけ true。ScottPlot の
+        // SignalXY は Scatter より高速だが X 昇順前提の折れ線特化型なので、
+        // 対象外の系列は従来どおり Scatter で描く (SeriesPlotKindSelector 判定)。
+        public required bool UseSignalXY { get; init; }
     }
 
     /// <summary>描画済みプロット要素とその書式の対応 (エクスポート再スケール用)。</summary>
@@ -2061,6 +2066,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 UseRightAxis = series.UseRightAxis,
                 LegendText = GetSeriesLegendText(loaded, series),
                 ColumnName = series.ColumnName,
+                UseSignalXY = SeriesPlotKindSelector.ShouldUseSignalXY(series.ChartType, xs),
             });
         }
 
@@ -2069,7 +2075,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         var barItems = items.Where(static item => item.ChartType == ViewerChartType.Bar).ToList();
         var barGroupWidth = BarLayout.EstimateGroupWidth(barItems.Select(static item => (IReadOnlyList<double>)item.Xs));
 
-        // 3) 描画。散布図系 (折れ線 / マーカー / 両方) は同じ Scatter、棒は Bars。
+        // 3) 描画。散布図系 (折れ線 / マーカー / 両方) は Scatter が基本だが、線の
+        //    み・X 厳密昇順の折れ線だけ高速な SignalXY を使う。棒は Bars。
         foreach (var item in items)
         {
             ScottPlot.IPlottable plottable;
@@ -2100,11 +2107,19 @@ public partial class MainWindow : Window, IPortalFileOpener
                 barPlot.LegendText = item.LegendText;
                 plottable = barPlot;
             }
+            else if (item.UseSignalXY)
+            {
+                var signal = _plot.Plot.Add.SignalXY(item.Xs, item.Ys);
+                signal.LegendText = item.LegendText;
+                ApplyLineMarkerStyle(signal, signal, item.Style, item.AutoColorIndex, item.ChartType);
+                xsForRange = item.Xs;
+                plottable = signal;
+            }
             else
             {
                 var scatter = _plot.Plot.Add.Scatter(item.Xs, item.Ys);
                 scatter.LegendText = item.LegendText;
-                ApplyScatterStyle(scatter, item.Style, item.AutoColorIndex, item.ChartType);
+                ApplyLineMarkerStyle(scatter, scatter, item.Style, item.AutoColorIndex, item.ChartType);
                 xsForRange = item.Xs;
                 plottable = scatter;
             }
@@ -2201,23 +2216,31 @@ public partial class MainWindow : Window, IPortalFileOpener
     }
 
     /// <summary>
-    /// 散布図 (折れ線 / マーカーのみ / 折れ線＋マーカー) の書式を当てる。線・
-    /// マーカーの可否は種別が決め、サイズは系列スタイル値を使う。マーカー必須
-    /// 種別でサイズ 0 のときは既定値へ落として点が消えないようにする。
+    /// 散布図系 (Scatter / SignalXY。折れ線 / マーカーのみ / 折れ線＋マーカー)
+    /// の書式を当てる。線・マーカーの可否は種別が決め、サイズは系列スタイル値を
+    /// 使う。マーカー必須種別でサイズ 0 のときは既定値へ落として点が消えない
+    /// ようにする。<paramref name="hasLine"/> / <paramref name="hasMarker"/> は
+    /// 同一プロット要素を指すことを想定 (Scatter / SignalXY はともに両
+    /// interface を実装するのでこの分解で渡せる)。Scatter.Color は
+    /// LineColor/MarkerColor へ同時代入する糖衣プロパティなので、個別代入でも
+    /// 見た目は変わらない。
     /// </summary>
-    private void ApplyScatterStyle(
-        ScottPlot.Plottables.Scatter scatter,
+    private void ApplyLineMarkerStyle(
+        ScottPlot.IHasLine hasLine,
+        ScottPlot.IHasMarker hasMarker,
         AnalysisSessionStyle style,
         int autoColorIndex,
         ViewerChartType chartType,
         float scale = 1f)
     {
-        scatter.LineWidth = chartType.ShowsLine() ? (float)style.LineWidth * scale : 0f;
+        var color = ResolveSeriesColor(style, autoColorIndex);
+        hasLine.LineWidth = chartType.ShowsLine() ? (float)style.LineWidth * scale : 0f;
+        hasLine.LineColor = color;
         var markerSize = chartType.ShowsMarkers()
             ? (style.MarkerSize > 0 ? style.MarkerSize : DefaultMarkerSizeForMarkers)
             : 0;
-        scatter.MarkerSize = (float)markerSize * scale;
-        scatter.Color = ResolveSeriesColor(style, autoColorIndex);
+        hasMarker.MarkerSize = (float)markerSize * scale;
+        hasMarker.MarkerColor = color;
     }
 
     private void ApplyBarStyle(
@@ -2622,7 +2645,10 @@ public partial class MainWindow : Window, IPortalFileOpener
             switch (plotted.Plottable)
             {
                 case ScottPlot.Plottables.Scatter scatter:
-                    ApplyScatterStyle(scatter, plotted.Style, plotted.AutoColorIndex, plotted.ChartType, scale);
+                    ApplyLineMarkerStyle(scatter, scatter, plotted.Style, plotted.AutoColorIndex, plotted.ChartType, scale);
+                    break;
+                case ScottPlot.Plottables.SignalXY signal:
+                    ApplyLineMarkerStyle(signal, signal, plotted.Style, plotted.AutoColorIndex, plotted.ChartType, scale);
                     break;
                 case ScottPlot.Plottables.BarPlot barPlot:
                     ApplyBarStyle(barPlot, plotted.Style, plotted.AutoColorIndex);

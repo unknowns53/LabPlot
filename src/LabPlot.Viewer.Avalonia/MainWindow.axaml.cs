@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia;
@@ -95,16 +97,72 @@ public partial class MainWindow : Window, IPortalFileOpener
         public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
     }
 
-    /// <summary>列マッピングセクションの Y 列チェック行。CheckBox の TwoWay
-    /// CompiledBinding が IsVisible に書き戻し、Click ハンドラが SeriesState へ
-    /// 反映する (再構築なしでチェック操作を受けるための薄い VM)。</summary>
-    public sealed class SeriesRowVm
+    /// <summary>「系列」セクションのフラット一覧 1 行ぶんの表示状態。CheckBox の
+    /// TwoWay CompiledBinding が IsVisible / UseRightAxis に書き戻し、Click
+    /// ハンドラが SeriesState へ反映する。INotifyPropertyChanged にしているのは
+    /// 色・表示名の変更をコレクション再構築なしで反映するため (選択保持と
+    /// 将来のインライン編集フォーカス保持のため)。</summary>
+    public sealed class SeriesListRowVm : INotifyPropertyChanged
     {
-        public string ColumnName { get; init; } = string.Empty;
-        public bool IsVisible { get; set; }
-        public bool UseRightAxis { get; set; }
-        public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
+        private string _displayName = string.Empty;
+        private bool _isVisible;
+        private bool _useRightAxis;
+        private SolidColorBrush _colorBrush = new(Colors.Gray);
+
+        public string DisplayName
+        {
+            get => _displayName;
+            set
+            {
+                if (_displayName == value) return;
+                _displayName = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsVisible
+        {
+            get => _isVisible;
+            set
+            {
+                if (_isVisible == value) return;
+                _isVisible = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool UseRightAxis
+        {
+            get => _useRightAxis;
+            set
+            {
+                if (_useRightAxis == value) return;
+                _useRightAxis = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public SolidColorBrush ColorBrush
+        {
+            get => _colorBrush;
+            set
+            {
+                if (ReferenceEquals(_colorBrush, value)) return;
+                _colorBrush = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>ツールチップ用の「ファイル名 / 列名」。</summary>
+        public string SourceHint { get; init; } = string.Empty;
+
+        internal LoadedTable? Table { get; init; }
         internal SeriesState? State { get; init; }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
     private readonly List<LoadedTable> _loadedTables = new();
@@ -150,12 +208,11 @@ public partial class MainWindow : Window, IPortalFileOpener
     private AvaPlot? _plot;
     private LegendDragController? _legendDragController;
     private int _activeTableIndex = -1;
-    private int _activeSeriesIndex = -1;
     private bool _suppressGraphAppearanceEvents;
     private bool _suppressStyleControlEvents;
     private bool _suppressTableListEvents;
-    private bool _suppressSeriesComboEvents;
     private bool _suppressMappingEvents;
+    private bool _suppressSeriesListEvents;
     private bool _currentLegendAutoShow;
     private bool _rightAxisInUse;
     private string _currentRightAxisDefaultLabel = "Y2";
@@ -165,7 +222,12 @@ public partial class MainWindow : Window, IPortalFileOpener
 
     // X 列 ComboBox の表示順 → 実カラム index の対応表 (numeric 列のみ並ぶ)。
     private readonly List<int> _xComboColumnIndexes = new();
-    private readonly ObservableCollection<SeriesRowVm> _seriesRows = new();
+
+    // 「系列」セクションのフラット一覧。EnumerateSeriesInDisplayOrder() の
+    // 順序で再構築する (RefreshSeriesList)。選択は現状 0 / 1 件のみ扱う
+    // (複数選択の一括適用は Batch 3)。
+    private readonly ObservableCollection<SeriesListRowVm> _seriesListRows = new();
+    private SeriesListRowVm? _activeSeriesRow;
 
     // 内部 reorder は GPC と同じく OS DragDrop layer を使わず
     // PointerCapture + 手動位置計算で行う (Avalonia 11.3 の DoDragDrop は
@@ -185,7 +247,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
         ApplyFormattingConfigToControls(_formattingConfig);
         TableListBox.ItemsSource = _tableEntries;
-        YColumnItemsControl.ItemsSource = _seriesRows;
+        SeriesListBox.ItemsSource = _seriesListRows;
         _plotRefreshDebounceTimer.Tick += PlotRefreshDebounceTimer_Tick;
 
         // 外部ファイル D&D: 子要素の AllowDrop=False が hit-test を吸収するので
@@ -483,29 +545,13 @@ public partial class MainWindow : Window, IPortalFileOpener
         return true;
     }
 
-    /// <summary>スタイル編集の初期選択: X 列を避けて最初の可視系列を返す。</summary>
-    private static int GetDefaultSeriesIndex(LoadedTable loaded)
-    {
-        for (var i = 0; i < loaded.Series.Count; i++)
-        {
-            if (loaded.Series[i].IsVisible && loaded.Series[i].ColumnIndex != loaded.XColumnIndex)
-            {
-                return i;
-            }
-        }
-
-        return loaded.Series.Count > 0 ? 0 : -1;
-    }
-
     /// <summary>読み込み直後の共通 UI 更新: 最後のテーブルをアクティブ化して再描画。</summary>
     private void ActivateLastLoadedTable()
     {
         _activeTableIndex = _loadedTables.Count - 1;
-        _activeSeriesIndex = GetDefaultSeriesIndex(_loadedTables[_activeTableIndex]);
         RefreshTableEntries();
-        RefreshMappingPanel();
-        RefreshSeriesCombo();
-        SyncStyleControlsFromActiveSeries();
+        RefreshXColumnPanel();
+        RefreshSeriesList();
         RefreshPlot();
     }
 
@@ -543,15 +589,15 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
     }
 
-    // ---------- Column mapping panel ----------
+    // ---------- X column panel ----------
 
-    /// <summary>選択中テーブルの X 列 ComboBox と Y 列チェックリストを作り直す。</summary>
-    private void RefreshMappingPanel()
+    /// <summary>選択中テーブルの X 列 ComboBox を作り直す (Y 列の表示 / 非表示・
+    /// 右軸などは「系列」セクションのフラット一覧 (RefreshSeriesList) が担う)。</summary>
+    private void RefreshXColumnPanel()
     {
         _suppressMappingEvents = true;
         try
         {
-            _seriesRows.Clear();
             _xComboColumnIndexes.Clear();
 
             if (ActiveTable is not { } loaded)
@@ -559,7 +605,6 @@ public partial class MainWindow : Window, IPortalFileOpener
                 XColumnComboBox.ItemsSource = null;
                 XColumnComboBox.IsEnabled = false;
                 MappingTableLabel.Text = "(テーブル未選択)";
-                MappingEmptyHint.IsVisible = true;
                 return;
             }
 
@@ -575,28 +620,7 @@ public partial class MainWindow : Window, IPortalFileOpener
             XColumnComboBox.IsEnabled = numericNames.Count > 1;
             XColumnComboBox.SelectedIndex = _xComboColumnIndexes.IndexOf(loaded.XColumnIndex);
 
-            for (var i = 0; i < loaded.Series.Count; i++)
-            {
-                var series = loaded.Series[i];
-                if (series.ColumnIndex == loaded.XColumnIndex && loaded.Series.Count > 1)
-                {
-                    continue;
-                }
-
-                var autoIndex = GetSeriesAutoColorIndex(series);
-                var hex = series.Style.ColorHex ?? AutoLineColors[autoIndex % AutoLineColors.Length];
-                _seriesRows.Add(new SeriesRowVm
-                {
-                    ColumnName = series.ColumnName,
-                    IsVisible = series.IsVisible,
-                    UseRightAxis = series.UseRightAxis,
-                    ColorBrush = new SolidColorBrush(HexToAvaloniaColor(hex)),
-                    State = series,
-                });
-            }
-
             MappingTableLabel.Text = $"({loaded.DisplayName})";
-            MappingEmptyHint.IsVisible = _seriesRows.Count == 0;
         }
         finally
         {
@@ -620,28 +644,117 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (newXColumn == loaded.XColumnIndex) return;
 
         loaded.XColumnIndex = newXColumn;
-        RefreshMappingPanel();
-        RefreshSeriesCombo();
+        RefreshXColumnPanel();
+        RefreshSeriesList();
         RefreshPlot();
     }
 
-    private void YColumnCheckBox_Click(object? sender, RoutedEventArgs e)
+    // ---------- Series list (「系列」セクション: 全ファイル横断のフラット一覧) ----------
+
+    /// <summary>
+    /// 全テーブルの系列を表示順でフラットに列挙し直す。編集中の選択
+    /// (SeriesState 参照) を、可能なら再構築後の行へ引き継ぐ。
+    /// </summary>
+    private void RefreshSeriesList()
     {
-        if (_suppressMappingEvents) return;
-        if (sender is not CheckBox { Tag: SeriesRowVm { State: { } state } } checkBox) return;
+        _suppressSeriesListEvents = true;
+        try
+        {
+            var previousState = _activeSeriesRow?.State;
+            _seriesListRows.Clear();
+
+            foreach (var (table, series) in EnumerateSeriesInDisplayOrder())
+            {
+                // X 列に割り当てた列は Y からは描かない (RefreshPlot と同じ規約)。
+                // 数値列がそれ 1 本しかないテーブルだけは行番号 X 用に残す。
+                if (series.ColumnIndex == table.XColumnIndex && table.Series.Count > 1)
+                {
+                    continue;
+                }
+
+                var autoIndex = GetSeriesAutoColorIndex(series);
+                var hex = series.Style.ColorHex ?? AutoLineColors[autoIndex % AutoLineColors.Length];
+                _seriesListRows.Add(new SeriesListRowVm
+                {
+                    DisplayName = GetSeriesLegendText(table, series),
+                    IsVisible = series.IsVisible,
+                    UseRightAxis = series.UseRightAxis,
+                    ColorBrush = new SolidColorBrush(HexToAvaloniaColor(hex)),
+                    SourceHint = $"{table.DisplayName} / {series.ColumnName}",
+                    Table = table,
+                    State = series,
+                });
+            }
+
+            SeriesListPlaceholder.IsVisible = _seriesListRows.Count == 0;
+
+            // SelectionMode="Multiple" の ListBox は SelectedItem への直接代入だと
+            // 選択が安定しないため、DLS の復元処理と同じく SelectedItems の
+            // Clear + Add で選択を組み立てる。
+            var restored = previousState is null
+                ? null
+                : _seriesListRows.FirstOrDefault(row => ReferenceEquals(row.State, previousState));
+            SeriesListBox.SelectedItems?.Clear();
+            if (restored is not null)
+            {
+                SeriesListBox.SelectedItems?.Add(restored);
+            }
+
+            _activeSeriesRow = restored;
+        }
+        finally
+        {
+            _suppressSeriesListEvents = false;
+        }
+
+        SyncStyleControlsFromSelection();
+    }
+
+    private void SeriesListBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressSeriesListEvents) return;
+
+        // このバッチでは選択は 0 / 1 件として扱う (複数選択の一括適用は Batch 3)。
+        // SelectedItems の末尾を採用する規約は Batch 3 の複数選択でも通用する。
+        _activeSeriesRow = SeriesListBox.SelectedItems?
+            .Cast<SeriesListRowVm>()
+            .LastOrDefault();
+        SyncStyleControlsFromSelection();
+    }
+
+    private void SeriesVisibleCheckBox_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressSeriesListEvents) return;
+        if (sender is not CheckBox { Tag: SeriesListRowVm { State: { } state } row } checkBox) return;
 
         state.IsVisible = checkBox.IsChecked == true;
+        row.IsVisible = state.IsVisible;
         RefreshTableEntries();
         RefreshPlot();
     }
 
-    private void YColumnRightAxisCheckBox_Click(object? sender, RoutedEventArgs e)
+    private void SeriesRightAxisCheckBox_Click(object? sender, RoutedEventArgs e)
     {
-        if (_suppressMappingEvents) return;
-        if (sender is not CheckBox { Tag: SeriesRowVm { State: { } state } } checkBox) return;
+        if (_suppressSeriesListEvents) return;
+        if (sender is not CheckBox { Tag: SeriesListRowVm { State: { } state } row } checkBox) return;
 
         state.UseRightAxis = checkBox.IsChecked == true;
+        row.UseRightAxis = state.UseRightAxis;
         RefreshPlot();
+    }
+
+    /// <summary>
+    /// 色・凡例名の変更を、選択中の行 VM の INotifyPropertyChanged 経由で
+    /// 反映する (コレクション再構築だと選択やスクロール位置が壊れるため)。
+    /// </summary>
+    private void RefreshActiveSeriesListRowVisuals()
+    {
+        if (_activeSeriesRow is not { State: { } state, Table: { } table } row) return;
+
+        var autoIndex = GetSeriesAutoColorIndex(state);
+        var hex = state.Style.ColorHex ?? AutoLineColors[autoIndex % AutoLineColors.Length];
+        row.ColorBrush = new SolidColorBrush(HexToAvaloniaColor(hex));
+        row.DisplayName = GetSeriesLegendText(table, state);
     }
 
     // ---------- Axis scale (log / 右軸) ----------
@@ -801,6 +914,11 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
     }
 
+    /// <summary>
+    /// テーブル一覧の選択は「X 列セクションでどのテーブルを編集するか」だけを
+    /// 決める。系列一覧側の選択とは独立させる (テーブル切替で系列選択が
+    /// 勝手に変わらないようにする)。
+    /// </summary>
     private void TableListBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_suppressTableListEvents) return;
@@ -809,10 +927,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (newIndex < 0 || newIndex >= _loadedTables.Count) return;
 
         _activeTableIndex = newIndex;
-        _activeSeriesIndex = GetDefaultSeriesIndex(_loadedTables[newIndex]);
-        RefreshMappingPanel();
-        RefreshSeriesCombo();
-        SyncStyleControlsFromActiveSeries();
+        RefreshXColumnPanel();
     }
 
     private void RemoveTableButton_Click(object? sender, RoutedEventArgs e)
@@ -825,20 +940,17 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (_loadedTables.Count == 0)
         {
             _activeTableIndex = -1;
-            _activeSeriesIndex = -1;
             MainTitleBar.Subtitle = "Tabular data viewer";
             Title = "Data Viewer";
         }
         else
         {
             _activeTableIndex = Math.Clamp(_activeTableIndex, 0, _loadedTables.Count - 1);
-            _activeSeriesIndex = GetDefaultSeriesIndex(_loadedTables[_activeTableIndex]);
         }
 
         RefreshTableEntries();
-        RefreshMappingPanel();
-        RefreshSeriesCombo();
-        SyncStyleControlsFromActiveSeries();
+        RefreshXColumnPanel();
+        RefreshSeriesList();
         RefreshPlot();
         SetStatus("テーブルを削除しました。", StatusSeverity.Info);
     }
@@ -1119,9 +1231,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         _activeTableIndex = newIndex;
 
         RefreshTableEntries();
-        RefreshMappingPanel();
-        RefreshSeriesCombo();
-        SyncStyleControlsFromActiveSeries();
+        RefreshXColumnPanel();
+        RefreshSeriesList();
         RefreshPlot();
     }
 
@@ -1143,39 +1254,8 @@ public partial class MainWindow : Window, IPortalFileOpener
             ? _loadedTables[_activeTableIndex]
             : null;
 
-    private SeriesState? ActiveSeries =>
-        ActiveTable is { } table && _activeSeriesIndex >= 0 && _activeSeriesIndex < table.Series.Count
-            ? table.Series[_activeSeriesIndex]
-            : null;
-
-    private void RefreshSeriesCombo()
-    {
-        _suppressSeriesComboEvents = true;
-        try
-        {
-            var series = ActiveTable?.Series ?? new List<SeriesState>();
-            SeriesComboBox.ItemsSource = series.Select(static state => state.ColumnName).ToArray();
-            SeriesComboBox.IsEnabled = series.Count > 0;
-            SeriesComboBox.SelectedIndex = series.Count > 0
-                ? Math.Clamp(_activeSeriesIndex, 0, series.Count - 1)
-                : -1;
-        }
-        finally
-        {
-            _suppressSeriesComboEvents = false;
-        }
-    }
-
-    private void SeriesComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressSeriesComboEvents) return;
-
-        var newIndex = SeriesComboBox.SelectedIndex;
-        if (ActiveTable is not { } table || newIndex < 0 || newIndex >= table.Series.Count) return;
-
-        _activeSeriesIndex = newIndex;
-        SyncStyleControlsFromActiveSeries();
-    }
+    /// <summary>系列一覧で選択中の系列 (0 / 1 件)。複数選択の一括適用は Batch 3。</summary>
+    private SeriesState? ActiveSeries => _activeSeriesRow?.State;
 
     private void ChartTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -1223,7 +1303,9 @@ public partial class MainWindow : Window, IPortalFileOpener
         return true;
     }
 
-    private void SyncStyleControlsFromActiveSeries()
+    /// <summary>選択中系列 (0 / 1 件) の値をスタイル編集パネルへ反映する。
+    /// 未選択時はプレースホルダ値で無効化する。</summary>
+    private void SyncStyleControlsFromSelection()
     {
         _suppressStyleControlEvents = true;
         try
@@ -1241,7 +1323,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 NormalizeCheckBox.IsChecked = false;
                 YOffsetTextBox.Text = "0";
                 SmoothingWindowTextBox.Text = "0";
-                ActiveSeriesLabel.Text = "(系列未選択)";
+                SeriesSelectionSummaryLabel.Text = "(系列未選択)";
                 return;
             }
 
@@ -1257,7 +1339,7 @@ public partial class MainWindow : Window, IPortalFileOpener
             NormalizeCheckBox.IsChecked = series.Transform.Normalize;
             YOffsetTextBox.Text = series.Transform.YOffset.ToString("0.######", CultureInfo.InvariantCulture);
             SmoothingWindowTextBox.Text = series.Transform.SmoothingWindow.ToString(CultureInfo.InvariantCulture);
-            ActiveSeriesLabel.Text = $"({series.ColumnName})";
+            SeriesSelectionSummaryLabel.Text = $"({_activeSeriesRow?.DisplayName})";
         }
         finally
         {
@@ -1278,6 +1360,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (!ApplySeriesStyleEdit(style => style.ColorHex = LineColorPicker.HexValue)) return;
 
         RefreshTableEntries();
+        RefreshActiveSeriesListRowVisuals();
         SchedulePlotRefresh();
     }
 
@@ -1287,6 +1370,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         DatasetStyleCommit.CommitLegendName(LegendNameTextBox, value =>
             ApplySeriesStyleEdit(style => style.LegendName = value));
+        RefreshActiveSeriesListRowVisuals();
         SchedulePlotRefresh();
     }
 

@@ -293,11 +293,9 @@ public partial class MainWindow
                 session.ActiveDatasetIndex,
                 0,
                 _loadedTables.Count - 1);
-            _activeSeriesIndex = GetDefaultSeriesIndex(_loadedTables[_activeTableIndex]);
             RefreshTableEntries();
-            RefreshMappingPanel();
-            RefreshSeriesCombo();
-            SyncStyleControlsFromActiveSeries();
+            RefreshXColumnPanel();
+            RefreshSeriesList();
             RefreshPlot();
 
             if (skipped.Count > 0)

@@ -107,12 +107,12 @@
 
                                 <!-- Section: Loaded tables -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
                                                       Data="{StaticResource DatasetListIconGeometry}" />
-                                                <TextBlock Text="読み込み済みテーブル"
+                                                <TextBlock Text="テーブル"
                                                            FontWeight="SemiBold" FontSize="13"
                                                            Foreground="#0F172A"
                                                            VerticalAlignment="Center" />
@@ -226,14 +226,14 @@
                                     </Expander>
                                 </Border>
 
-                                <!-- Section: Column mapping (選択中テーブル) -->
+                                <!-- Section: X column mapping (選択中テーブル) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
                                                       Data="M 1,3 L 13,3 M 1,7 L 13,7 M 1,11 L 13,11 M 5,1 L 5,13 M 9,1 L 9,13" />
-                                                <TextBlock Text="列マッピング"
+                                                <TextBlock Text="X 列（選択中テーブル）"
                                                            FontWeight="SemiBold" FontSize="13"
                                                            Foreground="#0F172A"
                                                            VerticalAlignment="Center" />
@@ -252,47 +252,11 @@
                                                       Theme="{DynamicResource InputComboBoxStyle}"
                                                       HorizontalAlignment="Stretch"
                                                       IsEnabled="False"
-                                                      Margin="0,0,0,10"
+                                                      Margin="0,0,0,8"
                                                       PlaceholderText="(数値列なし)"
                                                       ToolTip.Tip="横軸に使う列を選択"
                                                       SelectionChanged="XColumnComboBox_SelectionChanged" />
-
-                                            <TextBlock Text="Y 列（チェックした列を描画）"
-                                                       Theme="{DynamicResource FieldLabelStyle}" />
-                                            <ItemsControl Name="YColumnItemsControl">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:MainWindow+SeriesRowVm">
-                                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,2,0,2">
-                                                            <CheckBox Grid.Column="0"
-                                                                      IsChecked="{CompiledBinding IsVisible, Mode=TwoWay}"
-                                                                      Tag="{CompiledBinding}"
-                                                                      Click="YColumnCheckBox_Click"
-                                                                      VerticalAlignment="Center" />
-                                                            <Border Grid.Column="1"
-                                                                    Width="14" Height="14"
-                                                                    Background="{CompiledBinding ColorBrush}"
-                                                                    CornerRadius="2"
-                                                                    VerticalAlignment="Center"
-                                                                    Margin="6,0,8,0" />
-                                                            <TextBlock Grid.Column="2"
-                                                                       Text="{CompiledBinding ColumnName}"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       VerticalAlignment="Center" />
-                                                            <CheckBox Grid.Column="3"
-                                                                      Content="右軸"
-                                                                      FontSize="11"
-                                                                      IsChecked="{CompiledBinding UseRightAxis, Mode=TwoWay}"
-                                                                      Tag="{CompiledBinding}"
-                                                                      Click="YColumnRightAxisCheckBox_Click"
-                                                                      ToolTip.Tip="この系列を右 Y 軸 (第 2 軸) に割り当て"
-                                                                      VerticalAlignment="Center"
-                                                                      Margin="6,0,0,0" />
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <TextBlock Name="MappingEmptyHint"
-                                                       Text="テーブルを読み込むと、ここで X 列と表示する Y 列を選べます。"
+                                            <TextBlock Text="ここで選んだ列がグラフの横軸になります。系列の表示 / 非表示・色・右軸などは下の「系列」一覧で編集します。"
                                                        Foreground="#64748B"
                                                        FontSize="11"
                                                        TextWrapping="Wrap" />
@@ -300,19 +264,19 @@
                                     </Expander>
                                 </Border>
 
-                                <!-- Section: Series style -->
+                                <!-- Section: Series (全ファイル横断のフラット系列一覧が主役) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
                                     <Expander IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
                                                       Data="{StaticResource LineStyleIconGeometry}" />
-                                                <TextBlock Text="系列スタイル"
+                                                <TextBlock Text="系列"
                                                            FontWeight="SemiBold"
                                                            FontSize="13"
                                                            Foreground="#0F172A"
                                                            VerticalAlignment="Center" />
-                                                <TextBlock Name="ActiveSeriesLabel"
+                                                <TextBlock Name="SeriesSelectionSummaryLabel"
                                                            Text="(系列未選択)"
                                                            FontSize="11"
                                                            Foreground="#94A3B8"
@@ -322,16 +286,91 @@
                                         </Expander.Header>
                                         <StackPanel Margin="0,8,0,0">
 
-                                            <TextBlock Text="系列"
-                                                       Theme="{DynamicResource FieldLabelStyle}" />
-                                            <ComboBox Name="SeriesComboBox"
-                                                      Theme="{DynamicResource InputComboBoxStyle}"
-                                                      HorizontalAlignment="Stretch"
-                                                      IsEnabled="False"
-                                                      Margin="0,0,0,10"
-                                                      PlaceholderText="(系列なし)"
-                                                      ToolTip.Tip="スタイルを編集する系列を選択"
-                                                      SelectionChanged="SeriesComboBox_SelectionChanged" />
+                                            <Border BorderBrush="#E2E8F0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Background="#F8FAFC">
+                                                <Grid>
+                                                    <ListBox Name="SeriesListBox"
+                                                             SelectionMode="Multiple"
+                                                             MinHeight="160"
+                                                             MaxHeight="420"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                             SelectionChanged="SeriesListBox_SelectionChanged">
+                                                        <ListBox.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel />
+                                                            </ItemsPanelTemplate>
+                                                        </ListBox.ItemsPanel>
+                                                        <ListBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:MainWindow+SeriesListRowVm">
+                                                                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,2,0,2">
+                                                                    <!-- ドラッグハンドル: このバッチでは見た目のみ (並べ替え配線は Batch 5) -->
+                                                                    <Path Grid.Column="0"
+                                                                          Width="7" Height="11"
+                                                                          Stretch="None"
+                                                                          Fill="#94A3B8"
+                                                                          VerticalAlignment="Center"
+                                                                          Margin="0,0,6,0"
+                                                                          Data="M1.5,0.5 A1,1 0 1 0 1.5,2.5 A1,1 0 1 0 1.5,0.5 M5.5,0.5 A1,1 0 1 0 5.5,2.5 A1,1 0 1 0 5.5,0.5 M1.5,4.5 A1,1 0 1 0 1.5,6.5 A1,1 0 1 0 1.5,4.5 M5.5,4.5 A1,1 0 1 0 5.5,6.5 A1,1 0 1 0 5.5,4.5 M1.5,8.5 A1,1 0 1 0 1.5,10.5 A1,1 0 1 0 1.5,8.5 M5.5,8.5 A1,1 0 1 0 5.5,10.5 A1,1 0 1 0 5.5,8.5" />
+                                                                    <CheckBox Grid.Column="1"
+                                                                              IsChecked="{CompiledBinding IsVisible, Mode=TwoWay}"
+                                                                              Tag="{CompiledBinding}"
+                                                                              Click="SeriesVisibleCheckBox_Click"
+                                                                              VerticalAlignment="Center" />
+                                                                    <Border Grid.Column="2"
+                                                                            Width="14" Height="14"
+                                                                            Background="{CompiledBinding ColorBrush}"
+                                                                            CornerRadius="2"
+                                                                            VerticalAlignment="Center"
+                                                                            Margin="6,0,8,0" />
+                                                                    <TextBlock Grid.Column="3"
+                                                                               Text="{CompiledBinding DisplayName}"
+                                                                               ToolTip.Tip="{CompiledBinding SourceHint}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               VerticalAlignment="Center" />
+                                                                    <CheckBox Grid.Column="4"
+                                                                              Content="右軸"
+                                                                              FontSize="11"
+                                                                              IsChecked="{CompiledBinding UseRightAxis, Mode=TwoWay}"
+                                                                              Tag="{CompiledBinding}"
+                                                                              Click="SeriesRightAxisCheckBox_Click"
+                                                                              ToolTip.Tip="この系列を右 Y 軸 (第 2 軸) に割り当て"
+                                                                              VerticalAlignment="Center"
+                                                                              Margin="6,0,0,0" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ListBox.ItemTemplate>
+                                                    </ListBox>
+                                                    <StackPanel Name="SeriesListPlaceholder"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                Margin="8,18,8,18"
+                                                                IsHitTestVisible="False">
+                                                        <Path Width="32" Height="32"
+                                                              Stretch="None"
+                                                              Stroke="#94A3B8"
+                                                              StrokeThickness="1.5"
+                                                              StrokeLineCap="Round"
+                                                              StrokeJoin="Round"
+                                                              Fill="Transparent"
+                                                              HorizontalAlignment="Center"
+                                                              Data="{StaticResource DatasetListIconGeometry}" />
+                                                        <TextBlock Text="ファイルを読み込むと、ここに全ファイルの系列が並びます"
+                                                                   FontSize="12"
+                                                                   Foreground="#64748B"
+                                                                   TextWrapping="Wrap"
+                                                                   TextAlignment="Center"
+                                                                   MaxWidth="240"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,8,0,2" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+
+                                            <Border Height="1" Background="#E2E8F0" Margin="0,12,0,10" />
 
                                             <TextBlock Text="グラフ種別"
                                                        Theme="{DynamicResource FieldLabelStyle}" />
@@ -566,7 +605,7 @@
                                                              TextChanged="Y2RangeTextBox_TextChanged" />
                                                 </StackPanel>
                                             </Grid>
-                                            <TextBlock Text="系列を右軸に割り当てるには、列マッピングの「右軸」をチェックしてください。"
+                                            <TextBlock Text="系列を右軸に割り当てるには、系列一覧の「右軸」チェックを使ってください。"
                                                        Foreground="#64748B"
                                                        FontSize="11"
                                                        TextWrapping="Wrap"

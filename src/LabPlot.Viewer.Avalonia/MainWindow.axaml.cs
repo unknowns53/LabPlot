@@ -247,6 +247,14 @@ public partial class MainWindow : Window, IPortalFileOpener
     private double? _y2Min;
     private double? _y2Max;
 
+    // サイドバータブ (データ / 仕上げ) の切替。XAML の RadioButton 初期値
+    // (IsChecked="True") が InitializeComponent 実行中に IsCheckedChanged を
+    // 発火させ、その時点ではまだ DataTabPanel / FormatTabPanel の x:Name
+    // フィールドが代入されていないため、ガードなしで参照すると NRE になる。
+    // InitializeComponent 完了後に true にし、それまではハンドラを早期 return
+    // させる (DLS AnalysisWindow の _initialized と同じ方式)。
+    private bool _sidebarTabsInitialized;
+
     // X 列 ComboBox の表示順 → 実カラム index の対応表 (numeric 列のみ並ぶ)。
     private readonly List<int> _xComboColumnIndexes = new();
 
@@ -290,6 +298,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     public MainWindow()
     {
         InitializeComponent();
+        _sidebarTabsInitialized = true;
         LoadFormattingDefaults();
         _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
         ApplyFormattingConfigToControls(_formattingConfig);
@@ -419,6 +428,21 @@ public partial class MainWindow : Window, IPortalFileOpener
         _plot.Plot.YLabel("Y");
         ApplyPlotAppearance();
         _plot.Refresh();
+    }
+
+    // ---------- Sidebar tabs (データ / 仕上げ) ----------
+
+    private void SidebarTabRadioButton_IsCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (!_sidebarTabsInitialized) return;
+        // RadioButton はグループ内で 1 個が checked になるたび、他方の unchecked
+        // イベントも飛んでくる。checked になった側だけを見れば重複処理を避けられる。
+        if (sender is not RadioButton { IsChecked: true } radio) return;
+
+        var showDataTab = ReferenceEquals(radio, DataTabRadioButton);
+        DataTabPanel.IsVisible = showDataTab;
+        FormatTabPanel.IsVisible = !showDataTab;
+        SidebarScrollViewer.ScrollToHome();
     }
 
     // ---------- File open / import ----------

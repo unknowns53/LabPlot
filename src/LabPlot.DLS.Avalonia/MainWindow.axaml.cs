@@ -249,7 +249,10 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
         PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
 
         ClearPlottablePool();
-        _plot.Plot.Title(GetGraphTitle(DefaultLabels.GetPlotTypeLabel(_selectedMode)));
+        // 既定でタイトル無し — モード名 (例: "Particle Size Distribution") を
+        // 自動表示すると、書式パネル上部のペインヘッダと二重に見えるため、
+        // ユーザーが書式パネルのタイトル欄に入力した場合のみ表示する。
+        _plot.Plot.Title(GetGraphTitle(string.Empty));
         _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
         _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
         ApplyLogXTicksForMode(_selectedMode);

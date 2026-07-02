@@ -240,10 +240,16 @@ public static class PlotAppearance
 
     /// <summary>
     /// Applies title visibility and bold weight from <paramref name="config"/>.
+    /// A blank title (the empty-plot preset, or a loaded state with no user
+    /// title configured) is always hidden regardless of
+    /// <see cref="GraphFormattingConfigBase.ShowTitle"/> so the title panel
+    /// does not reserve vertical space for text nobody will read — matches
+    /// the "hidden means zero layout impact" contract the legend already
+    /// follows via <c>Legend.IsVisible</c>.
     /// </summary>
     public static void ApplyTitleStyle(ScottPlot.Plot plot, GraphFormattingConfigBase config)
     {
-        plot.Axes.Title.Label.IsVisible = config.ShowTitle;
+        plot.Axes.Title.Label.IsVisible = config.ShowTitle && !string.IsNullOrEmpty(plot.Axes.Title.Label.Text);
         plot.Axes.Title.Label.Bold = config.TitleBold;
     }
 

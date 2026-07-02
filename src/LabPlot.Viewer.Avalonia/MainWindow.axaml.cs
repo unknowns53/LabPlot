@@ -465,9 +465,18 @@ public partial class MainWindow : Window, IPortalFileOpener
         PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
         _plot.Plot.Clear();
         _plottedSeriesStyles.Clear();
-        _plot.Plot.Title("Data Viewer");
+        // 既定でタイトル無し — 固定の "Data Viewer" はペインヘッダと二重に見えるため、
+        // ユーザーが書式パネルのタイトル欄に入力した場合のみ表示する。
+        _plot.Plot.Title(GetGraphTitle(string.Empty));
         _plot.Plot.XLabel("X");
         _plot.Plot.YLabel("Y");
+        // log 軸トグルを操作した後にデータセットを全消去した場合でも、空状態では
+        // 常に自動目盛の線形軸に戻す (RefreshPlot の log 分岐の残留を防ぐ)。
+        _plot.Plot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+        _plot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+        _plot.Plot.Axes.Right.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+        // 汎用ビューアなので負象限をやめ、原点から始まる読みやすい既定範囲にする。
+        _plot.Plot.Axes.SetLimits(0, 10, 0, 10);
         ApplyPlotAppearance();
         _plot.Refresh();
     }

@@ -84,6 +84,10 @@ public partial class MainWindow
         _chromatogramPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
         _chromatogramPlot.Plot.YLabel(DefaultLabels.PlaceholderYLabel);
         _chromatogramPlot.Plot.Axes.NumericTicksBottom();
+        _chromatogramPlot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+        // 空状態でも GPC ドメインらしい軸範囲にする (R.Time 0-30 min / Intensity 0-10 mV)。
+        // ScottPlot の既定 (-10..10) は無意味な負象限を含むため差し替える。
+        _chromatogramPlot.Plot.Axes.SetLimits(0, 30, 0, 10);
         ApplyPlotAppearance();
         UpdateStatisticsText(null);
         _chromatogramPlot.Refresh();

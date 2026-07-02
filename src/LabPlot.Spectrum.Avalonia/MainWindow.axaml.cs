@@ -1410,10 +1410,15 @@ public partial class MainWindow : Window, IPortalFileOpener
         // というゴースト描画になる。DLS 版に揃える (GPC も同 fix を入れている)。
         _spectrumPlot.Plot.Clear();
 
-        _spectrumPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
-        _spectrumPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
-        _spectrumPlot.Plot.YLabel(DefaultLabels.PlaceholderYLabel);
+        // 既定でタイトル無し — 「Spectrum」の固定タイトルは書式パネル上部の
+        // ペインヘッダと二重に見えるため、ユーザーが書式パネルのタイトル欄に
+        // 入力した場合のみ表示する (ApplyTitleStyle が空文字を自動的に隠す)。
+        _spectrumPlot.Plot.Title(GetGraphTitle(string.Empty));
+        _spectrumPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.WavelengthXLabel));
+        _spectrumPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.AbsorbanceYLabel));
         _spectrumPlot.Plot.Axes.NumericTicksBottom();
+        _spectrumPlot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+        _spectrumPlot.Plot.Axes.SetLimits(200, 800, 0, 1);
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
     }

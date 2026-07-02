@@ -437,7 +437,8 @@
                                                     <TextBox Name="MarkerSizeTextBox"
                                                              Text="0"
                                                              Theme="{DynamicResource InputTextBoxStyle}"
-                                                             TextChanged="StyleNumberTextBox_TextChanged" />
+                                                             TextChanged="StyleNumberTextBox_TextChanged"
+                                                             LostFocus="MarkerSizeTextBox_LostFocus" />
                                                 </StackPanel>
                                             </Grid>
 

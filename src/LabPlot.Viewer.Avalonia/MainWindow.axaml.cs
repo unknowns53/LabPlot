@@ -1156,23 +1156,42 @@ public partial class MainWindow : Window, IPortalFileOpener
         var type = (ViewerChartType)Math.Clamp(ChartTypeComboBox.SelectedIndex, 0, 3);
         series.ChartType = type;
 
-        // マーカー必須種別へ切替時、サイズ 0 のままだと点が出ないので既定へ補正し
-        // 入力欄にも反映する (ユーザーが「マーカーのみ」にして何も出ない事故を防ぐ)。
-        if (type.ShowsMarkers() && series.Style.MarkerSize <= 0)
-        {
-            series.Style.MarkerSize = DefaultMarkerSizeForMarkers;
-            _suppressStyleControlEvents = true;
-            try
-            {
-                MarkerSizeTextBox.Text = series.Style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
-            }
-            finally
-            {
-                _suppressStyleControlEvents = false;
-            }
-        }
+        NormalizeMarkerSizeIfNeeded(series);
 
         RefreshPlot();
+    }
+
+    /// <summary>
+    /// マーカー必須種別 (Markers / LineMarkers) でサイズ 0 以下のままだと点が
+    /// 出ないので既定値へ補正し、入力欄にも反映する。ChartType 切替直後と、
+    /// MarkerSize テキストボックスの編集確定 (フォーカス喪失) 時の両方から
+    /// 同じ補正を通すことで表示 (テキストボックス) と実描画の食い違いを防ぐ。
+    /// TextChanged からは呼ばない ("0.5" 入力途中の "0" を補正して入力を壊す
+    /// ため)。補正したら true を返す。
+    /// </summary>
+    private bool NormalizeMarkerSizeIfNeeded(SeriesState series)
+    {
+        if (!series.ChartType.ShowsMarkers() || series.Style.MarkerSize > 0) return false;
+
+        series.Style.MarkerSize = DefaultMarkerSizeForMarkers;
+        if (ActiveSeries != series) return true;
+
+        // Text の書き換えは _suppressStyleControlEvents を張ってから行う。
+        // Avalonia の TextBox は遅延 TextChanged echo を発することがあるが
+        // (過去の「1 文字目だけ動く」バグの真因)、正規化後は MarkerSize > 0
+        // になっているため echo が再入しても NormalizeMarkerSizeIfNeeded は
+        // 早期 return するだけで無限ループや値の巻き戻りは起きない。
+        _suppressStyleControlEvents = true;
+        try
+        {
+            MarkerSizeTextBox.Text = series.Style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
+        }
+        finally
+        {
+            _suppressStyleControlEvents = false;
+        }
+
+        return true;
     }
 
     private void SyncStyleControlsFromActiveSeries()
@@ -1252,6 +1271,21 @@ public partial class MainWindow : Window, IPortalFileOpener
             : DatasetStyleCommit.TryCommitNonNegativeDouble(MarkerSizeTextBox, value =>
                 ApplySeriesStyleEdit(style => style.MarkerSize = value));
         if (committed)
+        {
+            SchedulePlotRefresh();
+        }
+    }
+
+    private void MarkerSizeTextBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressStyleControlEvents) return;
+        if (ActiveSeries is not { } series) return;
+
+        // MarkerSize に 0 を直接入力したまま編集を終えた場合も、ChartType
+        // 切替時と同じ既定値補正を通し、テキストボックス表示と実描画の
+        // 食い違いを防ぐ。TextChanged で補正すると "0.5" 入力途中の "0" を
+        // 壊すため、編集確定 (フォーカス喪失) 時にだけ行う。
+        if (NormalizeMarkerSizeIfNeeded(series))
         {
             SchedulePlotRefresh();
         }

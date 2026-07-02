@@ -2797,12 +2797,23 @@ public partial class MainWindow : Window, IPortalFileOpener
         SyncAxisInputsFromPlot();
     }
 
-    private void SyncAxisInputsFromPlot()
+    private void AxisRangePanel_CaptureCurrentRangeRequested(object? sender, EventArgs e)
     {
-        if (_chromatogramPlot is null || _currentDataset is null) return;
+        if (_suppressGraphAppearanceEvents) return;
+        // SetXValues / SetYValues は commit を抑止して書き込むだけなので、
+        // 手動範囲の適用経路 (PlotCurrentDataset) を明示的に流して欄とプロットを揃える。
+        if (SyncAxisInputsFromPlot())
+        {
+            PlotCurrentDataset();
+        }
+    }
+
+    private bool SyncAxisInputsFromPlot()
+    {
+        if (_chromatogramPlot is null || _currentDataset is null) return false;
 
         var limits = _chromatogramPlot.Plot.Axes.GetLimits();
-        if (!IsFiniteRange(limits.Left, limits.Right) || !IsFiniteRange(limits.Bottom, limits.Top)) return;
+        if (!IsFiniteRange(limits.Left, limits.Right) || !IsFiniteRange(limits.Bottom, limits.Top)) return false;
 
         var xIsMolecularWeight = MolecularWeightCheckBox.IsChecked == true && _selectedCalibrationCurve is not null;
         var xMin = xIsMolecularWeight ? Math.Pow(10, limits.Left) : limits.Left;
@@ -2810,6 +2821,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         AxisRangePanel.SetXValues(xMin, xMax);
         AxisRangePanel.SetYValues(limits.Bottom, limits.Top);
+        return true;
     }
 
     private static bool IsFiniteRange(double min, double max)

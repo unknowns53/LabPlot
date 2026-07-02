@@ -79,6 +79,14 @@ public partial class AxisRangePanel : UserControl
     /// </summary>
     public event EventHandler? AxisRangeCommitted;
 
+    /// <summary>
+    /// Fired when the user clicks the "capture current view" button. The
+    /// panel does not know the plot, so the host reads the current axis
+    /// limits, writes them back via <see cref="SetXValues"/> /
+    /// <see cref="SetYValues"/> and re-applies its manual-range path.
+    /// </summary>
+    public event EventHandler? CaptureCurrentRangeRequested;
+
     public double? XMinValue => TryParse(_xMinTextBox?.Text);
     public double? XMaxValue => TryParse(_xMaxTextBox?.Text);
     public double? YMinValue => TryParse(_yMinTextBox?.Text);
@@ -148,6 +156,9 @@ public partial class AxisRangePanel : UserControl
 
     private void AutoRangeButton_Click(object? sender, RoutedEventArgs e)
         => ResetToAuto();
+
+    private void CaptureRangeButton_Click(object? sender, RoutedEventArgs e)
+        => CaptureCurrentRangeRequested?.Invoke(this, EventArgs.Empty);
 
     private void RaiseCommitted()
     {

@@ -1443,6 +1443,39 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
         RefreshPlot();
     }
 
+    private void AxisRangePanel_CaptureCurrentRangeRequested(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        if (_plot is null || _selectedDatasets.Count == 0) return;
+
+        // 軸範囲欄は粒径 (nm) / % 前提。相関関数・温度ランプ・濃度シリーズでは
+        // X 軸の単位が異なり手動範囲の適用対象外なので取り込まない。
+        if (_selectedMode is DistributionMode.Correlation
+            or DistributionMode.TemperatureRamp
+            or DistributionMode.ConcentrationSeries)
+        {
+            Toast?.Show("軸範囲欄は粒径分布プロット専用のため、このモードでは取り込めません", StatusSeverity.Warning);
+            return;
+        }
+
+        var limits = _plot.Plot.Axes.GetLimits();
+        if (!double.IsFinite(limits.Left) || !double.IsFinite(limits.Right) || limits.Left >= limits.Right
+            || !double.IsFinite(limits.Bottom) || !double.IsFinite(limits.Top) || limits.Bottom >= limits.Top)
+        {
+            return;
+        }
+
+        // 粒径分布のプロット X 座標は log10(nm) なので Pow10 で実寸へ戻す
+        // (ApplyPlotAppearance の Manual 適用が Log10 する逆変換)。
+        AxisRangePanel.SetXValues(Math.Pow(10, limits.Left), Math.Pow(10, limits.Right));
+        AxisRangePanel.SetYValues(limits.Bottom, limits.Top);
+
+        // 手動 commit と同じ経路で config へ反映して欄とプロットを揃える。
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
     private void GraphFormatPanel_GraphFormatChanged(object? sender, EventArgs e)
     {
         if (!IsInitialized) return;

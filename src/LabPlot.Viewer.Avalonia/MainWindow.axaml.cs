@@ -2611,6 +2611,63 @@ public partial class MainWindow : Window, IPortalFileOpener
         RefreshPlot();
     }
 
+    private void AxisRangePanel_CaptureCurrentRangeRequested(object? sender, EventArgs e)
+    {
+        if (_suppressGraphAppearanceEvents) return;
+        if (_plot is null || _plottedSeriesStyles.Count == 0) return;
+
+        // 欄の値は常にデータ単位なので、log 軸のときはプロット座標 (log10) から
+        // Pow10 で戻してから書き込む (ApplyAxisLimits の逆変換)。
+        var limits = _plot.Plot.Axes.GetLimits();
+        if (!IsCapturableRange(limits.Left, limits.Right)
+            || !IsCapturableRange(limits.Bottom, limits.Top))
+        {
+            return;
+        }
+
+        var xLog = XLogCheckBox.IsChecked == true;
+        var yLog = YLogCheckBox.IsChecked == true;
+        AxisRangePanel.SetXValues(
+            FromAxisCoordinate(limits.Left, xLog),
+            FromAxisCoordinate(limits.Right, xLog));
+        AxisRangePanel.SetYValues(
+            FromAxisCoordinate(limits.Bottom, yLog),
+            FromAxisCoordinate(limits.Top, yLog));
+
+        if (_rightAxisInUse)
+        {
+            var right = _plot.Plot.Axes.Right;
+            if (IsCapturableRange(right.Min, right.Max))
+            {
+                var y2Log = Y2LogCheckBox.IsChecked == true;
+                // Y2 欄の TextChanged は生きたままだと min / max の途中状態で
+                // 一度適用が走るので、フィールドを直接更新してから抑止付きで書き込む。
+                _y2Min = FromAxisCoordinate(right.Min, y2Log);
+                _y2Max = FromAxisCoordinate(right.Max, y2Log);
+                _suppressGraphAppearanceEvents = true;
+                try
+                {
+                    Y2MinTextBox.Text = FormatOptionalDouble(_y2Min);
+                    Y2MaxTextBox.Text = FormatOptionalDouble(_y2Max);
+                }
+                finally
+                {
+                    _suppressGraphAppearanceEvents = false;
+                }
+            }
+        }
+
+        // 手動範囲の commit と同じ経路 (AxisRangePanel_Committed 相当) を流して
+        // 欄とプロットの状態を一致させる。値は現在の表示範囲なので見た目は変わらない。
+        RefreshPlot();
+    }
+
+    private static double FromAxisCoordinate(double value, bool isLog)
+        => isLog ? Math.Pow(10, value) : value;
+
+    private static bool IsCapturableRange(double min, double max)
+        => double.IsFinite(min) && double.IsFinite(max) && min < max;
+
     private void OnLegendDragCommit(string position, double offsetX, double offsetY)
     {
         _formattingConfig.LegendPosition = position;

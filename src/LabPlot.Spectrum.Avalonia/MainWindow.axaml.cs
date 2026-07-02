@@ -2299,9 +2299,21 @@ public partial class MainWindow : Window, IPortalFileOpener
         SyncAxisInputsFromPlot();
     }
 
-    private void SyncAxisInputsFromPlot()
+    private void AxisRangePanel_CaptureCurrentRangeRequested(object? sender, EventArgs e)
     {
-        if (_spectrumPlot is null) return;
+        if (_suppressGraphAppearanceEvents) return;
+        if (_currentDataset is null) return;
+        // SetXValues / SetYValues は commit を抑止して書き込むだけなので、
+        // 手動範囲の適用経路 (PlotCurrentDataset) を明示的に流して欄とプロットを揃える。
+        if (SyncAxisInputsFromPlot())
+        {
+            PlotCurrentDataset();
+        }
+    }
+
+    private bool SyncAxisInputsFromPlot()
+    {
+        if (_spectrumPlot is null) return false;
 
         var limits = _spectrumPlot.Plot.Axes.GetLimits();
         AxisRangePanel.SetXValues(
@@ -2310,6 +2322,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         AxisRangePanel.SetYValues(
             double.IsFinite(limits.Bottom) ? limits.Bottom : null,
             double.IsFinite(limits.Top) ? limits.Top : null);
+        return double.IsFinite(limits.Left) && double.IsFinite(limits.Right)
+            && double.IsFinite(limits.Bottom) && double.IsFinite(limits.Top);
     }
 
     private void PeakAssignmentCheckBox_Changed(object? sender, RoutedEventArgs e)

@@ -39,16 +39,39 @@
                         Background="#EEF2F7"
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,0,1,0">
-                    <Grid RowDefinitions="*,Auto">
+                    <Grid RowDefinitions="Auto,*,Auto">
 
-                        <!-- Scrollable sections -->
-                        <ScrollViewer Grid.Row="0"
+                        <!-- サイドバータブ切替 (セグメントコントロール) -->
+                        <Border Grid.Row="0"
+                                Background="#E2E8F0"
+                                CornerRadius="8"
+                                Padding="3"
+                                Margin="20,10,20,0">
+                            <Grid ColumnDefinitions="*,*">
+                                <RadioButton Name="DataTabRadioButton"
+                                             Grid.Column="0"
+                                             GroupName="SidebarTabGroup"
+                                             Content="データ"
+                                             IsChecked="True"
+                                             Theme="{DynamicResource SidebarTabRadioButtonStyle}"
+                                             Margin="0,0,2,0"
+                                             IsCheckedChanged="SidebarTabRadioButton_IsCheckedChanged" />
+                                <RadioButton Name="FormatTabRadioButton"
+                                             Grid.Column="1"
+                                             GroupName="SidebarTabGroup"
+                                             Content="仕上げ"
+                                             Theme="{DynamicResource SidebarTabRadioButtonStyle}"
+                                             Margin="2,0,0,0"
+                                             IsCheckedChanged="SidebarTabRadioButton_IsCheckedChanged" />
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1"
+                                      Name="SidebarScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="20,10,20,12">
-
-                                <ContentControl Content="データ"
-                                                Theme="{DynamicResource GroupHeaderStyle}" />
+                            <Grid>
+                            <StackPanel Name="DataTabPanel" Margin="20,10,20,12">
 
                                 <!-- Section: File -->
                                 <Border Theme="{DynamicResource SectionStyle}">
@@ -401,7 +424,7 @@
                                     </Expander>
                                 </Border>
 
-                                                                <!-- Section: Display (distribution / run) -->
+                                <!-- Section: Display (distribution / run) -->
                                 <Border Theme="{DynamicResource SectionStyle}">
                                     <Expander IsExpanded="True">
                                         <Expander.Header>
@@ -438,8 +461,43 @@
                                     </Expander>
                                 </Border>
 
-                                <ContentControl Content="書式"
-                                                Theme="{DynamicResource GroupHeaderStyle}" />
+                                <!-- Section: Analysis session — GPC/Spectrum と同じくセッション保存/復元
+                                     なのでデータタブ側に置く -->
+                                <Border Theme="{DynamicResource SectionStyle}"
+                                        ToolTip.Tip="解析の状態（データ・線スタイル・測定条件・キュムラント解析・軸範囲・グラフ書式）を .dlsjson に書き出します。読み込み直せば同じ解析をそのまま復元できます。"
+                                        ToolTip.ShowDelay="400">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource AnalysisConditionsIconGeometry}" />
+                                                <TextBlock Text="解析条件"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Button Name="SaveSessionButton"
+                                                    Content="解析条件を保存"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    IsEnabled="False"
+                                                    Margin="0,0,0,8"
+                                                    ToolTip.Tip="解析条件を .dlsjson に保存 (Ctrl+Shift+S)"
+                                                    Click="SaveSessionButton_Click" />
+                                            <Button Name="LoadSessionButton"
+                                                    Content="解析条件を読み込み"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    ToolTip.Tip="解析条件 (.dlsjson) を読み込み (Ctrl+Shift+O)"
+                                                    Click="LoadSessionButton_Click" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                            </StackPanel>
+                            <StackPanel Name="FormatTabPanel" Margin="20,10,20,12" IsVisible="False">
 
                                 <!-- Section: Axis range -->
                                 <Border Theme="{DynamicResource SectionStyle}">
@@ -534,40 +592,6 @@
                                     </Expander>
                                 </Border>
 
-                                <!-- Section: Analysis session -->
-                                <Border Theme="{DynamicResource SectionStyle}"
-                                        ToolTip.Tip="解析の状態（データ・線スタイル・測定条件・キュムラント解析・軸範囲・グラフ書式）を .dlsjson に書き出します。読み込み直せば同じ解析をそのまま復元できます。"
-                                        ToolTip.ShowDelay="400">
-                                    <Expander IsExpanded="False">
-                                        <Expander.Header>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Path Theme="{DynamicResource SectionIconPath}"
-                                                      Data="{StaticResource AnalysisConditionsIconGeometry}" />
-                                                <TextBlock Text="解析条件"
-                                                           FontWeight="SemiBold" FontSize="13"
-                                                           Foreground="#0F172A"
-                                                           VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <StackPanel Margin="0,8,0,0">
-                                            <Button Name="SaveSessionButton"
-                                                    Content="解析条件を保存"
-                                                    Theme="{DynamicResource SecondaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    IsEnabled="False"
-                                                    Margin="0,0,0,8"
-                                                    ToolTip.Tip="解析条件を .dlsjson に保存 (Ctrl+Shift+S)"
-                                                    Click="SaveSessionButton_Click" />
-                                            <Button Name="LoadSessionButton"
-                                                    Content="解析条件を読み込み"
-                                                    Theme="{DynamicResource SecondaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    ToolTip.Tip="解析条件 (.dlsjson) を読み込み (Ctrl+Shift+O)"
-                                                    Click="LoadSessionButton_Click" />
-                                        </StackPanel>
-                                    </Expander>
-                                </Border>
-
                                 <!-- Section: App preferences -->
                                 <Border Theme="{DynamicResource SectionStyle}"
                                         ToolTip.Tip="ここで設定した既定値は、画面下部の「既定値として保存」を押すと次回起動時の初期状態として永続化されます。"
@@ -617,11 +641,12 @@
                                 </Border>
 
                             </StackPanel>
+                            </Grid>
                         </ScrollViewer>
 
                         <!-- Sticky footer: defaults。WPF 版の DropShadowEffect (dir=90 / depth=3 / blur=10 / opacity=0.10)
                              相当を BoxShadow="0 -3 10 0 #1A0F172A" で再現。 -->
-                        <Border Grid.Row="1"
+                        <Border Grid.Row="2"
                                 Background="#E2E8F0"
                                 BorderBrush="#CBD5E1"
                                 BorderThickness="0,1,0,0"

@@ -100,9 +100,18 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
     private string? _currentWorkbookPath;
     private AnalysisWindow? _analysisWindow;
 
+    // サイドバータブ (データ / 仕上げ) の切替。XAML の RadioButton 初期値
+    // (IsChecked="True") が InitializeComponent 実行中に IsCheckedChanged を
+    // 発火させ、その時点ではまだ DataTabPanel / FormatTabPanel の x:Name
+    // フィールドが代入されていないため、ガードなしで参照すると NRE になる。
+    // InitializeComponent 完了後に true にし、それまではハンドラを早期 return
+    // させる (GPC / Spectrum / Data Viewer MainWindow と同じ方式)。
+    private bool _sidebarTabsInitialized;
+
     public MainWindow()
     {
         InitializeComponent();
+        _sidebarTabsInitialized = true;
         LoadFormattingDefaults();
         _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
         Opened += OnOpened;
@@ -122,6 +131,21 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
         DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, route, handledEventsToo: true);
         DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, route, handledEventsToo: true);
         DatasetListBox.AddHandler(PointerCaptureLostEvent, OnDatasetListBoxPointerCaptureLost);
+    }
+
+    // ---------- Sidebar tabs (データ / 仕上げ) ----------
+
+    private void SidebarTabRadioButton_IsCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (!_sidebarTabsInitialized) return;
+        // RadioButton はグループ内で 1 個が checked になるたび、他方の unchecked
+        // イベントも飛んでくる。checked になった側だけを見れば重複処理を避けられる。
+        if (sender is not RadioButton { IsChecked: true } radio) return;
+
+        var showDataTab = ReferenceEquals(radio, DataTabRadioButton);
+        DataTabPanel.IsVisible = showDataTab;
+        FormatTabPanel.IsVisible = !showDataTab;
+        SidebarScrollViewer.ScrollToHome();
     }
 
     // Avalonia.Generators が partial class に InitializeComponent + x:Name フィールド代入を

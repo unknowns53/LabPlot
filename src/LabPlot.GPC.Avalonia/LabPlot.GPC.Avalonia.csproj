@@ -12,7 +12,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>LabPlot.GPC.Avalonia</RootNamespace>
     <AssemblyName>LabPlot.GPC.Avalonia</AssemblyName>
-    <Version>1.4.0</Version>
+    <Version>1.4.1</Version>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 

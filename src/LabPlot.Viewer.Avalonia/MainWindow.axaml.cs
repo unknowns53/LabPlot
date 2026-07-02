@@ -274,6 +274,17 @@ public partial class MainWindow : Window, IPortalFileOpener
     private readonly DragGhostController _dragGhost = new();
     private Point _dragGhostPointerOffset;
 
+    // 系列一覧の内部 reorder。テーブル一覧と同じ PointerCapture + DragGhost 方式
+    // だが、ドラッグ開始をハンドル (SeriesDragHandle) 上の Press に限定する点が
+    // 異なる (行のどこでも開始できるとチェックボックス・インライン編集・
+    // Ctrl/Shift 選択クリックと競合するため)。_dragGhost / _dragGhostPointerOffset
+    // はテーブル側と共有する (ドラッグは同時に 1 件しか進行しない)。
+    private Point? _seriesDragStartPoint;
+    private SeriesListRowVm? _seriesDragSourceRow;
+    private ListBoxItem? _seriesDragSourceContainer;
+    private bool _isSeriesInternalReordering;
+    private IPointer? _seriesReorderCapturedPointer;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -300,6 +311,13 @@ public partial class MainWindow : Window, IPortalFileOpener
         TableListBox.AddHandler(PointerMovedEvent, OnTableListBoxPointerMoved, route, handledEventsToo: true);
         TableListBox.AddHandler(PointerReleasedEvent, OnTableListBoxPointerReleased, route, handledEventsToo: true);
         TableListBox.AddHandler(PointerCaptureLostEvent, OnTableListBoxPointerCaptureLost);
+
+        // 系列一覧の内部 reorder も同じ配線 (ハンドル上の Press に限定するため、
+        // 判定自体は OnSeriesListBoxPointerPressed 内で行う)。
+        SeriesListBox.AddHandler(PointerPressedEvent, OnSeriesListBoxPointerPressed, route, handledEventsToo: true);
+        SeriesListBox.AddHandler(PointerMovedEvent, OnSeriesListBoxPointerMoved, route, handledEventsToo: true);
+        SeriesListBox.AddHandler(PointerReleasedEvent, OnSeriesListBoxPointerReleased, route, handledEventsToo: true);
+        SeriesListBox.AddHandler(PointerCaptureLostEvent, OnSeriesListBoxPointerCaptureLost);
     }
 
     protected override void OnOpened(EventArgs e)
@@ -948,8 +966,13 @@ public partial class MainWindow : Window, IPortalFileOpener
             _loadedTables.Select(t => t.Series.Select(s => (Table: t, Series: s))),
             x => x.Series.DisplayOrder);
 
-    /// <summary>auto 色をフラット表示順の通し番号で割り当てるための系列序数。</summary>
-    private int GetSeriesAutoColorIndex(SeriesState series)
+    /// <summary>
+    /// 系列を EnumerateSeriesInDisplayOrder() の通し番号 (フラット index) へ変換する。
+    /// auto 色の割り当てだけでなく、系列一覧 D&amp;D で「表示行 → フラット index」を
+    /// 解決する際にも使う (系列一覧は X 列に割り当てた列を除いたフィルタ済み表示
+    /// なので、行 index とフラット index は一致しない)。見つからない場合は -1。
+    /// </summary>
+    private int GetFlatSeriesOrdinal(SeriesState series)
     {
         var ordinal = 0;
         foreach (var entry in EnumerateSeriesInDisplayOrder())
@@ -958,7 +981,14 @@ public partial class MainWindow : Window, IPortalFileOpener
             ordinal++;
         }
 
-        return 0;
+        return -1;
+    }
+
+    /// <summary>auto 色をフラット表示順の通し番号で割り当てるための系列序数。</summary>
+    private int GetSeriesAutoColorIndex(SeriesState series)
+    {
+        var ordinal = GetFlatSeriesOrdinal(series);
+        return ordinal >= 0 ? ordinal : 0;
     }
 
     /// <summary>
@@ -1136,7 +1166,7 @@ public partial class MainWindow : Window, IPortalFileOpener
             var sourceIndex = _tableDragSourceIndex.Value;
             if (sourceIndex < 0 || sourceIndex >= _tableEntries.Count)
             {
-                ResetReorderState();
+                ResetTableReorderState();
                 return;
             }
 
@@ -1155,14 +1185,14 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
 
         _dragGhost.Move(e.GetPosition(this));
-        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e);
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e, TableListBox);
         if (targetItem is null || ReferenceEquals(targetItem, _tableDragSourceContainer))
         {
-            HideInsertionLine();
+            HideInsertionLine(InsertionLine);
         }
         else
         {
-            UpdateInsertionLine(targetItem, insertAbove);
+            UpdateInsertionLine(targetItem, insertAbove, TableListBox, InsertionLine);
         }
 
         e.Handled = true;
@@ -1172,12 +1202,12 @@ public partial class MainWindow : Window, IPortalFileOpener
     {
         if (!_isInternalReordering)
         {
-            ResetReorderState();
+            ResetTableReorderState();
             return;
         }
 
         var sourceIndex = _tableDragSourceIndex ?? -1;
-        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e);
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e, TableListBox);
 
         int newIndex;
         if (targetItem is null)
@@ -1189,8 +1219,8 @@ public partial class MainWindow : Window, IPortalFileOpener
             var targetIndex = TableListBox.IndexFromContainer(targetItem);
             if (targetIndex < 0)
             {
-                HideInsertionLine();
-                ResetReorderState();
+                HideInsertionLine(InsertionLine);
+                ResetTableReorderState();
                 e.Handled = true;
                 return;
             }
@@ -1203,24 +1233,24 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
 
         newIndex = Math.Clamp(newIndex, 0, Math.Max(0, _tableEntries.Count - 1));
-        HideInsertionLine();
+        HideInsertionLine(InsertionLine);
 
         if (sourceIndex >= 0 && newIndex != sourceIndex)
         {
             MoveTable(sourceIndex, newIndex);
         }
 
-        ResetReorderState();
+        ResetTableReorderState();
         e.Handled = true;
     }
 
     private void OnTableListBoxPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
-        HideInsertionLine();
-        ResetReorderState();
+        HideInsertionLine(InsertionLine);
+        ResetTableReorderState();
     }
 
-    private void ResetReorderState()
+    private void ResetTableReorderState()
     {
         if (_tableDragSourceContainer is not null)
         {
@@ -1238,44 +1268,6 @@ public partial class MainWindow : Window, IPortalFileOpener
         _tableDragStartPoint = null;
         _tableDragSourceContainer = null;
         _tableDragSourceIndex = null;
-    }
-
-    private (ListBoxItem? Item, bool InsertAbove) ResolveDropTargetFromVisual(PointerEventArgs e)
-    {
-        // PointerCapture 中は e.Source が常に capture 先になるため、Pointer 位置から
-        // ListBox の hit-test を自前実行する (GPC と同じ理由)。
-        var posInListBox = e.GetPosition(TableListBox);
-        var hit = TableListBox.InputHitTest(posInListBox) as Visual;
-        var item = hit is null ? null : FindAncestor<ListBoxItem>(hit);
-        if (item is null) return (null, false);
-        var pos = e.GetPosition(item);
-        var insertAbove = pos.Y < item.Bounds.Height / 2;
-        return (item, insertAbove);
-    }
-
-    private void UpdateInsertionLine(ListBoxItem item, bool insertAbove)
-    {
-        var transformPoint = item.TranslatePoint(new Point(0, 0), TableListBox);
-        if (transformPoint is null)
-        {
-            HideInsertionLine();
-            return;
-        }
-
-        var listBoxTopInGrid = TableListBox.Bounds.Top;
-        var itemTopInGrid = listBoxTopInGrid + transformPoint.Value.Y;
-        const double lineCenterOffset = 6;
-        var lineTop = insertAbove
-            ? itemTopInGrid - lineCenterOffset
-            : itemTopInGrid + item.Bounds.Height - lineCenterOffset;
-
-        InsertionLine.Margin = new Thickness(0, Math.Max(0, lineTop), 0, 0);
-        InsertionLine.IsVisible = true;
-    }
-
-    private void HideInsertionLine()
-    {
-        InsertionLine.IsVisible = false;
     }
 
     private void MoveTable(int oldIndex, int newIndex)
@@ -1302,11 +1294,278 @@ public partial class MainWindow : Window, IPortalFileOpener
         RefreshPlot();
     }
 
+    // ---------- Series list drag-reorder (Table 側と同じ PointerCapture + DragGhost
+    // 方式だが、ドラッグ開始をハンドル (SeriesDragHandle) 上の Press に限定する) ----------
+
+    private void OnSeriesListBoxPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _seriesDragStartPoint = null;
+        _seriesDragSourceContainer = null;
+        _seriesDragSourceRow = null;
+
+        if (e.Source is not Visual srcVisual) return;
+
+        // ドラッグ開始はハンドル上の Press に限定する (Table D&D の「行のどこでも
+        // 開始できる」から意図的に外し、チェックボックス・インライン編集・
+        // Ctrl/Shift 選択クリックと入力領域を分離する)。
+        if (FindAncestor<Border>(srcVisual, b => b.Name == "SeriesDragHandle") is null) return;
+
+        var item = FindAncestor<ListBoxItem>(srcVisual);
+        if (item is null) return;
+
+        // 編集中の行 (ドラッグ対象自身か、別行かを問わず) があれば先に確定する。
+        // RefreshSeriesList() は「編集中の行が 1 件でもあれば再構築しない」という
+        // ガードを持つため、別行が編集中のまま MoveSeries を実行すると一覧の見た目
+        // だけ並べ替え結果が反映されない (プロット / 凡例は先に更新済みなのに一覧が
+        // 古いまま、という不整合が起きる)。BeginInlineRename の「別行編集中なら
+        // 先に確定してから切り替える」と同じ流儀で、ドラッグ開始前にも確定させる。
+        var currentlyEditing = _seriesListRows.FirstOrDefault(r => r.IsEditing);
+        if (currentlyEditing is not null)
+        {
+            CommitInlineRename(currentlyEditing);
+        }
+
+        if (!e.GetCurrentPoint(SeriesListBox).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        _seriesDragStartPoint = e.GetPosition(SeriesListBox);
+        _seriesDragSourceContainer = item;
+        _seriesDragSourceRow = item.DataContext as SeriesListRowVm;
+        _dragGhostPointerOffset = e.GetPosition(item);
+    }
+
+    private void OnSeriesListBoxPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_seriesDragStartPoint is null
+            || _seriesDragSourceContainer is null
+            || _seriesDragSourceRow is null)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(SeriesListBox).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(SeriesListBox);
+
+        if (!_isSeriesInternalReordering)
+        {
+            var dx = current.X - _seriesDragStartPoint.Value.X;
+            var dy = current.Y - _seriesDragStartPoint.Value.Y;
+            if (Math.Abs(dx) < 4 && Math.Abs(dy) < 4) return;
+
+            var sourceIndex = SeriesListBox.IndexFromContainer(_seriesDragSourceContainer);
+            if (sourceIndex < 0 || sourceIndex >= _seriesListRows.Count)
+            {
+                ResetSeriesReorderState();
+                return;
+            }
+
+            _isSeriesInternalReordering = true;
+            e.Pointer.Capture(SeriesListBox);
+            _seriesReorderCapturedPointer = e.Pointer;
+
+            _dragGhost.Show(
+                this,
+                SeriesListBox.ItemTemplate,
+                _seriesDragSourceRow,
+                _seriesDragSourceContainer.Bounds.Size,
+                e.GetPosition(this),
+                _dragGhostPointerOffset);
+            _seriesDragSourceContainer.Opacity = 0.4;
+        }
+
+        _dragGhost.Move(e.GetPosition(this));
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e, SeriesListBox);
+        if (targetItem is null || ReferenceEquals(targetItem, _seriesDragSourceContainer))
+        {
+            HideInsertionLine(SeriesInsertionLine);
+        }
+        else
+        {
+            UpdateInsertionLine(targetItem, insertAbove, SeriesListBox, SeriesInsertionLine);
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnSeriesListBoxPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isSeriesInternalReordering)
+        {
+            ResetSeriesReorderState();
+            return;
+        }
+
+        var (targetItem, insertAbove) = ResolveDropTargetFromVisual(e, SeriesListBox);
+        HideInsertionLine(SeriesInsertionLine);
+
+        // 系列一覧は X 列に割り当てた列を除いたフィルタ済み表示なので、行 index
+        // ではなく SeriesState 参照から EnumerateSeriesInDisplayOrder() 上のフラット
+        // index を引き直してから MoveSeries に渡す。
+        if (_seriesDragSourceRow?.State is { } sourceState)
+        {
+            var oldFlatIndex = GetFlatSeriesOrdinal(sourceState);
+            var flatCount = _loadedTables.Sum(t => t.Series.Count);
+
+            int? newFlatIndex;
+            if (targetItem is null)
+            {
+                // 一覧の末尾 (行が無い場所) へのドロップは、フラット順の末尾を意味する。
+                newFlatIndex = flatCount - 1;
+            }
+            else
+            {
+                var targetIndex = SeriesListBox.IndexFromContainer(targetItem);
+                var targetState = targetIndex >= 0 && targetIndex < _seriesListRows.Count
+                    ? _seriesListRows[targetIndex].State
+                    : null;
+
+                if (targetState is null)
+                {
+                    newFlatIndex = null;
+                }
+                else
+                {
+                    var targetFlatIndex = GetFlatSeriesOrdinal(targetState);
+                    newFlatIndex = insertAbove ? targetFlatIndex : targetFlatIndex + 1;
+                    if (newFlatIndex > oldFlatIndex)
+                    {
+                        newFlatIndex--;
+                    }
+                }
+            }
+
+            if (oldFlatIndex >= 0 && newFlatIndex is { } nf && flatCount > 0)
+            {
+                var clamped = Math.Clamp(nf, 0, flatCount - 1);
+                if (clamped != oldFlatIndex)
+                {
+                    MoveSeries(oldFlatIndex, clamped);
+                }
+            }
+        }
+
+        ResetSeriesReorderState();
+        e.Handled = true;
+    }
+
+    private void OnSeriesListBoxPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        HideInsertionLine(SeriesInsertionLine);
+        ResetSeriesReorderState();
+    }
+
+    private void ResetSeriesReorderState()
+    {
+        if (_seriesDragSourceContainer is not null)
+        {
+            _seriesDragSourceContainer.Opacity = 1.0;
+        }
+
+        if (_seriesReorderCapturedPointer is { } pointer)
+        {
+            pointer.Capture(null);
+            _seriesReorderCapturedPointer = null;
+        }
+
+        _dragGhost.Hide();
+        _isSeriesInternalReordering = false;
+        _seriesDragStartPoint = null;
+        _seriesDragSourceContainer = null;
+        _seriesDragSourceRow = null;
+    }
+
+    /// <summary>
+    /// フラット表示順 (EnumerateSeriesInDisplayOrder() 通し番号) で oldFlatIndex の
+    /// 系列を newFlatIndex へ移動する。描画順・凡例順・エクスポート順すべてが従う
+    /// DisplayOrder を全系列ぶん振り直す。
+    /// </summary>
+    private void MoveSeries(int oldFlatIndex, int newFlatIndex)
+    {
+        var flat = EnumerateSeriesInDisplayOrder().Select(entry => entry.Series).ToList();
+        if (oldFlatIndex == newFlatIndex
+            || oldFlatIndex < 0 || oldFlatIndex >= flat.Count
+            || newFlatIndex < 0 || newFlatIndex >= flat.Count)
+        {
+            return;
+        }
+
+        // auto 色は系列通し番号に依存するため、並べ替えで色が変わらないよう
+        // 現在の解決色を移動前に固定する (MoveTable と同じ理由)。
+        FreezeAutoColorsForAllSeries();
+
+        var reordered = SeriesOrderPlanner.Move(flat, oldFlatIndex, newFlatIndex);
+        for (var i = 0; i < reordered.Count; i++)
+        {
+            reordered[i].DisplayOrder = i;
+        }
+
+        _nextSeriesDisplayOrder = reordered.Count;
+
+        RefreshSeriesList();
+        RefreshTableEntries();
+        RefreshPlot();
+    }
+
+    private (ListBoxItem? Item, bool InsertAbove) ResolveDropTargetFromVisual(PointerEventArgs e, ListBox listBox)
+    {
+        // PointerCapture 中は e.Source が常に capture 先になるため、Pointer 位置から
+        // ListBox の hit-test を自前実行する (GPC と同じ理由)。
+        var posInListBox = e.GetPosition(listBox);
+        var hit = listBox.InputHitTest(posInListBox) as Visual;
+        var item = hit is null ? null : FindAncestor<ListBoxItem>(hit);
+        if (item is null) return (null, false);
+        var pos = e.GetPosition(item);
+        var insertAbove = pos.Y < item.Bounds.Height / 2;
+        return (item, insertAbove);
+    }
+
+    private static void UpdateInsertionLine(ListBoxItem item, bool insertAbove, ListBox listBox, Grid insertionLine)
+    {
+        var transformPoint = item.TranslatePoint(new Point(0, 0), listBox);
+        if (transformPoint is null)
+        {
+            HideInsertionLine(insertionLine);
+            return;
+        }
+
+        var listBoxTopInGrid = listBox.Bounds.Top;
+        var itemTopInGrid = listBoxTopInGrid + transformPoint.Value.Y;
+        const double lineCenterOffset = 6;
+        var lineTop = insertAbove
+            ? itemTopInGrid - lineCenterOffset
+            : itemTopInGrid + item.Bounds.Height - lineCenterOffset;
+
+        insertionLine.Margin = new Thickness(0, Math.Max(0, lineTop), 0, 0);
+        insertionLine.IsVisible = true;
+    }
+
+    private static void HideInsertionLine(Grid insertionLine)
+    {
+        insertionLine.IsVisible = false;
+    }
+
     private static T? FindAncestor<T>(Visual? element) where T : class
     {
         while (element is not null)
         {
             if (element is T match) return match;
+            element = element.GetVisualParent();
+        }
+
+        return null;
+    }
+
+    private static T? FindAncestor<T>(Visual? element, Func<T, bool> predicate) where T : class
+    {
+        while (element is not null)
+        {
+            if (element is T match && predicate(match)) return match;
             element = element.GetVisualParent();
         }
 

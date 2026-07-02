@@ -307,14 +307,23 @@
                                                         <ListBox.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:MainWindow+SeriesListRowVm">
                                                                 <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,2,0,2">
-                                                                    <!-- ドラッグハンドル: このバッチでは見た目のみ (並べ替え配線は Batch 5) -->
-                                                                    <Path Grid.Column="0"
-                                                                          Width="7" Height="11"
-                                                                          Stretch="None"
-                                                                          Fill="#94A3B8"
-                                                                          VerticalAlignment="Center"
-                                                                          Margin="0,0,6,0"
-                                                                          Data="M1.5,0.5 A1,1 0 1 0 1.5,2.5 A1,1 0 1 0 1.5,0.5 M5.5,0.5 A1,1 0 1 0 5.5,2.5 A1,1 0 1 0 5.5,0.5 M1.5,4.5 A1,1 0 1 0 1.5,6.5 A1,1 0 1 0 1.5,4.5 M5.5,4.5 A1,1 0 1 0 5.5,6.5 A1,1 0 1 0 5.5,4.5 M1.5,8.5 A1,1 0 1 0 1.5,10.5 A1,1 0 1 0 1.5,8.5 M5.5,8.5 A1,1 0 1 0 5.5,10.5 A1,1 0 1 0 5.5,8.5" />
+                                                                    <!-- ドラッグハンドル: Path 単体だと線の隙間が hit-test を
+                                                                         取りこぼすため、透明な Border で包んで判定域を確保する。
+                                                                         Name はコードビハインドの祖先検索で「ハンドル上の
+                                                                         Press か」を判定するマーカーとして使う。 -->
+                                                                    <Border Grid.Column="0"
+                                                                            Name="SeriesDragHandle"
+                                                                            Background="Transparent"
+                                                                            Padding="4,4"
+                                                                            Margin="0,0,2,0"
+                                                                            Cursor="SizeAll"
+                                                                            ToolTip.Tip="ドラッグして並べ替え"
+                                                                            VerticalAlignment="Center">
+                                                                        <Path Width="7" Height="11"
+                                                                              Stretch="None"
+                                                                              Fill="#94A3B8"
+                                                                              Data="M1.5,0.5 A1,1 0 1 0 1.5,2.5 A1,1 0 1 0 1.5,0.5 M5.5,0.5 A1,1 0 1 0 5.5,2.5 A1,1 0 1 0 5.5,0.5 M1.5,4.5 A1,1 0 1 0 1.5,6.5 A1,1 0 1 0 1.5,4.5 M5.5,4.5 A1,1 0 1 0 5.5,6.5 A1,1 0 1 0 5.5,4.5 M1.5,8.5 A1,1 0 1 0 1.5,10.5 A1,1 0 1 0 1.5,8.5 M5.5,8.5 A1,1 0 1 0 5.5,10.5 A1,1 0 1 0 5.5,8.5" />
+                                                                    </Border>
                                                                     <CheckBox Grid.Column="1"
                                                                               IsChecked="{CompiledBinding IsVisible, Mode=TwoWay}"
                                                                               Tag="{CompiledBinding}"
@@ -383,6 +392,36 @@
                                                                    HorizontalAlignment="Center"
                                                                    Margin="0,8,0,2" />
                                                     </StackPanel>
+                                                    <!-- 内部 reorder 用の insertion line (テーブル一覧の InsertionLine と同構造) -->
+                                                    <Grid Name="SeriesInsertionLine"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Top"
+                                                          Height="12"
+                                                          Margin="0"
+                                                          IsVisible="False"
+                                                          IsHitTestVisible="False">
+                                                        <Grid.Effect>
+                                                            <DropShadowEffect BlurRadius="8"
+                                                                              Color="#2563EB"
+                                                                              Opacity="0.55"
+                                                                              OffsetX="0"
+                                                                              OffsetY="0" />
+                                                        </Grid.Effect>
+                                                        <Rectangle Height="2"
+                                                                   VerticalAlignment="Center"
+                                                                   Fill="#2563EB"
+                                                                   Opacity="0.85" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 Opacity="0.85"
+                                                                 HorizontalAlignment="Left"
+                                                                 VerticalAlignment="Center" />
+                                                        <Ellipse Width="6" Height="6"
+                                                                 Fill="#2563EB"
+                                                                 Opacity="0.85"
+                                                                 HorizontalAlignment="Right"
+                                                                 VerticalAlignment="Center" />
+                                                    </Grid>
                                                 </Grid>
                                             </Border>
 

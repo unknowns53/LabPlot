@@ -17,10 +17,68 @@
         SystemDecorations="Full"
         DragDrop.AllowDrop="True">
 
-    <!-- 汎用データビューア B2: GPC MainWindow を雛形にした最小構成。
-         サイドバー = ファイル / 読み込み済みテーブル / 系列スタイル / 軸範囲 /
-         グラフラベル / グラフ書式。列マッピング UI とクリップボード貼り付けは
-         B3、log・右軸は B4、セッション・エクスポート・MRU は B5 で追加する。 -->
+    <!-- 汎用データビューア: GPC MainWindow を雛形にした構成。
+         サイドバーはセクション数が増えて縦に長くなったため、
+         「データ」(ファイル / テーブル / X 列 / 系列 / 表示条件) と
+         「仕上げ」(軸範囲 / 軸スケール / グラフラベル / グラフ書式) の
+         2 タブに分割する。既定値の sticky footer はタブの外に置き、
+         どちらのタブでも常に見える。 -->
+
+    <Window.Resources>
+        <!-- サイドバー上部のタブ切替 (RadioButton 2 個によるセグメントコントロール)。
+             リポジトリ共通の CommonStyles.axaml には TabControl 相当のテーマが
+             ないため自前で書く。スコープは Data Viewer のみ (Window.Resources)。 -->
+        <ControlTheme x:Key="SidebarTabRadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="Padding" Value="0,6" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Grid>
+                        <Border Name="SegmentBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalContentAlignment="Center"
+                                              VerticalContentAlignment="Center"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <Border Name="FocusRing"
+                                CornerRadius="7"
+                                BorderBrush="#2563EB"
+                                BorderThickness="2"
+                                Margin="-1"
+                                Opacity="0"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter>
+
+            <!-- 選択中: 白背景 + 軽い影 + アクセント文字色。標準の点線
+                 FocusVisualStyle は使わず、フォーカス時のみ枠色で示す。 -->
+            <Style Selector="^:checked /template/ Border#SegmentBorder">
+                <Setter Property="Background" Value="White" />
+                <Setter Property="BoxShadow" Value="0 1 4 0 #260F172A" />
+            </Style>
+            <Style Selector="^:checked">
+                <Setter Property="Foreground" Value="#1D4ED8" />
+            </Style>
+            <Style Selector="^:not(:checked):pointerover">
+                <Setter Property="Foreground" Value="#334155" />
+            </Style>
+            <Style Selector="^:focus-visible /template/ Border#FocusRing">
+                <Setter Property="Opacity" Value="1" />
+            </Style>
+        </ControlTheme>
+    </Window.Resources>
 
     <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
         <Grid RowDefinitions="Auto,*">
@@ -39,15 +97,39 @@
                         Background="#EEF2F7"
                         BorderBrush="#CBD5E1"
                         BorderThickness="0,0,1,0">
-                    <Grid RowDefinitions="*,Auto">
+                    <Grid RowDefinitions="Auto,*,Auto">
 
-                        <ScrollViewer Grid.Row="0"
+                        <!-- サイドバータブ切替 (セグメントコントロール) -->
+                        <Border Grid.Row="0"
+                                Background="#E2E8F0"
+                                CornerRadius="8"
+                                Padding="3"
+                                Margin="20,10,20,0">
+                            <Grid ColumnDefinitions="*,*">
+                                <RadioButton Name="DataTabRadioButton"
+                                             Grid.Column="0"
+                                             GroupName="SidebarTabGroup"
+                                             Content="データ"
+                                             IsChecked="True"
+                                             Theme="{DynamicResource SidebarTabRadioButtonStyle}"
+                                             Margin="0,0,2,0"
+                                             IsCheckedChanged="SidebarTabRadioButton_IsCheckedChanged" />
+                                <RadioButton Name="FormatTabRadioButton"
+                                             Grid.Column="1"
+                                             GroupName="SidebarTabGroup"
+                                             Content="仕上げ"
+                                             Theme="{DynamicResource SidebarTabRadioButtonStyle}"
+                                             Margin="2,0,0,0"
+                                             IsCheckedChanged="SidebarTabRadioButton_IsCheckedChanged" />
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1"
+                                      Name="SidebarScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="20,10,20,12">
-
-                                <ContentControl Content="データ"
-                                                Theme="{DynamicResource GroupHeaderStyle}" />
+                            <Grid>
+                            <StackPanel Name="DataTabPanel" Margin="20,10,20,12">
 
                                 <!-- Section: File -->
                                 <Border Theme="{DynamicResource SectionStyle}">
@@ -347,7 +429,8 @@
                                                                         <TextBox Theme="{DynamicResource InputTextBoxStyle}"
                                                                                  Tag="{CompiledBinding}"
                                                                                  IsVisible="{CompiledBinding IsEditing}"
-                                                                                 MinHeight="24"
+                                                                                 Height="24"
+                                                                                 MaxWidth="{CompiledBinding $parent[Panel].Bounds.Width}"
                                                                                  Padding="4,2"
                                                                                  FontSize="12"
                                                                                  VerticalAlignment="Center"
@@ -356,15 +439,21 @@
                                                                                  LostFocus="SeriesNameEditBox_LostFocus"
                                                                                  KeyDown="SeriesNameEditBox_KeyDown" />
                                                                     </Panel>
-                                                                    <CheckBox Grid.Column="4"
-                                                                              Content="右軸"
-                                                                              FontSize="11"
-                                                                              IsChecked="{CompiledBinding UseRightAxis, Mode=TwoWay}"
-                                                                              Tag="{CompiledBinding}"
-                                                                              Click="SeriesRightAxisCheckBox_Click"
-                                                                              ToolTip.Tip="この系列を右 Y 軸 (第 2 軸) に割り当て"
-                                                                              VerticalAlignment="Center"
-                                                                              Margin="6,0,0,0" />
+                                                                    <!-- 右軸の割り当ては行のチェックボックスではなくスタイル
+                                                                         パネル側 (RightAxisCheckBox) で行う。ここには割当中
+                                                                         だけ見える小さいインジケータだけを残す。 -->
+                                                                    <Border Grid.Column="4"
+                                                                            CornerRadius="3"
+                                                                            Padding="3,0"
+                                                                            Background="#DBEAFE"
+                                                                            IsVisible="{CompiledBinding UseRightAxis}"
+                                                                            ToolTip.Tip="右 Y 軸 (第 2 軸) に割り当て中"
+                                                                            VerticalAlignment="Center"
+                                                                            Margin="6,0,0,0">
+                                                                        <TextBlock Text="右軸"
+                                                                                   FontSize="10"
+                                                                                   Foreground="#2563EB" />
+                                                                    </Border>
                                                                 </Grid>
                                                             </DataTemplate>
                                                         </ListBox.ItemTemplate>
@@ -449,6 +538,13 @@
                                                 <ComboBoxItem>折れ線＋マーカー</ComboBoxItem>
                                                 <ComboBoxItem>棒グラフ</ComboBoxItem>
                                             </ComboBox>
+
+                                            <CheckBox Name="RightAxisCheckBox"
+                                                      Content="右 Y 軸 (第 2 軸) に割り当て"
+                                                      IsEnabled="False"
+                                                      Margin="0,0,0,10"
+                                                      ToolTip.Tip="選択中の系列を右 Y 軸 (第 2 軸) に割り当て"
+                                                      Click="RightAxisCheckBox_Click" />
 
                                             <TextBlock Text="色"
                                                        Theme="{DynamicResource FieldLabelStyle}" />
@@ -577,8 +673,45 @@
                                     </Expander>
                                 </Border>
 
-                                <ContentControl Content="書式"
-                                                Theme="{DynamicResource GroupHeaderStyle}" />
+                                <!-- Section: View session -->
+                                <Border Theme="{DynamicResource SectionStyle}">
+                                    <Expander IsExpanded="False">
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Theme="{DynamicResource SectionIconPath}"
+                                                      Data="{StaticResource AnalysisConditionsIconGeometry}" />
+                                                <TextBlock Text="表示条件"
+                                                           FontWeight="SemiBold" FontSize="13"
+                                                           Foreground="#0F172A"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Margin="0,8,0,0">
+                                            <Button Name="SaveSessionButton"
+                                                    Content="表示条件を保存"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    IsEnabled="False"
+                                                    Margin="0,0,0,8"
+                                                    ToolTip.Tip="表示条件を .gvjson に保存 (Ctrl+Shift+S)"
+                                                    Click="SaveSessionButton_Click" />
+                                            <Button Name="LoadSessionButton"
+                                                    Content="表示条件を読み込み"
+                                                    Theme="{DynamicResource SecondaryButtonStyle}"
+                                                    HorizontalAlignment="Stretch"
+                                                    ToolTip.Tip="表示条件 (.gvjson) を読み込み (Ctrl+Shift+O)"
+                                                    Click="LoadSessionButton_Click" />
+                                            <TextBlock Text="今の表示状態（テーブル・列マッピング・系列スタイル・変換・軸設定・グラフ書式）を任意の場所に .gvjson として保存します。ファイル由来のテーブルはパス参照、クリップボード由来のテーブルはデータごと埋め込んで復元します。"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,10,0,0" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                            </StackPanel>
+                            <StackPanel Name="FormatTabPanel" Margin="20,10,20,12" IsVisible="False">
 
                                 <!-- Section: Axis range -->
                                 <Border Theme="{DynamicResource SectionStyle}">
@@ -665,7 +798,7 @@
                                                              TextChanged="Y2RangeTextBox_TextChanged" />
                                                 </StackPanel>
                                             </Grid>
-                                            <TextBlock Text="系列を右軸に割り当てるには、系列一覧の「右軸」チェックを使ってください。"
+                                            <TextBlock Text="系列を右軸に割り当てるには、系列スタイルの「右 Y 軸 (第 2 軸) に割り当て」チェックを使ってください。"
                                                        Foreground="#64748B"
                                                        FontSize="11"
                                                        TextWrapping="Wrap"
@@ -747,48 +880,12 @@
                                     </Expander>
                                 </Border>
 
-                                <!-- Section: View session -->
-                                <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
-                                        <Expander.Header>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Path Theme="{DynamicResource SectionIconPath}"
-                                                      Data="{StaticResource AnalysisConditionsIconGeometry}" />
-                                                <TextBlock Text="表示条件"
-                                                           FontWeight="SemiBold" FontSize="13"
-                                                           Foreground="#0F172A"
-                                                           VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <StackPanel Margin="0,8,0,0">
-                                            <Button Name="SaveSessionButton"
-                                                    Content="表示条件を保存"
-                                                    Theme="{DynamicResource SecondaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    IsEnabled="False"
-                                                    Margin="0,0,0,8"
-                                                    ToolTip.Tip="表示条件を .gvjson に保存 (Ctrl+Shift+S)"
-                                                    Click="SaveSessionButton_Click" />
-                                            <Button Name="LoadSessionButton"
-                                                    Content="表示条件を読み込み"
-                                                    Theme="{DynamicResource SecondaryButtonStyle}"
-                                                    HorizontalAlignment="Stretch"
-                                                    ToolTip.Tip="表示条件 (.gvjson) を読み込み (Ctrl+Shift+O)"
-                                                    Click="LoadSessionButton_Click" />
-                                            <TextBlock Text="今の表示状態（テーブル・列マッピング・系列スタイル・変換・軸設定・グラフ書式）を任意の場所に .gvjson として保存します。ファイル由来のテーブルはパス参照、クリップボード由来のテーブルはデータごと埋め込んで復元します。"
-                                                       Foreground="#64748B"
-                                                       FontSize="11"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,10,0,0" />
-                                        </StackPanel>
-                                    </Expander>
-                                </Border>
-
                             </StackPanel>
+                            </Grid>
                         </ScrollViewer>
 
                         <!-- Sticky footer: defaults -->
-                        <Border Grid.Row="1"
+                        <Border Grid.Row="2"
                                 Background="#E2E8F0"
                                 BorderBrush="#CBD5E1"
                                 BorderThickness="0,1,0,0"

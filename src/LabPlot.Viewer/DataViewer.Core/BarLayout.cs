@@ -19,28 +19,46 @@ public static class BarLayout
     public readonly record struct BarSlot(double Offset, double Size);
 
     /// <summary>
-    /// Estimate the category spacing from the bar series' X positions: the
-    /// smallest positive gap between adjacent (sorted) X values across every
-    /// series. Falls back to 1.0 when there is no usable spacing (single point
-    /// or all-equal X), which keeps a lone bar visible.
+    /// Estimate the category spacing from the bar series' X positions. Pools
+    /// every series' X values, then takes the smallest adjacent gap that is at
+    /// least <c>range * 1e-3</c> (the "epsilon"), where range is the spread of
+    /// all pooled X values. Gaps below epsilon are treated as rounding noise
+    /// between values meant to be the same category (e.g. 10.0 and
+    /// 10.0000005) and ignored, so a single near-duplicate pair can no longer
+    /// collapse the whole group width to near zero.
+    /// Falls back to range / (unique count - 1) when no gap clears epsilon,
+    /// and to 1.0 when there is no usable spacing at all (single point or all
+    /// values equal), which keeps a lone bar visible.
     /// </summary>
     public static double EstimateGroupWidth(IEnumerable<IReadOnlyList<double>> barSeriesXs)
     {
+        var sorted = barSeriesXs
+            .SelectMany(static xs => xs)
+            .Where(double.IsFinite)
+            .Distinct()
+            .OrderBy(static x => x)
+            .ToArray();
+
+        if (sorted.Length < 2) return 1.0;
+
+        var range = sorted[^1] - sorted[0];
+        var epsilon = range * 1e-3;
+
         var minGap = double.PositiveInfinity;
-        foreach (var xs in barSeriesXs)
+        for (var i = 1; i < sorted.Length; i++)
         {
-            var sorted = xs.Where(double.IsFinite).Distinct().OrderBy(static x => x).ToArray();
-            for (var i = 1; i < sorted.Length; i++)
+            var gap = sorted[i] - sorted[i - 1];
+            if (gap >= epsilon && gap < minGap)
             {
-                var gap = sorted[i] - sorted[i - 1];
-                if (gap > 0 && gap < minGap)
-                {
-                    minGap = gap;
-                }
+                minGap = gap;
             }
         }
 
-        return double.IsFinite(minGap) && minGap > 0 ? minGap : 1.0;
+        if (double.IsFinite(minGap) && minGap > 0) return minGap;
+
+        // No gap cleared epsilon: every pooled value is effectively the same
+        // category. Spread the group width across the observed range instead.
+        return range > 0 ? range / (sorted.Length - 1) : 1.0;
     }
 
     /// <summary>

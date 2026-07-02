@@ -122,4 +122,60 @@ public sealed class ViewerSessionRoundTripTests : IDisposable
         Assert.NotNull(loaded.Axes);
         Assert.NotNull(loaded.Labels);
     }
+
+    [Fact]
+    public void SaveLoad_DisplayOrder_RoundTrips()
+    {
+        var session = new ViewerAnalysisSession
+        {
+            Datasets =
+            {
+                new ViewerSessionDataset
+                {
+                    SourceFilePath = @"D:\data\run1.csv",
+                    XColumnIndex = 0,
+                    Series =
+                    {
+                        new ViewerSessionSeries { ColumnIndex = 1, ColumnName = "A", DisplayOrder = 3 },
+                        new ViewerSessionSeries { ColumnIndex = 2, ColumnName = "B", DisplayOrder = 0 },
+                    },
+                },
+            },
+        };
+
+        var path = Path.Combine(_tempDir, "display-order.gvjson");
+        var store = new AnalysisSessionStore<ViewerAnalysisSession>();
+        store.Save(session, path);
+        var loaded = store.Load(path);
+
+        var dataset = Assert.Single(loaded.Datasets);
+        Assert.Equal(3, dataset.Series.Single(static s => s.ColumnName == "A").DisplayOrder);
+        Assert.Equal(0, dataset.Series.Single(static s => s.ColumnName == "B").DisplayOrder);
+    }
+
+    [Fact]
+    public void Load_JsonWithoutDisplayOrderField_DefaultsToZero()
+    {
+        var path = Path.Combine(_tempDir, "no-display-order.gvjson");
+        File.WriteAllText(path, """
+            {
+              "Version": 1,
+              "Datasets": [
+                {
+                  "SourceFilePath": "D:\\data\\run1.csv",
+                  "XColumnIndex": 0,
+                  "Series": [
+                    { "ColumnIndex": 1, "ColumnName": "A" }
+                  ]
+                }
+              ]
+            }
+            """);
+
+        var loaded = new AnalysisSessionStore<ViewerAnalysisSession>().Load(path);
+
+        var dataset = Assert.Single(loaded.Datasets);
+        var series = Assert.Single(dataset.Series);
+        Assert.Equal(0, series.DisplayOrder);
+    }
 }

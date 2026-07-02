@@ -124,6 +124,14 @@ public partial class MainWindow : Window, IPortalFileOpener
     private bool _suppressRepresentativePeakSelection;
     private MolecularWeightStatistics? _currentStatistics;
 
+    // サイドバータブ (データ / 仕上げ) の切替。XAML の RadioButton 初期値
+    // (IsChecked="True") が InitializeComponent 実行中に IsCheckedChanged を
+    // 発火させ、その時点ではまだ DataTabPanel / FormatTabPanel の x:Name
+    // フィールドが代入されていないため、ガードなしで参照すると NRE になる。
+    // InitializeComponent 完了後に true にし、それまではハンドラを早期 return
+    // させる (Data Viewer MainWindow と同じ方式)。
+    private bool _sidebarTabsInitialized;
+
     // Phase 7 Batch 6 step 4: 内部 reorder は OS DragDrop layer を使わず
     // PointerCapture + 手動位置計算で実装する。Avalonia 11.3 の
     // DragDrop.DoDragDrop (obsolete) は custom DataFormat を渡しても
@@ -142,6 +150,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     public MainWindow()
     {
         InitializeComponent();
+        _sidebarTabsInitialized = true;
         LoadFormattingDefaults();
         _formattingConfig = FormattingDefaultsStore.Clone(_formattingDefaults, FormattingConfigJsonOptions);
         ApplyFormattingConfigToControls(_formattingConfig);
@@ -175,6 +184,21 @@ public partial class MainWindow : Window, IPortalFileOpener
         DatasetListBox.AddHandler(PointerMovedEvent, OnDatasetListBoxPointerMoved, route, handledEventsToo: true);
         DatasetListBox.AddHandler(PointerReleasedEvent, OnDatasetListBoxPointerReleased, route, handledEventsToo: true);
         DatasetListBox.AddHandler(PointerCaptureLostEvent, OnDatasetListBoxPointerCaptureLost);
+    }
+
+    // ---------- Sidebar tabs (データ / 仕上げ) ----------
+
+    private void SidebarTabRadioButton_IsCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (!_sidebarTabsInitialized) return;
+        // RadioButton はグループ内で 1 個が checked になるたび、他方の unchecked
+        // イベントも飛んでくる。checked になった側だけを見れば重複処理を避けられる。
+        if (sender is not RadioButton { IsChecked: true } radio) return;
+
+        var showDataTab = ReferenceEquals(radio, DataTabRadioButton);
+        DataTabPanel.IsVisible = showDataTab;
+        FormatTabPanel.IsVisible = !showDataTab;
+        SidebarScrollViewer.ScrollToHome();
     }
 
     // Avalonia.Generators (NameGenerator + AvaloniaXamlLoader) が partial class に

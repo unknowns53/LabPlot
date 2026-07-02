@@ -126,6 +126,66 @@
     </ControlTheme>
 
     <!-- ============================================================
+         SidebarTabRadioButtonStyle — サイドバー上部のタブ切替
+         (RadioButton 2 個によるセグメントコントロール)。Data Viewer
+         (LabPlot.Viewer.Avalonia) 発の「データ / 仕上げ」タブ分割を
+         GPC / Spectrum / DLS へ横展開するため Core.Avalonia へ抽出した
+         共有 ControlTheme。App.axaml の MergedDictionaries でこの
+         ResourceDictionary を取り込む各モジュールから
+         `{DynamicResource SidebarTabRadioButtonStyle}` で参照できる。
+         ============================================================ -->
+    <ControlTheme x:Key="SidebarTabRadioButtonStyle" TargetType="RadioButton">
+        <Setter Property="Padding" Value="0,6" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="#64748B" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid>
+                    <Border Name="SegmentBorder"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalContentAlignment="Center"
+                                          VerticalContentAlignment="Center"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <Border Name="FocusRing"
+                            CornerRadius="7"
+                            BorderBrush="#2563EB"
+                            BorderThickness="2"
+                            Margin="-1"
+                            Opacity="0"
+                            IsHitTestVisible="False" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+
+        <!-- 選択中: 白背景 + 軽い影 + アクセント文字色。標準の点線
+             FocusVisualStyle は使わず、フォーカス時のみ枠色で示す。 -->
+        <Style Selector="^:checked /template/ Border#SegmentBorder">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BoxShadow" Value="0 1 4 0 #260F172A" />
+        </Style>
+        <Style Selector="^:checked">
+            <Setter Property="Foreground" Value="#1D4ED8" />
+        </Style>
+        <Style Selector="^:not(:checked):pointerover">
+            <Setter Property="Foreground" Value="#334155" />
+        </Style>
+        <Style Selector="^:focus-visible /template/ Border#FocusRing">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+    </ControlTheme>
+
+    <!-- ============================================================
          Input TextBox — 高さ 32 / 角丸 6 / フォーカス時にアクセント枠
          + 外周 FocusRing。Avalonia の TextBox は内部に PART_TextPresenter +
          PART_ScrollViewer を持つので、最小限の Template を自前で組む。 ============================================================ -->

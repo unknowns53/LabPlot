@@ -64,6 +64,15 @@ public sealed class ViewerSessionSeries
 
     public string? ColumnName { get; set; }
 
+    /// <summary>
+    /// Flat display-order key across all series in the session (drawing /
+    /// legend / auto-color order). Missing in older session files, which
+    /// deserialize it as 0 for every series - combined with
+    /// <see cref="SeriesOrderPlanner.FlattenInDisplayOrder{T}"/>'s stable
+    /// sort, that reproduces the legacy "table then column" order unchanged.
+    /// </summary>
+    public int DisplayOrder { get; set; }
+
     public bool IsVisible { get; set; } = true;
 
     /// <summary>"Left" (default) or "Right".</summary>

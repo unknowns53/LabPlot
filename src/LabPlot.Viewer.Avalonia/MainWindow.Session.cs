@@ -152,6 +152,7 @@ public partial class MainWindow
                 {
                     ColumnIndex = series.ColumnIndex,
                     ColumnName = series.ColumnName,
+                    DisplayOrder = series.DisplayOrder,
                     IsVisible = series.IsVisible,
                     AxisSide = series.UseRightAxis ? "Right" : "Left",
                     ChartType = series.ChartType.ToToken(),
@@ -259,6 +260,15 @@ public partial class MainWindow
             var newTables = new List<LoadedTable>();
             var skipped = new List<string>();
 
+            // 復元前のカウンタ残値 (直前のアプリ状態由来) は保存済み最大値より
+            // 小さいことがあり、そのままだと未マッチ列の採番が既存系列の途中へ
+            // 割り込む。先に保存済み DisplayOrder の最大値+1 へ立て直す。
+            _nextSeriesDisplayOrder = session.Datasets
+                .SelectMany(static dataset => dataset.Series)
+                .Select(static series => series.DisplayOrder)
+                .DefaultIfEmpty(-1)
+                .Max() + 1;
+
             foreach (var dataset in session.Datasets)
             {
                 var loaded = await RestoreLoadedTableAsync(dataset, skipped);
@@ -295,6 +305,14 @@ public partial class MainWindow
                 SetStatus($"一部のテーブルを復元できませんでした: {string.Join(" / ", skipped)}", StatusSeverity.Warning);
                 Toast?.Show($"{skipped.Count} 件のテーブルをスキップしました", StatusSeverity.Warning);
             }
+
+            // 復元中に割り当てた DisplayOrder (保存値・末尾採番の混在) を踏まえ、
+            // 次回の新規ロード・貼り付けが必ず末尾へ付くようカウンタを立て直す。
+            _nextSeriesDisplayOrder = _loadedTables
+                .SelectMany(static loaded => loaded.Series)
+                .Select(static series => series.DisplayOrder)
+                .DefaultIfEmpty(-1)
+                .Max() + 1;
         }
         finally
         {
@@ -381,6 +399,7 @@ public partial class MainWindow
             });
         }
 
+        var matchedSeries = new HashSet<SeriesState>();
         foreach (var saved in dataset.Series)
         {
             var target = loaded.Series.FirstOrDefault(s =>
@@ -390,9 +409,11 @@ public partial class MainWindow
                     !string.IsNullOrEmpty(saved.ColumnName) && s.ColumnName == saved.ColumnName);
             if (target is null) continue;
 
+            matchedSeries.Add(target);
             target.IsVisible = saved.IsVisible;
             target.UseRightAxis = string.Equals(saved.AxisSide, "Right", StringComparison.OrdinalIgnoreCase);
             target.ChartType = ViewerChartTypes.Parse(saved.ChartType);
+            target.DisplayOrder = saved.DisplayOrder;
             target.Transform = new SeriesTransform
             {
                 Normalize = saved.Normalize,
@@ -405,6 +426,18 @@ public partial class MainWindow
             {
                 target.Style.LineWidth = saved.Style.LineWidth;
                 target.Style.MarkerSize = saved.Style.MarkerSize;
+            }
+        }
+
+        // セッションに保存されていない実列 (テーブル更新等で増えた新規列) は
+        // フラット表示順の末尾に付くよう、その場で採番カウンタを進めて割り当てる。
+        // 復元完了後 (ApplyAnalysisSessionAsync 末尾) にカウンタ自体を再計算するため、
+        // ここでの値はこの読み込み内で「末尾になる」ことだけ保証すれば十分。
+        foreach (var series in loaded.Series)
+        {
+            if (!matchedSeries.Contains(series))
+            {
+                series.DisplayOrder = _nextSeriesDisplayOrder++;
             }
         }
 
@@ -471,42 +504,40 @@ public partial class MainWindow
     private AnalysisExport BuildAnalysisExport()
     {
         var entries = new List<AnalysisExportEntry>();
-        foreach (var loaded in _loadedTables)
+        // 出力順 = 表示順。フラット表示順で列挙し、X 列参照は各行の Table 側から辿る。
+        foreach (var (loaded, series) in EnumerateSeriesInDisplayOrder())
         {
+            if (!series.IsVisible) continue;
+            var isXColumn = series.ColumnIndex == loaded.XColumnIndex;
+            if (isXColumn && loaded.Series.Count > 1) continue;
+
             var xColumn = loaded.Table.Columns[loaded.XColumnIndex];
-            foreach (var series in loaded.Series)
+            var yColumn = loaded.Table.Columns[series.ColumnIndex];
+            var xValues = isXColumn
+                ? Enumerable.Range(1, yColumn.Values.Length).Select(static i => (double)i).ToArray()
+                : xColumn.Values;
+            var yValues = SeriesTransformer.Apply(yColumn.Values, series.Transform);
+
+            var points = new List<ViewerDataPoint>(yValues.Length);
+            var count = Math.Min(xValues.Length, yValues.Length);
+            for (var i = 0; i < count; i++)
             {
-                if (!series.IsVisible) continue;
-                var isXColumn = series.ColumnIndex == loaded.XColumnIndex;
-                if (isXColumn && loaded.Series.Count > 1) continue;
-
-                var yColumn = loaded.Table.Columns[series.ColumnIndex];
-                var xValues = isXColumn
-                    ? Enumerable.Range(1, yColumn.Values.Length).Select(static i => (double)i).ToArray()
-                    : xColumn.Values;
-                var yValues = SeriesTransformer.Apply(yColumn.Values, series.Transform);
-
-                var points = new List<ViewerDataPoint>(yValues.Length);
-                var count = Math.Min(xValues.Length, yValues.Length);
-                for (var i = 0; i < count; i++)
+                if (double.IsFinite(xValues[i]) && double.IsFinite(yValues[i]))
                 {
-                    if (double.IsFinite(xValues[i]) && double.IsFinite(yValues[i]))
-                    {
-                        points.Add(new ViewerDataPoint(xValues[i], yValues[i]));
-                    }
+                    points.Add(new ViewerDataPoint(xValues[i], yValues[i]));
                 }
-
-                if (points.Count == 0) continue;
-
-                entries.Add(new ViewerAnalysisExportEntry
-                {
-                    DisplayName = GetSeriesLegendText(loaded, series),
-                    SourceFilePath = loaded.Table.SourceFilePath,
-                    XLabel = isXColumn ? "Index" : xColumn.Name,
-                    YLabel = series.ColumnName,
-                    Points = points,
-                });
             }
+
+            if (points.Count == 0) continue;
+
+            entries.Add(new ViewerAnalysisExportEntry
+            {
+                DisplayName = GetSeriesLegendText(loaded, series),
+                SourceFilePath = loaded.Table.SourceFilePath,
+                XLabel = isXColumn ? "Index" : xColumn.Name,
+                YLabel = series.ColumnName,
+                Points = points,
+            });
         }
 
         return new AnalysisExport

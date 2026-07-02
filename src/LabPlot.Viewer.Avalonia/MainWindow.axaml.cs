@@ -81,6 +81,10 @@ public partial class MainWindow : Window, IPortalFileOpener
         public ViewerChartType ChartType { get; set; } = ViewerChartType.Line;
         public SeriesTransform Transform { get; set; } = SeriesTransform.Identity;
         public AnalysisSessionStyle Style { get; } = new();
+
+        /// <summary>描画順・凡例順・auto 色決定の基準になるフラット表示順。
+        /// テーブル物理位置ではなくこの値の昇順 (安定ソート) で並べる。</summary>
+        public int DisplayOrder { get; set; }
     }
 
     // ItemTemplate の CompiledBinding DataType から参照されるため public。
@@ -105,6 +109,11 @@ public partial class MainWindow : Window, IPortalFileOpener
 
     private readonly List<LoadedTable> _loadedTables = new();
     private readonly ObservableCollection<TableEntryVm> _tableEntries = new();
+
+    // SeriesState.DisplayOrder の採番カウンタ。新規ロード・貼り付けのたびに
+    // 増分し、常に既存系列より大きい値を割り当てる (末尾に付く)。セッション
+    // 復元後は最大値+1 へ再計算する (ApplyAnalysisSessionAsync 末尾)。
+    private int _nextSeriesDisplayOrder;
     private readonly DispatcherTimer _plotRefreshDebounceTimer = new() { Interval = PlotRefreshDebounceInterval };
 
     // RefreshPlot が描画した系列を、実際のプロット要素の参照ごと保持する。
@@ -466,6 +475,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 ColumnIndex = col,
                 ColumnName = table.Columns[col].Name,
                 IsVisible = autoEnabled.Contains(col),
+                DisplayOrder = _nextSeriesDisplayOrder++,
             });
         }
 
@@ -573,7 +583,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                     continue;
                 }
 
-                var autoIndex = GetSeriesAutoColorIndex(_activeTableIndex, i);
+                var autoIndex = GetSeriesAutoColorIndex(series);
                 var hex = series.Style.ColorHex ?? AutoLineColors[autoIndex % AutoLineColors.Length];
                 _seriesRows.Add(new SeriesRowVm
                 {
@@ -727,7 +737,9 @@ public partial class MainWindow : Window, IPortalFileOpener
                 var loaded = _loadedTables[i];
                 var firstVisible = loaded.Series.FirstOrDefault(static series => series.IsVisible);
                 var hex = firstVisible?.Style.ColorHex
-                    ?? AutoLineColors[GetSeriesAutoColorIndex(i, 0) % AutoLineColors.Length];
+                    ?? (loaded.Series.Count > 0
+                        ? AutoLineColors[GetSeriesAutoColorIndex(loaded.Series[0]) % AutoLineColors.Length]
+                        : AutoLineColors[0]);
                 _tableEntries.Add(new TableEntryVm
                 {
                     DisplayName = loaded.DisplayName,
@@ -748,16 +760,45 @@ public partial class MainWindow : Window, IPortalFileOpener
         TableListPlaceholder.IsVisible = _tableEntries.Count == 0;
     }
 
-    /// <summary>auto 色をテーブル境界をまたいだ通し番号で割り当てるための系列序数。</summary>
-    private int GetSeriesAutoColorIndex(int tableIndex, int seriesIndexInTable)
+    /// <summary>
+    /// 全テーブルの全系列 (非表示含む) を表示順 (DisplayOrder 昇順・安定ソート)
+    /// でフラットに列挙する。描画順・凡例順・auto 色決定はすべてこの順序に従う。
+    /// </summary>
+    private IEnumerable<(LoadedTable Table, SeriesState Series)> EnumerateSeriesInDisplayOrder()
+        => SeriesOrderPlanner.FlattenInDisplayOrder(
+            _loadedTables.Select(t => t.Series.Select(s => (Table: t, Series: s))),
+            x => x.Series.DisplayOrder);
+
+    /// <summary>auto 色をフラット表示順の通し番号で割り当てるための系列序数。</summary>
+    private int GetSeriesAutoColorIndex(SeriesState series)
     {
         var ordinal = 0;
-        for (var i = 0; i < Math.Min(tableIndex, _loadedTables.Count); i++)
+        foreach (var entry in EnumerateSeriesInDisplayOrder())
         {
-            ordinal += _loadedTables[i].Series.Count;
+            if (ReferenceEquals(entry.Series, series)) return ordinal;
+            ordinal++;
         }
 
-        return ordinal + seriesIndexInTable;
+        return 0;
+    }
+
+    /// <summary>
+    /// ColorHex 未設定 (auto 色) の全系列へ、現在の解決色をその場で固定する。
+    /// 並べ替え後も auto 色が変わって見えないよう、並べ替え前に一度だけ呼ぶ。
+    /// </summary>
+    private void FreezeAutoColorsForAllSeries()
+    {
+        var ordinal = 0;
+        foreach (var entry in EnumerateSeriesInDisplayOrder())
+        {
+            var style = entry.Series.Style;
+            if (string.IsNullOrEmpty(style.ColorHex))
+            {
+                style.ColorHex = AutoLineColors[ordinal % AutoLineColors.Length];
+            }
+
+            ordinal++;
+        }
     }
 
     private void TableListBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -1070,19 +1111,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         // auto 色は系列通し番号に依存するため、並べ替えで色が変わらないよう
         // 現在の解決色を移動前に固定する。
-        for (var tableIndex = 0; tableIndex < _loadedTables.Count; tableIndex++)
-        {
-            var loaded = _loadedTables[tableIndex];
-            for (var seriesIndex = 0; seriesIndex < loaded.Series.Count; seriesIndex++)
-            {
-                var style = loaded.Series[seriesIndex].Style;
-                if (string.IsNullOrEmpty(style.ColorHex))
-                {
-                    var autoIndex = GetSeriesAutoColorIndex(tableIndex, seriesIndex);
-                    style.ColorHex = AutoLineColors[autoIndex % AutoLineColors.Length];
-                }
-            }
-        }
+        FreezeAutoColorsForAllSeries();
 
         var table = _loadedTables[oldIndex];
         _loadedTables.RemoveAt(oldIndex);
@@ -1216,7 +1245,7 @@ public partial class MainWindow : Window, IPortalFileOpener
                 return;
             }
 
-            var autoIndex = GetSeriesAutoColorIndex(_activeTableIndex, _activeSeriesIndex);
+            var autoIndex = GetSeriesAutoColorIndex(series);
             LineColorPicker.DefaultHex = AutoLineColors[autoIndex % AutoLineColors.Length];
             LineColorPicker.SetHexValue(series.Style.ColorHex);
             ChartTypeComboBox.SelectedIndex = (int)series.ChartType;
@@ -1335,54 +1364,53 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         // 1) 描画データを先に組み立てる (変換・log・有限ペア抽出まで)。棒の
         //    ドッジ幅を確定するには全系列を見渡す必要があるため一括化する。
+        //    フラット表示順を一度だけ列挙し、その通し番号をそのまま auto 色の
+        //    序数に使う (非表示系列も数えるので旧実装の通し番号と一致する)。
         var items = new List<RenderItem>();
-        for (var tableIndex = 0; tableIndex < _loadedTables.Count; tableIndex++)
+        var seriesOrdinal = 0;
+        foreach (var (loaded, series) in EnumerateSeriesInDisplayOrder())
         {
-            var loaded = _loadedTables[tableIndex];
+            var autoColorIndex = seriesOrdinal++;
+            if (!series.IsVisible) continue;
+
+            // X に割り当てた列は Y からは描かない。数値列がそれ 1 本しか
+            // ないテーブルだけは行番号を X にして値の推移を見せる。
+            var isXColumn = series.ColumnIndex == loaded.XColumnIndex;
+            if (isXColumn && loaded.Series.Count > 1) continue;
+
             var xColumn = loaded.Table.Columns[loaded.XColumnIndex];
-            for (var seriesIndex = 0; seriesIndex < loaded.Series.Count; seriesIndex++)
+            var yColumn = loaded.Table.Columns[series.ColumnIndex];
+            var xValues = isXColumn
+                ? Enumerable.Range(1, yColumn.Values.Length).Select(static i => (double)i).ToArray()
+                : xColumn.Values;
+
+            // 変換は系列単位の非破壊適用 → log は表示変換として最後に挟む。
+            var yValues = SeriesTransformer.Apply(yColumn.Values, series.Transform);
+            if (xLog)
             {
-                var series = loaded.Series[seriesIndex];
-                if (!series.IsVisible) continue;
-
-                // X に割り当てた列は Y からは描かない。数値列がそれ 1 本しか
-                // ないテーブルだけは行番号を X にして値の推移を見せる。
-                var isXColumn = series.ColumnIndex == loaded.XColumnIndex;
-                if (isXColumn && loaded.Series.Count > 1) continue;
-
-                var yColumn = loaded.Table.Columns[series.ColumnIndex];
-                var xValues = isXColumn
-                    ? Enumerable.Range(1, yColumn.Values.Length).Select(static i => (double)i).ToArray()
-                    : xColumn.Values;
-
-                // 変換は系列単位の非破壊適用 → log は表示変換として最後に挟む。
-                var yValues = SeriesTransformer.Apply(yColumn.Values, series.Transform);
-                if (xLog)
-                {
-                    xValues = LogAxisHelper.ToLog10(xValues);
-                }
-
-                var seriesLog = series.UseRightAxis ? y2Log : yLog;
-                if (seriesLog)
-                {
-                    yValues = LogAxisHelper.ToLog10(yValues);
-                }
-
-                var (xs, ys) = ExtractFinitePairs(xValues, yValues);
-                if (xs.Length == 0) continue;
-
-                items.Add(new RenderItem
-                {
-                    Xs = xs,
-                    Ys = ys,
-                    Style = series.Style,
-                    AutoColorIndex = GetSeriesAutoColorIndex(tableIndex, seriesIndex),
-                    ChartType = series.ChartType,
-                    UseRightAxis = series.UseRightAxis,
-                    LegendText = GetSeriesLegendText(loaded, series),
-                    ColumnName = series.ColumnName,
-                });
+                xValues = LogAxisHelper.ToLog10(xValues);
             }
+
+            var seriesLog = series.UseRightAxis ? y2Log : yLog;
+            if (seriesLog)
+            {
+                yValues = LogAxisHelper.ToLog10(yValues);
+            }
+
+            var (xs, ys) = ExtractFinitePairs(xValues, yValues);
+            if (xs.Length == 0) continue;
+
+            items.Add(new RenderItem
+            {
+                Xs = xs,
+                Ys = ys,
+                Style = series.Style,
+                AutoColorIndex = autoColorIndex,
+                ChartType = series.ChartType,
+                UseRightAxis = series.UseRightAxis,
+                LegendText = GetSeriesLegendText(loaded, series),
+                ColumnName = series.ColumnName,
+            });
         }
 
         // 2) 棒系列は Excel 風に幅を詰めて横並び (ドッジ) させる。カテゴリ幅は
@@ -1509,16 +1537,11 @@ public partial class MainWindow : Window, IPortalFileOpener
     }
 
     private string GetSeriesLegendText(LoadedTable table, SeriesState series)
-    {
-        if (!string.IsNullOrWhiteSpace(series.Style.LegendName))
-        {
-            return series.Style.LegendName!.Trim();
-        }
-
-        return _loadedTables.Count == 1
-            ? series.ColumnName
-            : $"{table.DisplayName}: {series.ColumnName}";
-    }
+        => SeriesLegendTextResolver.Resolve(
+            series.Style.LegendName,
+            series.ColumnName,
+            table.DisplayName,
+            multipleTablesLoaded: _loadedTables.Count > 1);
 
     private ScottPlot.Color ResolveSeriesColor(AnalysisSessionStyle style, int autoColorIndex)
     {

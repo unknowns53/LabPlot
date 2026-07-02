@@ -97,9 +97,11 @@ public partial class MainWindow : Window, IPortalFileOpener
         public SolidColorBrush ColorBrush { get; init; } = new(Colors.Gray);
     }
 
-    /// <summary>「系列」セクションのフラット一覧 1 行ぶんの表示状態。CheckBox の
-    /// TwoWay CompiledBinding が IsVisible / UseRightAxis に書き戻し、Click
-    /// ハンドラが SeriesState へ反映する。INotifyPropertyChanged にしているのは
+    /// <summary>「系列」セクションのフラット一覧 1 行ぶんの表示状態。IsVisible
+    /// チェックボックスは TwoWay CompiledBinding + Click ハンドラで SeriesState
+    /// へ反映する。UseRightAxis は行では読み取り専用のバッジ表示にのみ使い、
+    /// 割り当ての変更はスタイルパネルの RightAxisCheckBox (RightAxisCheckBox_Click)
+    /// が担う。INotifyPropertyChanged にしているのは
     /// 色・表示名の変更をコレクション再構築なしで反映するため (選択保持と
     /// 将来のインライン編集フォーカス保持のため)。</summary>
     public sealed class SeriesListRowVm : INotifyPropertyChanged
@@ -808,16 +810,6 @@ public partial class MainWindow : Window, IPortalFileOpener
         state.IsVisible = checkBox.IsChecked == true;
         row.IsVisible = state.IsVisible;
         RefreshTableEntries();
-        RefreshPlot();
-    }
-
-    private void SeriesRightAxisCheckBox_Click(object? sender, RoutedEventArgs e)
-    {
-        if (_suppressSeriesListEvents) return;
-        if (sender is not CheckBox { Tag: SeriesListRowVm { State: { } state } row } checkBox) return;
-
-        state.UseRightAxis = checkBox.IsChecked == true;
-        row.UseRightAxis = state.UseRightAxis;
         RefreshPlot();
     }
 
@@ -1600,6 +1592,27 @@ public partial class MainWindow : Window, IPortalFileOpener
         RefreshPlot();
     }
 
+    /// <summary>選択中系列全件の右軸割り当てを一括切替する。UseRightAxis は
+    /// AnalysisSessionStyle ではなく SeriesState 側のプロパティなので
+    /// ApplySeriesStyleEditToSelection は使わず、色や種別の一括適用と同型の
+    /// ループを直接書く。行の右軸バッジ表示用に行 VM 側も合わせて更新する。</summary>
+    private void RightAxisCheckBox_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_suppressStyleControlEvents) return;
+        if (_selectedSeriesRows.Count == 0) return;
+
+        var useRightAxis = RightAxisCheckBox.IsChecked == true;
+        foreach (var row in _selectedSeriesRows)
+        {
+            if (row.State is not { } series) continue;
+
+            series.UseRightAxis = useRightAxis;
+            row.UseRightAxis = useRightAxis;
+        }
+
+        RefreshPlot();
+    }
+
     /// <summary>
     /// マーカー必須種別 (Markers / LineMarkers) でサイズ 0 以下のままだと点が
     /// 出ないので既定値へ補正し、入力欄にも反映する。ChartType 切替直後と、
@@ -1654,6 +1667,8 @@ public partial class MainWindow : Window, IPortalFileOpener
                 LineColorPicker.SetHexValue(null);
                 ChartTypeComboBox.SelectedIndex = 0;
                 ChartTypeComboBox.IsEnabled = false;
+                RightAxisCheckBox.IsChecked = false;
+                RightAxisCheckBox.IsEnabled = false;
                 LineWidthTextBox.Text = _formattingConfig.FormatLineWidth();
                 MarkerSizeTextBox.Text = _formattingConfig.FormatMarkerSize();
                 NormalizeCheckBox.IsChecked = false;
@@ -1668,6 +1683,8 @@ public partial class MainWindow : Window, IPortalFileOpener
             LineColorPicker.SetHexValue(series.Style.ColorHex);
             ChartTypeComboBox.SelectedIndex = (int)series.ChartType;
             ChartTypeComboBox.IsEnabled = true;
+            RightAxisCheckBox.IsChecked = series.UseRightAxis;
+            RightAxisCheckBox.IsEnabled = true;
             LineWidthTextBox.Text = series.Style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = series.Style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
             NormalizeCheckBox.IsChecked = series.Transform.Normalize;

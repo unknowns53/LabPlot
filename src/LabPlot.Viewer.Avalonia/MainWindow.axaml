@@ -347,7 +347,8 @@
                                                                         <TextBox Theme="{DynamicResource InputTextBoxStyle}"
                                                                                  Tag="{CompiledBinding}"
                                                                                  IsVisible="{CompiledBinding IsEditing}"
-                                                                                 MinHeight="24"
+                                                                                 Height="24"
+                                                                                 MaxWidth="{CompiledBinding $parent[Panel].Bounds.Width}"
                                                                                  Padding="4,2"
                                                                                  FontSize="12"
                                                                                  VerticalAlignment="Center"
@@ -356,15 +357,21 @@
                                                                                  LostFocus="SeriesNameEditBox_LostFocus"
                                                                                  KeyDown="SeriesNameEditBox_KeyDown" />
                                                                     </Panel>
-                                                                    <CheckBox Grid.Column="4"
-                                                                              Content="右軸"
-                                                                              FontSize="11"
-                                                                              IsChecked="{CompiledBinding UseRightAxis, Mode=TwoWay}"
-                                                                              Tag="{CompiledBinding}"
-                                                                              Click="SeriesRightAxisCheckBox_Click"
-                                                                              ToolTip.Tip="この系列を右 Y 軸 (第 2 軸) に割り当て"
-                                                                              VerticalAlignment="Center"
-                                                                              Margin="6,0,0,0" />
+                                                                    <!-- 右軸の割り当ては行のチェックボックスではなくスタイル
+                                                                         パネル側 (RightAxisCheckBox) で行う。ここには割当中
+                                                                         だけ見える小さいインジケータだけを残す。 -->
+                                                                    <Border Grid.Column="4"
+                                                                            CornerRadius="3"
+                                                                            Padding="3,0"
+                                                                            Background="#DBEAFE"
+                                                                            IsVisible="{CompiledBinding UseRightAxis}"
+                                                                            ToolTip.Tip="右 Y 軸 (第 2 軸) に割り当て中"
+                                                                            VerticalAlignment="Center"
+                                                                            Margin="6,0,0,0">
+                                                                        <TextBlock Text="右軸"
+                                                                                   FontSize="10"
+                                                                                   Foreground="#2563EB" />
+                                                                    </Border>
                                                                 </Grid>
                                                             </DataTemplate>
                                                         </ListBox.ItemTemplate>
@@ -449,6 +456,13 @@
                                                 <ComboBoxItem>折れ線＋マーカー</ComboBoxItem>
                                                 <ComboBoxItem>棒グラフ</ComboBoxItem>
                                             </ComboBox>
+
+                                            <CheckBox Name="RightAxisCheckBox"
+                                                      Content="右 Y 軸 (第 2 軸) に割り当て"
+                                                      IsEnabled="False"
+                                                      Margin="0,0,0,10"
+                                                      ToolTip.Tip="選択中の系列を右 Y 軸 (第 2 軸) に割り当て"
+                                                      Click="RightAxisCheckBox_Click" />
 
                                             <TextBlock Text="色"
                                                        Theme="{DynamicResource FieldLabelStyle}" />
@@ -665,7 +679,7 @@
                                                              TextChanged="Y2RangeTextBox_TextChanged" />
                                                 </StackPanel>
                                             </Grid>
-                                            <TextBlock Text="系列を右軸に割り当てるには、系列一覧の「右軸」チェックを使ってください。"
+                                            <TextBlock Text="系列を右軸に割り当てるには、系列スタイルの「右 Y 軸 (第 2 軸) に割り当て」チェックを使ってください。"
                                                        Foreground="#64748B"
                                                        FontSize="11"
                                                        TextWrapping="Wrap"

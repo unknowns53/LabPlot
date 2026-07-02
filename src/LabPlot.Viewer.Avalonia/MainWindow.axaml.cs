@@ -108,6 +108,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         private bool _isVisible;
         private bool _useRightAxis;
         private SolidColorBrush _colorBrush = new(Colors.Gray);
+        private bool _isEditing;
 
         public string DisplayName
         {
@@ -155,6 +156,30 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         /// <summary>ツールチップ用の「ファイル名 / 列名」。</summary>
         public string SourceHint { get; init; } = string.Empty;
+
+        /// <summary>行のインライン rename が編集モード中かどうか。TextBlock⇔TextBox の
+        /// IsVisible トグルを駆動する。</summary>
+        public bool IsEditing
+        {
+            get => _isEditing;
+            set
+            {
+                if (_isEditing == value) return;
+                _isEditing = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsNotEditing));
+            }
+        }
+
+        /// <summary>TextBlock の IsVisible バインディング用 (CompiledBinding は "!" 否定
+        /// 演算子を使わず素直なプロパティを参照する方針に合わせる)。</summary>
+        public bool IsNotEditing => !IsEditing;
+
+        /// <summary>インライン rename の TextBox に最後にプログラムから書き込んだ文字列。
+        /// Avalonia TextBox の遅延 TextChanged echo ("1 文字目だけ動く" バグ) を、
+        /// TextChanged で受け取った値がこれと完全一致するかで判定し skip するために使う。
+        /// UI に出さないので INotifyPropertyChanged 通知は不要。</summary>
+        internal string? LastCommittedEditText { get; set; }
 
         internal LoadedTable? Table { get; init; }
         internal SeriesState? State { get; init; }
@@ -230,6 +255,13 @@ public partial class MainWindow : Window, IPortalFileOpener
     private readonly ObservableCollection<SeriesListRowVm> _seriesListRows = new();
     private readonly List<SeriesListRowVm> _selectedSeriesRows = new();
     private SeriesListRowVm? _activeSeriesRow;
+
+    // インライン rename (Batch 4) 用の状態。suppress フラグはプログラムによる
+    // TextBox.Text 書き換え中に TextChanged ハンドラを黙らせる。snapshot は
+    // Escape でのロールバック用に、編集開始時点の LegendName を 1 件分だけ覚える
+    // (同時に編集できる行は常に 1 件のため 1 変数で足りる)。
+    private bool _suppressInlineRenameEvents;
+    private string? _inlineRenameSnapshot;
 
     // 内部 reorder は GPC と同じく OS DragDrop layer を使わず
     // PointerCapture + 手動位置計算で行う (Avalonia 11.3 の DoDragDrop は
@@ -319,12 +351,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
         else if (e.Key == Key.F2)
         {
-            if (LegendNameTextBox.IsEnabled)
-            {
-                LegendNameTextBox.Focus();
-                LegendNameTextBox.SelectAll();
-            }
-
+            BeginInlineRename(_activeSeriesRow);
             e.Handled = true;
             return;
         }
@@ -659,6 +686,11 @@ public partial class MainWindow : Window, IPortalFileOpener
     /// </summary>
     private void RefreshSeriesList()
     {
+        // 編集中の行がある間はコレクションを再構築しない。Clear() で行 VM を
+        // 作り直すと TextBox のフォーカスと入力中の文字列が破壊されるため
+        // (インライン rename 中は他要因での再構築を止める防御)。
+        if (_seriesListRows.Any(r => r.IsEditing)) return;
+
         _suppressSeriesListEvents = true;
         try
         {
@@ -1363,8 +1395,6 @@ public partial class MainWindow : Window, IPortalFileOpener
                 LineColorPicker.SetHexValue(null);
                 ChartTypeComboBox.SelectedIndex = 0;
                 ChartTypeComboBox.IsEnabled = false;
-                LegendNameTextBox.Text = string.Empty;
-                LegendNameTextBox.IsEnabled = false;
                 LineWidthTextBox.Text = _formattingConfig.FormatLineWidth();
                 MarkerSizeTextBox.Text = _formattingConfig.FormatMarkerSize();
                 NormalizeCheckBox.IsChecked = false;
@@ -1379,8 +1409,6 @@ public partial class MainWindow : Window, IPortalFileOpener
             LineColorPicker.SetHexValue(series.Style.ColorHex);
             ChartTypeComboBox.SelectedIndex = (int)series.ChartType;
             ChartTypeComboBox.IsEnabled = true;
-            LegendNameTextBox.Text = series.Style.LegendName ?? string.Empty;
-            LegendNameTextBox.IsEnabled = true;
             LineWidthTextBox.Text = series.Style.LineWidth.ToString("0.##", CultureInfo.InvariantCulture);
             MarkerSizeTextBox.Text = series.Style.MarkerSize.ToString("0.##", CultureInfo.InvariantCulture);
             NormalizeCheckBox.IsChecked = series.Transform.Normalize;
@@ -1425,20 +1453,163 @@ public partial class MainWindow : Window, IPortalFileOpener
         SchedulePlotRefresh();
     }
 
-    private void LegendNameTextBox_TextChanged(object? sender, TextChangedEventArgs e)
-    {
-        if (_suppressStyleControlEvents) return;
+    // ---------- 系列名インライン rename (一覧表示名=凡例名) ----------
 
-        // 凡例名は意図的に active (末尾選択) 1 件のみへ適用する。複数系列に
-        // 同じ凡例名を付けると凡例上の表示名が重複するだけで有害なため
-        // (Batch 4 のインライン編集への置き換えまでの暫定挙動)。
-        if (ActiveSeries is { } series)
+    /// <summary>行の表示名パネルをダブルタップしたときのハンドラ。Tag から行 VM を
+    /// 取り出し編集を開始する。</summary>
+    private void SeriesNameTextBlock_DoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is not Control { Tag: SeriesListRowVm row }) return;
+
+        BeginInlineRename(row);
+    }
+
+    /// <summary>系列一覧の行コンテナから、インライン編集用 TextBox (Tag に自身の
+    /// 行 VM を持つ) を探す。仮想化オフ (ItemsPanel=StackPanel) なので
+    /// ContainerFromItem は常に安定して非 null を返す。</summary>
+    private TextBox? FindSeriesNameEditBox(SeriesListRowVm row)
+    {
+        if (SeriesListBox.ContainerFromItem(row) is not Control container) return null;
+
+        return container.GetVisualDescendants()
+            .OfType<TextBox>()
+            .FirstOrDefault(tb => ReferenceEquals(tb.Tag, row));
+    }
+
+    /// <summary>系列名のインライン編集を開始する。別行が編集中なら先に確定してから
+    /// 切り替える (同時に 2 行が編集状態になることはない)。</summary>
+    private void BeginInlineRename(SeriesListRowVm? row)
+    {
+        if (row is null) return;
+
+        var currentlyEditing = _seriesListRows.FirstOrDefault(r => r.IsEditing);
+        if (currentlyEditing is not null)
         {
-            DatasetStyleCommit.CommitLegendName(LegendNameTextBox, value => series.Style.LegendName = value);
+            if (ReferenceEquals(currentlyEditing, row)) return;
+            CommitInlineRename(currentlyEditing);
         }
 
-        RefreshSelectedSeriesListRowVisuals();
+        // ダブルクリックで未選択の行から編集を始めた場合は、その行を単一選択にする
+        // (F2 は常に active = 選択済みの行が対象なのでここは自明に通る)。
+        if (!_selectedSeriesRows.Contains(row))
+        {
+            SeriesListBox.SelectedItems?.Clear();
+            SeriesListBox.SelectedItems?.Add(row);
+        }
+
+        _inlineRenameSnapshot = row.State?.Style.LegendName;
+
+        // 「今見えている名前」(= 一覧の DisplayName = GetSeriesLegendText の結果、
+        // 既定名を含む) を編集対象にする。ユーザーが今見ている文字列をそのまま
+        // 編集する体験にするため、LegendName の生値 (null の場合あり) は使わない。
+        var editText = row.DisplayName;
+
+        _suppressInlineRenameEvents = true;
+        try
+        {
+            row.LastCommittedEditText = editText;
+            row.IsEditing = true;
+
+            if (FindSeriesNameEditBox(row) is { } textBox)
+            {
+                textBox.Text = editText;
+            }
+        }
+        finally
+        {
+            _suppressInlineRenameEvents = false;
+        }
+
+        // Focus/SelectAll はレイアウト・IsVisible の反映後でないと効かないことが
+        // あるため Loaded 優先度まで遅延させる。
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (FindSeriesNameEditBox(row) is { } textBox)
+            {
+                textBox.Focus();
+                textBox.SelectAll();
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>編集を確定する。表示名を GetSeriesLegendText で再計算し、
+    /// スタイルパネルのヘッダ表示も合わせて更新する。</summary>
+    private void CommitInlineRename(SeriesListRowVm row)
+    {
+        if (!row.IsEditing) return;
+
+        row.IsEditing = false;
+        if (row is { State: { } state, Table: { } table })
+        {
+            row.DisplayName = GetSeriesLegendText(table, state);
+        }
+
+        _inlineRenameSnapshot = null;
+        SyncStyleControlsFromSelection();
+    }
+
+    /// <summary>編集を破棄し、開始時点の LegendName へロールバックする
+    /// (タイピング中に凡例へ反映済みの内容も含めて元に戻す)。</summary>
+    private void CancelInlineRename(SeriesListRowVm row)
+    {
+        if (!row.IsEditing) return;
+
+        if (row.State is { } state)
+        {
+            state.Style.LegendName = _inlineRenameSnapshot;
+        }
+
+        row.IsEditing = false;
+        if (row is { State: { } s, Table: { } table })
+        {
+            row.DisplayName = GetSeriesLegendText(table, s);
+        }
+
+        _inlineRenameSnapshot = null;
         SchedulePlotRefresh();
+    }
+
+    private void SeriesNameEditBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_suppressInlineRenameEvents) return;
+        if (sender is not TextBox { Tag: SeriesListRowVm { State: { } state } row } box) return;
+        if (!row.IsEditing) return;
+
+        // Avalonia TextBox の遅延 TextChanged echo 対策: プログラムが直前に書いた
+        // 文字列 (LastCommittedEditText) と完全一致するなら、ユーザー入力ではなく
+        // 遅延 echo と判定して skip する ("1 文字目だけ動く" 既知バグの対策)。
+        if (box.Text == row.LastCommittedEditText) return;
+
+        DatasetStyleCommit.CommitLegendName(box, value => state.Style.LegendName = value);
+        row.LastCommittedEditText = box.Text;
+        SchedulePlotRefresh();
+    }
+
+    private void SeriesNameEditBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox { Tag: SeriesListRowVm row }) return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitInlineRename(row);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CancelInlineRename(row);
+            e.Handled = true;
+        }
+    }
+
+    private void SeriesNameEditBox_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox { Tag: SeriesListRowVm row }) return;
+
+        // Enter/Escape で先に Commit/Cancel 済みなら IsEditing は既に false。
+        // その後にも発生する LostFocus での二重処理を防ぐ。
+        if (!row.IsEditing) return;
+
+        CommitInlineRename(row);
     }
 
     private void StyleNumberTextBox_TextChanged(object? sender, TextChangedEventArgs e)

@@ -326,11 +326,27 @@
                                                                             CornerRadius="2"
                                                                             VerticalAlignment="Center"
                                                                             Margin="6,0,8,0" />
-                                                                    <TextBlock Grid.Column="3"
-                                                                               Text="{CompiledBinding DisplayName}"
-                                                                               ToolTip.Tip="{CompiledBinding SourceHint}"
-                                                                               TextTrimming="CharacterEllipsis"
-                                                                               VerticalAlignment="Center" />
+                                                                    <Panel Grid.Column="3"
+                                                                           Background="Transparent"
+                                                                           Tag="{CompiledBinding}"
+                                                                           DoubleTapped="SeriesNameTextBlock_DoubleTapped">
+                                                                        <TextBlock Text="{CompiledBinding DisplayName}"
+                                                                                   ToolTip.Tip="{CompiledBinding SourceHint}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   IsVisible="{CompiledBinding IsNotEditing}"
+                                                                                   VerticalAlignment="Center" />
+                                                                        <TextBox Theme="{DynamicResource InputTextBoxStyle}"
+                                                                                 Tag="{CompiledBinding}"
+                                                                                 IsVisible="{CompiledBinding IsEditing}"
+                                                                                 MinHeight="24"
+                                                                                 Padding="4,2"
+                                                                                 FontSize="12"
+                                                                                 VerticalAlignment="Center"
+                                                                                 ToolTip.Tip="Enter で確定 / Escape で取り消し"
+                                                                                 TextChanged="SeriesNameEditBox_TextChanged"
+                                                                                 LostFocus="SeriesNameEditBox_LostFocus"
+                                                                                 KeyDown="SeriesNameEditBox_KeyDown" />
+                                                                    </Panel>
                                                                     <CheckBox Grid.Column="4"
                                                                               Content="右軸"
                                                                               FontSize="11"
@@ -460,13 +476,11 @@
                                                 </controls:ColorPickerPanel.Presets>
                                             </controls:ColorPickerPanel>
 
-                                            <TextBlock Text="凡例名"
-                                                       Theme="{DynamicResource FieldLabelStyle}" />
-                                            <TextBox Name="LegendNameTextBox"
-                                                     Theme="{DynamicResource InputTextBoxStyle}"
-                                                     Margin="0,0,0,10"
-                                                     ToolTip.Tip="凡例名を編集（F2 でフォーカス）"
-                                                     TextChanged="LegendNameTextBox_TextChanged" />
+                                            <TextBlock Text="凡例名は一覧の系列名をダブルクリック（または F2）で編集できます"
+                                                       FontSize="11"
+                                                       Foreground="#64748B"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
 
                                             <Grid ColumnDefinitions="*,8,*">
                                                 <StackPanel Grid.Column="0">

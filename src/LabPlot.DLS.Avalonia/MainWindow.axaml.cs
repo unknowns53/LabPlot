@@ -68,6 +68,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
     private GraphFormattingConfig _formattingDefaults = GraphFormattingConfig.CreateFactoryDefault();
     private AvaPlot? _plot;
     private LegendDragController? _legendDragController;
+    private PlotFastModeController? _plotFastModeController;
 
     // GPC PR #12 と同パターン: 直近の Plot 描画で追加した plottable を追跡し、
     // 次回 refresh のときに `Plot.Clear()` で全体リセットする代わりに、ここに
@@ -143,6 +144,12 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
                 () => (_formattingConfig.LegendOffsetX, _formattingConfig.LegendOffsetY),
                 OnLegendDragCommit);
             _legendDragController.Attach();
+
+            // パン / ホイールズーム操作中だけ AA を切って描画を軽くする。
+            _plotFastModeController = new PlotFastModeController(
+                _plot,
+                () => _plottablePool);
+            _plotFastModeController.Attach();
 
             ApplyFormattingConfigToControls(_formattingConfig);
             SyncStyleControlsFromActiveItem();

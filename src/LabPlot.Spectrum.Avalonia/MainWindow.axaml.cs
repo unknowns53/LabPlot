@@ -1153,7 +1153,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
             if (warnings.Count == 0)
             {
-                SetStatus($"解析条件を読み込みました: {path}", false);
+                SetStatus($"解析条件を読み込みました: {Path.GetFileName(path)}", false);
             }
             else
             {
@@ -1361,6 +1361,8 @@ public partial class MainWindow : Window, IPortalFileOpener
                 () => _spectrumPlot!.Plot.GetPlottables());
             _plotFastModeController.Attach();
 
+            PlotContextMenu.Apply(_spectrumPlot, () => SaveGraphButton_Click(this, new RoutedEventArgs()));
+
             // Permanent handlers driving edge-resize for existing integration regions.
             _spectrumPlot.AddHandler(PointerMovedEvent, IntegrationResize_PointerMoved, RoutingStrategies.Tunnel);
             _spectrumPlot.AddHandler(PointerPressedEvent, IntegrationResize_PointerPressed, RoutingStrategies.Tunnel);
@@ -1408,10 +1410,15 @@ public partial class MainWindow : Window, IPortalFileOpener
         // というゴースト描画になる。DLS 版に揃える (GPC も同 fix を入れている)。
         _spectrumPlot.Plot.Clear();
 
-        _spectrumPlot.Plot.Title(DefaultLabels.PlaceholderTitle);
-        _spectrumPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
-        _spectrumPlot.Plot.YLabel(DefaultLabels.PlaceholderYLabel);
+        // 既定でタイトル無し — 「Spectrum」の固定タイトルは書式パネル上部の
+        // ペインヘッダと二重に見えるため、ユーザーが書式パネルのタイトル欄に
+        // 入力した場合のみ表示する (ApplyTitleStyle が空文字を自動的に隠す)。
+        _spectrumPlot.Plot.Title(GetGraphTitle(string.Empty));
+        _spectrumPlot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.WavelengthXLabel));
+        _spectrumPlot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.AbsorbanceYLabel));
         _spectrumPlot.Plot.Axes.NumericTicksBottom();
+        _spectrumPlot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+        _spectrumPlot.Plot.Axes.SetLimits(200, 800, 0, 1);
         ApplyPlotAppearance();
         _spectrumPlot.Refresh();
     }
@@ -2297,9 +2304,21 @@ public partial class MainWindow : Window, IPortalFileOpener
         SyncAxisInputsFromPlot();
     }
 
-    private void SyncAxisInputsFromPlot()
+    private void AxisRangePanel_CaptureCurrentRangeRequested(object? sender, EventArgs e)
     {
-        if (_spectrumPlot is null) return;
+        if (_suppressGraphAppearanceEvents) return;
+        if (_currentDataset is null) return;
+        // SetXValues / SetYValues は commit を抑止して書き込むだけなので、
+        // 手動範囲の適用経路 (PlotCurrentDataset) を明示的に流して欄とプロットを揃える。
+        if (SyncAxisInputsFromPlot())
+        {
+            PlotCurrentDataset();
+        }
+    }
+
+    private bool SyncAxisInputsFromPlot()
+    {
+        if (_spectrumPlot is null) return false;
 
         var limits = _spectrumPlot.Plot.Axes.GetLimits();
         AxisRangePanel.SetXValues(
@@ -2308,6 +2327,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         AxisRangePanel.SetYValues(
             double.IsFinite(limits.Bottom) ? limits.Bottom : null,
             double.IsFinite(limits.Top) ? limits.Top : null);
+        return double.IsFinite(limits.Left) && double.IsFinite(limits.Right)
+            && double.IsFinite(limits.Bottom) && double.IsFinite(limits.Top);
     }
 
     private void PeakAssignmentCheckBox_Changed(object? sender, RoutedEventArgs e)

@@ -151,6 +151,8 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
                 () => _plottablePool);
             _plotFastModeController.Attach();
 
+            PlotContextMenu.Apply(_plot, () => _ = SaveGraphAsync());
+
             ApplyFormattingConfigToControls(_formattingConfig);
             SyncStyleControlsFromActiveItem();
             _selectedMode = DistributionModeFromTag(_formattingConfig.DefaultDistributionMode);
@@ -247,7 +249,10 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
         PlotPlaceholder.SetState(PlotPlaceholderTextBlock, PlotPlaceholder.State.EmptyReady);
 
         ClearPlottablePool();
-        _plot.Plot.Title(GetGraphTitle(DefaultLabels.GetPlotTypeLabel(_selectedMode)));
+        // 既定でタイトル無し — モード名 (例: "Particle Size Distribution") を
+        // 自動表示すると、書式パネル上部のペインヘッダと二重に見えるため、
+        // ユーザーが書式パネルのタイトル欄に入力した場合のみ表示する。
+        _plot.Plot.Title(GetGraphTitle(string.Empty));
         _plot.Plot.XLabel(GetGraphLabel(XLabelTextBox, DefaultLabels.GetDefaultXLabel(_selectedMode)));
         _plot.Plot.YLabel(GetGraphLabel(YLabelTextBox, DefaultLabels.GetModeLabel(_selectedMode)));
         ApplyLogXTicksForMode(_selectedMode);
@@ -455,12 +460,12 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
             Title = $"DLS Analyzer — {fileNameOnly}";
             DatasetCountText.Text = _datasets.Count == 0
                 ? "粒径分布シートが見つかりませんでした"
-                : $"{_datasets.Count} シート読み込み済み（{Path.GetFileName(filePath)}）";
+                : $"{_datasets.Count} シート読み込み済み（{fileNameOnly}）";
 
             HideError();
             SetStatus(_datasets.Count == 0
-                ? $"粒径分布シートが見つかりませんでした: {filePath}"
-                : $"{_datasets.Count} シートを読み込みました: {filePath}");
+                ? $"粒径分布シートが見つかりませんでした: {fileNameOnly}"
+                : $"{_datasets.Count} シートを読み込みました: {fileNameOnly}");
 
             // Notify AnalysisWindow before SelectionChanged fires so the child
             // refreshes its result panels with the new dataset list.
@@ -1437,6 +1442,39 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
     {
         if (!IsInitialized) return;
         if (_suppressFormattingEvents) return;
+        _formattingConfig = CaptureFormattingConfigFromControls();
+        RefreshPlot();
+    }
+
+    private void AxisRangePanel_CaptureCurrentRangeRequested(object? sender, EventArgs e)
+    {
+        if (!IsInitialized) return;
+        if (_suppressFormattingEvents) return;
+        if (_plot is null || _selectedDatasets.Count == 0) return;
+
+        // 軸範囲欄は粒径 (nm) / % 前提。相関関数・温度ランプ・濃度シリーズでは
+        // X 軸の単位が異なり手動範囲の適用対象外なので取り込まない。
+        if (_selectedMode is DistributionMode.Correlation
+            or DistributionMode.TemperatureRamp
+            or DistributionMode.ConcentrationSeries)
+        {
+            Toast?.Show("軸範囲欄は粒径分布プロット専用のため、このモードでは取り込めません", StatusSeverity.Warning);
+            return;
+        }
+
+        var limits = _plot.Plot.Axes.GetLimits();
+        if (!double.IsFinite(limits.Left) || !double.IsFinite(limits.Right) || limits.Left >= limits.Right
+            || !double.IsFinite(limits.Bottom) || !double.IsFinite(limits.Top) || limits.Bottom >= limits.Top)
+        {
+            return;
+        }
+
+        // 粒径分布のプロット X 座標は log10(nm) なので Pow10 で実寸へ戻す
+        // (ApplyPlotAppearance の Manual 適用が Log10 する逆変換)。
+        AxisRangePanel.SetXValues(Math.Pow(10, limits.Left), Math.Pow(10, limits.Right));
+        AxisRangePanel.SetYValues(limits.Bottom, limits.Top);
+
+        // 手動 commit と同じ経路で config へ反映して欄とプロットを揃える。
         _formattingConfig = CaptureFormattingConfigFromControls();
         RefreshPlot();
     }

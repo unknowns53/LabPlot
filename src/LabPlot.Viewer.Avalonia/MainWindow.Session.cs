@@ -238,7 +238,7 @@ public partial class MainWindow
         {
             var session = _sessionStore.Load(path);
             await ApplyAnalysisSessionAsync(session);
-            SetStatus($"表示条件を読み込みました: {path}", StatusSeverity.Success);
+            SetStatus($"表示条件を読み込みました: {Path.GetFileName(path)}", StatusSeverity.Success);
             Toast?.Show("表示条件を読み込みました", StatusSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException)

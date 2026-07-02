@@ -436,7 +436,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         if (!File.Exists(path))
         {
-            SetStatus($"既定の較正曲線が見つかりませんでした: {path}", true);
+            SetStatus($"既定の較正曲線が見つかりませんでした: {Path.GetFileName(path)}", true);
             return;
         }
 
@@ -448,7 +448,7 @@ public partial class MainWindow : Window, IPortalFileOpener
             CalibrationPathTextBlock.Text = $"較正曲線: {path}";
             PopulateSolventComboBox();
             UpdateMolecularWeightAvailability();
-            SetStatus($"既定の較正曲線を読み込みました: {path}", false);
+            SetStatus($"既定の較正曲線を読み込みました: {Path.GetFileName(path)}", false);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or JsonException)
         {
@@ -1171,7 +1171,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         if (warnings.Count == 0)
         {
-            SetStatus($"解析条件を読み込みました: {path}", false);
+            SetStatus($"解析条件を読み込みました: {Path.GetFileName(path)}", false);
         }
         else
         {
@@ -1556,9 +1556,9 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         // v1.3 Batch K: chip 値はカウントアップアニメで補間表示。数値 parse できない
         // 場合 ("-" など) は NumberCountUp 側でアニメをスキップして即時表示する。
-        ApplyChipValueAnimated(MnChipValue, match.Groups["mn"].Value);
-        ApplyChipValueAnimated(MwChipValue, match.Groups["mw"].Value);
-        ApplyChipValueAnimated(DispersityChipValue, match.Groups["pdi"].Value);
+        ApplyChipValueAnimated(MnChipValue, match.Groups["mn"].Value, v => GpcResultFormat.FormatMolecularWeight(v));
+        ApplyChipValueAnimated(MwChipValue, match.Groups["mw"].Value, v => GpcResultFormat.FormatMolecularWeight(v));
+        ApplyChipValueAnimated(DispersityChipValue, match.Groups["pdi"].Value, v => GpcResultFormat.FormatRatio(v));
 
         if (match.Groups["src"].Success)
         {
@@ -1602,7 +1602,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
 
         var source = statistics.Source == MolecularWeightStatisticsSource.DataFile ? "file" : "calc";
-        SetStatisticsLine($"Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)} ({source})");
+        SetStatisticsLine($"Mn: {GpcResultFormat.FormatMolecularWeight(statistics.Mn)}   Mw: {GpcResultFormat.FormatMolecularWeight(statistics.Mw)}   Ð: {GpcResultFormat.FormatRatio(statistics.Pdi)} ({source})");
         UpdateRepresentativePeakSelector(null);
     }
 
@@ -1699,15 +1699,15 @@ public partial class MainWindow : Window, IPortalFileOpener
         grid.Children.Add(fileName);
 
         // [3] [4] [5] Mn / Mw / Đ chip（コピー可能）。
-        var mnChip = BuildStatChip("Mn", FormatStatistic(stats?.Mn));
+        var mnChip = BuildStatChip("Mn", GpcResultFormat.FormatMolecularWeight(stats?.Mn));
         Grid.SetColumn(mnChip, 3);
         grid.Children.Add(mnChip);
 
-        var mwChip = BuildStatChip("Mw", FormatStatistic(stats?.Mw));
+        var mwChip = BuildStatChip("Mw", GpcResultFormat.FormatMolecularWeight(stats?.Mw));
         Grid.SetColumn(mwChip, 4);
         grid.Children.Add(mwChip);
 
-        var pdiChip = BuildStatChip("Ð", FormatStatistic(stats?.Pdi));
+        var pdiChip = BuildStatChip("Ð", GpcResultFormat.FormatRatio(stats?.Pdi));
         Grid.SetColumn(pdiChip, 5);
         grid.Children.Add(pdiChip);
 
@@ -1846,7 +1846,7 @@ public partial class MainWindow : Window, IPortalFileOpener
             label = $"Peak #{statistics.SelectedPeakId}";
         }
 
-        return $"{label}   Mn: {FormatStatistic(statistics.Mn)}   Mw: {FormatStatistic(statistics.Mw)}   Ð: {FormatStatistic(statistics.Pdi)}";
+        return $"{label}   Mn: {GpcResultFormat.FormatMolecularWeight(statistics.Mn)}   Mw: {GpcResultFormat.FormatMolecularWeight(statistics.Mw)}   Ð: {GpcResultFormat.FormatRatio(statistics.Pdi)}";
     }
 
     private void UpdateRepresentativePeakSelector(MolecularWeightStatistics? statistics)
@@ -1926,15 +1926,17 @@ public partial class MainWindow : Window, IPortalFileOpener
     // v1.3 Batch J: 単一データセット表示時の Mn / Mw / Đ + 代表ピーク名を Tab 区切りで
     // クリップボードへコピーする。重ね描き時は MultiStatisticsScroll 側の各行 chip から
     // 個別 SelectableTextBlock 経由でコピーできるので、ここでは単一表示パスのみ対応。
+    // チップの表示テキスト (MnChipValue.Text 等) は分子量チップ表示専用の桁区切り整数書式に
+    // なっているため読み取らず、_currentStatistics の生値を従来どおりの書式で整形する。
     private async void CopyStatisticsButton_Click(object? sender, RoutedEventArgs e)
     {
         var peakLabel = string.IsNullOrWhiteSpace(StatisticsPeakLabel.Text) ? "(代表ピーク)" : StatisticsPeakLabel.Text;
         var lines = new[]
         {
             $"ピーク\t{peakLabel}",
-            $"Mn\t{MnChipValue.Text}",
-            $"Mw\t{MwChipValue.Text}",
-            $"Ð\t{DispersityChipValue.Text}",
+            $"Mn\t{GpcResultFormat.FormatRatio(_currentStatistics?.Mn)}",
+            $"Mw\t{GpcResultFormat.FormatRatio(_currentStatistics?.Mw)}",
+            $"Ð\t{GpcResultFormat.FormatRatio(_currentStatistics?.Pdi)}",
         };
         await CopyResultLinesAsync("分子量統計", lines);
     }
@@ -1975,11 +1977,11 @@ public partial class MainWindow : Window, IPortalFileOpener
         var pieces = new List<string> { $"Peak #{peak.PeakId}" };
         if (peak.Mw.HasValue && double.IsFinite(peak.Mw.Value))
         {
-            pieces.Add($"Mw {FormatStatistic(peak.Mw)}");
+            pieces.Add($"Mw {GpcResultFormat.FormatMolecularWeight(peak.Mw)}");
         }
         if (peak.Percent.HasValue && double.IsFinite(peak.Percent.Value))
         {
-            pieces.Add($"{FormatStatistic(peak.Percent)}%");
+            pieces.Add($"{GpcResultFormat.FormatRatio(peak.Percent)}%");
         }
         return string.Join("   ", pieces);
     }
@@ -1991,31 +1993,15 @@ public partial class MainWindow : Window, IPortalFileOpener
             : int.MaxValue;
     }
 
-    private static string FormatStatistic(double? value)
+    // v1.3 Batch K: NumberCountUp で中間フレームを描くときに使う formatter。呼び出し側が
+    // Mn/Mw (分子量: GpcResultFormat.FormatMolecularWeight) と Đ (比率: GpcResultFormat.FormatRatio)
+    // のどちらを使うか指定する。
+    private static void ApplyChipValueAnimated(TextBlock target, string newText, Func<double, string> formatter)
     {
-        if (!value.HasValue || !double.IsFinite(value.Value)) return "-";
-        return FormatChipValue(value.Value);
-    }
-
-    // v1.3 Batch K: NumberCountUp で中間フレームを描くときに使う formatter。
-    // FormatStatistic と桁数 / 表記の規約を完全に揃えてある (0.### or 0.###E+0)。
-    private static string FormatChipValue(double value)
-    {
-        var absoluteValue = Math.Abs(value);
-        if (absoluteValue <= double.Epsilon) return "0";
-        if (absoluteValue is >= 0.01 and < 10000)
-        {
-            return value.ToString("0.###", CultureInfo.InvariantCulture);
-        }
-        return value.ToString("0.###E+0", CultureInfo.InvariantCulture);
-    }
-
-    private static void ApplyChipValueAnimated(TextBlock target, string newText)
-    {
-        if (double.TryParse(newText, NumberStyles.Float, CultureInfo.InvariantCulture, out var toValue)
+        if (double.TryParse(newText, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var toValue)
             && double.IsFinite(toValue))
         {
-            NumberCountUp.Animate(target, toValue, FormatChipValue);
+            NumberCountUp.Animate(target, toValue, formatter);
         }
         else
         {
@@ -2797,12 +2783,23 @@ public partial class MainWindow : Window, IPortalFileOpener
         SyncAxisInputsFromPlot();
     }
 
-    private void SyncAxisInputsFromPlot()
+    private void AxisRangePanel_CaptureCurrentRangeRequested(object? sender, EventArgs e)
     {
-        if (_chromatogramPlot is null || _currentDataset is null) return;
+        if (_suppressGraphAppearanceEvents) return;
+        // SetXValues / SetYValues は commit を抑止して書き込むだけなので、
+        // 手動範囲の適用経路 (PlotCurrentDataset) を明示的に流して欄とプロットを揃える。
+        if (SyncAxisInputsFromPlot())
+        {
+            PlotCurrentDataset();
+        }
+    }
+
+    private bool SyncAxisInputsFromPlot()
+    {
+        if (_chromatogramPlot is null || _currentDataset is null) return false;
 
         var limits = _chromatogramPlot.Plot.Axes.GetLimits();
-        if (!IsFiniteRange(limits.Left, limits.Right) || !IsFiniteRange(limits.Bottom, limits.Top)) return;
+        if (!IsFiniteRange(limits.Left, limits.Right) || !IsFiniteRange(limits.Bottom, limits.Top)) return false;
 
         var xIsMolecularWeight = MolecularWeightCheckBox.IsChecked == true && _selectedCalibrationCurve is not null;
         var xMin = xIsMolecularWeight ? Math.Pow(10, limits.Left) : limits.Left;
@@ -2810,6 +2807,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         AxisRangePanel.SetXValues(xMin, xMax);
         AxisRangePanel.SetYValues(limits.Bottom, limits.Top);
+        return true;
     }
 
     private static bool IsFiniteRange(double min, double max)

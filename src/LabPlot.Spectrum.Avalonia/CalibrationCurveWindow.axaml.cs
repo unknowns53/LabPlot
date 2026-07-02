@@ -67,6 +67,10 @@ public partial class CalibrationCurveWindow : Window
         // 自動適用されないので個別に呼ぶ。
         WindowAppearance.ApplyDefaults(this);
 
+        // このウィンドウ専用の保存フローが無いので、右クリック「画像を保存...」は
+        // ScottPlot 既定の保存ダイアログにフォールバックする。
+        PlotContextMenu.Apply(CalibrationPlotHost);
+
         _availableRegions = availableRegions;
         _regionByLabel = availableRegions
             .Where(r => !string.IsNullOrWhiteSpace(r.Label))

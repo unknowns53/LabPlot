@@ -22,6 +22,14 @@ public static class DefaultLabels
     public const string TransmittanceYLabel = "Transmittance [%]";
 
     /// <summary>
+    /// X axis label shown by the empty-plot preset. Matches the wording a
+    /// loaded UV-Vis wavelength scan uses once <see cref="SourceLabelOverrides"/>
+    /// has normalized the JCAMP-DX XUNITS string, so the placeholder axis
+    /// reads the same as the real one once a file is opened.
+    /// </summary>
+    public const string WavelengthXLabel = "Wavelength [nm]";
+
+    /// <summary>
     /// Rewrite table applied to axis labels derived from the source file
     /// (the JCAMP-DX XUNITS / YUNITS strings after JascoSpectrumReader's
     /// AxisLabelMapper has translated them to display form). When the

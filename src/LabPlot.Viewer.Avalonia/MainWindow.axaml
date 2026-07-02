@@ -731,7 +731,8 @@
                                                                  XAxisLabel="X"
                                                                  YAxisLabel="Y"
                                                                  NumberFormat="G6"
-                                                                 AxisRangeCommitted="AxisRangePanel_Committed" />
+                                                                 AxisRangeCommitted="AxisRangePanel_Committed"
+                                                                 CaptureCurrentRangeRequested="AxisRangePanel_CaptureCurrentRangeRequested" />
                                     </Expander>
                                 </Border>
 

@@ -44,11 +44,18 @@
             </StackPanel>
         </Grid>
 
+        <Button Name="CaptureRangeButton"
+                Content="表示中の範囲を取り込む"
+                Theme="{DynamicResource SecondaryButtonStyle}"
+                HorizontalAlignment="Stretch"
+                Margin="0,10,0,0"
+                Click="CaptureRangeButton_Click"
+                ToolTip.Tip="ズーム / パンで表示中のプロット範囲を最小・最大欄へ書き込んで固定します" />
         <Button Name="AutoRangeButton"
                 Content="自動範囲に戻す"
                 Theme="{DynamicResource SecondaryButtonStyle}"
                 HorizontalAlignment="Stretch"
-                Margin="0,10,0,0"
+                Margin="0,8,0,0"
                 Click="AutoRangeButton_Click"
                 ToolTip.Tip="X / Y の最小・最大値を空欄に戻して自動範囲で表示します (Ctrl+R)" />
     </StackPanel>

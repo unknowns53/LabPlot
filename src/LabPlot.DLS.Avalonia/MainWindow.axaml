@@ -457,7 +457,9 @@
                                         <controls:AxisRangePanel Name="AxisRangePanel"
                                                                  XAxisLabel="粒径軸 (nm)"
                                                                  YAxisLabel="Y 軸 (%)"
+                                                                 NumberFormat="G6"
                                                                  AxisRangeCommitted="AxisRangePanel_Committed"
+                                                                 CaptureCurrentRangeRequested="AxisRangePanel_CaptureCurrentRangeRequested"
                                                                  Margin="0,8,0,0" />
                                     </Expander>
                                 </Border>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using GpcAnalyzer.Core;
 using LabPlot.Core;
 using LabPlot.Core.Avalonia.Helpers;
@@ -43,6 +44,8 @@ public partial class MainWindow
                 () => _scatterPool);
             _plotFastModeController.Attach();
 
+            PlotContextMenu.Apply(_chromatogramPlot, () => SaveGraphButton_Click(this, new RoutedEventArgs()));
+
             UpdatePlotHostAspectRatio();
             // 初期化成功時点でスケルトンを消す。placeholder TextBlock の文言は
             // InitializeEmptyPlot で SetState(EmptyReady) に切り替わる。
@@ -81,6 +84,10 @@ public partial class MainWindow
         _chromatogramPlot.Plot.XLabel(DefaultLabels.PlaceholderXLabel);
         _chromatogramPlot.Plot.YLabel(DefaultLabels.PlaceholderYLabel);
         _chromatogramPlot.Plot.Axes.NumericTicksBottom();
+        _chromatogramPlot.Plot.Axes.Left.TickGenerator = new ScottPlot.TickGenerators.NumericAutomatic();
+        // 空状態でも GPC ドメインらしい軸範囲にする (R.Time 0-30 min / Intensity 0-10 mV)。
+        // ScottPlot の既定 (-10..10) は無意味な負象限を含むため差し替える。
+        _chromatogramPlot.Plot.Axes.SetLimits(0, 30, 0, 10);
         ApplyPlotAppearance();
         UpdateStatisticsText(null);
         _chromatogramPlot.Refresh();

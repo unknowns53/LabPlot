@@ -42,7 +42,11 @@
             <Setter Property="Margin" Value="6" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <!-- 内容 (アイコン+タイトル+説明2行) がカード高さに対して小さく、Stretch だと
+                 下半分が空白になっていた。Center にして内側 Grid を Auto,Auto 化 (下記
+                 各カード) することで、上下の余白を均等に割り、体感の空白を圧縮する。
+                 カード枠自体のサイズ (Margin/Padding/UniformGrid) は変えない最小手。 -->
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Template">
                 <ControlTemplate TargetType="Button">
                     <Border Name="CardBorder"
@@ -51,6 +55,13 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8"
                             BoxShadow="0 1 6 0 #0D0F172A">
+                        <Border.Transitions>
+                            <Transitions>
+                                <BrushTransition Property="Background" Duration="0:0:0.15" />
+                                <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                                <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.15" />
+                            </Transitions>
+                        </Border.Transitions>
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           Margin="{TemplateBinding Padding}" />
@@ -60,15 +71,24 @@
 
             <!-- IsMouseOver / IsPressed / IsKeyboardFocused / IsEnabled の WPF Trigger を
                  Avalonia の擬似クラス Selector に置換。/template/ で ControlTemplate
-                 内の Border#CardBorder を狙い撃つ。 -->
+                 内の Border#CardBorder を狙い撃つ。枠線色変化に加えて背景の薄い
+                 アクセント tint と BoxShadow の強弱で「浮き上がる/沈む」を表現する。
+                 :focus ではなく :focus-visible にして、Tab キー操作時にのみホバー同等の
+                 フィードバックを出す (マウスクリック後の残留フォーカスと区別する)。 -->
             <Style Selector="^:pointerover /template/ Border#CardBorder">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                <Setter Property="Background" Value="#F5F9FF" />
+                <Setter Property="BoxShadow" Value="0 3 12 0 #1F0F172A" />
             </Style>
             <Style Selector="^:pressed /template/ Border#CardBorder">
-                <Setter Property="Background" Value="#F0F7FF" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}" />
+                <Setter Property="Background" Value="#E3EEFF" />
+                <Setter Property="BoxShadow" Value="0 1 2 0 #140F172A" />
             </Style>
-            <Style Selector="^:focus /template/ Border#CardBorder">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Style Selector="^:focus-visible /template/ Border#CardBorder">
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                <Setter Property="Background" Value="#F5F9FF" />
+                <Setter Property="BoxShadow" Value="0 3 12 0 #1F0F172A" />
             </Style>
             <Style Selector="^:disabled /template/ Border#CardBorder">
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentDisabledBrush}" />
@@ -131,12 +151,14 @@
             <Setter Property="Padding" Value="14" />
         </ControlTheme>
 
-        <!-- 最近開いたファイル一行ボタン。card より情報密度が高いので、低 chrome の
-             "Hover で薄水色" だけにする。クリックで該当モジュールを起動 + ファイル open。 -->
+        <!-- 最近開いたファイル一行ボタン。card より情報密度が高いので枠線は常時透明の
+             1px を予約しておき (レイアウトジャンプ防止)、Hover/Pressed/フォーカス時に
+             BorderBrush と Background tint をカードと同じ濃淡関係 (hover 薄tint →
+             pressed 濃tint) で切り替える。クリックで該当モジュールを起動 + ファイル open。 -->
         <ControlTheme x:Key="RecentFileRowStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Padding" Value="10,8" />
@@ -146,8 +168,16 @@
                 <ControlTemplate TargetType="Button">
                     <Border Name="RowBorder"
                             Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="6"
                             Padding="{TemplateBinding Padding}">
+                        <Border.Transitions>
+                            <Transitions>
+                                <BrushTransition Property="Background" Duration="0:0:0.15" />
+                                <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                            </Transitions>
+                        </Border.Transitions>
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           HorizontalAlignment="Stretch"
@@ -156,10 +186,16 @@
                 </ControlTemplate>
             </Setter>
             <Style Selector="^:pointerover /template/ Border#RowBorder">
-                <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                <Setter Property="Background" Value="#EFF6FF" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
             </Style>
             <Style Selector="^:pressed /template/ Border#RowBorder">
-                <Setter Property="Background" Value="#E0E7FF" />
+                <Setter Property="Background" Value="#D9E7FF" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}" />
+            </Style>
+            <Style Selector="^:focus-visible /template/ Border#RowBorder">
+                <Setter Property="Background" Value="#EFF6FF" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
             </Style>
         </ControlTheme>
     </Window.Resources>
@@ -190,7 +226,7 @@
                             Click="OpenGpc_Click"
                             DragDrop.AllowDrop="True"
                             ToolTip.Tip="GPC クロマトグラム解析&#x0a;（ファイルをここに drop して開く）">
-                        <Grid RowDefinitions="Auto,*">
+                        <Grid RowDefinitions="Auto,Auto">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
                                 <Border Theme="{DynamicResource PortalCardBadgeStyle}">
                                     <Path Theme="{DynamicResource PortalCardIconStyle}"
@@ -211,7 +247,7 @@
                             Click="OpenSpectrum_Click"
                             DragDrop.AllowDrop="True"
                             ToolTip.Tip="UV-Vis スペクトル解析&#x0a;（ファイルをここに drop して開く）">
-                        <Grid RowDefinitions="Auto,*">
+                        <Grid RowDefinitions="Auto,Auto">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
                                 <Border Theme="{DynamicResource PortalCardBadgeStyle}">
                                     <Path Theme="{DynamicResource PortalCardIconStyle}"
@@ -232,7 +268,7 @@
                             Click="OpenDls_Click"
                             DragDrop.AllowDrop="True"
                             ToolTip.Tip="DLS 粒径分布解析&#x0a;（ファイルをここに drop して開く）">
-                        <Grid RowDefinitions="Auto,*">
+                        <Grid RowDefinitions="Auto,Auto">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
                                 <Border Theme="{DynamicResource PortalCardBadgeStyle}">
                                     <Path Theme="{DynamicResource PortalCardIconStyle}"
@@ -253,7 +289,7 @@
                             Click="OpenViewer_Click"
                             DragDrop.AllowDrop="True"
                             ToolTip.Tip="汎用データビューア&#x0a;（ファイルをここに drop して開く）">
-                        <Grid RowDefinitions="Auto,*">
+                        <Grid RowDefinitions="Auto,Auto">
                             <StackPanel Grid.Row="0" Orientation="Horizontal">
                                 <Border Theme="{DynamicResource PortalCardBadgeStyle}">
                                     <Path Theme="{DynamicResource PortalCardIconStyle}"

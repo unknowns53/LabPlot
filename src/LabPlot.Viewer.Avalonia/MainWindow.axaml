@@ -372,6 +372,13 @@
 
                                             <Border Height="1" Background="#E2E8F0" Margin="0,12,0,10" />
 
+                                            <TextBlock Name="SeriesStyleBulkHintLabel"
+                                                       FontSize="11"
+                                                       Foreground="#64748B"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,8"
+                                                       IsVisible="False" />
+
                                             <TextBlock Text="グラフ種別"
                                                        Theme="{DynamicResource FieldLabelStyle}" />
                                             <ComboBox Name="ChartTypeComboBox"

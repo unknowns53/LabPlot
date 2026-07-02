@@ -224,9 +224,11 @@ public partial class MainWindow : Window, IPortalFileOpener
     private readonly List<int> _xComboColumnIndexes = new();
 
     // 「系列」セクションのフラット一覧。EnumerateSeriesInDisplayOrder() の
-    // 順序で再構築する (RefreshSeriesList)。選択は現状 0 / 1 件のみ扱う
-    // (複数選択の一括適用は Batch 3)。
+    // 順序で再構築する (RefreshSeriesList)。複数選択に対応し、選択集合全体は
+    // _selectedSeriesRows、スタイルパネルに値を表示する代表 (末尾選択) は
+    // _activeSeriesRow が持つ。
     private readonly ObservableCollection<SeriesListRowVm> _seriesListRows = new();
+    private readonly List<SeriesListRowVm> _selectedSeriesRows = new();
     private SeriesListRowVm? _activeSeriesRow;
 
     // 内部 reorder は GPC と同じく OS DragDrop layer を使わず
@@ -660,7 +662,12 @@ public partial class MainWindow : Window, IPortalFileOpener
         _suppressSeriesListEvents = true;
         try
         {
-            var previousState = _activeSeriesRow?.State;
+            // previousState: 選択集合の全 SeriesState を集めておき、再構築後の行と
+            // 参照突き合わせで再選択する (複数選択保持)。active も同様に SeriesState
+            // 単位で覚えておく。
+            var previousSelectedStates = new HashSet<SeriesState>(
+                _selectedSeriesRows.Where(r => r.State is not null).Select(r => r.State!));
+            var previousActiveState = _activeSeriesRow?.State;
             _seriesListRows.Clear();
 
             foreach (var (table, series) in EnumerateSeriesInDisplayOrder())
@@ -690,17 +697,23 @@ public partial class MainWindow : Window, IPortalFileOpener
 
             // SelectionMode="Multiple" の ListBox は SelectedItem への直接代入だと
             // 選択が安定しないため、DLS の復元処理と同じく SelectedItems の
-            // Clear + Add で選択を組み立てる。
-            var restored = previousState is null
-                ? null
-                : _seriesListRows.FirstOrDefault(row => ReferenceEquals(row.State, previousState));
+            // Clear + Add で選択を組み立てる。選択集合は previousSelectedStates に
+            // 残っている行を全件拾い直す。
+            var restoredRows = _seriesListRows
+                .Where(row => row.State is not null && previousSelectedStates.Contains(row.State))
+                .ToList();
             SeriesListBox.SelectedItems?.Clear();
-            if (restored is not null)
+            _selectedSeriesRows.Clear();
+            foreach (var row in restoredRows)
             {
-                SeriesListBox.SelectedItems?.Add(restored);
+                SeriesListBox.SelectedItems?.Add(row);
+                _selectedSeriesRows.Add(row);
             }
 
-            _activeSeriesRow = restored;
+            var restoredActive = previousActiveState is null
+                ? null
+                : restoredRows.FirstOrDefault(row => ReferenceEquals(row.State, previousActiveState));
+            _activeSeriesRow = restoredActive ?? restoredRows.LastOrDefault();
         }
         finally
         {
@@ -714,11 +727,26 @@ public partial class MainWindow : Window, IPortalFileOpener
     {
         if (_suppressSeriesListEvents) return;
 
-        // このバッチでは選択は 0 / 1 件として扱う (複数選択の一括適用は Batch 3)。
-        // SelectedItems の末尾を採用する規約は Batch 3 の複数選択でも通用する。
-        _activeSeriesRow = SeriesListBox.SelectedItems?
-            .Cast<SeriesListRowVm>()
-            .LastOrDefault();
+        _selectedSeriesRows.Clear();
+        if (SeriesListBox.SelectedItems is { } selectedItems)
+        {
+            _selectedSeriesRows.AddRange(selectedItems.Cast<SeriesListRowVm>());
+        }
+
+        // active (スタイルパネルに値を表示する代表) の決定: このクリックで新しく
+        // 選択に加わった行の末尾を優先する。追加が無い操作 (Shift 範囲縮小や
+        // Ctrl クリックでの選択解除など) では、現 active が選択集合に残っていれば
+        // それを維持し、残っていなければ選択集合の末尾へフォールバックする。
+        var addedTail = e.AddedItems.Cast<SeriesListRowVm>().LastOrDefault();
+        if (addedTail is not null)
+        {
+            _activeSeriesRow = addedTail;
+        }
+        else if (_activeSeriesRow is null || !_selectedSeriesRows.Contains(_activeSeriesRow))
+        {
+            _activeSeriesRow = _selectedSeriesRows.LastOrDefault();
+        }
+
         SyncStyleControlsFromSelection();
     }
 
@@ -744,17 +772,23 @@ public partial class MainWindow : Window, IPortalFileOpener
     }
 
     /// <summary>
-    /// 色・凡例名の変更を、選択中の行 VM の INotifyPropertyChanged 経由で
-    /// 反映する (コレクション再構築だと選択やスクロール位置が壊れるため)。
+    /// 色・凡例名の変更を、選択中の行 VM 全件の INotifyPropertyChanged 経由で
+    /// 反映する (コレクション再構築だと選択やスクロール位置が壊れるため)。色は
+    /// 選択全件の Style が変わり得るので全行のスウォッチを更新する。凡例名は
+    /// active 1 件しか Style を変えないが、他行は再計算しても値が変わらないので
+    /// 呼び出し元での場合分けを避けるためまとめて呼んでよい。
     /// </summary>
-    private void RefreshActiveSeriesListRowVisuals()
+    private void RefreshSelectedSeriesListRowVisuals()
     {
-        if (_activeSeriesRow is not { State: { } state, Table: { } table } row) return;
+        foreach (var row in _selectedSeriesRows)
+        {
+            if (row is not { State: { } state, Table: { } table }) continue;
 
-        var autoIndex = GetSeriesAutoColorIndex(state);
-        var hex = state.Style.ColorHex ?? AutoLineColors[autoIndex % AutoLineColors.Length];
-        row.ColorBrush = new SolidColorBrush(HexToAvaloniaColor(hex));
-        row.DisplayName = GetSeriesLegendText(table, state);
+            var autoIndex = GetSeriesAutoColorIndex(state);
+            var hex = state.Style.ColorHex ?? AutoLineColors[autoIndex % AutoLineColors.Length];
+            row.ColorBrush = new SolidColorBrush(HexToAvaloniaColor(hex));
+            row.DisplayName = GetSeriesLegendText(table, state);
+        }
     }
 
     // ---------- Axis scale (log / 右軸) ----------
@@ -1254,18 +1288,23 @@ public partial class MainWindow : Window, IPortalFileOpener
             ? _loadedTables[_activeTableIndex]
             : null;
 
-    /// <summary>系列一覧で選択中の系列 (0 / 1 件)。複数選択の一括適用は Batch 3。</summary>
+    /// <summary>系列一覧で選択中の系列のうち、スタイルパネルに値を表示する代表
+    /// (末尾選択)。スタイル編集は選択集合全体 (_selectedSeriesRows) へ適用する。</summary>
     private SeriesState? ActiveSeries => _activeSeriesRow?.State;
 
     private void ChartTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_suppressStyleControlEvents) return;
-        if (ActiveSeries is not { } series) return;
+        if (_selectedSeriesRows.Count == 0) return;
 
         var type = (ViewerChartType)Math.Clamp(ChartTypeComboBox.SelectedIndex, 0, 3);
-        series.ChartType = type;
+        foreach (var row in _selectedSeriesRows)
+        {
+            if (row.State is not { } series) continue;
 
-        NormalizeMarkerSizeIfNeeded(series);
+            series.ChartType = type;
+            NormalizeMarkerSizeIfNeeded(series);
+        }
 
         RefreshPlot();
     }
@@ -1303,13 +1342,21 @@ public partial class MainWindow : Window, IPortalFileOpener
         return true;
     }
 
-    /// <summary>選択中系列 (0 / 1 件) の値をスタイル編集パネルへ反映する。
-    /// 未選択時はプレースホルダ値で無効化する。</summary>
+    /// <summary>選択中系列の値をスタイル編集パネルへ反映する。表示は常に
+    /// active (末尾選択) 基準 (混在時の indeterminate 表示はしない)。未選択時は
+    /// プレースホルダ値で無効化する。</summary>
     private void SyncStyleControlsFromSelection()
     {
         _suppressStyleControlEvents = true;
         try
         {
+            var selectionCount = _selectedSeriesRows.Count;
+            SeriesStyleBulkHintLabel.IsVisible = selectionCount >= 2;
+            if (selectionCount >= 2)
+            {
+                SeriesStyleBulkHintLabel.Text = $"変更内容は選択中の {selectionCount} 件すべてに適用されます";
+            }
+
             if (ActiveSeries is not { } series)
             {
                 LineColorPicker.DefaultHex = AutoLineColors[0];
@@ -1339,7 +1386,9 @@ public partial class MainWindow : Window, IPortalFileOpener
             NormalizeCheckBox.IsChecked = series.Transform.Normalize;
             YOffsetTextBox.Text = series.Transform.YOffset.ToString("0.######", CultureInfo.InvariantCulture);
             SmoothingWindowTextBox.Text = series.Transform.SmoothingWindow.ToString(CultureInfo.InvariantCulture);
-            SeriesSelectionSummaryLabel.Text = $"({_activeSeriesRow?.DisplayName})";
+            SeriesSelectionSummaryLabel.Text = selectionCount >= 2
+                ? $"({selectionCount} 件選択中)"
+                : $"({_activeSeriesRow?.DisplayName})";
         }
         finally
         {
@@ -1347,20 +1396,32 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
     }
 
-    private bool ApplySeriesStyleEdit(Action<AnalysisSessionStyle> mutate)
+    /// <summary>選択中の系列全件 (_selectedSeriesRows) の Style へ mutate を適用する。
+    /// 0 件選択時は false を返して呼び出し元に何もさせない。色 / 種別 / 線幅 /
+    /// マーカーサイズはこの一括版を使うが、凡例名 (重複防止のため active 限定) と
+    /// 変換 (スコープ外) はこの経由を使わず active 1 件のみを直接編集する。</summary>
+    private bool ApplySeriesStyleEditToSelection(Action<AnalysisSessionStyle> mutate)
     {
-        if (ActiveSeries is not { } series) return false;
-        mutate(series.Style);
+        if (_selectedSeriesRows.Count == 0) return false;
+
+        foreach (var row in _selectedSeriesRows)
+        {
+            if (row.State is { } series)
+            {
+                mutate(series.Style);
+            }
+        }
+
         return true;
     }
 
     private void LineColorPicker_ColorChanged(object? sender, EventArgs e)
     {
         if (_suppressStyleControlEvents) return;
-        if (!ApplySeriesStyleEdit(style => style.ColorHex = LineColorPicker.HexValue)) return;
+        if (!ApplySeriesStyleEditToSelection(style => style.ColorHex = LineColorPicker.HexValue)) return;
 
         RefreshTableEntries();
-        RefreshActiveSeriesListRowVisuals();
+        RefreshSelectedSeriesListRowVisuals();
         SchedulePlotRefresh();
     }
 
@@ -1368,9 +1429,15 @@ public partial class MainWindow : Window, IPortalFileOpener
     {
         if (_suppressStyleControlEvents) return;
 
-        DatasetStyleCommit.CommitLegendName(LegendNameTextBox, value =>
-            ApplySeriesStyleEdit(style => style.LegendName = value));
-        RefreshActiveSeriesListRowVisuals();
+        // 凡例名は意図的に active (末尾選択) 1 件のみへ適用する。複数系列に
+        // 同じ凡例名を付けると凡例上の表示名が重複するだけで有害なため
+        // (Batch 4 のインライン編集への置き換えまでの暫定挙動)。
+        if (ActiveSeries is { } series)
+        {
+            DatasetStyleCommit.CommitLegendName(LegendNameTextBox, value => series.Style.LegendName = value);
+        }
+
+        RefreshSelectedSeriesListRowVisuals();
         SchedulePlotRefresh();
     }
 
@@ -1380,9 +1447,9 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         var committed = sender == LineWidthTextBox
             ? DatasetStyleCommit.TryCommitPositiveDouble(LineWidthTextBox, value =>
-                ApplySeriesStyleEdit(style => style.LineWidth = value))
+                ApplySeriesStyleEditToSelection(style => style.LineWidth = value))
             : DatasetStyleCommit.TryCommitNonNegativeDouble(MarkerSizeTextBox, value =>
-                ApplySeriesStyleEdit(style => style.MarkerSize = value));
+                ApplySeriesStyleEditToSelection(style => style.MarkerSize = value));
         if (committed)
         {
             SchedulePlotRefresh();
@@ -1392,13 +1459,24 @@ public partial class MainWindow : Window, IPortalFileOpener
     private void MarkerSizeTextBox_LostFocus(object? sender, RoutedEventArgs e)
     {
         if (_suppressStyleControlEvents) return;
-        if (ActiveSeries is not { } series) return;
+        if (_selectedSeriesRows.Count == 0) return;
 
         // MarkerSize に 0 を直接入力したまま編集を終えた場合も、ChartType
         // 切替時と同じ既定値補正を通し、テキストボックス表示と実描画の
         // 食い違いを防ぐ。TextChanged で補正すると "0.5" 入力途中の "0" を
-        // 壊すため、編集確定 (フォーカス喪失) 時にだけ行う。
-        if (NormalizeMarkerSizeIfNeeded(series))
+        // 壊すため、編集確定 (フォーカス喪失) 時にだけ行う。選択全件に対して
+        // 補正するが、テキストボックスへの書き戻しは active 分のみ
+        // (NormalizeMarkerSizeIfNeeded 側のガード) なので表示は崩れない。
+        var normalized = false;
+        foreach (var row in _selectedSeriesRows)
+        {
+            if (row.State is { } series && NormalizeMarkerSizeIfNeeded(series))
+            {
+                normalized = true;
+            }
+        }
+
+        if (normalized)
         {
             SchedulePlotRefresh();
         }

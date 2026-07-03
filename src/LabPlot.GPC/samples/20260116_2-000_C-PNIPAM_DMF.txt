@@ -1,7 +1,7 @@
 [Header]
 Application Name	LabSolutions
 Version	5.92
-Data File Name	D:\sadalab\takasu\20260116_2-000_C-PNIPAM_DMF.lcd
+Data File Name	C:\Samples\20260116_2-000_C-PNIPAM_DMF.lcd
 Output Date	2026/01/16
 Output Time	14:33:42
 

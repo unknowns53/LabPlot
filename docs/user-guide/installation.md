@@ -1,8 +1,8 @@
 # インストール
 
-LabPlot は研究室向けのポータル（カード型ランチャー）と、3 つの解析モジュール（GPC / Spectrum / DLS）を 1 本にまとめた self-contained 実行ファイルとして配布されます。.NET ランタイムを別途インストールする必要はなく、配布物を解凍してダブルクリックすれば起動します。
+LabPlot は研究室向けのポータル（カード型ランチャー）と、3 つの解析モジュール（GPC / Spectrum / DLS）、および汎用データビューア（Data Viewer）を 1 本にまとめた self-contained 実行ファイルとして配布されます。.NET ランタイムを別途インストールする必要はなく、配布物を解凍してダブルクリックすれば起動します。
 
-> 対象: LabPlot v1.2.0（Avalonia 主流版、`LabPlot.Avalonia(.exe)`）
+> 対象: LabPlot v1.4.1（Avalonia 主流版、`LabPlot.Avalonia(.exe)`）
 > 旧 WPF 版（`LabPlot.exe`、Windows 専用 v1.1.0 系）は本ページ末尾の補足を参照してください。
 
 ---
@@ -17,7 +17,7 @@ LabPlot は研究室向けのポータル（カード型ランチャー）と、
 
 .NET ランタイムは配布物に同梱されています。別途のインストールは不要です。
 
-メモリ・ディスク容量は数百 MB 単位の余裕があれば問題ありません（配布物は 100〜200 MB 前後、動作時のメモリ使用量も同程度です）。
+配布物（zip）は 44〜47 MB 程度（win-x64 で約 46 MB）、展開後は約 111 MB です。動作時のメモリ使用量は数百 MB 程度を見込んでおけば問題ありません。
 
 ---
 
@@ -26,16 +26,16 @@ LabPlot は研究室向けのポータル（カード型ランチャー）と、
 リポジトリの GitHub Releases ページから、お使いの OS に合った zip を取得します。
 
 - Releases: <https://github.com/unknowns53/LabPlot/releases>
-- 最新版（v1.2.0）の Windows 向け配布物は `LabPlot-v1.2.0-win-x64.zip` という名前で添付されています。
-- macOS / Linux 向けの zip は必要に応じて配布されます。研究室の管理者から zip が手渡しで配布される運用も想定しています。
+- 配布物は `LabPlot-（バージョン番号）-win-x64.zip` の形式で添付されています。例えば v1.4.1 なら `LabPlot-v1.4.1-win-x64.zip` です。
+- Windows（win-x64）/ macOS（osx-arm64）/ Linux（linux-x64）の 3 種類の zip が毎回添付されます。研究室の管理者から zip が手渡しで配布される運用も想定しています。
 
-zip の中には、ポータル本体（`LabPlot.Avalonia.exe` ほか）、解析モジュール 3 つの DLL、サンプルデータ用フォルダ `samples/`、必要なランタイムファイルが入っています。
+zip の中には、ポータル本体（`LabPlot.Avalonia.exe` ほか）、解析モジュール 3 つと Data Viewer の DLL、サンプルデータ用フォルダ `samples/`、必要なランタイムファイルが入っています。
 
 ---
 
 ## インストール（Windows）
 
-1. 取得した zip（例: `LabPlot-v1.2.0-win-x64.zip`）を任意のフォルダに解凍します。デスクトップでもドキュメントフォルダでも構いません。
+1. 取得した zip（例: `LabPlot-v1.4.1-win-x64.zip`）を任意のフォルダに解凍します。デスクトップでもドキュメントフォルダでも構いません。
 2. 解凍してできたフォルダの中に `LabPlot.Avalonia.exe` があるので、ダブルクリックで起動します。
 3. 初回起動時に SmartScreen の警告（「WindowsによってPCが保護されました」）が出ることがあります。「詳細情報」をクリックしたあと「実行」を選んでください。これは未署名の配布物に対して Windows が出す標準的な警告です。
 
@@ -77,15 +77,16 @@ WSL2 + WSLg（Windows 11 標準）の環境でも GUI が立ち上がります�
 
 ## 起動と動作確認
 
-ダブルクリックで起動すると、540 × 620 のカード型ランチャーが現れます。
+ダブルクリックで起動すると、940 × 540 のカード型ランチャーが現れます。
 
 > （スクリーンショット予定: docs/user-guide/images/portal/00-launcher.png）
 
-カード上の「GPC」「UV-Vis」「DLS」をクリックすると、該当する解析ウィンドウが立ち上がります。各モジュールの操作手順は以下を参照してください。
+カード上の「GPC」「UV-Vis」「DLS」「Viewer」をクリックすると、該当する解析ウィンドウが立ち上がります。各モジュールの操作手順は以下を参照してください。
 
 - [GPC モジュールの使い方](./gpc.md)
 - [Spectrum モジュールの使い方](./spectrum.md)
 - [DLS モジュールの使い方](./dls.md)
+- [Data Viewer モジュールの使い方](./viewer.md)
 
 ポータル自体の細かい挙動（ウィンドウのドラッグ移動、重複起動の抑止など）は [ポータルの使い方](./portal.md) を参照してください。
 
@@ -113,7 +114,7 @@ LabPlot は使用中の例外ログ（`shell-error.log`）と、ユーザーご�
 | Spectrum | `%AppData%\Spectrum_Visualization\formatting_config.json` |
 | DLS | `%AppData%\LabPlot.DLS\formatting_config.json` |
 
-`%AppData%` は Windows では `C:\Users\<ユーザー名>\AppData\Roaming` に解決されます。各モジュールの「既定保存」ボタンを押すと、現在の書式設定がここに書き出されます。次回起動時にも自動的に読み込まれます。macOS / Linux では、各 OS のユーザー設定ディレクトリ配下に同じ階層で保存されます。
+`%AppData%` は Windows では `C:\Users\<ユーザー名>\AppData\Roaming` に解決されます。各モジュールの「既定値として保存」ボタンを押すと、現在の書式設定がここに書き出されます。次回起動時にも自動的に読み込まれます。macOS / Linux では、各 OS のユーザー設定ディレクトリ配下に同じ階層で保存されます。
 
 ---
 
@@ -132,7 +133,7 @@ Windows 専用の旧 WPF 版（`LabPlot.exe`）は v1.1.0 系として保守さ�
 - 旧 WPF 版の入手先: 同じ Releases ページから v1.1.0 の zip を取得してください。
 - 旧 WPF 版の操作手順は、各モジュールの README（`src/LabPlot.GPC/README.md` ほか）を参照してください。本ガイド（`docs/user-guide/`）は Avalonia 主流版を主軸に書いているので、UI の細部が一部異なる可能性があります。
 
-新規利用者には Avalonia 主流版（v1.2.0 以降）を推奨します。
+新規利用者には Avalonia 主流版（現行 v1.4.1）を推奨します。
 
 ---
 

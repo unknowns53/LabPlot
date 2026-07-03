@@ -2,7 +2,7 @@
 
 LabPlot は研究室の測定装置（Shimadzu LabSolutions / JASCO V-750 / Malvern Zetasizer など）から出力されたデータをそのまま読み込めるように設計されていますが、装置側でのエクスポート手順は装置メーカー・ソフトウェアごとに異なります。このセクションでは、各装置ソフトでどのようにデータを取り出して LabPlot に渡すかを案内します。
 
-> 対象: LabPlot v1.2.0（Avalonia 主流版）
+> 対象: LabPlot v1.4.1（Avalonia 主流版）
 
 ---
 

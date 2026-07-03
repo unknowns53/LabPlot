@@ -88,7 +88,7 @@
 
                                 <!-- Section: File -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander Name="DataFileExpander" IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -152,7 +152,7 @@
 
                                 <!-- Section: Loaded datasets -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander Name="DatasetListExpander" IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -392,7 +392,7 @@
 
                                 <!-- Section: Analysis -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="AnalysisExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -467,7 +467,7 @@
                                                 </StackPanel>
                                             </Expander>
 
-                                            <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                            <Expander Name="IrPeakDetectionExpander" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                                 <Expander.Header>
                                                     <StackPanel Orientation="Horizontal">
                                                         <Path Theme="{DynamicResource SectionIconPath}"
@@ -709,7 +709,7 @@
                                                 </StackPanel>
                                             </Expander>
 
-                                            <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                            <Expander Name="CloudPointExpander" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                                 <Expander.Header>
                                                     <StackPanel Orientation="Horizontal">
                                                         <Path Theme="{DynamicResource SectionIconPath}"
@@ -995,7 +995,7 @@
                                                 </StackPanel>
                                             </Expander>
 
-                                            <Expander IsExpanded="False" FontSize="12" Margin="0,0,0,8">
+                                            <Expander Name="CalibrationExpander" IsExpanded="False" FontSize="12" Margin="0,0,0,8">
                                                 <Expander.Header>
                                                     <StackPanel Orientation="Horizontal">
                                                         <Path Theme="{DynamicResource SectionIconPath}"
@@ -1047,7 +1047,7 @@
 
                                 <!-- Section: Analysis session -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="SessionExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -1087,7 +1087,7 @@
 
                                 <!-- Section: Axis range -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander Name="AxisRangeExpander" IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -1110,7 +1110,7 @@
 
                                 <!-- Section: Graph labels -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander Name="GraphLabelExpander" IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -1169,7 +1169,7 @@
 
                                 <!-- Section: Graph appearance -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="FormattingExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -1234,7 +1234,7 @@
 
                                 <!-- Section: App preferences -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="PreferencesExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"

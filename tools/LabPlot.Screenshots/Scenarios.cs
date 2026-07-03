@@ -10,10 +10,11 @@ internal sealed record ScreenshotScenario(string RelativePath, Func<ShotContext,
 
 /// <summary>
 /// 全モジュール分のシナリオを集約する。モジュールごとに <see cref="PortalScenarios"/> /
-/// <see cref="GpcScenarios"/> など別ファイルへ分割してあるので、ここでは単純に連結するだけ。
+/// <see cref="GpcScenarios"/> / <see cref="SpectrumScenarios"/> など別ファイルへ分割してあるので、
+/// ここでは単純に連結するだけ。
 /// </summary>
 internal static class Scenarios
 {
     public static IReadOnlyList<ScreenshotScenario> All { get; } =
-        PortalScenarios.All.Concat(GpcScenarios.All).ToArray();
+        PortalScenarios.All.Concat(GpcScenarios.All).Concat(SpectrumScenarios.All).ToArray();
 }

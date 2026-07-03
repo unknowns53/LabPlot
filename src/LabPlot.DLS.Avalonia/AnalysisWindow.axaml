@@ -36,7 +36,7 @@
             <Grid Grid.Row="1" Margin="14" RowDefinitions="*,Auto">
 
                 <!-- 縦 Expander スタック: 本体 MainWindow サイドバーと同型 -->
-                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer Grid.Row="0" Name="AnalysisScrollViewer" VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,8,0,0">
 
                         <!-- ==================== Section: 測定条件 ==================== -->

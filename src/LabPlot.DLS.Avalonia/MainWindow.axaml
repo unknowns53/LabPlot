@@ -132,7 +132,7 @@
 
                                 <!-- Section: Loaded datasets -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander Name="DatasetListExpander" IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -466,7 +466,7 @@
                                 <Border Theme="{DynamicResource SectionStyle}"
                                         ToolTip.Tip="解析の状態（データ・線スタイル・測定条件・キュムラント解析・軸範囲・グラフ書式）を .dlsjson に書き出します。読み込み直せば同じ解析をそのまま復元できます。"
                                         ToolTip.ShowDelay="400">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="SessionExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -575,7 +575,7 @@
 
                                 <!-- Section: Graph appearance -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="FormattingExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -596,7 +596,7 @@
                                 <Border Theme="{DynamicResource SectionStyle}"
                                         ToolTip.Tip="ここで設定した既定値は、画面下部の「既定値として保存」を押すと次回起動時の初期状態として永続化されます。"
                                         ToolTip.ShowDelay="400">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="PreferencesExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"

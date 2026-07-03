@@ -22,7 +22,7 @@ public static class RecentFilesStore
     {
         get
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appData = AppDataPaths.GetApplicationDataPath();
             return Path.Combine(appData, "LabPlot");
         }
     }

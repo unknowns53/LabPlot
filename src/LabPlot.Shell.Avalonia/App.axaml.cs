@@ -196,7 +196,7 @@ public partial class App : Application
     private static string WriteExceptionLog(Exception exception)
     {
         var logDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            AppDataPaths.GetLocalApplicationDataPath(),
             "LabPlot",
             "Logs");
         Directory.CreateDirectory(logDirectory);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using LabPlot.Core.Avalonia.Helpers;
 
 namespace LabPlot.DLS.Avalonia;
 
@@ -24,7 +25,7 @@ internal static class SolventPresetStore
     {
         get
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appData = AppDataPaths.GetApplicationDataPath();
             return Path.Combine(appData, "LabPlot");
         }
     }

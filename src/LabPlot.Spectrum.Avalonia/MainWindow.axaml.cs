@@ -62,7 +62,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     };
 
     private static readonly string FormattingConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        AppDataPaths.GetApplicationDataPath(),
         "Spectrum_Visualization",
         "formatting_config.json");
 

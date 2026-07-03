@@ -56,7 +56,7 @@ public partial class MainWindow : Window, IDlsAnalysisHost, IPortalFileOpener
     };
 
     private static readonly string FormattingConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        AppDataPaths.GetApplicationDataPath(),
         "LabPlot.DLS",
         "formatting_config.json");
 

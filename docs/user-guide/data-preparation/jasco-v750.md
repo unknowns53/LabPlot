@@ -17,9 +17,9 @@ Spectrum モジュールは JASCO Spectra Manager の TXT / CSV エクスポー�
 
 参考になる同梱サンプル:
 
-- UV-Vis 波長スキャン: `samples/20240420_1-97_poly(N-butyl-4-ethynylbenzamide).csv`
+- UV-Vis 波長スキャン: `samples/1-16 HO-Ph-acetylene 1.0mg.txt`
 - UV-Vis 温度スキャン（heating / cooling 対）: `samples/2_heating.txt`、`samples/2_cooling.txt`
-- FTIR: `samples/1-16 HO-Ph-acetylene 1.0mg.txt`
+- FTIR: `samples/20240420_1-97_poly(N-butyl-4-ethynylbenzamide).csv`、`samples/2-046_before_process.csv`、`samples/2-046_after_process.csv`
 
 ---
 

@@ -16,5 +16,10 @@ internal sealed record ScreenshotScenario(string RelativePath, Func<ShotContext,
 internal static class Scenarios
 {
     public static IReadOnlyList<ScreenshotScenario> All { get; } =
-        PortalScenarios.All.Concat(GpcScenarios.All).Concat(SpectrumScenarios.All).Concat(DlsScenarios.All).ToArray();
+        PortalScenarios.All
+            .Concat(GpcScenarios.All)
+            .Concat(SpectrumScenarios.All)
+            .Concat(DlsScenarios.All)
+            .Concat(ViewerScenarios.All)
+            .ToArray();
 }

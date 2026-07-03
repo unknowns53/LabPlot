@@ -623,7 +623,7 @@
 
                                 <!-- Section: View session -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="SessionExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"

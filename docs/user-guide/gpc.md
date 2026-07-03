@@ -48,7 +48,7 @@ GPC（ゲル浸透クロマトグラフィー）の測定データを読み込�
 
 ファイルエクスプローラーから直接データセット一覧へドラッグ＆ドロップしても開けます（複数ファイル同時可）。リスト内のドラッグでデータセットを並べ替えると、ドラッグ中にゴースト表示が追従するので、目的の位置を狙いやすくなっています。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/10-data-loaded.png）
+![サンプルデータ 2 件を重ね描きしたクロマトグラム表示](images/gpc/10-data-loaded.png)
 
 ---
 
@@ -65,7 +65,7 @@ LabSolutions の TXT 中に `Average Molecular Weight Table` が含まれてい�
 
 クロマトグラム上部のヘッダには、選択中の較正曲線に対応する溶媒と検出器のバッジが表示されるので、複数のデータを並行して扱うときの取り違えを防げます。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/20-mw-display.png）
+![較正曲線を適用し分子量表示に切り替えた状態（Mn / Mw / Đ チップ表示）](images/gpc/20-mw-display.png)
 
 ---
 
@@ -82,7 +82,7 @@ LabSolutions の TXT 中に `Average Molecular Weight Table` が含まれてい�
 
 書式設定は **「既定値として保存」** ボタンで `%AppData%\GPC_Visualization\formatting_config.json` に保存され、次回起動時に復元されます。**「既定値に戻す」** で保存済み設定にリセットできます。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/30-formatting.png）
+![仕上げタブの「グラフ書式」セクションを展開した状態](images/gpc/30-formatting.png)
 
 ---
 
@@ -95,7 +95,7 @@ LabSolutions の TXT 中に `Average Molecular Weight Table` が含まれてい�
 
 複数データを重ね描きした状態で「データ出力」を押すと、各データセットごとの統計値（Mn / Mw / Đ）が一覧表示される形でブックに出力されます。投稿用の Figure と数値表をセットで揃えるのに便利です。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/40-export.png）
+![メインエリア右上の「データ出力」「PNG / SVG 保存」ボタン](images/gpc/40-export.png)
 
 ---
 
@@ -108,7 +108,7 @@ LabSolutions の TXT 中に `Average Molecular Weight Table` が含まれてい�
 
 `.gpcjson` には絶対パスが含まれるので、別 PC に渡す場合は同じディレクトリ構造でデータファイルも揃えてください。詳細は [FAQ のセッションファイル可搬性](./faq.md#セッションファイル-gpcjson--specjson--dlsjson-を別-pc-や別ユーザーに渡しても大丈夫ですか) を参照してください。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/50-session.png）
+![データタブの「解析条件」セクション（条件の保存・読込ボタン）](images/gpc/50-session.png)
 
 ---
 
@@ -121,7 +121,7 @@ LabSolutions の TXT 中に `Average Molecular Weight Table` が含まれてい�
 
 入力後はサイドバー下部の **「既定値として保存」** を押すと反映されます。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/60-preferences.png）
+![仕上げタブの「環境設定」セクション（既定の較正曲線・出力フォルダ）](images/gpc/60-preferences.png)
 
 ---
 

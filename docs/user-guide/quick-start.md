@@ -18,7 +18,7 @@
 
 `LabPlot.Avalonia(.exe)` をダブルクリックすると、カード型のランチャーが開きます。
 
-> （スクリーンショット予定: docs/user-guide/images/portal/00-launcher.png）
+![ポータルのカード型ランチャー画面](images/portal/00-launcher.png)
 
 ---
 
@@ -26,7 +26,7 @@
 
 ランチャーの「GPC」カードをクリックします。GPC 解析ウィンドウが新しく開きます。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/00-startup.png）
+![GPC 解析ウィンドウの起動直後（空状態）](images/gpc/00-startup.png)
 
 ---
 
@@ -42,7 +42,7 @@ samples/20260116_2-000_C-PNIPAM_DMF.txt
 
 読み込みに成功すると、グラフエリアにクロマトグラム（保持時間 vs シグナル）が描かれます。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/10-data-loaded.png）
+![同梱サンプル 1 件を読み込んだクロマトグラム表示](images/gpc/05-first-load.png)
 
 ---
 

@@ -27,7 +27,7 @@ LabPlot の配布物に同梱されている `LabPlot.Avalonia(.exe)` は、3 �
 
 ファイルをカードにドラッグ＆ドロップして開くこともできます。カードごとに対応する拡張子が決まっており（GPC は `.csv` / `.tsv` / `.txt`、Spectrum は `.csv` / `.txt`、DLS は `.xlsx`、Viewer は `.csv` / `.tsv` / `.txt` / `.xlsx`）、対応外の拡張子を drop すると Toast で案内が出るだけで誤って開かれることはありません。
 
-> （スクリーンショット予定: docs/user-guide/images/portal/00-launcher.png）
+![カード型ランチャー画面（GPC / UV-Vis / DLS / Viewer のカードと最近開いたファイル一覧）](images/portal/00-launcher.png)
 
 ---
 
@@ -39,7 +39,7 @@ LabPlot の配布物に同梱されている `LabPlot.Avalonia(.exe)` は、3 �
 - 右上の最小化 / 最大化（復元）/ 閉じるボタンは標準の挙動と同じです。
 - ダブルクリックで最大化と通常サイズの切替ができます。
 
-> （スクリーンショット予定: docs/user-guide/images/portal/10-titlebar.png）
+![自前のタイトルバー（CustomTitleBar）の見た目](images/portal/10-titlebar.png)
 
 ---
 

@@ -79,7 +79,7 @@ WSL2 + WSLg（Windows 11 標準）の環境でも GUI が立ち上がります�
 
 ダブルクリックで起動すると、940 × 540 のカード型ランチャーが現れます。
 
-> （スクリーンショット予定: docs/user-guide/images/portal/00-launcher.png）
+![起動直後のカード型ランチャー](images/portal/00-launcher.png)
 
 カード上の「GPC」「UV-Vis」「DLS」「Viewer」をクリックすると、該当する解析ウィンドウが立ち上がります。各モジュールの操作手順は以下を参照してください。
 

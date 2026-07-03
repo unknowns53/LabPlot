@@ -53,7 +53,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 - 読み込み済みのデータは「読み込み済みデータセット」セクションに一覧表示されます。リスト上のドラッグで並び替え（ドラッグ中はゴーストが追従）、各行右端の **×** で削除できます。
 - ファイルエクスプローラーから直接データセット一覧へドラッグ＆ドロップしても開けます。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/10-data-loaded.png）
+![demo.xlsx を読み込んで粒径分布（Number [%]）が表示された状態](images/dls/10-data-loaded.png)
 
 ---
 
@@ -64,7 +64,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 - **分布の種類**: `Number (%)` / `Intensity (%)` / `Volume (%)` / `自己相関 g₂−1` / `温度ランプ T vs d_h` / `濃度シリーズ c vs D` / `サイズ分布逆変換 (CONTIN-like)` を切り替えます。Number / Intensity / Volume / サイズ分布逆変換は粒径（nm）を X 軸に、g₂−1 は遅延時間（μs）を X 軸に、温度ランプは温度（°C）を、濃度シリーズは濃度（mg/mL）を X 軸に取り、軸ラベルとスケールが自動的に切り替わります。
 - **Run**: Zetasizer は通常 3 回繰り返し測定を 1 シート内に記録します。ドロップダウンから個別の Run を選択できます。温度ランプ / 濃度シリーズモードでは Run 選択は使われません（各シートを 1 温度点 / 1 濃度点として扱います）。サイズ分布逆変換モードはデフォルトで Run 1 の自己相関関数を使います。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/15-distribution-mode.png）
+![表示セクションで分布の種類のドロップダウンを開いた状態](images/dls/15-distribution-mode.png)
 
 ---
 
@@ -80,7 +80,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 
 以降の解析セクション（キュムラント / 温度ランプ / 濃度シリーズ / CONTIN）には、それぞれ **「グラフとして見る」** ボタンがあり、押すとメイングラフの表示（サイドバーの「分布の種類」）がそのセクションの内容に自動的に切り替わります。フィット結果は **「結果コピー」** ボタンでタブ区切りテキストとしてクリップボードにコピーできます。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/18-measurement-conditions.png）
+![解析ウィンドウの測定条件セクションで溶媒プリセットから屈折率と粘度が自動入力された状態](images/dls/18-measurement-conditions.png)
 
 ---
 
@@ -93,7 +93,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 
 理論的には `ln|g₁(τ)| ≈ −Γτ + (μ₂/2)τ² − …` を Siegert 関係 `g₂−1 = β·|g₁|²` 経由で `y = ln(g₂−1)` の 2 次多項式に置き換え、`a₁ = −2Γ`, `a₂ = μ₂` から PdI = μ₂/Γ² を求めています。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/22-cumulant-analysis.png）
+![キュムラント解析でZ-average径やPdI、R²の数値が算出された状態](images/dls/22-cumulant-analysis.png)
 
 ---
 
@@ -107,7 +107,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 - 4 点未満では fit を試行しません（温度範囲も最低 1 °C のスパンを要求します）。
 - d_h が温度上昇で大きくなる PNIPAM 型でも、温度低下で大きくなる UCST 型でも、`w` の符号が自動的に決まります。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/25-temperature-ramp.png）
+![温度ランプ解析でBoltzmannフィットの転移点T_cと転移幅wが表示された状態](images/dls/25-temperature-ramp.png)
 
 ---
 
@@ -122,7 +122,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 - 参照温度・粘度はシート横断で揃っていることが前提です。シート間で値がずれている場合は中央値を採用したうえで「シート間で温度/粘度が異なります」と警告します。
 - k_D が負ならサンプル間に引力性の相互作用（凝集の前段階・LCST 近傍など）、正なら斥力性（良溶媒・荷電粒子など）が働いていると読みます。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/27-concentration-series.png）
+![濃度シリーズ解析でD_0とk_Dの線形回帰結果が表示された状態](images/dls/27-concentration-series.png)
 
 ---
 
@@ -139,7 +139,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 - 必要なメタデータはキュムラント解析と同じ 4 項目（温度・粘度・屈折率・波長・散乱角）。不足があるとステータスに列挙されます。
 - 計算は 1 シートあたり典型 0.2–1 秒。重ね描きで重く感じる場合は α を手動指定すると候補 1 つだけで済むので 16 倍速くなります。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/29-size-distribution-inversion.png）
+![CONTINセクションで逆変換を実行し採用αとR²が表示された状態](images/dls/29-size-distribution-inversion.png)
 
 ---
 
@@ -156,7 +156,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 
 書式設定は **「既定値として保存」** ボタンで `%AppData%\LabPlot.DLS\formatting_config.json` に保存され、次回起動時に復元されます。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/30-formatting.png）
+![仕上げタブのグラフ書式セクションを展開しフォントや目盛の設定項目が見える状態](images/dls/30-formatting.png)
 
 ---
 
@@ -176,7 +176,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 - **「条件を保存」（Ctrl+Shift+S）**: 読み込んでいるデータファイルパス、線スタイル、軸範囲、書式、測定条件、キュムラント解析の設定をまとめて `.dlsjson` に書き出します。
 - **「条件を読込」（Ctrl+Shift+O）**: 保存した `.dlsjson` を読み込んで状態を復元します。データファイルの実体は元の場所から再読込されるため、ファイルが移動・削除されているとその項目だけ警告つきでスキップされます。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/50-session.png）
+![データタブ下部の解析条件セクションで条件の保存と読込ボタンが見える状態](images/dls/50-session.png)
 
 ---
 
@@ -190,7 +190,7 @@ Zetasizer の xlsx は温度・粘度・屈折率を確実な形では埋めて�
 
 入力後はサイドバー下部の **「既定値として保存」** を押すと反映されます。
 
-> （スクリーンショット予定: docs/user-guide/images/dls/60-preferences.png）
+![仕上げタブ下部の環境設定セクションで既定の分布やRun、出力フォルダの項目が見える状態](images/dls/60-preferences.png)
 
 ---
 

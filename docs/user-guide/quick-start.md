@@ -18,7 +18,7 @@
 
 `LabPlot.Avalonia(.exe)` をダブルクリックすると、カード型のランチャーが開きます。
 
-> （スクリーンショット予定: docs/user-guide/images/portal/00-launcher.png）
+![ポータルのカード型ランチャー画面](images/portal/00-launcher.png)
 
 ---
 
@@ -26,7 +26,7 @@
 
 ランチャーの「GPC」カードをクリックします。GPC 解析ウィンドウが新しく開きます。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/00-startup.png）
+![GPC 解析ウィンドウの起動直後（空状態）](images/gpc/00-startup.png)
 
 ---
 
@@ -38,11 +38,11 @@
 samples/20260116_2-000_C-PNIPAM_DMF.txt
 ```
 
-これは Shimadzu LabSolutions が出力した、PNIPAM（poly(N-isopropylacrylamide)）を DMF 溶媒で測定した GPC データです。
+これは Shimadzu LabSolutions が出力した、市販の PNIPAM（poly(N-isopropylacrylamide)）を DMF 溶媒で測定した GPC データです。
 
 読み込みに成功すると、グラフエリアにクロマトグラム（保持時間 vs シグナル）が描かれます。
 
-> （スクリーンショット予定: docs/user-guide/images/gpc/10-data-loaded.png）
+![同梱サンプル 1 件を読み込んだクロマトグラム表示](images/gpc/05-first-load.png)
 
 ---
 
@@ -57,6 +57,6 @@ samples/20260116_2-000_C-PNIPAM_DMF.txt
 ## 次のステップ
 
 - もう少し進んだ操作（較正曲線で分子量分布を出す、書式を整える、解析条件をセッションファイルに保存する）は [GPC モジュールの使い方](./gpc.md) を参照してください。
-- UV-Vis や FTIR を扱いたい場合は [Spectrum モジュールの使い方](./spectrum.md)、Zetasizer の DLS データを扱いたい場合は [DLS モジュールの使い方](./dls.md) に進んでください。
+- UV-Vis や FTIR を扱いたい場合は [Spectrum モジュールの使い方](./spectrum.md)、Zetasizer の DLS データを扱いたい場合は [DLS モジュールの使い方](./dls.md) に進んでください。対応モジュールのない CSV / Excel のデータをグラフにしたい場合は [Data Viewer モジュールの使い方](./viewer.md) を参照してください。
 - 同梱されているサンプルデータの一覧は [サンプルデータ](./samples.md) にまとめてあります。
 - うまく動かない場合は [トラブルシューティング](./troubleshooting.md) を確認してください。

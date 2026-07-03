@@ -41,18 +41,19 @@ UV-Vis 波長スキャン、温度スキャン（ヒステリシス対）、FTIR
 
 | ファイル | 種別 | 内容 |
 | --- | --- | --- |
-| `20240420_1-97_poly(N-butyl-4-ethynylbenzamide).csv` | UV-Vis 波長スキャン | 共役系ポリマーの UV-Vis スペクトル |
-| `2-046_before_process.csv` | UV-Vis 波長スキャン | 反応前のサンプル |
-| `2-046_after_process.csv` | UV-Vis 波長スキャン | 反応後のサンプル |
+| `1-16 HO-Ph-acetylene 1.0mg.txt` | UV-Vis 波長スキャン | フェニルアセチレン誘導体の UV-Vis スペクトル（200〜800 nm） |
 | `2_heating.txt` | UV-Vis 温度スキャン | 加熱方向の測定 |
 | `2_cooling.txt` | UV-Vis 温度スキャン | 冷却方向の測定（heating と対で読むとヒステリシスを観察できる） |
-| `1-16 HO-Ph-acetylene 1.0mg.txt` | FTIR | フェニルアセチレン誘導体の FTIR スペクトル |
+| `20240420_1-97_poly(N-butyl-4-ethynylbenzamide).csv` | FTIR | 共役系ポリマーの FTIR スペクトル |
+| `2-046_before_process.csv` | FTIR | 反応前のサンプル |
+| `2-046_after_process.csv` | FTIR | 反応後のサンプル（before と対で反応前後の比較ができる） |
 
 試せること:
 
-- UV-Vis 波長スキャン: λmax 自動検出、Beer-Lambert 検量線（before / after を異なる濃度として扱う）
+- UV-Vis 波長スキャン: λmax 自動検出
 - 温度スキャン: `2_heating.txt` と `2_cooling.txt` を同時に開いて Tc（曇点温度）推定とヒステリシス可視化
 - FTIR: ピーク自動検出、手入力ピーク帰属
+- Beer-Lambert 検量線は濃度違いの UV-Vis 測定が複数必要なため、同梱サンプルだけでは完走できません（操作手順は Spectrum モジュールのページを参照）
 
 詳しい手順は [Spectrum モジュールの使い方](./spectrum.md) を参照してください。
 

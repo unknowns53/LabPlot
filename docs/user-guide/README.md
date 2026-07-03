@@ -8,7 +8,7 @@ LabPlot は、Shimadzu LabSolutions（GPC）/ JASCO V-750（UV-Vis・FTIR）/ Ma
 
 ## 対象バージョン
 
-このガイドは **Avalonia 主流版 v1.2.0（`LabPlot.Avalonia`）** を主軸に書いています。Windows 専用の旧 WPF 版（`LabPlot.exe`、v1.1.0 系）も基本的な操作は同じですが、配布物の入手先と一部の見た目が異なります。違いは [FAQ](./faq.md) の「旧 WPF 版（v1.1.0）と何が違う？」を参照してください。
+このガイドは **Avalonia 主流版 v1.4.1（`LabPlot.Avalonia`）** を主軸に書いています。Windows 専用の旧 WPF 版（`LabPlot.exe`、v1.1.0 系）も基本的な操作は同じですが、配布物の入手先と一部の見た目が異なります。違いは [FAQ](./faq.md) の「旧 WPF 版（v1.1.0）と何が違う？」を参照してください。
 
 ---
 

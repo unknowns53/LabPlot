@@ -2,7 +2,7 @@
 
 LabPlot を使っていてつまずきやすいポイントと、その対処方法をまとめました。それぞれの症状ごとに、まず試してほしい項目を順に並べています。
 
-> 対象: LabPlot v1.2.0（Avalonia 主流版）
+> 対象: LabPlot v1.4.1（Avalonia 主流版）
 
 ---
 
@@ -98,8 +98,8 @@ LabPlot を使っていてつまずきやすいポイントと、その対処方
 ```text
 ## 環境
 - OS: （例: Windows 11 23H2 / macOS 14.2 / Ubuntu 22.04 LTS）
-- LabPlot のバージョン: （例: v1.2.0、配布 zip の名前で OK）
-- 対象モジュール: （GPC / Spectrum / DLS）
+- LabPlot のバージョン: （例: v1.4.1、配布 zip の名前で OK）
+- 対象モジュール: （GPC / Spectrum / DLS / Viewer）
 
 ## 発生した症状
 （何を期待していて、実際にどうなったかを 1〜2 文で）

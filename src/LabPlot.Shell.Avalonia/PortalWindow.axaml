@@ -206,6 +206,7 @@
 
             <!-- ================= TITLE BAR ================= -->
             <controls:CustomTitleBar Grid.Row="0"
+                                     Name="MainTitleBar"
                                      AppName="LabPlot"
                                      Subtitle="Analysis portal"
                                      AppIconData="M 3,3 L 8,3 L 8,8 L 3,8 Z M 12,3 L 17,3 L 17,8 L 12,8 Z M 3,12 L 8,12 L 8,17 L 3,17 Z M 12,12 L 17,12 L 17,17 L 12,17 Z" />

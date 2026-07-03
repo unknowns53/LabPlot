@@ -385,7 +385,7 @@
 
                                 <!-- Section: Calibration & MW -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="CalibrationExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -452,7 +452,7 @@
                                 <!-- Section: Analysis session — Viewer の「表示条件」と同じ
                                      セッション保存/復元なのでデータタブ側に置く -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="SessionExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -492,7 +492,7 @@
 
                                 <!-- Section: Axis range -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander Name="AxisRangeExpander" IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -515,7 +515,7 @@
 
                                 <!-- Section: Graph labels -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="True">
+                                    <Expander Name="GraphLabelExpander" IsExpanded="True">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -569,7 +569,7 @@
 
                                 <!-- Section: Graph appearance -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="FormattingExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -588,7 +588,7 @@
 
                                 <!-- Section: App preferences -->
                                 <Border Theme="{DynamicResource SectionStyle}">
-                                    <Expander IsExpanded="False">
+                                    <Expander Name="PreferencesExpander" IsExpanded="False">
                                         <Expander.Header>
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Theme="{DynamicResource SectionIconPath}"
@@ -675,7 +675,7 @@
                 <Grid Grid.Column="1" Margin="24,22,24,18"
                       RowDefinitions="Auto,*,Auto,Auto">
 
-                    <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,16">
+                    <DockPanel Name="ChromatogramHeaderPanel" Grid.Row="0" LastChildFill="True" Margin="0,0,0,16">
                         <Button Name="SaveGraphButton"
                                 DockPanel.Dock="Right"
                                 Content="PNG / SVG 保存"

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -29,6 +30,8 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        var onlyPrefix = ParseOnlyFilter(args, out var avaloniaArgs);
+
         var repoRoot = ResolveRepoRoot();
         var outputRoot = Path.Combine(repoRoot, "artifacts", "screenshots");
 
@@ -42,10 +45,10 @@ internal static class Program
         Directory.CreateDirectory(isolatedAppData);
         Environment.SetEnvironmentVariable("LABPLOT_APPDATA_OVERRIDE", isolatedAppData);
 
-        BuildAvaloniaApp().SetupWithClassicDesktopLifetime(args);
+        BuildAvaloniaApp().SetupWithClassicDesktopLifetime(avaloniaArgs);
 
         var context = new ShotContext(repoRoot, outputRoot);
-        var runTask = RunScenariosAsync(context);
+        var runTask = RunScenariosAsync(context, onlyPrefix);
         PumpUntilCompleted(runTask);
         runTask.GetAwaiter().GetResult(); // 完了済みなので即座に返る。例外があればここで再送出。
 
@@ -53,9 +56,54 @@ internal static class Program
         return 0;
     }
 
-    private static async Task RunScenariosAsync(ShotContext context)
+    /// <summary>
+    /// <c>--only &lt;prefix&gt;</c> (または <c>--only=&lt;prefix&gt;</c>) を args から取り出す。
+    /// 例: <c>--only gpc/</c> は relativePath が "gpc/" で始まるシナリオだけを実行する
+    /// (バッチの反復のたびに 10 枚全部を焼き直さずに済むようにするための開発用フィルタ)。
+    /// マッチした引数は Avalonia 側の SetupWithClassicDesktopLifetime に渡さないよう取り除く。
+    /// </summary>
+    private static string? ParseOnlyFilter(string[] args, out string[] remainingArgs)
     {
-        foreach (var scenario in Scenarios.All)
+        string? only = null;
+        var remaining = new System.Collections.Generic.List<string>(args.Length);
+
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--only" && i + 1 < args.Length)
+            {
+                only = args[i + 1];
+                i++; // 値トークンもスキップする
+                continue;
+            }
+
+            if (args[i].StartsWith("--only=", StringComparison.Ordinal))
+            {
+                only = args[i]["--only=".Length..];
+                continue;
+            }
+
+            remaining.Add(args[i]);
+        }
+
+        remainingArgs = remaining.ToArray();
+        return only;
+    }
+
+    private static async Task RunScenariosAsync(ShotContext context, string? onlyPrefix)
+    {
+        var scenarios = Scenarios.All;
+        if (!string.IsNullOrEmpty(onlyPrefix))
+        {
+            scenarios = scenarios
+                .Where(s => s.RelativePath.StartsWith(onlyPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (scenarios.Count == 0)
+            {
+                Console.WriteLine($"[LabPlot.Screenshots] --only \"{onlyPrefix}\" に一致するシナリオが無い。");
+            }
+        }
+
+        foreach (var scenario in scenarios)
         {
             Console.WriteLine($"[LabPlot.Screenshots] {scenario.RelativePath} ...");
             await scenario.RunAsync(context);

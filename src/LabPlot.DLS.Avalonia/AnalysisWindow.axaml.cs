@@ -156,7 +156,7 @@ public sealed partial class AnalysisWindow : Window
     {
         get
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var appData = AppDataPaths.GetApplicationDataPath();
             return System.IO.Path.Combine(appData, "LabPlot", "dls-analysis-window.json");
         }
     }

@@ -62,7 +62,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     };
 
     private static readonly string FormattingConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        AppDataPaths.GetApplicationDataPath(),
         "Spectrum_Visualization",
         "formatting_config.json");
 
@@ -1459,7 +1459,10 @@ public partial class MainWindow : Window, IPortalFileOpener
         PlotCurrentDataset();
     }
 
-    private void PlotCurrentDataset()
+    // headless スクリーンショットハーネス (tools/LabPlot.Screenshots) から、200ms デバウンス
+    // タイマーを待たずに解析結果 (IR ピーク検出 / Tc 表示等) を確定反映させるため internal 化。
+    // InternalsVisibleTo は LabPlot.Screenshots.csproj のみに付与している。
+    internal void PlotCurrentDataset()
     {
         _plotRefreshDebounceTimer.Stop();
 

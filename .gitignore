@@ -57,3 +57,6 @@ Thumbs.db
 
 # BenchmarkDotNet output (per-run artifacts under each benchmark project)
 BenchmarkDotNet.Artifacts/
+
+# Generated screenshot harness output (not source, regenerated on demand)
+artifacts/

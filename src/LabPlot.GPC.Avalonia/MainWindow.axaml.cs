@@ -80,7 +80,7 @@ public partial class MainWindow : Window, IPortalFileOpener
 
     // WPF 版と同じ AppData サブパス。両者は formatting_config.json を共有する設計。
     private static readonly string FormattingConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        AppDataPaths.GetApplicationDataPath(),
         "GPC_Visualization",
         "formatting_config.json");
 

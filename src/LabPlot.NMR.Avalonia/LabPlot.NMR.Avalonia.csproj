@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Avalonia UI for the NMR module. Built as a class library and launched
+       from LabPlot.Shell.Avalonia, mirroring the GPC / Spectrum / DLS / Viewer
+       Avalonia modules: shared chrome comes from LabPlot.Core.Avalonia, the
+       .jdf reader and analysis logic from NMRAnalyzer.Core. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LabPlot.NMR.Avalonia</RootNamespace>
+    <AssemblyName>LabPlot.NMR.Avalonia</AssemblyName>
+    <Version>1.4.1</Version>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LabPlot.Core\LabPlot.Core.csproj" />
+    <ProjectReference Include="..\LabPlot.Core.Avalonia\LabPlot.Core.Avalonia.csproj" />
+    <ProjectReference Include="..\LabPlot.NMR\NMRAnalyzer.Core\NMRAnalyzer.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.14" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.14" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <PackageReference Include="ScottPlot.Avalonia" Version="5.1.58" />
+  </ItemGroup>
+
+</Project>

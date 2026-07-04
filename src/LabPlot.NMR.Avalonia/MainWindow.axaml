@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:LabPlot.Core.Avalonia.Controls"
+        x:Class="LabPlot.NMR.Avalonia.MainWindow"
+        Title="NMR Analyzer"
+        Icon="avares://LabPlot.Core.Avalonia/Assets/app-icon.png"
+        Height="860" MinHeight="660" Width="1280" MinWidth="960"
+        Background="{DynamicResource MainBgSurfaceBrush}"
+        FontFamily="Segoe UI, Yu Gothic UI, Meiryo UI, sans-serif"
+        FontSize="13"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        SystemDecorations="Full">
+
+  <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
+    <Grid RowDefinitions="Auto,*">
+
+      <!-- ================= TITLE BAR ================= -->
+      <controls:CustomTitleBar Grid.Row="0"
+                               Name="MainTitleBar"
+                               AppName="NMR Analyzer"
+                               Subtitle="核磁気共鳴スペクトル"
+                               AppIconData="M 2,16 L 6,16 L 7,4 L 8,16 L 11,16 L 12,9 L 13,16 L 18,16" />
+
+      <Grid Grid.Row="1" RowDefinitions="Auto,*" Margin="16,8,16,16">
+
+        <!-- ================= TOOLBAR ================= -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="0,0,0,8">
+          <Button Name="OpenButton"
+                  Content="JDF を開く"
+                  Padding="14,7"
+                  Click="OpenButton_Click" />
+          <TextBlock Name="StatusText"
+                     VerticalAlignment="Center"
+                     Foreground="#475569"
+                     Text="JEOL .jdf ファイルを開いてください。" />
+        </StackPanel>
+
+        <!-- ================= PLOT ================= -->
+        <Border Name="PlotContainerBorder"
+                Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                BorderBrush="#E2E8F0"
+                BorderThickness="1"
+                DragDrop.AllowDrop="True">
+          <Grid>
+            <Grid Name="PlotHost" />
+            <controls:ToastHost Name="Toast" />
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

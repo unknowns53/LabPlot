@@ -24,4 +24,5 @@
   <Project Path="src/LabPlot.GPC.Avalonia/LabPlot.GPC.Avalonia.csproj" />
   <Project Path="src/LabPlot.Spectrum.Avalonia/LabPlot.Spectrum.Avalonia.csproj" />
   <Project Path="src/LabPlot.Viewer.Avalonia/LabPlot.Viewer.Avalonia.csproj" />
+  <Project Path="src/LabPlot.NMR.Avalonia/LabPlot.NMR.Avalonia.csproj" />
 </Solution>

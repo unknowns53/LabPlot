@@ -40,6 +40,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
         AppKind.Calibration => "Beer-Lambert 検量線エディタ",
         AppKind.Portal => "Analysis portal",
         AppKind.Viewer => "Data Viewer",
+        AppKind.Nmr => "NMR Analyzer",
         _ => string.Empty,
     };
 
@@ -175,6 +176,7 @@ public sealed partial class KeyboardShortcutsWindow : Window
                 new ShortcutEntry($"{mod} + 2", "UV-Vis Analyzer を開く"),
                 new ShortcutEntry($"{mod} + 3", "DLS Analyzer を開く"),
                 new ShortcutEntry($"{mod} + 4", "Data Viewer を開く"),
+                new ShortcutEntry($"{mod} + 5", "NMR Analyzer を開く"),
             }),
             new ShortcutGroup("一般", new[]
             {
@@ -208,6 +210,23 @@ public sealed partial class KeyboardShortcutsWindow : Window
                 new ShortcutEntry("Shift + ホイール", "縦方向のみ拡縮"),
             }),
         },
+        AppKind.Nmr => new[]
+        {
+            new ShortcutGroup("ファイル", new[]
+            {
+                new ShortcutEntry($"{mod} + O", "JEOL .jdf を開く"),
+            }),
+            new ShortcutGroup("表示", new[]
+            {
+                new ShortcutEntry("F1", "このヘルプ"),
+            }),
+            new ShortcutGroup("プロット操作", new[]
+            {
+                new ShortcutEntry("左ドラッグ", "パン"),
+                new ShortcutEntry("右ドラッグ", "範囲ズーム"),
+                new ShortcutEntry("ホイール", "拡大 / 縮小"),
+            }),
+        },
         _ => System.Array.Empty<ShortcutGroup>(),
         };
     }
@@ -225,4 +244,5 @@ public enum AppKind
     Calibration,
     Portal,
     Viewer,
+    Nmr,
 }

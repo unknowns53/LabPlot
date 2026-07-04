@@ -216,10 +216,10 @@
                   ColumnDefinitions="*,300"
                   Margin="20,12,20,20">
 
-                <!-- ============ 左カラム: 2x2 カードグリッド ============ -->
+                <!-- ============ 左カラム: 2x3 カードグリッド ============ -->
                 <UniformGrid Grid.Column="0"
                              Rows="2"
-                             Columns="2">
+                             Columns="3">
 
                     <!-- GPC -->
                     <Button Name="GpcCard"
@@ -302,6 +302,27 @@
                             <TextBlock Grid.Row="1"
                                        Theme="{DynamicResource PortalCardSubtitleStyle}"
                                        Text="汎用データビューア&#x0a;CSV / TSV / xlsx の重ね描き" />
+                        </Grid>
+                    </Button>
+
+                    <!-- NMR -->
+                    <Button Name="NmrCard"
+                            Theme="{DynamicResource PortalCardStyle}"
+                            Click="OpenNmr_Click"
+                            DragDrop.AllowDrop="True"
+                            ToolTip.Tip="NMR スペクトル解析&#x0a;（.jdf をここに drop して開く）">
+                        <Grid RowDefinitions="Auto,Auto">
+                            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                <Border Theme="{DynamicResource PortalCardBadgeStyle}">
+                                    <Path Theme="{DynamicResource PortalCardIconStyle}"
+                                          Data="M 2,16 L 6,16 L 7,4 L 8,16 L 11,16 L 12,9 L 13,16 L 18,16" />
+                                </Border>
+                                <TextBlock Theme="{DynamicResource PortalCardTitleStyle}"
+                                           Text="NMR" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="1"
+                                       Theme="{DynamicResource PortalCardSubtitleStyle}"
+                                       Text="核磁気共鳴スペクトル&#x0a;化学シフト / 積分比" />
                         </Grid>
                     </Button>
                 </UniformGrid>

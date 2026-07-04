@@ -64,6 +64,7 @@ public partial class PortalWindow : Window
             [PortalModuleKind.Spectrum] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".csv", ".txt" },
             [PortalModuleKind.Dls] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".xlsx" },
             [PortalModuleKind.Viewer] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".csv", ".tsv", ".txt", ".xlsx" },
+            [PortalModuleKind.Nmr] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jdf" },
         };
 
     private Border? _chromeRoot;
@@ -75,6 +76,7 @@ public partial class PortalWindow : Window
     private Button? _spectrumCard;
     private Button? _dlsCard;
     private Button? _viewerCard;
+    private Button? _nmrCard;
 
     public PortalWindow()
     {
@@ -87,6 +89,7 @@ public partial class PortalWindow : Window
         _spectrumCard = this.FindControl<Button>("SpectrumCard");
         _dlsCard = this.FindControl<Button>("DlsCard");
         _viewerCard = this.FindControl<Button>("ViewerCard");
+        _nmrCard = this.FindControl<Button>("NmrCard");
 
         // 各カードを drop ターゲットに登録。Card.Tag に PortalModuleKind を仕込み、
         // 1 つの共通 OnCardDrop からどのモジュールで開くか取り出す。Window 全体ハンドラは
@@ -95,6 +98,7 @@ public partial class PortalWindow : Window
         AttachCardDropHandlers(_spectrumCard, PortalModuleKind.Spectrum);
         AttachCardDropHandlers(_dlsCard, PortalModuleKind.Dls);
         AttachCardDropHandlers(_viewerCard, PortalModuleKind.Viewer);
+        AttachCardDropHandlers(_nmrCard, PortalModuleKind.Nmr);
     }
 
     private void AttachCardDropHandlers(Button? card, PortalModuleKind kind)
@@ -162,6 +166,9 @@ public partial class PortalWindow : Window
     private void OpenViewer_Click(object? sender, RoutedEventArgs e)
         => OpenSingleton<LabPlot.Viewer.Avalonia.MainWindow>();
 
+    private void OpenNmr_Click(object? sender, RoutedEventArgs e)
+        => OpenSingleton<LabPlot.NMR.Avalonia.MainWindow>();
+
     // v1.3 Batch G: Portal にもキーボードショートカットを入れる。
     // Ctrl/Cmd+1 = GPC、Ctrl/Cmd+2 = UV-Vis、Ctrl/Cmd+3 = DLS、F1 = ショートカット一覧、Esc = 終了。
     // 修飾キーは KeyboardShortcuts.HasCommandModifier 経由で OS 別に出し分ける (macOS = Cmd)。
@@ -176,6 +183,7 @@ public partial class PortalWindow : Window
                 case Key.D2: OpenSingleton<LabPlot.Spectrum.Avalonia.MainWindow>(); e.Handled = true; return;
                 case Key.D3: OpenSingleton<LabPlot.DLS.Avalonia.MainWindow>(); e.Handled = true; return;
                 case Key.D4: OpenSingleton<LabPlot.Viewer.Avalonia.MainWindow>(); e.Handled = true; return;
+                case Key.D5: OpenSingleton<LabPlot.NMR.Avalonia.MainWindow>(); e.Handled = true; return;
             }
         }
         if (e.Key == Key.F1)
@@ -362,6 +370,7 @@ public partial class PortalWindow : Window
         PortalModuleKind.Spectrum => OpenSingletonWithFilesAsync<LabPlot.Spectrum.Avalonia.MainWindow>(filePaths),
         PortalModuleKind.Dls => OpenSingletonWithFilesAsync<LabPlot.DLS.Avalonia.MainWindow>(filePaths),
         PortalModuleKind.Viewer => OpenSingletonWithFilesAsync<LabPlot.Viewer.Avalonia.MainWindow>(filePaths),
+        PortalModuleKind.Nmr => OpenSingletonWithFilesAsync<LabPlot.NMR.Avalonia.MainWindow>(filePaths),
         _ => Task.CompletedTask,
     };
 
@@ -371,6 +380,7 @@ public partial class PortalWindow : Window
         PortalModuleKind.Spectrum => "UV-Vis",
         PortalModuleKind.Dls => "DLS",
         PortalModuleKind.Viewer => "Viewer",
+        PortalModuleKind.Nmr => "NMR",
         _ => string.Empty,
     };
 
@@ -381,6 +391,7 @@ public partial class PortalWindow : Window
         PortalModuleKind.Spectrum => "M 2,10 Q 4.25,3 6.5,10 Q 8.75,17 11,10 Q 13.25,3 15.5,10 Q 17,14 18,10",
         PortalModuleKind.Dls => "M 2,16 C 5,16 6.5,4 10,4 C 13.5,4 15,16 18,16",
         PortalModuleKind.Viewer => "M 3,3 L 3,17 L 17,17 M 6,13 L 9,8 L 12,11 L 16,5",
+        PortalModuleKind.Nmr => "M 2,16 L 6,16 L 7,4 L 8,16 L 11,16 L 12,9 L 13,16 L 18,16",
         _ => string.Empty,
     };
 
@@ -555,4 +566,5 @@ public enum PortalModuleKind
     Spectrum,
     Dls,
     Viewer,
+    Nmr,
 }

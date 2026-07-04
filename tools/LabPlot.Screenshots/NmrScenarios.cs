@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.IO;
 using System.Threading.Tasks;
+using Avalonia.Controls;
 using LabPlot.Core.Avalonia.Helpers;
 using LabPlot.NMR.Avalonia;
 
@@ -18,6 +19,7 @@ internal static class NmrScenarios
     {
         new("nmr/00-startup.png", CaptureStartupAsync),
         new("nmr/10-data-loaded.png", CaptureDataLoadedAsync),
+        new("nmr/20-overlay.png", CaptureOverlayAsync),
     };
 
     private static async Task CaptureStartupAsync(ShotContext ctx)
@@ -31,11 +33,30 @@ internal static class NmrScenarios
         var window = CreateWindow();
         await ctx.ShowAsync(window);
 
-        var jdf = WriteSyntheticJdf();
+        var jdf = WriteSyntheticJdf(0.0);
         await ((IPortalFileOpener)window).OpenFilesAsync(new[] { jdf });
         await ShotContext.SettleAsync();
 
         await ctx.CaptureAsync(window, "nmr/10-data-loaded.png");
+    }
+
+    private static async Task CaptureOverlayAsync(ShotContext ctx)
+    {
+        var window = CreateWindow();
+        await ctx.ShowAsync(window);
+
+        var overlay = window.FindControl<CheckBox>("OverlayCheckBox")
+            ?? throw new InvalidOperationException("OverlayCheckBox が見つからない。");
+        overlay.IsChecked = true;
+        await ShotContext.SettleAsync();
+
+        // Two spectra with a small shift so the overlay is visibly two traces.
+        var a = WriteSyntheticJdf(0.0);
+        var b = WriteSyntheticJdf(0.15);
+        await ((IPortalFileOpener)window).OpenFilesAsync(new[] { a, b });
+        await ShotContext.SettleAsync();
+
+        await ctx.CaptureAsync(window, "nmr/20-overlay.png");
     }
 
     private static MainWindow CreateWindow()
@@ -47,10 +68,11 @@ internal static class NmrScenarios
 
     /// <summary>
     /// Build a synthetic 1D processed .jdf (float64, complex, big-endian body)
-    /// with a few Gaussian peaks resembling a ¹H spectrum, and write it to a
-    /// temp file. Field offsets mirror NMRAnalyzer.Core.JdfReader.
+    /// with a few Gaussian peaks resembling a ¹H spectrum, shifted by
+    /// <paramref name="shiftPpm"/>, and write it to a temp file. Field offsets
+    /// mirror NMRAnalyzer.Core.JdfReader.
     /// </summary>
-    private static string WriteSyntheticJdf()
+    private static string WriteSyntheticJdf(double shiftPpm)
     {
         const int n = 2048;
         const double axisStart = 12.0;  // high ppm (left)
@@ -61,10 +83,10 @@ internal static class NmrScenarios
         {
             var ppm = axisStart + (axisStop - axisStart) * i / (n - 1);
             real[i] =
-                Gaussian(ppm, 7.26, 0.03, 1.0) +   // CDCl3 residual
-                Gaussian(ppm, 3.65, 0.03, 0.8) +
-                Gaussian(ppm, 1.25, 0.03, 1.2) +
-                Gaussian(ppm, 0.00, 0.02, 0.15);   // TMS
+                Gaussian(ppm, 7.26 + shiftPpm, 0.03, 1.0) +   // CDCl3 residual
+                Gaussian(ppm, 3.65 + shiftPpm, 0.03, 0.8) +
+                Gaussian(ppm, 1.25 + shiftPpm, 0.03, 1.2) +
+                Gaussian(ppm, 0.00, 0.02, 0.15);              // TMS
         }
 
         var header = new byte[1360];

@@ -171,6 +171,52 @@
                          TextChanged="MarkerSizeTextBox_TextChanged" />
               </StackPanel>
             </Border>
+
+            <!-- 化学シフト基準合わせ -->
+            <Border Theme="{DynamicResource SectionStyle}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="化学シフト基準合わせ" Theme="{DynamicResource SectionHeaderStyle}" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                  <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Text="基準ピーク現在 ppm" Theme="{DynamicResource FieldLabelStyle}" />
+                    <TextBox x:Name="ReferenceObservedTextBox" Theme="{DynamicResource InputTextBoxStyle}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="目標 ppm" Theme="{DynamicResource FieldLabelStyle}" />
+                    <TextBox x:Name="ReferenceTargetTextBox" Text="0" Theme="{DynamicResource InputTextBoxStyle}" />
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*">
+                  <Button Grid.Column="0" Content="適用" Margin="0,0,4,0"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Theme="{DynamicResource SecondaryButtonStyle}"
+                          Click="ApplyReferenceButton_Click" />
+                  <Button Grid.Column="1" Content="リセット" Margin="4,0,0,0"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Theme="{DynamicResource SecondaryButtonStyle}"
+                          Click="ResetReferenceButton_Click" />
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <!-- 表示 (正規化 / スタック) -->
+            <Border Theme="{DynamicResource SectionStyle}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="表示" Theme="{DynamicResource SectionHeaderStyle}" />
+                <Button Content="最大値 = 1 に正規化"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="NormalizeButton_Click" />
+                <Button x:Name="StackButton" Content="スタック表示"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="StackButton_Click" />
+                <Button Content="表示をリセット"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="ResetDisplayButton_Click" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </ScrollViewer>
 

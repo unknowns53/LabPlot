@@ -17,4 +17,10 @@ internal sealed class DatasetStyle
     public double LineWidth { get; set; } = GraphFormattingConfigBase.DefaultLineWidth;
 
     public double MarkerSize { get; set; } = GraphFormattingConfigBase.DefaultMarkerSize;
+
+    /// <summary>Display-only vertical scale (1 = raw). Set by "normalize".</summary>
+    public double YScale { get; set; } = 1.0;
+
+    /// <summary>Display-only vertical offset (0 = none). Set by "stack".</summary>
+    public double YOffset { get; set; }
 }

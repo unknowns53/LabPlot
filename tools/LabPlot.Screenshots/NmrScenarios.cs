@@ -22,6 +22,7 @@ internal static class NmrScenarios
         new("nmr/10-data-loaded.png", CaptureDataLoadedAsync),
         new("nmr/20-overlay.png", CaptureOverlayAsync),
         new("nmr/30-analysis.png", CaptureAnalysisAsync),
+        new("nmr/40-stack.png", CaptureStackAsync),
     };
 
     private static async Task CaptureStartupAsync(ShotContext ctx)
@@ -87,6 +88,28 @@ internal static class NmrScenarios
         await ShotContext.SettleAsync();
 
         await ctx.CaptureAsync(window, "nmr/30-analysis.png");
+    }
+
+    private static async Task CaptureStackAsync(ShotContext ctx)
+    {
+        var window = CreateWindow();
+        await ctx.ShowAsync(window);
+
+        var overlay = window.FindControl<CheckBox>("OverlayCheckBox")
+            ?? throw new InvalidOperationException("OverlayCheckBox が見つからない。");
+        overlay.IsChecked = true;
+        await ShotContext.SettleAsync();
+
+        var a = WriteSyntheticJdf(0.0);
+        var b = WriteSyntheticJdf(0.15);
+        var c = WriteSyntheticJdf(0.30);
+        await ((IPortalFileOpener)window).OpenFilesAsync(new[] { a, b, c });
+        await ShotContext.SettleAsync();
+
+        Click(window, "StackButton");
+        await ShotContext.SettleAsync();
+
+        await ctx.CaptureAsync(window, "nmr/40-stack.png");
     }
 
     private static void Click(MainWindow window, string name)

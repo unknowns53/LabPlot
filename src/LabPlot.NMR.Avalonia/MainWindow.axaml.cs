@@ -45,6 +45,9 @@ public partial class MainWindow : Window, IPortalFileOpener
     private readonly ObservableCollection<IntegrationRowVm> _regionRows = new();
     private int _referenceRegionIndex;
 
+    // Cumulative chemical-shift referencing applied to every dataset.
+    private double _referenceShiftPpm;
+
     private AvaPlot? _plot;
     private int _activeIndex = -1;
     private bool _suppressDatasetListEvents;
@@ -432,7 +435,7 @@ public partial class MainWindow : Window, IPortalFileOpener
         var xMax = double.NegativeInfinity;
         foreach (var (dataset, index) in entries)
         {
-            var scatter = _plot.Plot.Add.Scatter(dataset.XValues, dataset.YValues);
+            var scatter = _plot.Plot.Add.Scatter(dataset.XValues, TransformedY(dataset, index));
             scatter.LegendText = GetSeriesLegendText(dataset, index);
             ApplySeriesStyle(scatter, index);
 
@@ -497,7 +500,8 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         foreach (var peak in _peaks)
         {
-            var marker = _plot.Plot.Add.Marker(peak.Ppm, peak.Intensity);
+            var markerY = TransformYScalar(peak.Intensity, _activeIndex);
+            var marker = _plot.Plot.Add.Marker(peak.Ppm, markerY);
             marker.MarkerStyle.Shape = ScottPlot.MarkerShape.OpenTriangleDown;
             marker.MarkerStyle.Size = 8;
             marker.MarkerStyle.LineColor = color;
@@ -505,7 +509,7 @@ public partial class MainWindow : Window, IPortalFileOpener
             marker.MarkerStyle.FillColor = ScottPlot.Colors.White;
             marker.LegendText = string.Empty;
 
-            var text = _plot.Plot.Add.Text(FormatPpm(peak.Ppm), peak.Ppm, peak.Intensity + labelOffset);
+            var text = _plot.Plot.Add.Text(FormatPpm(peak.Ppm), peak.Ppm, markerY + labelOffset);
             text.LabelFontColor = color;
             text.LabelFontSize = 10;
             text.LabelAlignment = ScottPlot.Alignment.LowerCenter;
@@ -531,6 +535,30 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
 
         return new[] { (_loadedDatasets[_activeIndex], _activeIndex) };
+    }
+
+    private double[] TransformedY(NmrDataset dataset, int index)
+    {
+        var style = index >= 0 && index < _datasetStyles.Count ? _datasetStyles[index] : null;
+        if (style is null || (style.YScale == 1.0 && style.YOffset == 0.0))
+        {
+            return dataset.YValues;
+        }
+
+        var ys = dataset.YValues;
+        var result = new double[ys.Length];
+        for (var i = 0; i < ys.Length; i++)
+        {
+            result[i] = ys[i] * style.YScale + style.YOffset;
+        }
+
+        return result;
+    }
+
+    private double TransformYScalar(double y, int index)
+    {
+        var style = index >= 0 && index < _datasetStyles.Count ? _datasetStyles[index] : null;
+        return style is null ? y : y * style.YScale + style.YOffset;
     }
 
     private void ApplySeriesStyle(ScottPlot.Plottables.Scatter scatter, int index)
@@ -773,6 +801,89 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
 
         return ppm.ToString("0.00", CultureInfo.InvariantCulture);
+    }
+
+    // ------------------------------------------------------ referencing / display
+
+    private void ApplyReferenceButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_loadedDatasets.Count == 0)
+        {
+            return;
+        }
+
+        if (!TryParseDouble(ReferenceObservedTextBox.Text, out var observed))
+        {
+            Toast?.Show("基準ピークの現在 ppm を入力してください。", StatusSeverity.Warning, 3000);
+            return;
+        }
+
+        var target = ParseDouble(ReferenceTargetTextBox.Text, 0.0);
+        ShiftAllDatasets(ChemicalShiftReferencer.ComputeShift(observed, target));
+    }
+
+    private void ResetReferenceButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_referenceShiftPpm != 0.0)
+        {
+            ShiftAllDatasets(-_referenceShiftPpm);
+        }
+    }
+
+    private void ShiftAllDatasets(double delta)
+    {
+        if (delta == 0.0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _loadedDatasets.Count; i++)
+        {
+            _loadedDatasets[i] = ChemicalShiftReferencer.ApplyShift(_loadedDatasets[i], delta);
+        }
+
+        _referenceShiftPpm += delta;
+        ClearPeaks();
+        RecomputeIntegration();
+        RefreshDatasetEntries();
+        PlotDatasets();
+    }
+
+    private void NormalizeButton_Click(object? sender, RoutedEventArgs e)
+    {
+        for (var i = 0; i < _loadedDatasets.Count; i++)
+        {
+            var max = _loadedDatasets[i].YValues.Select(Math.Abs).DefaultIfEmpty(0.0).Max();
+            _datasetStyles[i].YScale = max > 0 ? 1.0 / max : 1.0;
+            _datasetStyles[i].YOffset = 0.0;
+        }
+
+        PlotDatasets();
+    }
+
+    private void StackButton_Click(object? sender, RoutedEventArgs e)
+    {
+        // Normalize each spectrum to unit height, then offset by a constant
+        // step so the traces stack instead of overlapping.
+        for (var i = 0; i < _loadedDatasets.Count; i++)
+        {
+            var max = _loadedDatasets[i].YValues.Select(Math.Abs).DefaultIfEmpty(0.0).Max();
+            _datasetStyles[i].YScale = max > 0 ? 1.0 / max : 1.0;
+            _datasetStyles[i].YOffset = i * 1.1;
+        }
+
+        PlotDatasets();
+    }
+
+    private void ResetDisplayButton_Click(object? sender, RoutedEventArgs e)
+    {
+        foreach (var style in _datasetStyles)
+        {
+            style.YScale = 1.0;
+            style.YOffset = 0.0;
+        }
+
+        PlotDatasets();
     }
 
     private static double ParseDouble(string? text, double fallback) =>

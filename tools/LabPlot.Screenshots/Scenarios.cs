@@ -21,5 +21,6 @@ internal static class Scenarios
             .Concat(SpectrumScenarios.All)
             .Concat(DlsScenarios.All)
             .Concat(ViewerScenarios.All)
+            .Concat(NmrScenarios.All)
             .ToArray();
 }

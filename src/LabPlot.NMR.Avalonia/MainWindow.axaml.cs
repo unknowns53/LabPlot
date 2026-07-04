@@ -34,6 +34,7 @@ public partial class MainWindow : Window, IPortalFileOpener
     };
 
     private readonly JdfReader _reader = new();
+    private readonly AnalysisSessionStore<NmrAnalysisSession> _sessionStore = new();
     private readonly List<NmrDataset> _loadedDatasets = new();
     private readonly List<DatasetStyle> _datasetStyles = new();
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
@@ -92,11 +93,17 @@ public partial class MainWindow : Window, IPortalFileOpener
             return;
         }
 
-        if (e.HasCommandModifier() && e.Key == Key.O)
+        if (e.HasCommandModifier())
         {
-            _ = OpenFileAsync();
-            e.Handled = true;
-            return;
+            var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+            switch (e.Key)
+            {
+                case Key.O when shift: _ = LoadSessionAsync(); e.Handled = true; return;
+                case Key.O: _ = OpenFileAsync(); e.Handled = true; return;
+                case Key.S when shift: _ = SaveSessionAsync(); e.Handled = true; return;
+                case Key.S: _ = SaveImageAsync(); e.Handled = true; return;
+                case Key.E: _ = ExportCsvAsync(); e.Handled = true; return;
+            }
         }
 
         base.OnKeyDown(e);
@@ -891,6 +898,227 @@ public partial class MainWindow : Window, IPortalFileOpener
 
     private static bool TryParseDouble(string? text, out double value) =>
         double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out value) && double.IsFinite(value);
+
+    // ------------------------------------------------------------ export / session
+
+    private void SaveImageButton_Click(object? sender, RoutedEventArgs e) => _ = SaveImageAsync();
+
+    private void ExportCsvButton_Click(object? sender, RoutedEventArgs e) => _ = ExportCsvAsync();
+
+    private void SaveSessionButton_Click(object? sender, RoutedEventArgs e) => _ = SaveSessionAsync();
+
+    private void LoadSessionButton_Click(object? sender, RoutedEventArgs e) => _ = LoadSessionAsync();
+
+    private async Task SaveImageAsync()
+    {
+        if (_plot is null || _loadedDatasets.Count == 0)
+        {
+            Toast?.Show("先にスペクトルを開いてください。", StatusSeverity.Warning, 3000);
+            return;
+        }
+
+        var sp = StorageProvider;
+        if (sp is null)
+        {
+            return;
+        }
+
+        var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "グラフを保存",
+            SuggestedFileName = "nmr",
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType("PNG 画像") { Patterns = new[] { "*.png" } },
+                new FilePickerFileType("SVG 画像") { Patterns = new[] { "*.svg" } },
+            },
+        });
+
+        var path = file?.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        var format = GraphSaveHelpers.GetGraphSaveFormat(path);
+        var fileName = GraphSaveHelpers.EnsureGraphSaveFileExtension(path, format);
+        var (width, height) = GraphSaveHelpers.GetExportImageSize(null);
+        if (format == GraphSaveFormat.Svg)
+        {
+            GraphSaveHelpers.SaveGraphSvg(_plot.Plot, fileName, width, height);
+        }
+        else
+        {
+            GraphSaveHelpers.SaveGraphPng(_plot.Plot, fileName, width, height, GraphSaveHelpers.ExportDpi);
+        }
+
+        Toast?.Show($"画像を保存しました: {Path.GetFileName(fileName)}", StatusSeverity.Success, 4000);
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        if (_loadedDatasets.Count == 0)
+        {
+            Toast?.Show("先にスペクトルを開いてください。", StatusSeverity.Warning, 3000);
+            return;
+        }
+
+        var sp = StorageProvider;
+        if (sp is null)
+        {
+            return;
+        }
+
+        var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "CSV を出力",
+            SuggestedFileName = "nmr",
+            FileTypeChoices = new[] { new FilePickerFileType("CSV") { Patterns = new[] { "*.csv" } } },
+        });
+
+        var path = file?.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        var entries = _loadedDatasets.Select(dataset => new NmrAnalysisExportEntry
+        {
+            DisplayName = NameOf(dataset),
+            SourceFilePath = dataset.SourceFilePath,
+            XLabel = "ppm",
+            YLabel = "Intensity",
+            Points = dataset.XValues
+                .Zip(dataset.YValues, (ppm, intensity) => new NmrDataPoint(ppm, intensity))
+                .ToArray(),
+        }).ToArray();
+
+        new CsvNmrAnalysisExporter().Export(
+            new AnalysisExport { GeneratorName = "NMR Analyzer", Entries = entries }, path);
+
+        // Write the integration summary alongside, if any regions exist.
+        if (_regions.Count > 0 && ActiveDataset is { } active)
+        {
+            var results = _regions.Select(region => NmrIntegrator.Integrate(active, region)).ToList();
+            results = NmrIntegrator.NormalizeToReference(results, _referenceRegionIndex).ToList();
+            var integrationPath = Path.Combine(
+                Path.GetDirectoryName(path) ?? string.Empty,
+                Path.GetFileNameWithoutExtension(path) + "_integration.csv");
+            CsvNmrAnalysisExporter.WriteIntegrationTable(results, integrationPath);
+        }
+
+        Toast?.Show($"CSV を出力しました: {Path.GetFileName(path)}", StatusSeverity.Success, 4000);
+    }
+
+    private async Task SaveSessionAsync()
+    {
+        if (_loadedDatasets.Count == 0)
+        {
+            Toast?.Show("先にスペクトルを開いてください。", StatusSeverity.Warning, 3000);
+            return;
+        }
+
+        var sp = StorageProvider;
+        if (sp is null)
+        {
+            return;
+        }
+
+        var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "解析条件を保存",
+            SuggestedFileName = "nmr",
+            FileTypeChoices = new[] { new FilePickerFileType("NMR セッション") { Patterns = new[] { "*.nmrjson" } } },
+        });
+
+        var path = file?.TryGetLocalPath();
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        var session = NmrSessionMapper.ToSession(
+            _loadedDatasets, _datasetStyles, _regions,
+            OverlayCheckBox.IsChecked == true, _activeIndex, _referenceShiftPpm);
+        _sessionStore.Save(session, path);
+        Toast?.Show($"セッションを保存しました: {Path.GetFileName(path)}", StatusSeverity.Success, 4000);
+    }
+
+    private async Task LoadSessionAsync()
+    {
+        var sp = StorageProvider;
+        if (sp is null)
+        {
+            return;
+        }
+
+        var files = await sp.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "解析条件を読み込み",
+            AllowMultiple = false,
+            FileTypeFilter = new[] { new FilePickerFileType("NMR セッション") { Patterns = new[] { "*.nmrjson" } } },
+        });
+
+        var path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        NmrAnalysisSession session;
+        try
+        {
+            session = _sessionStore.Load(path);
+        }
+        catch (Exception ex)
+        {
+            Toast?.Show($"セッションの読み込みに失敗しました: {ex.Message}", StatusSeverity.Error, 5000);
+            return;
+        }
+
+        _loadedDatasets.Clear();
+        _datasetStyles.Clear();
+        var missing = 0;
+        foreach (var entry in session.Datasets)
+        {
+            try
+            {
+                var dataset = _reader.Read(entry.SourceFilePath);
+                if (session.ReferenceShiftPpm != 0.0)
+                {
+                    dataset = ChemicalShiftReferencer.ApplyShift(dataset, session.ReferenceShiftPpm);
+                }
+
+                _loadedDatasets.Add(dataset);
+                _datasetStyles.Add(NmrSessionMapper.ToStyle(entry.Style));
+            }
+            catch
+            {
+                missing++;
+            }
+        }
+
+        _referenceShiftPpm = session.ReferenceShiftPpm;
+        _regions.Clear();
+        _regions.AddRange(session.IntegrationRegions);
+        _referenceRegionIndex = 0;
+        _activeIndex = _loadedDatasets.Count == 0
+            ? -1
+            : Math.Clamp(session.ActiveDatasetIndex, 0, _loadedDatasets.Count - 1);
+
+        ClearPeaks();
+        RefreshDatasetEntries();
+        SyncStyleControlsFromActiveDataset();
+        OverlayCheckBox.IsChecked = session.Overlay;
+        RecomputeIntegration();
+        PlotDatasets();
+        UpdateStatus(null);
+
+        if (missing > 0)
+        {
+            Toast?.Show($"{missing} 件のファイルが見つかりませんでした。", StatusSeverity.Warning, 5000);
+        }
+    }
 
     // --------------------------------------------------------------------- vm
 

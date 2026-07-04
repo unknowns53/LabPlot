@@ -42,6 +42,28 @@
                     Theme="{DynamicResource PrimaryButtonStyle}"
                     Click="OpenButton_Click" />
 
+            <Border Theme="{DynamicResource SectionStyle}">
+              <StackPanel Spacing="6">
+                <TextBlock Text="出力 / セッション" Theme="{DynamicResource SectionHeaderStyle}" />
+                <Button Content="画像を保存 (PNG / SVG)"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="SaveImageButton_Click" />
+                <Button Content="CSV を出力"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="ExportCsvButton_Click" />
+                <Button Content="セッションを保存"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="SaveSessionButton_Click" />
+                <Button Content="セッションを読み込み"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="LoadSessionButton_Click" />
+              </StackPanel>
+            </Border>
+
             <CheckBox x:Name="OverlayCheckBox"
                       Content="重ね描き (Overlay)"
                       ToolTip.Tip="複数の .jdf を重ねて表示する"

@@ -8,6 +8,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 
+### Added
+
+- **NMR モジュール新設**。JEOL Delta を介さず `.jdf`（1D 処理済みスペクトル）を
+  直読みする 4 番目の解析モジュール。nmrglue の `fileio/jeol.py` を独立移植した
+  バイナリリーダー（ヘッダー直値の ppm 軸、複素データのセクション分割 / 虚部符号
+  反転、エンディアン二段構えを処理）。複数スペクトルの重ね描き / スタック、
+  ピーク検出、範囲積分（面積比）、化学シフト基準合わせ（TMS を 0 ppm へ）、
+  正規化 / 縦オフセット、PNG / SVG / CSV 出力、セッション保存（`.nmrjson`）に対応。
+  Portal から Ctrl/Cmd + 5 で起動。
+
 ## [1.4.1] - 2026-07-02
 
 ### Added

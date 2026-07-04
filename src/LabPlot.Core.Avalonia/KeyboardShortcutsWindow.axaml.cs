@@ -212,9 +212,13 @@ public sealed partial class KeyboardShortcutsWindow : Window
         },
         AppKind.Nmr => new[]
         {
-            new ShortcutGroup("ファイル", new[]
+            new ShortcutGroup("ファイル / 出力", new[]
             {
                 new ShortcutEntry($"{mod} + O", "JEOL .jdf を開く"),
+                new ShortcutEntry($"{mod} + S", "グラフを PNG / SVG で保存"),
+                new ShortcutEntry($"{mod} + E", "スペクトル / 積分を CSV で出力"),
+                new ShortcutEntry($"{mod} + Shift + S", "解析条件を保存 (.nmrjson)"),
+                new ShortcutEntry($"{mod} + Shift + O", "解析条件を読み込み (.nmrjson)"),
             }),
             new ShortcutGroup("表示", new[]
             {

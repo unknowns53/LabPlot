@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -37,10 +38,20 @@ public partial class MainWindow : Window, IPortalFileOpener
     private readonly List<DatasetStyle> _datasetStyles = new();
     private readonly ObservableCollection<DatasetEntryVm> _datasetEntries = new();
 
+    // Analysis state, all evaluated against the active dataset.
+    private readonly List<NmrPeakResult> _peaks = new();
+    private readonly ObservableCollection<PeakRowVm> _peakEntries = new();
+    private readonly List<NmrIntegrationRegion> _regions = new();
+    private readonly ObservableCollection<IntegrationRowVm> _regionRows = new();
+    private int _referenceRegionIndex;
+
     private AvaPlot? _plot;
     private int _activeIndex = -1;
     private bool _suppressDatasetListEvents;
     private bool _suppressStyleControlEvents;
+
+    private NmrDataset? ActiveDataset =>
+        _activeIndex >= 0 && _activeIndex < _loadedDatasets.Count ? _loadedDatasets[_activeIndex] : null;
 
     public MainWindow()
     {
@@ -49,6 +60,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         // fields and NREs — the trap the other modules note).
         InitializeComponent();
         DatasetListBox.ItemsSource = _datasetEntries;
+        PeakList.ItemsSource = _peakEntries;
+        IntegrationGrid.ItemsSource = _regionRows;
         Opened += OnOpenedInitializePlot;
 
         PlotContainerBorder.AddHandler(DragDrop.DragOverEvent, OnFileDragOver);
@@ -159,6 +172,8 @@ public partial class MainWindow : Window, IPortalFileOpener
             }
         }
 
+        ClearPeaks();
+        RecomputeIntegration();
         PlotDatasets();
 
         if (lastError is not null)
@@ -235,6 +250,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         if (_loadedDatasets.Count == 0)
         {
             _activeIndex = -1;
+            ClearPeaks();
+            RecomputeIntegration();
             RefreshDatasetEntries();
             SyncStyleControlsFromActiveDataset();
             InitializeEmptyPlot();
@@ -243,6 +260,8 @@ public partial class MainWindow : Window, IPortalFileOpener
         }
 
         _activeIndex = Math.Clamp(_activeIndex >= index ? _activeIndex - 1 : _activeIndex, 0, _loadedDatasets.Count - 1);
+        ClearPeaks();
+        RecomputeIntegration();
         RefreshDatasetEntries();
         SyncStyleControlsFromActiveDataset();
         PlotDatasets();
@@ -296,6 +315,8 @@ public partial class MainWindow : Window, IPortalFileOpener
 
         _activeIndex = index;
         SyncStyleControlsFromActiveDataset();
+        ClearPeaks();
+        RecomputeIntegration();
         PlotDatasets();
     }
 
@@ -433,8 +454,62 @@ public partial class MainWindow : Window, IPortalFileOpener
             _plot.Plot.Axes.SetLimitsX(high, low);
         }
 
+        DrawIntegrationRegions();
+        DrawPeakMarkers();
+
         _plot.Plot.Legend.IsVisible = ShouldShowLegend(entries.Select(entry => entry.Index));
         _plot.Refresh();
+    }
+
+    private void DrawIntegrationRegions()
+    {
+        if (_plot is null || _regions.Count == 0)
+        {
+            return;
+        }
+
+        var limits = _plot.Plot.Axes.GetLimits();
+        var span = limits.Top - limits.Bottom;
+        var pad = span > 0 ? span * 10.0 : 1.0;
+        var color = ScottPlot.Color.FromHex("#94A3B8");
+
+        foreach (var region in _regions)
+        {
+            var rect = _plot.Plot.Add.Rectangle(region.PpmMin, region.PpmMax, limits.Bottom - pad, limits.Top + pad);
+            rect.FillStyle.Color = color.WithAlpha((byte)40);
+            rect.LineStyle.Color = color;
+            rect.LineStyle.Pattern = ScottPlot.LinePattern.Dashed;
+            rect.LineStyle.Width = 1;
+            rect.LegendText = string.Empty;
+        }
+    }
+
+    private void DrawPeakMarkers()
+    {
+        if (_plot is null || _peaks.Count == 0)
+        {
+            return;
+        }
+
+        var limits = _plot.Plot.Axes.GetLimits();
+        var labelOffset = (limits.Top - limits.Bottom) * 0.04;
+        var color = ScottPlot.Color.FromHex("#DC2626");
+
+        foreach (var peak in _peaks)
+        {
+            var marker = _plot.Plot.Add.Marker(peak.Ppm, peak.Intensity);
+            marker.MarkerStyle.Shape = ScottPlot.MarkerShape.OpenTriangleDown;
+            marker.MarkerStyle.Size = 8;
+            marker.MarkerStyle.LineColor = color;
+            marker.MarkerStyle.LineWidth = 1.5f;
+            marker.MarkerStyle.FillColor = ScottPlot.Colors.White;
+            marker.LegendText = string.Empty;
+
+            var text = _plot.Plot.Add.Text(FormatPpm(peak.Ppm), peak.Ppm, peak.Intensity + labelOffset);
+            text.LabelFontColor = color;
+            text.LabelFontSize = 10;
+            text.LabelAlignment = ScottPlot.Alignment.LowerCenter;
+        }
     }
 
     private (NmrDataset Dataset, int Index)[] GetDatasetsToPlotWithIndices()
@@ -539,6 +614,173 @@ public partial class MainWindow : Window, IPortalFileOpener
         LoadFiles(filePaths);
     }
 
+    // ----------------------------------------------------------- peak detection
+
+    private void DetectPeaksButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var dataset = ActiveDataset;
+        if (dataset is null)
+        {
+            Toast?.Show("先にスペクトルを開いてください。", StatusSeverity.Warning, 3000);
+            return;
+        }
+
+        var config = new NmrPeakFinderConfig
+        {
+            MinimumIntensity = ParseDouble(PeakMinIntensityTextBox.Text, 0.0),
+            MinimumProminence = ParseDouble(PeakProminenceTextBox.Text, 0.0),
+            MaxPeaks = (int)Math.Max(0, ParseDouble(PeakMaxCountTextBox.Text, 20)),
+        };
+
+        _peaks.Clear();
+        _peaks.AddRange(NmrPeakDetector.Find(dataset, config));
+        RefreshPeakList();
+        PlotDatasets();
+    }
+
+    private void ClearPeaksButton_Click(object? sender, RoutedEventArgs e)
+    {
+        ClearPeaks();
+        PlotDatasets();
+    }
+
+    private void ClearPeaks()
+    {
+        _peaks.Clear();
+        RefreshPeakList();
+    }
+
+    private void RefreshPeakList()
+    {
+        _peakEntries.Clear();
+        foreach (var peak in _peaks.OrderByDescending(p => p.Ppm))
+        {
+            _peakEntries.Add(new PeakRowVm
+            {
+                PpmText = $"{FormatPpm(peak.Ppm)} ppm",
+                IntensityText = peak.Intensity.ToString("0.###", CultureInfo.InvariantCulture),
+            });
+        }
+    }
+
+    // --------------------------------------------------------------- integration
+
+    private void AddRegionButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!TryParseDouble(RegionMinTextBox.Text, out var a) || !TryParseDouble(RegionMaxTextBox.Text, out var b) || a == b)
+        {
+            Toast?.Show("開始・終了 ppm を入力してください。", StatusSeverity.Warning, 3000);
+            return;
+        }
+
+        _regions.Add(new NmrIntegrationRegion
+        {
+            Label = $"R{_regions.Count + 1}",
+            PpmMin = Math.Min(a, b),
+            PpmMax = Math.Max(a, b),
+            Baseline = RegionLinearBaselineCheckBox.IsChecked == true ? NmrBaselineMode.Linear : NmrBaselineMode.None,
+        });
+
+        RecomputeIntegration();
+        PlotDatasets();
+    }
+
+    private void RemoveRegionButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var index = IntegrationGrid.SelectedIndex;
+        if (index < 0 || index >= _regions.Count)
+        {
+            return;
+        }
+
+        _regions.RemoveAt(index);
+        if (_referenceRegionIndex >= _regions.Count)
+        {
+            _referenceRegionIndex = 0;
+        }
+
+        RecomputeIntegration();
+        PlotDatasets();
+    }
+
+    private void IntegrationGrid_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var index = IntegrationGrid.SelectedIndex;
+        if (index < 0 || index >= _regions.Count || index == _referenceRegionIndex)
+        {
+            return;
+        }
+
+        _referenceRegionIndex = index;
+        RecomputeIntegration();
+    }
+
+    private void RecomputeIntegration()
+    {
+        // Rebuild the row collection only when the region count changed (keeps
+        // the DataGrid selection / reference row stable across area updates).
+        if (_regionRows.Count != _regions.Count)
+        {
+            _regionRows.Clear();
+            foreach (var region in _regions)
+            {
+                _regionRows.Add(new IntegrationRowVm
+                {
+                    RangeText = $"{region.PpmMax.ToString("0.##", CultureInfo.InvariantCulture)}–" +
+                                $"{region.PpmMin.ToString("0.##", CultureInfo.InvariantCulture)}",
+                });
+            }
+        }
+
+        var dataset = ActiveDataset;
+        if (dataset is null || _regions.Count == 0)
+        {
+            foreach (var row in _regionRows)
+            {
+                row.AreaText = "—";
+                row.RatioText = "—";
+            }
+
+            return;
+        }
+
+        if (_referenceRegionIndex < 0 || _referenceRegionIndex >= _regions.Count)
+        {
+            _referenceRegionIndex = 0;
+        }
+
+        var results = _regions.Select(region => NmrIntegrator.Integrate(dataset, region)).ToList();
+        results = NmrIntegrator.NormalizeToReference(results, _referenceRegionIndex).ToList();
+
+        for (var i = 0; i < _regionRows.Count && i < results.Count; i++)
+        {
+            _regionRows[i].AreaText = double.IsFinite(results[i].Area)
+                ? results[i].Area.ToString("0.###", CultureInfo.InvariantCulture)
+                : "—";
+            _regionRows[i].RatioText = double.IsFinite(results[i].Ratio)
+                ? results[i].Ratio.ToString("0.##", CultureInfo.InvariantCulture)
+                : "—";
+        }
+    }
+
+    // Format a ppm value, collapsing a "-0.00" (negative zero from parabolic
+    // interpolation near the reference) to "0.00".
+    private static string FormatPpm(double ppm)
+    {
+        if (Math.Abs(ppm) < 0.005)
+        {
+            ppm = 0.0;
+        }
+
+        return ppm.ToString("0.00", CultureInfo.InvariantCulture);
+    }
+
+    private static double ParseDouble(string? text, double fallback) =>
+        TryParseDouble(text, out var value) ? value : fallback;
+
+    private static bool TryParseDouble(string? text, out double value) =>
+        double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out value) && double.IsFinite(value);
+
     // --------------------------------------------------------------------- vm
 
     /// <summary>Display model for one row in the dataset list.</summary>
@@ -549,5 +791,51 @@ public partial class MainWindow : Window, IPortalFileOpener
         public string FullPath { get; init; } = string.Empty;
 
         public IBrush ColorBrush { get; init; } = Brushes.Gray;
+    }
+
+    /// <summary>Display model for one detected peak.</summary>
+    public sealed class PeakRowVm
+    {
+        public string PpmText { get; init; } = string.Empty;
+
+        public string IntensityText { get; init; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Display model for one integration region. Area / ratio change in place
+    /// when the reference row or active dataset changes, so this notifies to
+    /// keep the DataGrid selection stable across recomputes.
+    /// </summary>
+    public sealed class IntegrationRowVm : INotifyPropertyChanged
+    {
+        private string _areaText = "—";
+        private string _ratioText = "—";
+
+        public string RangeText { get; init; } = string.Empty;
+
+        public string AreaText
+        {
+            get => _areaText;
+            set => Set(ref _areaText, value, nameof(AreaText));
+        }
+
+        public string RatioText
+        {
+            get => _ratioText;
+            set => Set(ref _ratioText, value, nameof(RatioText));
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void Set(ref string field, string value, string propertyName)
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }

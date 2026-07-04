@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using LabPlot.Core.Avalonia.Helpers;
 using LabPlot.NMR.Avalonia;
 
@@ -20,6 +21,7 @@ internal static class NmrScenarios
         new("nmr/00-startup.png", CaptureStartupAsync),
         new("nmr/10-data-loaded.png", CaptureDataLoadedAsync),
         new("nmr/20-overlay.png", CaptureOverlayAsync),
+        new("nmr/30-analysis.png", CaptureAnalysisAsync),
     };
 
     private static async Task CaptureStartupAsync(ShotContext ctx)
@@ -57,6 +59,48 @@ internal static class NmrScenarios
         await ShotContext.SettleAsync();
 
         await ctx.CaptureAsync(window, "nmr/20-overlay.png");
+    }
+
+    private static async Task CaptureAnalysisAsync(ShotContext ctx)
+    {
+        var window = CreateWindow();
+        await ctx.ShowAsync(window);
+
+        var jdf = WriteSyntheticJdf(0.0);
+        await ((IPortalFileOpener)window).OpenFilesAsync(new[] { jdf });
+        await ShotContext.SettleAsync();
+
+        // Detect peaks.
+        Click(window, "DetectPeaksButton");
+        await ShotContext.SettleAsync();
+
+        // Add an integration region around the 1.25 ppm peak.
+        SetText(window, "RegionMinTextBox", "1.0");
+        SetText(window, "RegionMaxTextBox", "1.5");
+        Click(window, "AddRegionButton");
+        await ShotContext.SettleAsync();
+
+        // And a reference region around the CDCl3 peak at 7.26 ppm.
+        SetText(window, "RegionMinTextBox", "7.0");
+        SetText(window, "RegionMaxTextBox", "7.5");
+        Click(window, "AddRegionButton");
+        await ShotContext.SettleAsync();
+
+        await ctx.CaptureAsync(window, "nmr/30-analysis.png");
+    }
+
+    private static void Click(MainWindow window, string name)
+    {
+        var button = window.FindControl<Button>(name)
+            ?? throw new InvalidOperationException($"{name} が見つからない。");
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+
+    private static void SetText(MainWindow window, string name, string value)
+    {
+        var box = window.FindControl<TextBox>(name)
+            ?? throw new InvalidOperationException($"{name} が見つからない。");
+        box.Text = value;
     }
 
     private static MainWindow CreateWindow()

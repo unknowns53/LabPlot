@@ -16,6 +16,10 @@
         ExtendClientAreaTitleBarHeightHint="-1"
         SystemDecorations="Full">
 
+  <Window.Styles>
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+  </Window.Styles>
+
   <Border Name="ChromeRoot" Theme="{DynamicResource WindowChromeRootBorderStyle}">
     <Grid RowDefinitions="Auto,*">
 
@@ -26,7 +30,7 @@
                                Subtitle="核磁気共鳴スペクトル"
                                AppIconData="M 2,16 L 6,16 L 7,4 L 8,16 L 11,16 L 12,9 L 13,16 L 18,16" />
 
-      <Grid Grid.Row="1" ColumnDefinitions="300,*">
+      <Grid Grid.Row="1" ColumnDefinitions="300,*,340">
 
         <!-- ================= SIDEBAR ================= -->
         <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
@@ -177,7 +181,7 @@
                 CornerRadius="8"
                 BorderBrush="#E2E8F0"
                 BorderThickness="1"
-                Margin="0,10,16,16"
+                Margin="0,10,12,16"
                 DragDrop.AllowDrop="True">
           <Grid RowDefinitions="Auto,*">
             <TextBlock x:Name="StatusText"
@@ -191,6 +195,92 @@
             </Grid>
           </Grid>
         </Border>
+
+        <!-- ================= ANALYSIS PANEL ================= -->
+        <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Disabled" Margin="0,10,16,16">
+          <StackPanel Spacing="12">
+
+            <!-- ピーク検出 -->
+            <Border Theme="{DynamicResource SectionStyle}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="ピーク検出" Theme="{DynamicResource SectionHeaderStyle}" />
+
+                <TextBlock Text="最小強度" Theme="{DynamicResource FieldLabelStyle}" />
+                <TextBox x:Name="PeakMinIntensityTextBox" Text="0.05" Theme="{DynamicResource InputTextBoxStyle}" />
+                <TextBlock Text="プロミネンス" Theme="{DynamicResource FieldLabelStyle}" />
+                <TextBox x:Name="PeakProminenceTextBox" Text="0.02" Theme="{DynamicResource InputTextBoxStyle}" />
+                <TextBlock Text="最大ピーク数" Theme="{DynamicResource FieldLabelStyle}" />
+                <TextBox x:Name="PeakMaxCountTextBox" Text="20" Theme="{DynamicResource InputTextBoxStyle}" />
+
+                <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+                  <Button x:Name="DetectPeaksButton" Grid.Column="0" Content="検出" Margin="0,0,4,0"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Theme="{DynamicResource SecondaryButtonStyle}"
+                          Click="DetectPeaksButton_Click" />
+                  <Button Grid.Column="1" Content="クリア" Margin="4,0,0,0"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Theme="{DynamicResource SecondaryButtonStyle}"
+                          Click="ClearPeaksButton_Click" />
+                </Grid>
+
+                <ItemsControl x:Name="PeakList" Margin="0,4,0,0">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MainWindow+PeakRowVm">
+                      <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                        <TextBlock Grid.Column="0" Text="{CompiledBinding PpmText}" />
+                        <TextBlock Grid.Column="1" Text="{CompiledBinding IntensityText}" Foreground="#64748B" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- 積分 -->
+            <Border Theme="{DynamicResource SectionStyle}">
+              <StackPanel Spacing="8">
+                <TextBlock Text="積分 (面積比)" Theme="{DynamicResource SectionHeaderStyle}" />
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                  <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Text="開始 ppm" Theme="{DynamicResource FieldLabelStyle}" />
+                    <TextBox x:Name="RegionMinTextBox" Theme="{DynamicResource InputTextBoxStyle}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="終了 ppm" Theme="{DynamicResource FieldLabelStyle}" />
+                    <TextBox x:Name="RegionMaxTextBox" Theme="{DynamicResource InputTextBoxStyle}" />
+                  </StackPanel>
+                </Grid>
+                <CheckBox x:Name="RegionLinearBaselineCheckBox" Content="線形ベースライン" IsChecked="True" />
+                <Button x:Name="AddRegionButton" Content="範囲を追加"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="AddRegionButton_Click" />
+
+                <DataGrid x:Name="IntegrationGrid"
+                          x:DataType="vm:MainWindow+IntegrationRowVm"
+                          AutoGenerateColumns="False"
+                          CanUserReorderColumns="False"
+                          IsReadOnly="True"
+                          MinHeight="80" MaxHeight="220"
+                          SelectionChanged="IntegrationGrid_SelectionChanged">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="範囲" Binding="{CompiledBinding RangeText}" Width="*" MinWidth="90" />
+                    <DataGridTextColumn Header="面積" Binding="{CompiledBinding AreaText}" Width="80" />
+                    <DataGridTextColumn Header="比" Binding="{CompiledBinding RatioText}" Width="60" />
+                  </DataGrid.Columns>
+                </DataGrid>
+
+                <TextBlock Text="行を選ぶとその範囲が基準 (比 = 1) になります。"
+                           FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" />
+                <Button Content="選択した範囲を削除"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Theme="{DynamicResource SecondaryButtonStyle}"
+                        Click="RemoveRegionButton_Click" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
       </Grid>
     </Grid>
   </Border>

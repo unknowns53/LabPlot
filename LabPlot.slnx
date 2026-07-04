@@ -18,6 +18,8 @@
   <Project Path="src/LabPlot.DLS/LabPlot.DLS/LabPlot.DLS.csproj" />
   <Project Path="src/LabPlot.Viewer/DataViewer.Core/DataViewer.Core.csproj" />
   <Project Path="src/LabPlot.Viewer/DataViewer.Tests/DataViewer.Tests.csproj" />
+  <Project Path="src/LabPlot.NMR/NMRAnalyzer.Core/NMRAnalyzer.Core.csproj" />
+  <Project Path="src/LabPlot.NMR/NMRAnalyzer.Tests/NMRAnalyzer.Tests.csproj" />
   <Project Path="src/LabPlot.DLS.Avalonia/LabPlot.DLS.Avalonia.csproj" />
   <Project Path="src/LabPlot.GPC.Avalonia/LabPlot.GPC.Avalonia.csproj" />
   <Project Path="src/LabPlot.Spectrum.Avalonia/LabPlot.Spectrum.Avalonia.csproj" />

@@ -102,6 +102,8 @@ dotnet publish src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj -c Relea
 dotnet publish src/LabPlot.Shell.Avalonia/LabPlot.Shell.Avalonia.csproj -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
 ```
 
+macOS 向け配布物は Developer ID 署名・公証（notarization）を行っていません（Apple Developer Program 未加入のため）。ブラウザでダウンロードすると Gatekeeper が「壊れているため開けません」と表示するので、利用者には quarantine 属性の付かない curl 経由のインストールを案内しています（手順は [docs/user-guide/installation.md](docs/user-guide/installation.md) の macOS 節を参照。GitHub Release には固定 URL 用の別名アセット `LabPlot-macos-arm64.zip` を添付）。署名・公証込みのビルドが必要になった場合は、Apple Developer Program 加入のうえ `scripts/publish-macos.sh` を使います。
+
 成果物は `src/LabPlot.Shell.Avalonia/bin/Release/net10.0/<rid>/publish/LabPlot.Avalonia(.exe)` に出力されます。GPC / Spectrum / DLS の `samples/` は各 csproj の `CopyToPublishDirectory` 設定で publish フォルダに同梱されるので、`publish/` フォルダごと zip にして配布してください。DLS のサンプル（`demo.xlsx`）は `tools/DlsSampleGenerator` で生成した合成データで、コミット済みのものがそのまま publish に乗ります。動作検証は WSL（Linux x64、Windows 11 標準の WSLg で GUI 表示可能）で実機相当のチェックが取れます。macOS 側の本格的な GUI 検証は実機が必要なので、手元に環境が無い場合は GitHub Actions の `macos-latest` ランナーで起動スモークまでに留めて、対面検証は実機所有者に依頼する運用が現実的です。
 
 #### 保守配布（WPF 版、Windows 専用・v1.1.0 系統）

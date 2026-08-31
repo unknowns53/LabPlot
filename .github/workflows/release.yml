@@ -64,6 +64,15 @@ jobs:
           chmod +x scripts/publish-all-platforms.sh
           scripts/publish-all-platforms.sh
 
+      # macOS はブラウザ経由の zip ダウンロードに quarantine 属性が付き、未署名の
+      # .app だと Gatekeeper が「壊れているため開けません」を出す。quarantine の
+      # 付かない curl での取得を docs/user-guide/installation.md で案内しており、
+      # その固定 URL (releases/latest/download/...) 用にバージョン番号なしの
+      # 別名アセットを添付する。
+      - name: Copy stable-named macOS asset
+        shell: bash
+        run: cp "dist/LabPlot-${{ steps.meta.outputs.tag }}-osx-arm64.zip" dist/LabPlot-macos-arm64.zip
+
       - name: Extract release notes from CHANGELOG
         id: notes
         shell: bash
@@ -96,6 +105,7 @@ jobs:
             dist/LabPlot-${{ steps.meta.outputs.tag }}-win-x64.zip
             dist/LabPlot-${{ steps.meta.outputs.tag }}-osx-arm64.zip
             dist/LabPlot-${{ steps.meta.outputs.tag }}-linux-x64.zip
+            dist/LabPlot-macos-arm64.zip
           fail_on_unmatched_files: true
 
       - name: Upload artifacts (dry run)

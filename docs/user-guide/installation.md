@@ -28,8 +28,10 @@ LabPlot は研究室向けのポータル（カード型ランチャー）と、
 - Releases: <https://github.com/unknowns53/LabPlot/releases>
 - 配布物は `LabPlot-（バージョン番号）-win-x64.zip` の形式で添付されています。例えば v1.4.1 なら `LabPlot-v1.4.1-win-x64.zip` です。
 - Windows（win-x64）/ macOS（osx-arm64）/ Linux（linux-x64）の 3 種類の zip が毎回添付されます。研究室の管理者から zip が手渡しで配布される運用も想定しています。
+- macOS 向けには、最新版を固定 URL で取得するためのバージョン番号なしの別名アセット `LabPlot-macos-arm64.zip`（中身は osx-arm64 zip と同一）も添付されます。後述のターミナルからのインストールで使います。
+- **macOS ではブラウザから zip をダウンロードしないでください。** 未署名アプリのため、ブラウザ経由で取得すると起動時に「壊れているため開けません」と表示されます。詳細と対処は「[インストール（macOS）](#インストールmacos)」を参照してください。
 
-zip の中には、ポータル本体（`LabPlot.Avalonia.exe` ほか）、解析モジュール 3 つと Data Viewer の DLL、サンプルデータ用フォルダ `samples/`、必要なランタイムファイルが入っています。
+zip の中には、ポータル本体（Windows / Linux は `LabPlot.Avalonia(.exe)`、macOS は `LabPlot.app` バンドル）、解析モジュール 3 つと Data Viewer の DLL、サンプルデータ用フォルダ `samples/`、必要なランタイムファイルが入っています。
 
 ---
 
@@ -45,13 +47,27 @@ zip の中には、ポータル本体（`LabPlot.Avalonia.exe` ほか）、解�
 
 ## インストール（macOS）
 
-1. 取得した zip を `~/Applications` などに解凍します。
-2. 解凍したフォルダの中の `LabPlot.Avalonia` をダブルクリックで起動します。
-3. 初回起動時に Gatekeeper（「開発元を確認できません」）の警告が出る場合があります。`LabPlot.Avalonia` を Finder 上で右クリック → 「開く」を選び、ダイアログで再度「開く」をクリックしてください。次回以降は通常のダブルクリックで起動できます。
-4. それでも起動しない場合はターミナルから次を実行して隔離属性を外せます。
-   ```bash
-   xattr -dr com.apple.quarantine /path/to/LabPlot.Avalonia
-   ```
+macOS 版は Apple の開発者証明書（Developer ID）で署名していません。このため、ブラウザでダウンロードした zip から `LabPlot.app` を開こうとすると、Gatekeeper が「"LabPlot.app" は壊れているため開けません。ゴミ箱に入れる必要があります。」と表示します。ファイルが実際に壊れているわけではなく、ブラウザ経由のダウンロードで付く隔離属性（quarantine）と未署名の組み合わせに対する macOS 標準の警告です。最近の macOS では右クリック → 「開く」でこの警告を回避することはできません。
+
+**推奨: ターミナルからインストールする**
+
+ターミナル（アプリケーション → ユーティリティ → ターミナル）で次の 1 行を実行します。curl でのダウンロードには隔離属性が付かないため、警告なしでそのまま起動できます。
+
+```bash
+curl -L https://github.com/unknowns53/LabPlot/releases/latest/download/LabPlot-macos-arm64.zip -o /tmp/LabPlot.zip && ditto -x -k /tmp/LabPlot.zip /Applications/
+```
+
+`/Applications` に `LabPlot.app` が展開されるので、Launchpad または Finder からダブルクリックで起動します。更新のときも同じコマンドを再実行すれば上書きされます。
+
+**ブラウザで zip をダウンロードしてしまった場合**
+
+解凍した `LabPlot.app` に対して、ターミナルから隔離属性を外してから起動します。
+
+```bash
+xattr -dr com.apple.quarantine /Applications/LabPlot.app
+```
+
+パス（`/Applications/LabPlot.app` の部分）は実際に置いた場所に合わせて読み替えてください。
 
 ---
 
